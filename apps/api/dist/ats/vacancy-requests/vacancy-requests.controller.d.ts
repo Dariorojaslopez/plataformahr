@@ -27,8 +27,8 @@ export declare class VacancyRequestsController {
                 status: import("@prisma/client").$Enums.ApprovalStatus;
                 updatedAt: Date;
                 comment: string | null;
-                sequence: number;
                 vacancyRequestId: string;
+                sequence: number;
                 step: import("@prisma/client").$Enums.VacancyApprovalStep;
                 approverEmployeeId: string | null;
                 requiredRoleCode: string | null;
@@ -132,8 +132,8 @@ export declare class VacancyRequestsController {
             status: import("@prisma/client").$Enums.ApprovalStatus;
             updatedAt: Date;
             comment: string | null;
-            sequence: number;
             vacancyRequestId: string;
+            sequence: number;
             step: import("@prisma/client").$Enums.VacancyApprovalStep;
             approverEmployeeId: string | null;
             requiredRoleCode: string | null;
@@ -208,8 +208,8 @@ export declare class VacancyRequestsController {
             status: import("@prisma/client").$Enums.ApprovalStatus;
             updatedAt: Date;
             comment: string | null;
-            sequence: number;
             vacancyRequestId: string;
+            sequence: number;
             step: import("@prisma/client").$Enums.VacancyApprovalStep;
             approverEmployeeId: string | null;
             requiredRoleCode: string | null;
@@ -244,8 +244,8 @@ export declare class VacancyRequestsController {
             status: import("@prisma/client").$Enums.ApprovalStatus;
             updatedAt: Date;
             comment: string | null;
-            sequence: number;
             vacancyRequestId: string;
+            sequence: number;
             step: import("@prisma/client").$Enums.VacancyApprovalStep;
             approverEmployeeId: string | null;
             requiredRoleCode: string | null;
@@ -280,8 +280,8 @@ export declare class VacancyRequestsController {
             status: import("@prisma/client").$Enums.ApprovalStatus;
             updatedAt: Date;
             comment: string | null;
-            sequence: number;
             vacancyRequestId: string;
+            sequence: number;
             step: import("@prisma/client").$Enums.VacancyApprovalStep;
             approverEmployeeId: string | null;
             requiredRoleCode: string | null;

@@ -67,6 +67,10 @@ describe('Core multi-tenant persistence', () => {
       'RECRUITER',
     ]);
     expect(permissions.map((permission) => permission.code).sort()).toEqual([
+      'ats.application.manage',
+      'ats.application.read',
+      'ats.candidate.manage',
+      'ats.candidate.read',
       'ats.vacancy.approve',
       'ats.vacancy.manage',
       'ats.vacancy.read',
@@ -84,6 +88,10 @@ describe('Core multi-tenant persistence', () => {
       .map((link) => link.permission.code)
       .sort();
     expect(clientAdminPerms).toEqual([
+      'ats.application.manage',
+      'ats.application.read',
+      'ats.candidate.manage',
+      'ats.candidate.read',
       'ats.vacancy.approve',
       'ats.vacancy.manage',
       'ats.vacancy.read',

@@ -65,11 +65,12 @@ model User {
   updatedAt       DateTime   @updatedAt
   deletedAt       DateTime?
 
-  memberships             CompanyMembership[]
-  sessions                UserSession[]
-  auditLogs               AuditLog[]
-  employees               Employee[]
-  vacancyApprovalsDecided VacancyApproval[]
+  memberships               CompanyMembership[]
+  sessions                  UserSession[]
+  auditLogs                 AuditLog[]
+  employees                 Employee[]
+  vacancyApprovalsDecided   VacancyApproval[]
+  applicationStageHistories ApplicationStageHistory[]
 
   @@map("users")
 }
@@ -107,18 +108,21 @@ model Company {
   updatedAt       DateTime      @updatedAt
   deletedAt       DateTime?
 
-  memberships      CompanyMembership[]
-  modules          CompanyModule[]
-  auditLogs        AuditLog[]
-  businessUnits    BusinessUnit[]
-  areas            Area[]
-  jobLevels        JobLevel[]
-  positions        Position[]
-  employees        Employee[]
-  reportingLines   EmployeeReportingLine[]
-  vacancyRequests  VacancyRequest[]
-  vacancyApprovals VacancyApproval[]
-  vacancies        Vacancy[]
+  memberships               CompanyMembership[]
+  modules                   CompanyModule[]
+  auditLogs                 AuditLog[]
+  businessUnits             BusinessUnit[]
+  areas                     Area[]
+  jobLevels                 JobLevel[]
+  positions                 Position[]
+  employees                 Employee[]
+  reportingLines            EmployeeReportingLine[]
+  vacancyRequests           VacancyRequest[]
+  vacancyApprovals          VacancyApproval[]
+  vacancies                 Vacancy[]
+  candidates                Candidate[]
+  applications              Application[]
+  applicationStageHistories ApplicationStageHistory[]
 
   @@map("companies")
 }
@@ -559,10 +563,111 @@ model Vacancy {
   vacancyRequest VacancyRequest @relation(fields: [vacancyRequestId], references: [id], onDelete: Restrict)
   position       Position       @relation(fields: [positionId], references: [id], onDelete: Restrict)
   area           Area           @relation(fields: [areaId], references: [id], onDelete: Restrict)
+  applications   Application[]
 
   @@index([companyId])
   @@index([positionId])
   @@index([areaId])
   @@index([status])
   @@map("vacancies")
+}
+
+// ---------------------------------------------------------------------------
+// ATS — Candidates & applications pipeline
+// ---------------------------------------------------------------------------
+
+enum CandidateStatus {
+  ACTIVE
+  INACTIVE
+  HIRED
+}
+
+enum ApplicationStage {
+  PENDING_REVIEW
+  CONTACTED
+  INTERVIEW
+  OFFER
+  HIRED
+  REJECTED
+  WITHDRAWN
+}
+
+enum ApplicationStatus {
+  ACTIVE
+  CLOSED
+}
+
+model Candidate {
+  id             String          @id @default(uuid()) @db.Uuid
+  companyId      String          @db.Uuid
+  firstName      String
+  lastName       String
+  email          String
+  phone          String?
+  documentType   String?
+  documentNumber String?
+  country        String?
+  state          String?
+  city           String?
+  source         String?
+  status         CandidateStatus @default(ACTIVE)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  deletedAt      DateTime?
+
+  company      Company       @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  applications Application[]
+
+  @@unique([companyId, email])
+  @@unique([companyId, documentNumber])
+  @@index([companyId])
+  @@index([status])
+  @@map("candidates")
+}
+
+model Application {
+  id                 String            @id @default(uuid()) @db.Uuid
+  companyId          String            @db.Uuid
+  candidateId        String            @db.Uuid
+  vacancyId          String            @db.Uuid
+  stage              ApplicationStage  @default(PENDING_REVIEW)
+  status             ApplicationStatus @default(ACTIVE)
+  appliedAt          DateTime          @default(now())
+  lastStageChangedAt DateTime          @default(now())
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+  deletedAt          DateTime?
+
+  company   Company                   @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  candidate Candidate                 @relation(fields: [candidateId], references: [id], onDelete: Restrict)
+  vacancy   Vacancy                   @relation(fields: [vacancyId], references: [id], onDelete: Restrict)
+  history   ApplicationStageHistory[]
+
+  @@unique([candidateId, vacancyId])
+  @@index([companyId])
+  @@index([vacancyId])
+  @@index([candidateId])
+  @@index([stage])
+  @@index([status])
+  @@map("applications")
+}
+
+model ApplicationStageHistory {
+  id              String            @id @default(uuid()) @db.Uuid
+  companyId       String            @db.Uuid
+  applicationId   String            @db.Uuid
+  fromStage       ApplicationStage?
+  toStage         ApplicationStage
+  changedByUserId String            @db.Uuid
+  comment         String?
+  createdAt       DateTime          @default(now())
+
+  company     Company     @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  application Application @relation(fields: [applicationId], references: [id], onDelete: Restrict)
+  changedBy   User        @relation(fields: [changedByUserId], references: [id], onDelete: Restrict)
+
+  @@index([companyId])
+  @@index([applicationId])
+  @@index([createdAt])
+  @@map("application_stage_histories")
 }

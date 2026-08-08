@@ -14,6 +14,11 @@ const rbac_module_1 = require("../core/rbac/rbac.module");
 const organization_integrity_service_1 = require("../organization/organization-integrity.service");
 const permission_guard_1 = require("../rbac/guards/permission.guard");
 const company_context_guard_1 = require("../tenant/guards/company-context.guard");
+const applications_controller_1 = require("./applications/applications.controller");
+const applications_service_1 = require("./applications/applications.service");
+const candidates_controller_1 = require("./candidates/candidates.controller");
+const candidates_service_1 = require("./candidates/candidates.service");
+const pipeline_controller_1 = require("./pipeline/pipeline.controller");
 const vacancy_requests_controller_1 = require("./vacancy-requests/vacancy-requests.controller");
 const vacancy_requests_service_1 = require("./vacancy-requests/vacancy-requests.service");
 const vacancies_controller_1 = require("./vacancies/vacancies.controller");
@@ -24,13 +29,21 @@ exports.AtsModule = AtsModule;
 exports.AtsModule = AtsModule = __decorate([
     (0, common_1.Module)({
         imports: [auth_module_1.AuthModule, rbac_module_1.RbacModule, audit_module_1.AuditModule],
-        controllers: [vacancy_requests_controller_1.VacancyRequestsController, vacancies_controller_1.VacanciesController],
+        controllers: [
+            vacancy_requests_controller_1.VacancyRequestsController,
+            vacancies_controller_1.VacanciesController,
+            pipeline_controller_1.PipelineController,
+            candidates_controller_1.CandidatesController,
+            applications_controller_1.ApplicationsController,
+        ],
         providers: [
             company_context_guard_1.CompanyContextGuard,
             permission_guard_1.PermissionGuard,
             organization_integrity_service_1.OrganizationIntegrityService,
             vacancy_requests_service_1.VacancyRequestsService,
             vacancies_service_1.VacanciesService,
+            candidates_service_1.CandidatesService,
+            applications_service_1.ApplicationsService,
         ],
     })
 ], AtsModule);

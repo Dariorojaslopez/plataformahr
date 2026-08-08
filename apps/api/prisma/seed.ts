@@ -86,6 +86,26 @@ const PERMISSIONS = [
     name: 'Manage vacancies',
     description: 'Manage vacancy status and details',
   },
+  {
+    code: 'ats.candidate.read',
+    name: 'Read candidates',
+    description: 'View candidates',
+  },
+  {
+    code: 'ats.candidate.manage',
+    name: 'Manage candidates',
+    description: 'Create and update candidates',
+  },
+  {
+    code: 'ats.application.read',
+    name: 'Read applications',
+    description: 'View applications and pipeline',
+  },
+  {
+    code: 'ats.application.manage',
+    name: 'Manage applications',
+    description: 'Create applications and move pipeline stages',
+  },
 ] as const;
 
 const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
@@ -100,6 +120,10 @@ const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
     'ats.vacancy.request',
     'ats.vacancy.approve',
     'ats.vacancy.manage',
+    'ats.candidate.read',
+    'ats.candidate.manage',
+    'ats.application.read',
+    'ats.application.manage',
   ],
   RECRUITER: [
     'company.read',
@@ -107,6 +131,10 @@ const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
     'ats.vacancy.read',
     'ats.vacancy.request',
     'ats.vacancy.manage',
+    'ats.candidate.read',
+    'ats.candidate.manage',
+    'ats.application.read',
+    'ats.application.manage',
   ],
   PERFORMANCE_MANAGER: [
     'company.read',
@@ -119,6 +147,8 @@ const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
     'ats.vacancy.read',
     'ats.vacancy.request',
     'ats.vacancy.approve',
+    'ats.candidate.read',
+    'ats.application.read',
   ],
   COLLABORATOR: [
     'company.read',
