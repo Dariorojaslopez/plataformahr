@@ -667,13 +667,13 @@ describe('ATS candidates & applications (e2e)', () => {
         .expect(404);
     });
 
-    it('allows happy-path stage moves and closes on HIRED without side effects', async () => {
-      const move = async (stage: ApplicationStage) =>
+    it('allows happy-path stage moves to OFFER and rejects generic move to HIRED', async () => {
+      const move = async (stage: ApplicationStage, expectStatus = 201) =>
         request(app.getHttpServer())
           .post(`/ats/applications/${applicationId}/move`)
           .set(auth(recruiterToken))
           .send({ stage, comment: `to ${stage}` })
-          .expect(201);
+          .expect(expectStatus);
 
       await move(ApplicationStage.CONTACTED);
       await move(ApplicationStage.INTERVIEW);
@@ -686,11 +686,8 @@ describe('ATS candidates & applications (e2e)', () => {
         where: { id: pipelineCandidateId },
       });
 
-      const hired = await move(ApplicationStage.HIRED);
-      expect((hired.body as { status: string }).status).toBe('CLOSED');
-      expect((hired.body as { stage: string }).stage).toBe(
-        ApplicationStage.HIRED,
-      );
+      const hiredAttempt = await move(ApplicationStage.HIRED, 400);
+      expect(JSON.stringify(hiredAttempt.body)).toMatch(/HIRED|Hiring/i);
 
       const after = await prisma.vacancy.findUniqueOrThrow({
         where: { id: vacancyOpen2Id },
@@ -702,17 +699,22 @@ describe('ATS candidates & applications (e2e)', () => {
       expect(candAfter.status).toBe(candBefore.status);
       expect(candAfter.status).not.toBe(CandidateStatus.HIRED);
 
+      const applicationAfter = await prisma.application.findUniqueOrThrow({
+        where: { id: applicationId },
+      });
+      expect(applicationAfter.stage).toBe(ApplicationStage.OFFER);
+
       const history = await request(app.getHttpServer())
         .get(`/ats/applications/${applicationId}/history`)
         .set(auth(recruiterToken))
         .expect(200);
-      expect((history.body as unknown[]).length).toBeGreaterThanOrEqual(5);
+      expect((history.body as unknown[]).length).toBeGreaterThanOrEqual(4);
 
       await request(app.getHttpServer())
         .post(`/ats/applications/${applicationId}/move`)
         .set(auth(recruiterToken))
-        .send({ stage: ApplicationStage.REJECTED })
-        .expect(400);
+        .send({ stage: ApplicationStage.REJECTED, comment: 'no hire' })
+        .expect(201);
     });
 
     it('rejects invalid jump and allows reject/withdraw', async () => {

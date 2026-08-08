@@ -142,6 +142,16 @@ const PERMISSIONS = [
     description:
       'Administratively register candidate acceptance or rejection of offers',
   },
+  {
+    code: 'ats.hiring.read',
+    name: 'Read hirings',
+    description: 'View formal hiring records',
+  },
+  {
+    code: 'ats.hiring.manage',
+    name: 'Manage hirings',
+    description: 'Execute formal hiring from accepted offers',
+  },
 ] as const;
 
 const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
@@ -167,6 +177,8 @@ const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
     'ats.offer.read',
     'ats.offer.manage',
     'ats.offer.respond',
+    'ats.hiring.read',
+    'ats.hiring.manage',
   ],
   RECRUITER: [
     'company.read',
@@ -185,6 +197,8 @@ const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
     'ats.offer.read',
     'ats.offer.manage',
     'ats.offer.respond',
+    'ats.hiring.read',
+    'ats.hiring.manage',
   ],
   PERFORMANCE_MANAGER: [
     'company.read',
@@ -203,6 +217,7 @@ const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
     'ats.interview.evaluate',
     'ats.interview.transcribe',
     'ats.offer.read',
+    'ats.hiring.read',
   ],
   COLLABORATOR: [
     'company.read',

@@ -44,7 +44,6 @@ const ALLOWED_STAGE_TRANSITIONS: Record<ApplicationStage, ApplicationStage[]> =
       ApplicationStage.WITHDRAWN,
     ],
     [ApplicationStage.OFFER]: [
-      ApplicationStage.HIRED,
       ApplicationStage.REJECTED,
       ApplicationStage.WITHDRAWN,
     ],
@@ -292,6 +291,11 @@ export class ApplicationsService {
       }
 
       const allowed = ALLOWED_STAGE_TRANSITIONS[application.stage];
+      if (dto.stage === ApplicationStage.HIRED) {
+        throw new BadRequestException(
+          'HIRED can only be set via formal Hiring (POST /ats/applications/:id/hire)',
+        );
+      }
       if (!allowed.includes(dto.stage)) {
         throw new BadRequestException(
           `Invalid stage transition: ${application.stage} -> ${dto.stage}`,

@@ -74,6 +74,7 @@ model User {
   interviewAnswers            InterviewAnswer[]
   interviewTranscriptSegments InterviewTranscriptSegment[]
   jobOffersCreated            JobOffer[]
+  hiringsCompleted            Hiring[]
 
   @@map("users")
 }
@@ -133,6 +134,7 @@ model Company {
   interviewAnswers            InterviewAnswer[]
   interviewTranscriptSegments InterviewTranscriptSegment[]
   jobOffers                   JobOffer[]
+  hirings                     Hiring[]
 
   @@map("companies")
 }
@@ -420,6 +422,7 @@ model Employee {
   vacancyRequestsRequested VacancyRequest[]        @relation("VacancyRequestedBy")
   vacancyApprovals         VacancyApproval[]       @relation("VacancyApprover")
   interviewAssignments     InterviewInterviewer[]
+  hiring                   Hiring?
 
   @@unique([companyId, email])
   @@unique([companyId, userId])
@@ -575,6 +578,7 @@ model Vacancy {
   position       Position       @relation(fields: [positionId], references: [id], onDelete: Restrict)
   area           Area           @relation(fields: [areaId], references: [id], onDelete: Restrict)
   applications   Application[]
+  hirings        Hiring[]
 
   @@index([companyId])
   @@index([positionId])
@@ -628,6 +632,7 @@ model Candidate {
 
   company      Company       @relation(fields: [companyId], references: [id], onDelete: Restrict)
   applications Application[]
+  hirings      Hiring[]
 
   @@unique([companyId, email])
   @@unique([companyId, documentNumber])
@@ -655,6 +660,7 @@ model Application {
   history    ApplicationStageHistory[]
   interviews Interview[]
   jobOffer   JobOffer?
+  hiring     Hiring?
 
   @@unique([candidateId, vacancyId])
   @@index([companyId])
@@ -930,9 +936,42 @@ model JobOffer {
   company     Company     @relation(fields: [companyId], references: [id], onDelete: Restrict)
   application Application @relation(fields: [applicationId], references: [id], onDelete: Restrict)
   createdBy   User        @relation(fields: [createdByUserId], references: [id], onDelete: Restrict)
+  hiring      Hiring?
 
   @@index([companyId])
   @@index([status])
   @@index([createdByUserId])
   @@map("job_offers")
+}
+
+// ---------------------------------------------------------------------------
+// ATS — Hiring (transactional close of selection → Organization Employee)
+// ---------------------------------------------------------------------------
+
+model Hiring {
+  id            String   @id @default(uuid()) @db.Uuid
+  companyId     String   @db.Uuid
+  applicationId String   @unique @db.Uuid
+  jobOfferId    String   @unique @db.Uuid
+  employeeId    String   @unique @db.Uuid
+  candidateId   String   @db.Uuid
+  vacancyId     String   @db.Uuid
+  hiredByUserId String   @db.Uuid
+  hireDate      DateTime @db.Date
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  company     Company     @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  application Application @relation(fields: [applicationId], references: [id], onDelete: Restrict)
+  jobOffer    JobOffer    @relation(fields: [jobOfferId], references: [id], onDelete: Restrict)
+  employee    Employee    @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  candidate   Candidate   @relation(fields: [candidateId], references: [id], onDelete: Restrict)
+  vacancy     Vacancy     @relation(fields: [vacancyId], references: [id], onDelete: Restrict)
+  hiredBy     User        @relation(fields: [hiredByUserId], references: [id], onDelete: Restrict)
+
+  @@index([companyId])
+  @@index([candidateId])
+  @@index([vacancyId])
+  @@index([hiredByUserId])
+  @@map("hirings")
 }

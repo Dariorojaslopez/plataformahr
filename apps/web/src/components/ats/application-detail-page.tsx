@@ -10,6 +10,7 @@ import {
   toCreateInterviewPayload,
   type InterviewFormValues,
 } from "@/components/ats/interview-form";
+import { ApplicationHiringSectionConnected } from "@/components/ats/application-hiring-section";
 import { ApplicationOfferSection } from "@/components/ats/offer-detail-page";
 import { EntityEditorShell } from "@/components/organization/entity-editor-shell";
 import { Badge } from "@/components/ui/badge";
@@ -244,6 +245,8 @@ export function ApplicationDetailPageClient() {
         applicationId={id}
         applicationStage={application.stage}
       />
+
+      <ApplicationHiringSectionConnected applicationId={id} />
 
       <section className="space-y-4">
         <h2 className="text-lg font-semibold">Historial</h2>

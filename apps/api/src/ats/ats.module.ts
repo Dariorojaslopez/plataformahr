@@ -16,6 +16,8 @@ import { InterviewsService } from './interviews/interviews.service';
 import { ApplicationOffersController } from './offers/application-offers.controller';
 import { OffersController } from './offers/offers.controller';
 import { OffersService } from './offers/offers.service';
+import { ApplicationHiringController } from './hiring/application-hiring.controller';
+import { HiringService } from './hiring/hiring.service';
 import { PipelineController } from './pipeline/pipeline.controller';
 import { VacancyRequestsController } from './vacancy-requests/vacancy-requests.controller';
 import { VacancyRequestsService } from './vacancy-requests/vacancy-requests.service';
@@ -32,6 +34,7 @@ import { VacanciesService } from './vacancies/vacancies.service';
     ApplicationsController,
     ApplicationInterviewsController,
     ApplicationOffersController,
+    ApplicationHiringController,
     InterviewsController,
     InterviewFormTemplatesController,
     OffersController,
@@ -46,6 +49,7 @@ import { VacanciesService } from './vacancies/vacancies.service';
     ApplicationsService,
     InterviewsService,
     OffersService,
+    HiringService,
   ],
 })
 export class AtsModule {}
