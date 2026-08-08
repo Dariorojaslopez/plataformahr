@@ -8,6 +8,13 @@ import type {
   VacancyRequestType,
   VacancyStatus,
 } from "@/types/ats";
+import type {
+  InterviewFormStatus,
+  InterviewQuestionType,
+  InterviewStatus,
+  InterviewType,
+  TranscriptSegmentKind,
+} from "@/types/interviews";
 
 type BadgeVariant =
   | "default"
@@ -183,4 +190,82 @@ export function formatDateShort(value: string | null | undefined): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "—";
   return new Intl.DateTimeFormat("es", { dateStyle: "medium" }).format(date);
+}
+
+export const INTERVIEW_STATUS_LABELS: Record<InterviewStatus, string> = {
+  DRAFT: "Borrador",
+  SCHEDULED: "Programada",
+  IN_PROGRESS: "En curso",
+  COMPLETED: "Completada",
+  CANCELLED: "Cancelada",
+};
+
+export const INTERVIEW_TYPE_LABELS: Record<InterviewType, string> = {
+  HR: "RRHH",
+  TECHNICAL: "Técnica",
+  MANAGER: "Gerencial",
+  GENERAL: "General",
+  OTHER: "Otra",
+};
+
+export const INTERVIEW_FORM_STATUS_LABELS: Record<InterviewFormStatus, string> =
+  {
+    ACTIVE: "Activa",
+    INACTIVE: "Inactiva",
+  };
+
+export const INTERVIEW_QUESTION_TYPE_LABELS: Record<
+  InterviewQuestionType,
+  string
+> = {
+  TEXT: "Texto corto",
+  TEXTAREA: "Texto largo",
+  RATING: "Calificación 1–5",
+  YES_NO: "Sí / No",
+};
+
+export const TRANSCRIPT_KIND_LABELS: Record<TranscriptSegmentKind, string> = {
+  QUESTION: "Pregunta",
+  ANSWER: "Respuesta",
+  NOTE: "Nota",
+  UNCLASSIFIED: "Sin clasificar",
+};
+
+export function interviewStatusVariant(status: InterviewStatus): BadgeVariant {
+  switch (status) {
+    case "COMPLETED":
+      return "success";
+    case "IN_PROGRESS":
+      return "warning";
+    case "CANCELLED":
+      return "destructive";
+    case "SCHEDULED":
+      return "default";
+    default:
+      return "secondary";
+  }
+}
+
+export function transcriptKindVariant(
+  kind: TranscriptSegmentKind,
+): BadgeVariant {
+  switch (kind) {
+    case "QUESTION":
+      return "default";
+    case "ANSWER":
+      return "success";
+    case "NOTE":
+      return "warning";
+    default:
+      return "outline";
+  }
+}
+
+/** Application stages that allow creating an interview (backend rule). */
+export function canScheduleInterviewForStage(
+  stage: ApplicationStage,
+): boolean {
+  return (
+    stage !== "REJECTED" && stage !== "WITHDRAWN" && stage !== "HIRED"
+  );
 }

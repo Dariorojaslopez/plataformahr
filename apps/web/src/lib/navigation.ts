@@ -3,6 +3,7 @@ import {
   Building2,
   CalendarDays,
   ClipboardList,
+  FileText,
   Gauge,
   GitBranch,
   LayoutDashboard,
@@ -92,6 +93,11 @@ export const APP_NAV: NavSection[] = [
         href: "/ats/interviews",
         icon: CalendarDays,
       },
+      {
+        label: "Plantillas de entrevista",
+        href: "/ats/interview-templates",
+        icon: FileText,
+      },
     ],
   },
   {
@@ -118,6 +124,8 @@ export function resolvePageTitle(pathname: string): string {
   if (pathname.startsWith("/ats/vacancies/")) return "Vacante";
   if (pathname.startsWith("/ats/candidates/")) return "Candidato";
   if (pathname.startsWith("/ats/applications/")) return "Aplicación";
+  if (pathname.startsWith("/ats/interviews/")) return "Entrevista";
+  if (pathname === "/ats/interview-templates") return "Plantillas de entrevista";
   if (pathname === "/select-company") return "Seleccionar compañía";
   if (pathname === "/platform") return "Platform";
   return "Talento Sin Clave";

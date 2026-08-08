@@ -1,10 +1,11 @@
-import { ComingSoonPage } from "@/components/layout/coming-soon-page";
+import { Suspense } from "react";
+import { InterviewsPageClient } from "@/components/ats/interviews-page";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export default function Page() {
   return (
-    <ComingSoonPage
-      title="Entrevistas"
-      description="Agenda, formularios y transcripciones."
-    />
+    <Suspense fallback={<Skeleton className="h-40 w-full" />}>
+      <InterviewsPageClient />
+    </Suspense>
   );
 }
