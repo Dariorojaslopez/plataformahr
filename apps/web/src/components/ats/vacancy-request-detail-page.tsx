@@ -39,6 +39,7 @@ import {
   VACANCY_REQUEST_TYPE_LABELS,
   vacancyRequestStatusVariant,
 } from "@/lib/ats/labels";
+import { notifyError, notifySuccess } from "@/lib/ui/notify";
 
 export function VacancyRequestDetailPageClient() {
   const companyId = useCompanyId();
@@ -78,6 +79,24 @@ export function VacancyRequestDetailPageClient() {
     queryFn: () => organizationApi.listEmployees({ page: 1, limit: 100 }),
   });
 
+  const employeeById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const emp of employeesQuery.data?.items ?? []) {
+      map.set(emp.id, `${emp.firstName} ${emp.lastName}`.trim());
+    }
+    return map;
+  }, [employeesQuery.data]);
+
+  const employeeByUserId = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const emp of employeesQuery.data?.items ?? []) {
+      if (emp.userId) {
+        map.set(emp.userId, `${emp.firstName} ${emp.lastName}`.trim());
+      }
+    }
+    return map;
+  }, [employeesQuery.data]);
+
   const request = detailQuery.data;
   const approvals = useMemo(
     () =>
@@ -96,9 +115,11 @@ export function VacancyRequestDetailPageClient() {
       await invalidate();
       setEditOpen(false);
       setFormError(null);
+      notifySuccess("Solicitud actualizada");
     },
     onError: (error) => {
       setFormError(getErrorMessage(error, "No se pudo actualizar."));
+      notifyError(error, "No se pudo actualizar.");
     },
   });
 
@@ -108,10 +129,12 @@ export function VacancyRequestDetailPageClient() {
       await invalidate();
       setSubmitOpen(false);
       setActionError(null);
+      notifySuccess("Solicitud enviada a aprobación");
     },
     onError: (error) => {
       setActionError(getErrorMessage(error, "No se pudo enviar."));
       setSubmitOpen(false);
+      notifyError(error, "No se pudo enviar.");
     },
   });
 
@@ -125,9 +148,11 @@ export function VacancyRequestDetailPageClient() {
       setApproveOpen(false);
       setApproveComment("");
       setActionError(null);
+      notifySuccess("Paso de aprobación confirmado");
     },
     onError: (error) => {
       setActionError(getErrorMessage(error, "No se pudo aprobar."));
+      notifyError(error, "No se pudo aprobar.");
       if (error instanceof ApiError && error.status === 403) {
         setApproveOpen(false);
       }
@@ -142,9 +167,11 @@ export function VacancyRequestDetailPageClient() {
       setRejectOpen(false);
       setRejectComment("");
       setActionError(null);
+      notifySuccess("Solicitud rechazada");
     },
     onError: (error) => {
       setActionError(getErrorMessage(error, "No se pudo rechazar."));
+      notifyError(error, "No se pudo rechazar.");
     },
   });
 
@@ -294,19 +321,27 @@ export function VacancyRequestDetailPageClient() {
                   </div>
                   {step.approverEmployeeId ? (
                     <p className="text-xs text-muted-foreground">
-                      Approver employee: {step.approverEmployeeId}
+                      Aprobador:{" "}
+                      {employeeById.get(step.approverEmployeeId) ??
+                        "Colaborador asignado"}
                     </p>
                   ) : null}
                   {step.requiredRoleCode ? (
                     <p className="text-xs text-muted-foreground">
-                      Rol requerido: {step.requiredRoleCode}
+                      Rol requerido:{" "}
+                      {step.requiredRoleCode === "CLIENT_ADMIN"
+                        ? "Administrador de compañía"
+                        : step.requiredRoleCode}
                     </p>
                   ) : null}
                   {step.decidedAt ? (
                     <p className="text-xs text-muted-foreground">
                       Decidido: {formatDate(step.decidedAt)}
                       {step.decidedByUserId
-                        ? ` · userId ${step.decidedByUserId}`
+                        ? ` · ${
+                            employeeByUserId.get(step.decidedByUserId) ??
+                            "Usuario del tenant"
+                          }`
                         : ""}
                     </p>
                   ) : null}

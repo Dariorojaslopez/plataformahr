@@ -177,7 +177,7 @@ export function VacancyRequestForm({
           }
           options={employees}
           allowEmpty
-          emptyLabel="Yo (empleado vinculado)"
+          emptyLabel="Yo (colaborador vinculado)"
           hint="CLIENT_ADMIN/RECRUITER pueden solicitar en nombre de otro colaborador."
         />
       ) : null}
@@ -235,7 +235,7 @@ export function VacancyRequestForm({
       )}
 
       <div className="space-y-2">
-        <Label htmlFor="vr-headcount">Headcount solicitado *</Label>
+        <Label htmlFor="vr-headcount">Plazas solicitadas *</Label>
         <Input
           id="vr-headcount"
           type="number"
@@ -248,7 +248,7 @@ export function VacancyRequestForm({
           required
         />
         <p className="text-xs text-muted-foreground">
-          Número de posiciones solicitadas.
+          Número de plazas solicitadas.
         </p>
       </div>
 

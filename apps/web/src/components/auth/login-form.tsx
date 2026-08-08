@@ -60,7 +60,14 @@ export function LoginForm() {
   }
 
   return (
-    <form className="space-y-5" onSubmit={onSubmit} noValidate>
+    <form
+      className="space-y-5"
+      method="post"
+      action="#"
+      onSubmit={onSubmit}
+      noValidate
+      autoComplete="on"
+    >
       <div className="space-y-2">
         <Label htmlFor="email">Email</Label>
         <Input

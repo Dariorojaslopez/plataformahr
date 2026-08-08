@@ -99,7 +99,7 @@ export function PositionsPageClient() {
       const headcount = Number(form.headcount);
       if (!form.areaId) throw new Error("El área es obligatoria.");
       if (!Number.isInteger(headcount) || headcount < 0) {
-        throw new Error("Headcount debe ser un entero >= 0.");
+        throw new Error("Plazas debe ser un entero >= 0.");
       }
       const base = {
         name: form.name.trim(),
@@ -205,13 +205,13 @@ export function PositionsPageClient() {
                 <TableHead>Nivel</TableHead>
                 <TableHead>
                   <span className="inline-flex items-center gap-1">
-                    Headcount
+                    Plazas
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <button
                           type="button"
                           className="text-muted-foreground"
-                          aria-label="Ayuda headcount"
+                          aria-label="Ayuda plazas"
                         >
                           <Info className="h-3.5 w-3.5" />
                         </button>
@@ -318,7 +318,7 @@ export function PositionsPageClient() {
             }))}
           />
           <div className="space-y-2">
-            <Label htmlFor="pos-headcount">Headcount</Label>
+            <Label htmlFor="pos-headcount">Plazas</Label>
             <Input
               id="pos-headcount"
               type="number"

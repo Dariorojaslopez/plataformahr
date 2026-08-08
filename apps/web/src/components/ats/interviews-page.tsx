@@ -40,6 +40,7 @@ import {
   INTERVIEW_TYPE_LABELS,
   interviewStatusVariant,
 } from "@/lib/ats/labels";
+import { notifyError, notifySuccess } from "@/lib/ui/notify";
 
 /**
  * No hay GET tenant-wide de interviews. Esta pantalla lista por Application
@@ -141,9 +142,11 @@ export function InterviewsPageClient() {
       setOpen(false);
       setForm(emptyInterviewForm());
       setFormError(null);
+      notifySuccess("Entrevista creada");
     },
     onError: (error) => {
       setFormError(getErrorMessage(error, "No se pudo crear la entrevista."));
+      notifyError(error, "No se pudo crear la entrevista.");
     },
   });
 

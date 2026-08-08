@@ -34,6 +34,7 @@ import {
   getVacancyStatusActions,
   VACANCY_STATUS_ACTION_LABELS,
 } from "@/lib/ats/transitions";
+import { notifyError, notifySuccess } from "@/lib/ui/notify";
 import type { ListVacanciesParams, Vacancy, VacancyStatus } from "@/types/ats";
 
 function useVacancyFilters() {
@@ -76,9 +77,11 @@ export function VacanciesPageClient() {
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: atsKeys.all(companyId) });
       setActionError(null);
+      notifySuccess("Estado de vacante actualizado");
     },
     onError: (error) => {
       setActionError(getErrorMessage(error, "No se pudo actualizar el estado."));
+      notifyError(error, "No se pudo actualizar el estado.");
     },
   });
 
@@ -162,8 +165,8 @@ export function VacanciesPageClient() {
                   <TableHead>Vacante</TableHead>
                   <TableHead>Cargo</TableHead>
                   <TableHead>Área</TableHead>
-                  <TableHead>Headcount</TableHead>
-                  <TableHead>Filled</TableHead>
+                  <TableHead>Plazas</TableHead>
+                  <TableHead>Cubiertas</TableHead>
                   <TableHead>Estado</TableHead>
                   <TableHead>Apertura</TableHead>
                   <TableHead className="text-right">Acciones</TableHead>
@@ -203,7 +206,7 @@ export function VacanciesPageClient() {
                   </Badge>
                 </div>
                 <p className="text-sm text-muted-foreground">
-                  {vacancy.filledCount}/{vacancy.headcount} ·{" "}
+                  {vacancy.filledCount}/{vacancy.headcount} plazas ·{" "}
                   {formatDateShort(vacancy.openedAt)}
                 </p>
                 <VacancyActions

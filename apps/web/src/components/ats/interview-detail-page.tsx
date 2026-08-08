@@ -33,6 +33,8 @@ import {
   INTERVIEW_TYPE_LABELS,
   interviewStatusVariant,
 } from "@/lib/ats/labels";
+import { safeHttpUrl } from "@/lib/ui/safe-url";
+import { notifyError, notifySuccess } from "@/lib/ui/notify";
 
 export function InterviewDetailPageClient() {
   const companyId = useCompanyId();
@@ -86,10 +88,12 @@ export function InterviewDetailPageClient() {
       await invalidateAll();
       setConfirm(null);
       setActionError(null);
+      notifySuccess("Entrevista iniciada");
     },
     onError: (error) => {
       setActionError(getErrorMessage(error, "No se pudo iniciar."));
       setConfirm(null);
+      notifyError(error, "No se pudo iniciar.");
     },
   });
 
@@ -99,6 +103,7 @@ export function InterviewDetailPageClient() {
       await invalidateAll();
       setConfirm(null);
       setActionError(null);
+      notifySuccess("Entrevista completada");
     },
     onError: (error) => {
       setActionError(
@@ -108,6 +113,7 @@ export function InterviewDetailPageClient() {
         ),
       );
       setConfirm(null);
+      notifyError(error, "No se pudo finalizar. Revisa preguntas requeridas.");
     },
   });
 
@@ -117,10 +123,12 @@ export function InterviewDetailPageClient() {
       await invalidateAll();
       setConfirm(null);
       setActionError(null);
+      notifySuccess("Entrevista cancelada");
     },
     onError: (error) => {
       setActionError(getErrorMessage(error, "No se pudo cancelar."));
       setConfirm(null);
+      notifyError(error, "No se pudo cancelar.");
     },
   });
 
@@ -160,6 +168,8 @@ export function InterviewDetailPageClient() {
     interview.status !== "CANCELLED" && interview.status !== "COMPLETED"
       ? true
       : interview.status === "COMPLETED";
+
+  const meetingHref = safeHttpUrl(interview.meetingUrl);
 
   // Transcript can be viewed when completed; edits blocked in panel via canEdit
   const transcriptEditable =
@@ -222,7 +232,20 @@ export function InterviewDetailPageClient() {
 
       <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <Field label="Ubicación">{interview.location ?? "—"}</Field>
-        <Field label="Reunión">{interview.meetingUrl ?? "—"}</Field>
+        <Field label="Reunión">
+          {meetingHref ? (
+            <a
+              href={meetingHref}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-primary underline-offset-2 hover:underline"
+            >
+              Abrir reunión
+            </a>
+          ) : (
+            (interview.meetingUrl ?? "—")
+          )}
+        </Field>
         <Field label="Grabación local">
           {interview.localRecordingName ?? "—"}
         </Field>

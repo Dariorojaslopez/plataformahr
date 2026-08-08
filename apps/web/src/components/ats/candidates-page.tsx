@@ -38,6 +38,7 @@ import {
   CANDIDATE_STATUS_LABELS,
   candidateStatusVariant,
 } from "@/lib/ats/labels";
+import { notifyError, notifySuccess } from "@/lib/ui/notify";
 import type { Candidate, CandidateStatus, ListCandidatesParams } from "@/types/ats";
 
 function useCandidateFilters() {
@@ -93,6 +94,7 @@ export function CandidatesPageClient() {
       setEditing(null);
       setForm(emptyCandidateForm());
       setFormError(null);
+      notifySuccess(editing ? "Candidato actualizado" : "Candidato creado");
     },
     onError: (error) => {
       if (error instanceof ApiError && error.status === 409) {
@@ -100,9 +102,14 @@ export function CandidatesPageClient() {
           error.message ||
             "Ya existe un candidato con este email o documento.",
         );
+        notifyError(
+          error,
+          "Ya existe un candidato con este email o documento.",
+        );
         return;
       }
       setFormError(getErrorMessage(error, "No se pudo guardar el candidato."));
+      notifyError(error, "No se pudo guardar el candidato.");
     },
   });
 

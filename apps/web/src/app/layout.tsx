@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import { SessionProvider } from "@/components/auth/session-provider";
 import { QueryProvider } from "@/components/providers/query-provider";
 import { ThemeProvider } from "@/components/theme/theme-provider";
+import { AppToaster } from "@/components/ui/app-toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import "./globals.css";
 
@@ -37,7 +38,10 @@ export default function RootLayout({
         <ThemeProvider>
           <SessionProvider>
             <QueryProvider>
-              <TooltipProvider delayDuration={200}>{children}</TooltipProvider>
+              <TooltipProvider delayDuration={200}>
+                {children}
+                <AppToaster />
+              </TooltipProvider>
             </QueryProvider>
           </SessionProvider>
         </ThemeProvider>

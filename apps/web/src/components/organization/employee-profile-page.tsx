@@ -28,6 +28,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useCompanyId } from "@/hooks/use-company-id";
 import { getErrorMessage } from "@/lib/api/errors";
 import { organizationApi, orgKeys } from "@/lib/api/organization";
+import { formatDateShort } from "@/lib/ats/labels";
+import { notifyError, notifySuccess } from "@/lib/ui/notify";
 import { getInitials } from "@/lib/utils";
 import type { ReportingLineType } from "@/types/organization";
 
@@ -91,9 +93,11 @@ export function EmployeeProfilePageClient() {
       });
       setEditOpen(false);
       setFormError(null);
+      notifySuccess("Colaborador actualizado");
     },
     onError: (error) => {
       setFormError(getErrorMessage(error, "No se pudo actualizar."));
+      notifyError(error, "No se pudo actualizar.");
     },
   });
 
@@ -111,11 +115,13 @@ export function EmployeeProfilePageClient() {
       setManagerId("");
       setReportType("DIRECT");
       setReportError(null);
+      notifySuccess("Línea de reporte agregada");
     },
     onError: (error) => {
       setReportError(
         getErrorMessage(error, "No se pudo agregar la línea de reporte."),
       );
+      notifyError(error, "No se pudo agregar la línea de reporte.");
     },
   });
 
@@ -126,6 +132,10 @@ export function EmployeeProfilePageClient() {
       await queryClient.invalidateQueries({
         queryKey: orgKeys.all(companyId),
       });
+      notifySuccess("Relación de reporte eliminada");
+    },
+    onError: (error) => {
+      notifyError(error, "No se pudo eliminar la relación.");
     },
   });
 
@@ -205,7 +215,11 @@ export function EmployeeProfilePageClient() {
             <InfoRow label="Teléfono" value={employee?.phone} />
             <InfoRow
               label="Nacimiento"
-              value={employee?.birthDate?.slice(0, 10)}
+              value={
+                employee?.birthDate
+                  ? formatDateShort(employee.birthDate)
+                  : null
+              }
             />
             <InfoRow label="País" value={employee?.country} />
             <InfoRow label="Estado" value={employee?.state} />
@@ -248,7 +262,13 @@ export function EmployeeProfilePageClient() {
             <InfoRow label="Nivel" value={profile.jobLevel?.name} />
             <InfoRow
               label="Ingreso"
-              value={profile.hireDate?.slice(0, 10) ?? employee?.hireDate?.slice(0, 10)}
+              value={
+                profile.hireDate
+                  ? formatDateShort(profile.hireDate)
+                  : employee?.hireDate
+                    ? formatDateShort(employee.hireDate)
+                    : null
+              }
             />
           </CardContent>
         </Card>
@@ -287,6 +307,7 @@ export function EmployeeProfilePageClient() {
                   key={line.id}
                   name={`${line.manager.firstName} ${line.manager.lastName}`}
                   email={line.manager.email}
+                  pending={removeReportMutation.isPending}
                   onRemove={() => {
                     if (
                       window.confirm(
@@ -315,6 +336,7 @@ export function EmployeeProfilePageClient() {
                     key={line.id}
                     name={`${line.manager.firstName} ${line.manager.lastName}`}
                     email={line.manager.email}
+                    pending={removeReportMutation.isPending}
                     onRemove={() => {
                       if (
                         window.confirm(
@@ -429,10 +451,12 @@ function InfoRow({ label, value }: { label: string; value?: string | null }) {
 function ManagerRow({
   name,
   email,
+  pending,
   onRemove,
 }: {
   name: string;
   email: string;
+  pending?: boolean;
   onRemove: () => void;
 }) {
   return (
@@ -446,6 +470,7 @@ function ManagerRow({
         variant="ghost"
         size="icon"
         aria-label={`Eliminar relación con ${name}`}
+        disabled={pending}
         onClick={onRemove}
       >
         <Trash2 className="h-4 w-4" />

@@ -291,6 +291,7 @@ export function InterviewTemplatesPageClient() {
                       type="button"
                       size="sm"
                       variant="secondary"
+                      disabled={statusMutation.isPending}
                       onClick={() =>
                         statusMutation.mutate({
                           id: selected.id,

@@ -77,8 +77,12 @@ export function VacancyDetailPageClient() {
         </Field>
         <Field label="Cargo">{vacancy.position?.name ?? "—"}</Field>
         <Field label="Área">{vacancy.area?.name ?? "—"}</Field>
-        <Field label="Cobertura">
+        <Field label="Plazas">
           {vacancy.filledCount} / {vacancy.headcount}
+          <p className="mt-1 text-xs text-muted-foreground">
+            Contador de cobertura de la vacante (no implica contratación formal
+            todavía).
+          </p>
         </Field>
         <Field label="Apertura">{formatDate(vacancy.openedAt)}</Field>
         <Field label="Cierre">{formatDate(vacancy.closedAt)}</Field>

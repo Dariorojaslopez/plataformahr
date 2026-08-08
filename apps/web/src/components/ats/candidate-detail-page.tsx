@@ -44,6 +44,7 @@ import {
   candidateStatusVariant,
   formatDate,
 } from "@/lib/ats/labels";
+import { notifyError, notifySuccess } from "@/lib/ui/notify";
 
 export function CandidateDetailPageClient() {
   const companyId = useCompanyId();
@@ -81,6 +82,7 @@ export function CandidateDetailPageClient() {
       await queryClient.invalidateQueries({ queryKey: atsKeys.all(companyId) });
       setEditOpen(false);
       setFormError(null);
+      notifySuccess("Candidato actualizado");
     },
     onError: (error) => {
       if (error instanceof ApiError && error.status === 409) {
@@ -88,9 +90,14 @@ export function CandidateDetailPageClient() {
           error.message ||
             "Ya existe un candidato con este email o documento.",
         );
+        notifyError(
+          error,
+          "Ya existe un candidato con este email o documento.",
+        );
         return;
       }
       setFormError(getErrorMessage(error, "No se pudo actualizar."));
+      notifyError(error, "No se pudo actualizar.");
     },
   });
 
@@ -107,13 +114,16 @@ export function CandidateDetailPageClient() {
       setApplyOpen(false);
       setVacancyId("");
       setApplyError(null);
+      notifySuccess("Candidato postulado a la vacante");
     },
     onError: (error) => {
       if (error instanceof ApiError && error.status === 409) {
         setApplyError("Este candidato ya participa en esta vacante.");
+        notifyError(error, "Este candidato ya participa en esta vacante.");
         return;
       }
       setApplyError(getErrorMessage(error, "No se pudo postular."));
+      notifyError(error, "No se pudo postular.");
     },
   });
 

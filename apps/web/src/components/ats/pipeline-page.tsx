@@ -54,6 +54,7 @@ import {
   getValidMoveTargets,
   moveRequiresComment,
 } from "@/lib/ats/transitions";
+import { notifyError, notifySuccess } from "@/lib/ui/notify";
 import type { ApplicationStage, PipelineCard } from "@/types/ats";
 import { cn } from "@/lib/utils";
 
@@ -130,13 +131,16 @@ export function PipelinePageClient() {
       setPendingMove(null);
       setComment("");
       setMoveError(null);
+      notifySuccess("Aplicación movida de etapa");
     },
     onError: (error) => {
       setMoveError(getErrorMessage(error, "No se pudo mover la aplicación."));
+      notifyError(error, "No se pudo mover la aplicación.");
     },
   });
 
   function requestMove(move: PendingMove) {
+    if (moveMutation.isPending) return;
     setMoveError(null);
     if (moveRequiresComment(move.toStage)) {
       setPendingMove(move);
