@@ -13,13 +13,13 @@ export declare class PositionsController {
         updatedAt: Date;
         deletedAt: Date | null;
         code: string | null;
+        areaId: string;
+        jobLevelId: string | null;
         mission: string | null;
         responsibilities: string | null;
         requiredExperience: string | null;
         requiredEducation: string | null;
         headcount: number;
-        areaId: string;
-        jobLevelId: string | null;
     }[]>;
     getById(tenant: TenantContext, id: string): Promise<{
         name: string;
@@ -30,13 +30,13 @@ export declare class PositionsController {
         updatedAt: Date;
         deletedAt: Date | null;
         code: string | null;
+        areaId: string;
+        jobLevelId: string | null;
         mission: string | null;
         responsibilities: string | null;
         requiredExperience: string | null;
         requiredEducation: string | null;
         headcount: number;
-        areaId: string;
-        jobLevelId: string | null;
     }>;
     create(tenant: TenantContext, user: AuthenticatedUser, dto: CreatePositionDto): Promise<{
         name: string;
@@ -47,13 +47,13 @@ export declare class PositionsController {
         updatedAt: Date;
         deletedAt: Date | null;
         code: string | null;
+        areaId: string;
+        jobLevelId: string | null;
         mission: string | null;
         responsibilities: string | null;
         requiredExperience: string | null;
         requiredEducation: string | null;
         headcount: number;
-        areaId: string;
-        jobLevelId: string | null;
     }>;
     update(tenant: TenantContext, user: AuthenticatedUser, id: string, dto: UpdatePositionDto): Promise<{
         name: string;
@@ -64,12 +64,12 @@ export declare class PositionsController {
         updatedAt: Date;
         deletedAt: Date | null;
         code: string | null;
+        areaId: string;
+        jobLevelId: string | null;
         mission: string | null;
         responsibilities: string | null;
         requiredExperience: string | null;
         requiredEducation: string | null;
         headcount: number;
-        areaId: string;
-        jobLevelId: string | null;
     }>;
 }

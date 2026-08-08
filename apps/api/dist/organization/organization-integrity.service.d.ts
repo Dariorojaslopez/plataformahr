@@ -46,13 +46,13 @@ export declare class OrganizationIntegrityService {
         updatedAt: Date;
         deletedAt: Date | null;
         code: string | null;
+        areaId: string;
+        jobLevelId: string | null;
         mission: string | null;
         responsibilities: string | null;
         requiredExperience: string | null;
         requiredEducation: string | null;
         headcount: number;
-        areaId: string;
-        jobLevelId: string | null;
     }>;
     requireEmployee(companyId: string, id: string): Promise<{
         id: string;
@@ -77,9 +77,9 @@ export declare class OrganizationIntegrityService {
         housingType: string | null;
         emergencyContactName: string | null;
         emergencyContactPhone: string | null;
+        positionId: string;
         hireDate: Date | null;
         terminationDate: Date | null;
-        positionId: string;
     }>;
     assertUserMembership(companyId: string, userId: string): Promise<void>;
 }

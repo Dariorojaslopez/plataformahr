@@ -65,10 +65,11 @@ model User {
   updatedAt       DateTime   @updatedAt
   deletedAt       DateTime?
 
-  memberships CompanyMembership[]
-  sessions    UserSession[]
-  auditLogs   AuditLog[]
-  employees   Employee[]
+  memberships             CompanyMembership[]
+  sessions                UserSession[]
+  auditLogs               AuditLog[]
+  employees               Employee[]
+  vacancyApprovalsDecided VacancyApproval[]
 
   @@map("users")
 }
@@ -106,15 +107,18 @@ model Company {
   updatedAt       DateTime      @updatedAt
   deletedAt       DateTime?
 
-  memberships    CompanyMembership[]
-  modules        CompanyModule[]
-  auditLogs      AuditLog[]
-  businessUnits  BusinessUnit[]
-  areas          Area[]
-  jobLevels      JobLevel[]
-  positions      Position[]
-  employees      Employee[]
-  reportingLines EmployeeReportingLine[]
+  memberships      CompanyMembership[]
+  modules          CompanyModule[]
+  auditLogs        AuditLog[]
+  businessUnits    BusinessUnit[]
+  areas            Area[]
+  jobLevels        JobLevel[]
+  positions        Position[]
+  employees        Employee[]
+  reportingLines   EmployeeReportingLine[]
+  vacancyRequests  VacancyRequest[]
+  vacancyApprovals VacancyApproval[]
+  vacancies        Vacancy[]
 
   @@map("companies")
 }
@@ -293,12 +297,14 @@ model Area {
   updatedAt      DateTime                 @updatedAt
   deletedAt      DateTime?
 
-  company      Company       @relation(fields: [companyId], references: [id], onDelete: Restrict)
-  businessUnit BusinessUnit? @relation(fields: [businessUnitId], references: [id], onDelete: Restrict)
-  parentArea   Area?         @relation("AreaHierarchy", fields: [parentAreaId], references: [id], onDelete: Restrict)
-  childAreas   Area[]        @relation("AreaHierarchy")
-  positions    Position[]
-  employees    Employee[]
+  company         Company          @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  businessUnit    BusinessUnit?    @relation(fields: [businessUnitId], references: [id], onDelete: Restrict)
+  parentArea      Area?            @relation("AreaHierarchy", fields: [parentAreaId], references: [id], onDelete: Restrict)
+  childAreas      Area[]           @relation("AreaHierarchy")
+  positions       Position[]
+  employees       Employee[]
+  vacancyRequests VacancyRequest[]
+  vacancies       Vacancy[]
 
   @@unique([companyId, name])
   @@unique([companyId, code])
@@ -319,8 +325,9 @@ model JobLevel {
   updatedAt DateTime                 @updatedAt
   deletedAt DateTime?
 
-  company   Company    @relation(fields: [companyId], references: [id], onDelete: Restrict)
-  positions Position[]
+  company         Company          @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  positions       Position[]
+  vacancyRequests VacancyRequest[]
 
   @@unique([companyId, name])
   @@unique([companyId, rank])
@@ -346,10 +353,12 @@ model Position {
   updatedAt          DateTime                 @updatedAt
   deletedAt          DateTime?
 
-  company   Company    @relation(fields: [companyId], references: [id], onDelete: Restrict)
-  area      Area       @relation(fields: [areaId], references: [id], onDelete: Restrict)
-  jobLevel  JobLevel?  @relation(fields: [jobLevelId], references: [id], onDelete: Restrict)
-  employees Employee[]
+  company         Company          @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  area            Area             @relation(fields: [areaId], references: [id], onDelete: Restrict)
+  jobLevel        JobLevel?        @relation(fields: [jobLevelId], references: [id], onDelete: Restrict)
+  employees       Employee[]
+  vacancyRequests VacancyRequest[]
+  vacancies       Vacancy[]
 
   @@unique([companyId, name])
   @@unique([companyId, code])
@@ -392,8 +401,10 @@ model Employee {
   area         Area          @relation(fields: [areaId], references: [id], onDelete: Restrict)
   position     Position      @relation(fields: [positionId], references: [id], onDelete: Restrict)
 
-  reportingTo    EmployeeReportingLine[] @relation("EmployeeReports")
-  managedReports EmployeeReportingLine[] @relation("ManagerReports")
+  reportingTo              EmployeeReportingLine[] @relation("EmployeeReports")
+  managedReports           EmployeeReportingLine[] @relation("ManagerReports")
+  vacancyRequestsRequested VacancyRequest[]        @relation("VacancyRequestedBy")
+  vacancyApprovals         VacancyApproval[]       @relation("VacancyApprover")
 
   @@unique([companyId, email])
   @@unique([companyId, userId])
@@ -424,4 +435,134 @@ model EmployeeReportingLine {
   @@index([employeeId])
   @@index([managerEmployeeId])
   @@map("employee_reporting_lines")
+}
+
+// ---------------------------------------------------------------------------
+// ATS — Vacancy requests & vacancies
+// ---------------------------------------------------------------------------
+
+enum VacancyRequestType {
+  EXISTING_POSITION
+  NEW_POSITION
+}
+
+enum VacancyRequestStatus {
+  DRAFT
+  PENDING_APPROVAL
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+enum VacancyApprovalStep {
+  DIRECT_MANAGER
+  HR
+  GENERAL_MANAGER
+}
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  SKIPPED
+}
+
+enum VacancyStatus {
+  OPEN
+  PAUSED
+  CLOSED
+  CANCELLED
+}
+
+model VacancyRequest {
+  id                             String               @id @default(uuid()) @db.Uuid
+  companyId                      String               @db.Uuid
+  requestedByEmployeeId          String               @db.Uuid
+  type                           VacancyRequestType
+  existingPositionId             String?              @db.Uuid
+  requestedPositionName          String?
+  requestedAreaId                String?              @db.Uuid
+  requestedJobLevelId            String?              @db.Uuid
+  requestedHeadcount             Int
+  justification                  String
+  generalManagerApprovalRequired Boolean              @default(false)
+  status                         VacancyRequestStatus @default(DRAFT)
+  submittedAt                    DateTime?
+  approvedAt                     DateTime?
+  rejectedAt                     DateTime?
+  createdAt                      DateTime             @default(now())
+  updatedAt                      DateTime             @updatedAt
+  deletedAt                      DateTime?
+
+  company             Company           @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  requestedByEmployee Employee          @relation("VacancyRequestedBy", fields: [requestedByEmployeeId], references: [id], onDelete: Restrict)
+  existingPosition    Position?         @relation(fields: [existingPositionId], references: [id], onDelete: Restrict)
+  requestedArea       Area?             @relation(fields: [requestedAreaId], references: [id], onDelete: Restrict)
+  requestedJobLevel   JobLevel?         @relation(fields: [requestedJobLevelId], references: [id], onDelete: Restrict)
+  approvals           VacancyApproval[]
+  vacancy             Vacancy?
+
+  @@index([companyId])
+  @@index([status])
+  @@index([type])
+  @@index([requestedByEmployeeId])
+  @@index([existingPositionId])
+  @@map("vacancy_requests")
+}
+
+model VacancyApproval {
+  id                 String              @id @default(uuid()) @db.Uuid
+  companyId          String              @db.Uuid
+  vacancyRequestId   String              @db.Uuid
+  step               VacancyApprovalStep
+  sequence           Int
+  approverEmployeeId String?             @db.Uuid
+  requiredRoleCode   String?
+  status             ApprovalStatus      @default(PENDING)
+  decidedByUserId    String?             @db.Uuid
+  decidedAt          DateTime?
+  comment            String?
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+
+  company          Company        @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  vacancyRequest   VacancyRequest @relation(fields: [vacancyRequestId], references: [id], onDelete: Restrict)
+  approverEmployee Employee?      @relation("VacancyApprover", fields: [approverEmployeeId], references: [id], onDelete: Restrict)
+  decidedByUser    User?          @relation(fields: [decidedByUserId], references: [id], onDelete: SetNull)
+
+  @@unique([vacancyRequestId, step])
+  @@index([companyId])
+  @@index([vacancyRequestId])
+  @@index([status])
+  @@index([approverEmployeeId])
+  @@map("vacancy_approvals")
+}
+
+model Vacancy {
+  id               String        @id @default(uuid()) @db.Uuid
+  companyId        String        @db.Uuid
+  vacancyRequestId String        @unique @db.Uuid
+  positionId       String        @db.Uuid
+  areaId           String        @db.Uuid
+  title            String
+  description      String?
+  headcount        Int
+  filledCount      Int           @default(0)
+  status           VacancyStatus @default(OPEN)
+  openedAt         DateTime      @default(now())
+  closedAt         DateTime?
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+  deletedAt        DateTime?
+
+  company        Company        @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  vacancyRequest VacancyRequest @relation(fields: [vacancyRequestId], references: [id], onDelete: Restrict)
+  position       Position       @relation(fields: [positionId], references: [id], onDelete: Restrict)
+  area           Area           @relation(fields: [areaId], references: [id], onDelete: Restrict)
+
+  @@index([companyId])
+  @@index([positionId])
+  @@index([areaId])
+  @@index([status])
+  @@map("vacancies")
 }

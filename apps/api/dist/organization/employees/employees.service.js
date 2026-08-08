@@ -36,9 +36,7 @@ let EmployeesService = class EmployeesService {
             ...(query.status ? { status: query.status } : {}),
             ...(query.areaId ? { areaId: query.areaId } : {}),
             ...(query.positionId ? { positionId: query.positionId } : {}),
-            ...(query.businessUnitId
-                ? { businessUnitId: query.businessUnitId }
-                : {}),
+            ...(query.businessUnitId ? { businessUnitId: query.businessUnitId } : {}),
             ...(query.search
                 ? {
                     OR: [
@@ -111,8 +109,7 @@ let EmployeesService = class EmployeesService {
         if (!employee) {
             throw new common_1.NotFoundException('Employee not found');
         }
-        const directManager = employee.reportingTo.find((line) => line.type === client_1.ReportingLineType.DIRECT)
-            ?.manager ?? null;
+        const directManager = employee.reportingTo.find((line) => line.type === client_1.ReportingLineType.DIRECT)?.manager ?? null;
         const indirectManagers = employee.reportingTo
             .filter((line) => line.type === client_1.ReportingLineType.INDIRECT)
             .map((line) => line.manager);

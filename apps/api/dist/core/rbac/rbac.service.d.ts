@@ -7,6 +7,8 @@ export declare class RbacService {
     findPermissionByCode(code: string): Promise<Permission | null>;
     listRolesForMembership(membershipId: string): Promise<MembershipRole[]>;
     getPermissionCodesForMembership(membershipId: string): Promise<Set<string>>;
+    getRoleCodesForMembership(membershipId: string): Promise<Set<string>>;
+    membershipHasRoleCode(membershipId: string, roleCode: string): Promise<boolean>;
     assignRoleToMembership(membershipId: string, roleId: string): Promise<MembershipRole>;
     grantPermissionToRole(roleId: string, permissionId: string): Promise<RolePermission>;
     createRole(data: Prisma.RoleCreateInput): Promise<Role>;

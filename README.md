@@ -11,7 +11,7 @@ talento-sin-clave/
 │   └── web/                 # Next.js (App Router) + Tailwind
 ├── packages/
 │   └── shared/              # Tipos y utilidades compartidas
-├── docs/                    # Auth, multi-tenancy, organization
+├── docs/                    # Auth, multi-tenancy, organization, ATS
 └── infrastructure/
     └── docker-compose.yml   # PostgreSQL 17
 ```
@@ -34,6 +34,7 @@ Documentación:
 - [docs/authentication.md](docs/authentication.md)
 - [docs/multi-tenancy.md](docs/multi-tenancy.md)
 - [docs/organization.md](docs/organization.md)
+- [docs/ats-vacancies.md](docs/ats-vacancies.md)
 
 ## Ejecución
 
@@ -55,24 +56,10 @@ pnpm dev:web
 ```
 
 - API: http://localhost:3001
-- Health: http://localhost:3001/health
-- Auth: `POST /auth/login`, `GET /auth/me`
-- Organization: `/organization/*` con `Authorization` + `X-Company-Id`
-- Tenant sample: `GET /companies/current`
-- Platform sample: `GET /platform/me` (Platform Owner)
-
-## Scripts raíz
-
-| Script | Descripción |
-|--------|-------------|
-| `dev:api` / `dev:web` | Dev servers |
-| `infra:up` / `infra:down` / `infra:logs` | Docker Compose (PostgreSQL 17) |
-| `db:generate` / `db:migrate` / `db:seed` | Prisma base |
-| `db:seed:dev` | Usuarios/compañía de desarrollo (no production) |
-| `lint` / `test` / `test:e2e` / `build` | Calidad y builds |
+- Auth / Organization / ATS vacancy requests & vacancies bajo JWT + `X-Company-Id`
 
 ## Alcance actual
 
-Incluye: monorepo, API NestJS, web Next.js, Prisma multi-tenant, autenticación JWT + sesiones, tenant context, RBAC, núcleo organizacional (BusinessUnit/Area/JobLevel/Position/Employee/ReportingLine), seed RBAC + seed DEV, `GET /health`.
+Incluye: multi-tenant core, auth JWT/sesiones, organización, ATS fase 04A (VacancyRequest + approvals + Vacancy).
 
-Pendiente: cookies/SSO, ATS, Performance, proxy Platform Owner.
+Pendiente: Candidate/Application/Kanban, Performance, SSO, proxy Platform Owner.

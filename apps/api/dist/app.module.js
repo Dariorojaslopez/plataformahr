@@ -12,6 +12,7 @@ const config_1 = require("@nestjs/config");
 const throttler_1 = require("@nestjs/throttler");
 const app_controller_1 = require("./app.controller");
 const app_service_1 = require("./app.service");
+const ats_module_1 = require("./ats/ats.module");
 const auth_module_1 = require("./auth/auth.module");
 const core_module_1 = require("./core/core.module");
 const health_module_1 = require("./health/health.module");
@@ -38,6 +39,7 @@ exports.AppModule = AppModule = __decorate([
             core_module_1.CoreModule,
             auth_module_1.AuthModule,
             organization_module_1.OrganizationModule,
+            ats_module_1.AtsModule,
             platform_module_1.PlatformModule,
             health_module_1.HealthModule,
         ],

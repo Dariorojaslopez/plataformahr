@@ -31,9 +31,9 @@ export declare class EmployeesController {
             housingType: string | null;
             emergencyContactName: string | null;
             emergencyContactPhone: string | null;
+            positionId: string;
             hireDate: Date | null;
             terminationDate: Date | null;
-            positionId: string;
         }[];
         page: number;
         limit: number;
@@ -63,9 +63,9 @@ export declare class EmployeesController {
         housingType: string | null;
         emergencyContactName: string | null;
         emergencyContactPhone: string | null;
+        positionId: string;
         hireDate: Date | null;
         terminationDate: Date | null;
-        positionId: string;
     }>;
     organizationProfile(tenant: TenantContext, id: string): Promise<{
         id: string;
@@ -149,9 +149,9 @@ export declare class EmployeesController {
         housingType: string | null;
         emergencyContactName: string | null;
         emergencyContactPhone: string | null;
+        positionId: string;
         hireDate: Date | null;
         terminationDate: Date | null;
-        positionId: string;
     }>;
     update(tenant: TenantContext, user: AuthenticatedUser, id: string, dto: UpdateEmployeeDto): Promise<{
         id: string;
@@ -176,9 +176,9 @@ export declare class EmployeesController {
         housingType: string | null;
         emergencyContactName: string | null;
         emergencyContactPhone: string | null;
+        positionId: string;
         hireDate: Date | null;
         terminationDate: Date | null;
-        positionId: string;
     }>;
     createReportingLine(tenant: TenantContext, user: AuthenticatedUser, id: string, dto: CreateReportingLineDto): Promise<{
         id: string;

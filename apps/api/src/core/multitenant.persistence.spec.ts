@@ -67,6 +67,10 @@ describe('Core multi-tenant persistence', () => {
       'RECRUITER',
     ]);
     expect(permissions.map((permission) => permission.code).sort()).toEqual([
+      'ats.vacancy.approve',
+      'ats.vacancy.manage',
+      'ats.vacancy.read',
+      'ats.vacancy.request',
       'company.manage',
       'company.read',
       'organization.manage',
@@ -80,6 +84,10 @@ describe('Core multi-tenant persistence', () => {
       .map((link) => link.permission.code)
       .sort();
     expect(clientAdminPerms).toEqual([
+      'ats.vacancy.approve',
+      'ats.vacancy.manage',
+      'ats.vacancy.read',
+      'ats.vacancy.request',
       'company.manage',
       'company.read',
       'organization.manage',
@@ -92,7 +100,12 @@ describe('Core multi-tenant persistence', () => {
       .filter((link) => link.role.code === 'COLLABORATOR')
       .map((link) => link.permission.code)
       .sort();
-    expect(collaboratorPerms).toEqual(['company.read', 'organization.read']);
+    expect(collaboratorPerms).toEqual([
+      'ats.vacancy.read',
+      'ats.vacancy.request',
+      'company.read',
+      'organization.read',
+    ]);
   });
 
   it('allows a user in multiple companies and a company with multiple memberships', async () => {

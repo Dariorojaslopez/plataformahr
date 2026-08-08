@@ -32,9 +32,9 @@ export declare class EmployeesService {
             housingType: string | null;
             emergencyContactName: string | null;
             emergencyContactPhone: string | null;
+            positionId: string;
             hireDate: Date | null;
             terminationDate: Date | null;
-            positionId: string;
         }[];
         page: number;
         limit: number;

@@ -66,6 +66,26 @@ const PERMISSIONS = [
     name: 'Manage organization',
     description: 'Create and update organizational structure and employees',
   },
+  {
+    code: 'ats.vacancy.read',
+    name: 'Read vacancies',
+    description: 'View vacancy requests and vacancies',
+  },
+  {
+    code: 'ats.vacancy.request',
+    name: 'Request vacancies',
+    description: 'Create and submit vacancy requests',
+  },
+  {
+    code: 'ats.vacancy.approve',
+    name: 'Approve vacancies',
+    description: 'Approve or reject vacancy request steps',
+  },
+  {
+    code: 'ats.vacancy.manage',
+    name: 'Manage vacancies',
+    description: 'Manage vacancy status and details',
+  },
 ] as const;
 
 const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
@@ -76,11 +96,36 @@ const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
     'users.manage',
     'organization.read',
     'organization.manage',
+    'ats.vacancy.read',
+    'ats.vacancy.request',
+    'ats.vacancy.approve',
+    'ats.vacancy.manage',
   ],
-  RECRUITER: ['company.read', 'organization.read'],
-  PERFORMANCE_MANAGER: ['company.read', 'organization.read'],
-  LEADER: ['company.read', 'organization.read'],
-  COLLABORATOR: ['company.read', 'organization.read'],
+  RECRUITER: [
+    'company.read',
+    'organization.read',
+    'ats.vacancy.read',
+    'ats.vacancy.request',
+    'ats.vacancy.manage',
+  ],
+  PERFORMANCE_MANAGER: [
+    'company.read',
+    'organization.read',
+    'ats.vacancy.read',
+  ],
+  LEADER: [
+    'company.read',
+    'organization.read',
+    'ats.vacancy.read',
+    'ats.vacancy.request',
+    'ats.vacancy.approve',
+  ],
+  COLLABORATOR: [
+    'company.read',
+    'organization.read',
+    'ats.vacancy.read',
+    'ats.vacancy.request',
+  ],
 };
 
 async function upsertCompanyRoles(): Promise<Map<string, Role>> {
