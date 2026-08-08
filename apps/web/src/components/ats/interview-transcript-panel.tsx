@@ -3,6 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Pencil, Trash2 } from "lucide-react";
 import { useState } from "react";
+import { AutomaticTranscriptionControls } from "@/components/ats/automatic-transcription-controls";
 import { FormSelect } from "@/components/organization/form-select";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -22,10 +23,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { getErrorMessage } from "@/lib/api/errors";
 import { interviewKeys, interviewsApi } from "@/lib/api/interviews";
 import {
-  AUTOMATIC_TRANSCRIPTION_UNAVAILABLE_MESSAGE,
-  getDefaultSpeechProvider,
-} from "@/lib/ats/speech-transcription";
-import {
   TRANSCRIPT_KIND_LABELS,
   transcriptKindVariant,
 } from "@/lib/ats/labels";
@@ -39,16 +36,17 @@ import type {
 type Props = {
   companyId: string;
   interviewId: string;
+  interviewStatus: string;
   canEdit: boolean;
 };
 
 export function InterviewTranscriptPanel({
   companyId,
   interviewId,
+  interviewStatus,
   canEdit,
 }: Props) {
   const queryClient = useQueryClient();
-  const speech = getDefaultSpeechProvider();
 
   const [draft, setDraft] = useState<CreateTranscriptSegmentInput>({
     text: "",
@@ -130,12 +128,18 @@ export function InterviewTranscriptPanel({
     <div className="space-y-4">
       <div className="space-y-1">
         <h2 className="text-lg font-semibold">Transcripción</h2>
-        {!speech.isSupported() || speech.id === "manual" ? (
-          <p className="text-sm text-muted-foreground">
-            {AUTOMATIC_TRANSCRIPTION_UNAVAILABLE_MESSAGE}. Usa entrada manual.
-          </p>
-        ) : null}
+        <p className="text-sm text-muted-foreground">
+          Puedes dictar con el micrófono o agregar segmentos manualmente. El
+          servidor solo guarda texto.
+        </p>
       </div>
+
+      <AutomaticTranscriptionControls
+        interviewId={interviewId}
+        interviewStatus={interviewStatus}
+        enabled={canEdit}
+        onSegmentPersisted={invalidate}
+      />
 
       {transcriptQuery.isLoading ? <Skeleton className="h-40 w-full" /> : null}
       {transcriptQuery.isError ? (

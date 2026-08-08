@@ -66,8 +66,8 @@ pnpm dev:web
 
 ## Alcance actual
 
-Incluye: multi-tenant core, auth JWT/sesiones, organización API, ATS 04A–04C + Offers 06A + Hiring 06B, frontend 05A–05D + Offer/Hiring UI.
+Incluye: multi-tenant core, auth JWT/sesiones, organización API, ATS completo hasta Hiring 06B, frontend shell/Organization/ATS/Offers/Hiring, STT browser (Fase 07).
 
-Pendiente: Speech-to-Text real, Performance, cookies HttpOnly para refresh, endpoint de permissions efectivos.
+Pendiente: Whisper local/WASM, diarización/IA, Performance, cookies HttpOnly para refresh, endpoint de permissions efectivos.
 
-Docs: [docs/ats-offers.md](docs/ats-offers.md) · [docs/ats-hiring.md](docs/ats-hiring.md)
+Docs: [docs/ats-offers.md](docs/ats-offers.md) · [docs/ats-hiring.md](docs/ats-hiring.md) · [docs/stt.md](docs/stt.md)

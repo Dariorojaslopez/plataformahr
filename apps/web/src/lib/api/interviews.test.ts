@@ -187,14 +187,14 @@ describe("interview helpers", () => {
     expect(missingRequiredQuestions(questions, "u1")).toHaveLength(1);
   });
 
-  it("centralizes labels and manual STT provider", () => {
+  it("centralizes labels and keeps manual STT provider as default", () => {
     expect(INTERVIEW_STATUS_LABELS.IN_PROGRESS).toBe("En curso");
     expect(TRANSCRIPT_KIND_LABELS.UNCLASSIFIED).toBe("Sin clasificar");
     const provider = getDefaultSpeechProvider();
     expect(provider).toBeInstanceOf(ManualTranscriptionProvider);
     expect(provider.isSupported()).toBe(true);
-    expect(AUTOMATIC_TRANSCRIPTION_UNAVAILABLE_MESSAGE).toContain(
-      "no configurada",
+    expect(AUTOMATIC_TRANSCRIPTION_UNAVAILABLE_MESSAGE).toMatch(
+      /no disponible/i,
     );
   });
 

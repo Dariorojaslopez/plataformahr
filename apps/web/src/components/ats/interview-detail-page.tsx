@@ -283,6 +283,7 @@ export function InterviewDetailPageClient() {
               <InterviewTranscriptPanel
                 companyId={companyId}
                 interviewId={interview.id}
+                interviewStatus={interview.status}
                 canEdit={transcriptEditable}
               />
             ) : null}
@@ -305,6 +306,7 @@ export function InterviewDetailPageClient() {
                 <InterviewTranscriptPanel
                   companyId={companyId}
                   interviewId={interview.id}
+                  interviewStatus={interview.status}
                   canEdit={transcriptEditable}
                 />
               </TabsContent>

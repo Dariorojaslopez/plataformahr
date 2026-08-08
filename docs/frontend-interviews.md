@@ -9,9 +9,9 @@ UI de entrevistas, evaluación, plantillas y transcripción textual sobre la API
 - Create / detail / lifecycle (start, complete, cancel)
 - Workspace evaluación + transcripción (IN_PROGRESS / COMPLETED)
 - Plantillas + agregar preguntas (sin edit/delete de preguntas: limitación API)
-- Abstracción STT preparada; **solo** entrada manual
+- Abstracción STT + transcripción automática browser (Fase 07)
 
-**No incluido:** Speech-to-Text real, MediaRecorder, audio upload, Offer/Hiring.
+**No incluido:** Whisper server, audio upload, diarización, AI summary.
 
 ## API layer
 
@@ -37,17 +37,12 @@ Segmentos ordenados por `sequence` del backend. Create **no** envía `sequence`.
 
 Kinds: Pregunta / Respuesta / Nota / Sin clasificar.
 
-## STT futuro
+## STT (Fase 07)
 
-`SpeechTranscriptionProvider` + `ManualTranscriptionProvider` en `lib/ats/speech-transcription.ts`.
-
-Conexión posterior posible: Web Speech API, Whisper local, cloud — **sin** enviar audio a NestJS.
-
-```text
-Browser/Desktop → audio local → STT → texto → NestJS → PostgreSQL
-```
-
-Servidor: TEXT + metadata. Nunca el archivo.
+- Manual: siempre disponible.
+- Automático: `BrowserSpeechTranscriptionProvider` (Web Speech API) cuando el navegador lo soporta.
+- Solo Interview `IN_PROGRESS`. Solo texto final se persiste (`UNCLASSIFIED`).
+- **Sin audio en el servidor.** Ver [docs/stt.md](stt.md).
 
 `localRecordingName`: solo metadata visible; no `file://`.
 
