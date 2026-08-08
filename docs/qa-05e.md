@@ -54,6 +54,8 @@ Los números coinciden con lo esperado (API unit 14, e2e 61, web 44) más 2 test
 | QA-10 | Auth deuda | LOW | Refresh en `sessionStorage` (no HttpOnly cookie) | Documentado; single-flight OK; logout/refresh failure limpian sesión. **No migrar en 05E** | DEBT |
 | QA-11 | Approvals contract | MEDIUM | Backend no siempre expone identidad enriquecida del aprobador | UX aceptable con enriquecimiento FE; endpoint nuevo = deuda contractual | DEBT |
 | QA-12 | Tenant QA data | MEDIUM | Seed base solo 1 company | Seed QA separado `seed.qa.ts` + `db:seed:qa` | FIXED |
+| QA-13 | Auth security | BLOCKER | Submit nativo GET del login podía poner email/password en query string | `method="post"` + `preventDefault`; test `login-form-safety.test.ts`. Requiere rebuild/`next start` para verlo en prod local | FIXED |
+| QA-14 | Auth test | LOW | Regression del method=post del login | `apps/web/src/lib/auth/login-form-safety.test.ts` | FIXED |
 
 ## No hallado / confirmado OK
 
@@ -73,7 +75,10 @@ Los números coinciden con lo esperado (API unit 14, e2e 61, web 44) más 2 test
 
 - `apps/web/src/lib/ui/safe-url.test.ts`
 - `apps/web/src/lib/api/ats-keys.test.ts`
+- `apps/web/src/lib/auth/login-form-safety.test.ts`
 - (existentes) session-store refresh no-localStorage; org query keys tenant
+
+> Nota: web tests post-fixes ≈ **50** (+ login-form-safety). Web local puede estar abajo tras reinicio interrumpido; API `/health` OK.
 
 ## Smoke E2E esperado
 
