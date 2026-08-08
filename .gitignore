@@ -1,1 +1,28 @@
-node_modules
+# dependencies
+node_modules/
+
+# builds / caches
+dist/
+*.tsbuildinfo
+.next/
+out/
+build/
+coverage/
+
+# tooling
+.turbo
+.vercel
+.pnpm-store/
+.DS_Store
+*.pem
+
+# logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# env (examples may be committed)
+.env
+.env.*
+!.env.example

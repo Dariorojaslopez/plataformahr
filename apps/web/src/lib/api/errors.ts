@@ -35,9 +35,15 @@ function statusToCode(status: number): string {
 export function getErrorMessage(error: unknown, fallback: string): string {
   if (error instanceof ApiError) {
     if (error.status === 401) return "Sesión inválida o credenciales incorrectas.";
-    if (error.status === 403) return "No tienes permiso para esta acción.";
+    if (error.status === 403)
+      return "No tienes permisos para realizar esta acción.";
     if (error.status === 404) return "Recurso no encontrado.";
-    if (error.status === 409) return "Conflicto de negocio. Revisa el estado e inténtalo de nuevo.";
+    if (error.status === 409) {
+      return (
+        error.message ||
+        "Conflicto de negocio. Revisa el estado e inténtalo de nuevo."
+      );
+    }
     if (error.status === 400 || error.status === 422) {
       return error.message || "Solicitud inválida.";
     }

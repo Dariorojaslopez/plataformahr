@@ -39,6 +39,7 @@ Documentación:
 - [docs/ats-interviews.md](docs/ats-interviews.md)
 - [docs/frontend-auth.md](docs/frontend-auth.md)
 - [docs/frontend-organization.md](docs/frontend-organization.md)
+- [docs/frontend-ats.md](docs/frontend-ats.md)
 
 ## Ejecución
 
@@ -60,10 +61,10 @@ pnpm dev:web
 ```
 
 - API: http://localhost:3001
-- Auth / Organization / ATS (API) + frontend foundation (login, tenant, app shell) bajo JWT + `X-Company-Id`
+- Auth / Organization / ATS (API) + frontend 05A–05C (shell, Organization UI, ATS Vacancies/Candidates/Pipeline) bajo JWT + `X-Company-Id`
 
 ## Alcance actual
 
-Incluye: multi-tenant core, auth JWT/sesiones, organización API, ATS 04A–04C, frontend 05A (shell/auth) y 05B (UI Organization).
+Incluye: multi-tenant core, auth JWT/sesiones, organización API, ATS 04A–04C, frontend 05A (shell/auth), 05B (UI Organization) y 05C (UI ATS vacancies/candidates/pipeline).
 
-Pendiente: ATS UI, Performance, cookies HttpOnly para refresh, endpoint de permissions efectivos.
+Pendiente: Interview UI, Performance, cookies HttpOnly para refresh, endpoint de permissions efectivos.

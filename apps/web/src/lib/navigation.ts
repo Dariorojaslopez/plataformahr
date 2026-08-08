@@ -114,6 +114,10 @@ export function resolvePageTitle(pathname: string): string {
     }
   }
   if (pathname.startsWith("/organization/employees/")) return "Perfil";
+  if (pathname.startsWith("/ats/vacancy-requests/")) return "Solicitud";
+  if (pathname.startsWith("/ats/vacancies/")) return "Vacante";
+  if (pathname.startsWith("/ats/candidates/")) return "Candidato";
+  if (pathname.startsWith("/ats/applications/")) return "Aplicación";
   if (pathname === "/select-company") return "Seleccionar compañía";
   if (pathname === "/platform") return "Platform";
   return "Talento Sin Clave";

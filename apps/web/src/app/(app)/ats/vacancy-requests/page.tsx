@@ -1,10 +1,11 @@
-import { ComingSoonPage } from "@/components/layout/coming-soon-page";
+import { Suspense } from "react";
+import { VacancyRequestsPageClient } from "@/components/ats/vacancy-requests-page";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export default function Page() {
   return (
-    <ComingSoonPage
-      title="Solicitudes de vacante"
-      description="Workflow de aprobación de VacancyRequest."
-    />
+    <Suspense fallback={<Skeleton className="h-40 w-full" />}>
+      <VacancyRequestsPageClient />
+    </Suspense>
   );
 }
