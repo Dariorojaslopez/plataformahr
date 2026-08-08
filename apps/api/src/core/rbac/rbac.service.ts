@@ -27,6 +27,33 @@ export class RbacService {
     return this.prisma.membershipRole.findMany({ where: { membershipId } });
   }
 
+  async getPermissionCodesForMembership(
+    membershipId: string,
+  ): Promise<Set<string>> {
+    const links = await this.prisma.membershipRole.findMany({
+      where: { membershipId },
+      include: {
+        role: {
+          include: {
+            permissions: {
+              include: {
+                permission: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    const codes = new Set<string>();
+    for (const link of links) {
+      for (const rolePermission of link.role.permissions) {
+        codes.add(rolePermission.permission.code);
+      }
+    }
+    return codes;
+  }
+
   assignRoleToMembership(
     membershipId: string,
     roleId: string,

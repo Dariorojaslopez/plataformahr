@@ -66,9 +66,31 @@ model User {
   deletedAt       DateTime?
 
   memberships CompanyMembership[]
+  sessions    UserSession[]
   auditLogs   AuditLog[]
 
   @@map("users")
+}
+
+/// Persistent auth session. Only the refresh token hash is stored.
+model UserSession {
+  id               String    @id @default(uuid()) @db.Uuid
+  userId           String    @db.Uuid
+  refreshTokenHash String
+  expiresAt        DateTime
+  revokedAt        DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  lastUsedAt       DateTime?
+  ipAddress        String?
+  userAgent        String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@index([revokedAt])
+  @@map("user_sessions")
 }
 
 /// Tenant root. Business entities must scope by companyId.

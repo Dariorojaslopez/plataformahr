@@ -1,6 +1,6 @@
 # Talento sin clave
 
-Monorepo de la plataforma de talento (ATS + Performance). Este bootstrap incluye frontend, backend, paquete compartido e infraestructura local.
+Monorepo de la plataforma de talento (ATS + Performance).
 
 ## Arquitectura
 
@@ -11,6 +11,7 @@ talento-sin-clave/
 │   └── web/                 # Next.js (App Router) + Tailwind
 ├── packages/
 │   └── shared/              # Tipos y utilidades compartidas
+├── docs/                    # Autenticación y multi-tenancy
 └── infrastructure/
     └── docker-compose.yml   # PostgreSQL 17
 ```
@@ -21,40 +22,29 @@ talento-sin-clave/
 | API | NestJS 11, Prisma | 3001 |
 | DB | PostgreSQL 17 | 5433→5432 |
 
-Flujo local: `web` habla con `api` vía `NEXT_PUBLIC_API_URL`. La API usa `DATABASE_URL` (PostgreSQL).
-
-### Requisitos
-
-- Node.js >= 20
-- pnpm 11+
-- Docker con el plugin **Compose** (`docker compose version`)
-
-> Si `docker compose` no está disponible, instala el plugin de Compose o Docker Desktop completo.
-
 ## Configuración
 
 ```bash
 cp .env.example apps/api/.env
-# Ajusta valores si es necesario. Los defaults coinciden con docker-compose.
+# Configura JWT_*, CORS_ORIGINS y, si vas a probar auth, DEV_* credentials.
 ```
 
-## Ejecución
+Documentación:
 
-### 1. Instalar dependencias
+- [docs/authentication.md](docs/authentication.md)
+- [docs/multi-tenancy.md](docs/multi-tenancy.md)
+
+## Ejecución
 
 ```bash
 pnpm install
 pnpm db:generate
 pnpm --filter @talento/shared build
-```
-
-### 2. Levantar infraestructura
-
-```bash
 pnpm infra:up
+pnpm db:migrate
+pnpm db:seed
+pnpm db:seed:dev   # solo desarrollo; requiere DEV_* en .env
 ```
-
-### 3. Desarrollo
 
 En terminales separadas:
 
@@ -64,25 +54,10 @@ pnpm dev:web
 ```
 
 - API: http://localhost:3001
-- Health: http://localhost:3001/health → `{ "status": "ok" }`
-- Web: http://localhost:3000
-
-### Infraestructura
-
-```bash
-pnpm infra:up      # PostgreSQL 17
-pnpm infra:logs    # logs
-pnpm infra:down    # detener
-```
-
-### Calidad
-
-```bash
-pnpm lint
-pnpm test
-pnpm build:api
-pnpm build:web
-```
+- Health: http://localhost:3001/health
+- Auth: `POST /auth/login`, `GET /auth/me`
+- Tenant sample: `GET /companies/current` con `Authorization` + `X-Company-Id`
+- Platform sample: `GET /platform/me` (Platform Owner)
 
 ## Scripts raíz
 
@@ -90,11 +65,12 @@ pnpm build:web
 |--------|-------------|
 | `dev:api` / `dev:web` | Dev servers |
 | `infra:up` / `infra:down` / `infra:logs` | Docker Compose (PostgreSQL 17) |
-| `db:generate` / `db:migrate` / `db:seed` | Prisma |
-| `lint` / `test` / `build` | Calidad y builds |
+| `db:generate` / `db:migrate` / `db:seed` | Prisma base |
+| `db:seed:dev` | Usuarios/compañía de desarrollo (no production) |
+| `lint` / `test` / `test:e2e` / `build` | Calidad y builds |
 
-## Alcance actual (bootstrap)
+## Alcance actual
 
-Incluye: monorepo, API NestJS, web Next.js, `packages/shared`, Docker (PostgreSQL 17), Prisma multi-tenant core, seed RBAC, `GET /health`.
+Incluye: monorepo, API NestJS, web Next.js, Prisma multi-tenant, autenticación JWT + sesiones, tenant context, RBAC por permissions, seed RBAC + seed DEV, `GET /health`.
 
-Pendiente (no implementado aún): autenticación, guards de tenant, Employee, ATS, Performance.
+Pendiente: cookies/SSO, Employee, Organization, ATS, Performance, proxy Platform Owner.

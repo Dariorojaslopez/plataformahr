@@ -1,0 +1,1 @@
+{"version":3,"file":"require-permissions.decorator.js","sourceRoot":"","sources":["../../../src/rbac/decorators/require-permissions.decorator.ts"],"names":[],"mappings":";;;AAAA,2CAA6C;AAEhC,QAAA,wBAAwB,GAAG,sBAAsB,CAAC;AAExD,MAAM,kBAAkB,GAAG,CAAC,GAAG,WAAqB,EAAE,EAAE,CAC7D,IAAA,oBAAW,EAAC,gCAAwB,EAAE,WAAW,CAAC,CAAC;AADxC,QAAA,kBAAkB,sBACsB"}

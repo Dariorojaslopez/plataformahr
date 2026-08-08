@@ -16,7 +16,8 @@
     "infra:logs": "docker compose -f infrastructure/docker-compose.yml logs -f",
     "db:generate": "pnpm --filter api prisma:generate",
     "db:migrate": "pnpm --filter api prisma:migrate",
-    "db:seed": "pnpm --filter api prisma:seed"
+    "db:seed": "pnpm --filter api prisma:seed",
+    "db:seed:dev": "pnpm --filter api prisma:seed:dev"
   },
 
   "engines": {

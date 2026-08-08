@@ -28,6 +28,29 @@ let RbacService = class RbacService {
     listRolesForMembership(membershipId) {
         return this.prisma.membershipRole.findMany({ where: { membershipId } });
     }
+    async getPermissionCodesForMembership(membershipId) {
+        const links = await this.prisma.membershipRole.findMany({
+            where: { membershipId },
+            include: {
+                role: {
+                    include: {
+                        permissions: {
+                            include: {
+                                permission: true,
+                            },
+                        },
+                    },
+                },
+            },
+        });
+        const codes = new Set();
+        for (const link of links) {
+            for (const rolePermission of link.role.permissions) {
+                codes.add(rolePermission.permission.code);
+            }
+        }
+        return codes;
+    }
     assignRoleToMembership(membershipId, roleId) {
         return this.prisma.membershipRole.create({
             data: { membershipId, roleId },
