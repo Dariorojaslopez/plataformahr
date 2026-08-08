@@ -73,6 +73,7 @@ model User {
   applicationStageHistories   ApplicationStageHistory[]
   interviewAnswers            InterviewAnswer[]
   interviewTranscriptSegments InterviewTranscriptSegment[]
+  jobOffersCreated            JobOffer[]
 
   @@map("users")
 }
@@ -131,6 +132,7 @@ model Company {
   interviewQuestions          InterviewQuestion[]
   interviewAnswers            InterviewAnswer[]
   interviewTranscriptSegments InterviewTranscriptSegment[]
+  jobOffers                   JobOffer[]
 
   @@map("companies")
 }
@@ -652,6 +654,7 @@ model Application {
   vacancy    Vacancy                   @relation(fields: [vacancyId], references: [id], onDelete: Restrict)
   history    ApplicationStageHistory[]
   interviews Interview[]
+  jobOffer   JobOffer?
 
   @@unique([candidateId, vacancyId])
   @@index([companyId])
@@ -873,4 +876,63 @@ model InterviewTranscriptSegment {
   @@index([interviewId])
   @@index([createdByUserId])
   @@map("interview_transcript_segments")
+}
+
+// ---------------------------------------------------------------------------
+// ATS — Job offers (formal offer after interviews; Hiring is 06B)
+// ---------------------------------------------------------------------------
+
+enum JobOfferStatus {
+  DRAFT
+  SENT
+  ACCEPTED
+  REJECTED
+  EXPIRED
+  WITHDRAWN
+}
+
+enum SalaryPeriod {
+  MONTHLY
+  ANNUAL
+  HOURLY
+}
+
+/// Colombian-oriented employment modality for offers (v1).
+enum OfferEmploymentType {
+  FULL_TIME
+  PART_TIME
+  FIXED_TERM
+  CONTRACTOR
+}
+
+model JobOffer {
+  id              String              @id @default(uuid()) @db.Uuid
+  companyId       String              @db.Uuid
+  applicationId   String              @unique @db.Uuid
+  status          JobOfferStatus      @default(DRAFT)
+  positionTitle   String
+  salaryAmount    Decimal             @db.Decimal(14, 2)
+  salaryCurrency  String              @default("COP") @db.VarChar(3)
+  salaryPeriod    SalaryPeriod        @default(MONTHLY)
+  employmentType  OfferEmploymentType @default(FULL_TIME)
+  startDate       DateTime?           @db.Date
+  expiresAt       DateTime?
+  notes           String?
+  sentAt          DateTime?
+  acceptedAt      DateTime?
+  rejectedAt      DateTime?
+  withdrawnAt     DateTime?
+  expiredAt       DateTime?
+  createdByUserId String              @db.Uuid
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  company     Company     @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  application Application @relation(fields: [applicationId], references: [id], onDelete: Restrict)
+  createdBy   User        @relation(fields: [createdByUserId], references: [id], onDelete: Restrict)
+
+  @@index([companyId])
+  @@index([status])
+  @@index([createdByUserId])
+  @@map("job_offers")
 }

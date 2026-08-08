@@ -13,6 +13,9 @@ import { ApplicationInterviewsController } from './interviews/application-interv
 import { InterviewFormTemplatesController } from './interviews/interview-form-templates.controller';
 import { InterviewsController } from './interviews/interviews.controller';
 import { InterviewsService } from './interviews/interviews.service';
+import { ApplicationOffersController } from './offers/application-offers.controller';
+import { OffersController } from './offers/offers.controller';
+import { OffersService } from './offers/offers.service';
 import { PipelineController } from './pipeline/pipeline.controller';
 import { VacancyRequestsController } from './vacancy-requests/vacancy-requests.controller';
 import { VacancyRequestsService } from './vacancy-requests/vacancy-requests.service';
@@ -28,8 +31,10 @@ import { VacanciesService } from './vacancies/vacancies.service';
     CandidatesController,
     ApplicationsController,
     ApplicationInterviewsController,
+    ApplicationOffersController,
     InterviewsController,
     InterviewFormTemplatesController,
+    OffersController,
   ],
   providers: [
     CompanyContextGuard,
@@ -40,6 +45,7 @@ import { VacanciesService } from './vacancies/vacancies.service';
     CandidatesService,
     ApplicationsService,
     InterviewsService,
+    OffersService,
   ],
 })
 export class AtsModule {}
