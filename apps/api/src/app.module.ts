@@ -6,6 +6,7 @@ import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
 import { CoreModule } from './core/core.module';
 import { HealthModule } from './health/health.module';
+import { OrganizationModule } from './organization/organization.module';
 import { PlatformModule } from './platform/platform.module';
 import { PrismaModule } from './prisma/prisma.module';
 
@@ -24,6 +25,7 @@ import { PrismaModule } from './prisma/prisma.module';
     PrismaModule,
     CoreModule,
     AuthModule,
+    OrganizationModule,
     PlatformModule,
     HealthModule,
   ],

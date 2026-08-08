@@ -1,0 +1,75 @@
+import type { AuthenticatedUser, TenantContext } from '../../auth/auth.types';
+import { CreatePositionDto, UpdatePositionDto } from './dto/position.dto';
+import { PositionsService } from './positions.service';
+export declare class PositionsController {
+    private readonly positionsService;
+    constructor(positionsService: PositionsService);
+    list(tenant: TenantContext): Promise<{
+        name: string;
+        id: string;
+        companyId: string;
+        createdAt: Date;
+        status: import("@prisma/client").$Enums.OrganizationEntityStatus;
+        updatedAt: Date;
+        deletedAt: Date | null;
+        code: string | null;
+        mission: string | null;
+        responsibilities: string | null;
+        requiredExperience: string | null;
+        requiredEducation: string | null;
+        headcount: number;
+        areaId: string;
+        jobLevelId: string | null;
+    }[]>;
+    getById(tenant: TenantContext, id: string): Promise<{
+        name: string;
+        id: string;
+        companyId: string;
+        createdAt: Date;
+        status: import("@prisma/client").$Enums.OrganizationEntityStatus;
+        updatedAt: Date;
+        deletedAt: Date | null;
+        code: string | null;
+        mission: string | null;
+        responsibilities: string | null;
+        requiredExperience: string | null;
+        requiredEducation: string | null;
+        headcount: number;
+        areaId: string;
+        jobLevelId: string | null;
+    }>;
+    create(tenant: TenantContext, user: AuthenticatedUser, dto: CreatePositionDto): Promise<{
+        name: string;
+        id: string;
+        companyId: string;
+        createdAt: Date;
+        status: import("@prisma/client").$Enums.OrganizationEntityStatus;
+        updatedAt: Date;
+        deletedAt: Date | null;
+        code: string | null;
+        mission: string | null;
+        responsibilities: string | null;
+        requiredExperience: string | null;
+        requiredEducation: string | null;
+        headcount: number;
+        areaId: string;
+        jobLevelId: string | null;
+    }>;
+    update(tenant: TenantContext, user: AuthenticatedUser, id: string, dto: UpdatePositionDto): Promise<{
+        name: string;
+        id: string;
+        companyId: string;
+        createdAt: Date;
+        status: import("@prisma/client").$Enums.OrganizationEntityStatus;
+        updatedAt: Date;
+        deletedAt: Date | null;
+        code: string | null;
+        mission: string | null;
+        responsibilities: string | null;
+        requiredExperience: string | null;
+        requiredEducation: string | null;
+        headcount: number;
+        areaId: string;
+        jobLevelId: string | null;
+    }>;
+}

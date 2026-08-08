@@ -56,6 +56,16 @@ const PERMISSIONS = [
     name: 'Manage users',
     description: 'Invite and manage company users',
   },
+  {
+    code: 'organization.read',
+    name: 'Read organization',
+    description: 'View organizational structure and employees',
+  },
+  {
+    code: 'organization.manage',
+    name: 'Manage organization',
+    description: 'Create and update organizational structure and employees',
+  },
 ] as const;
 
 const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
@@ -64,11 +74,13 @@ const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
     'company.manage',
     'users.read',
     'users.manage',
+    'organization.read',
+    'organization.manage',
   ],
-  RECRUITER: ['company.read'],
-  PERFORMANCE_MANAGER: ['company.read'],
-  LEADER: ['company.read'],
-  COLLABORATOR: ['company.read'],
+  RECRUITER: ['company.read', 'organization.read'],
+  PERFORMANCE_MANAGER: ['company.read', 'organization.read'],
+  LEADER: ['company.read', 'organization.read'],
+  COLLABORATOR: ['company.read', 'organization.read'],
 };
 
 async function upsertCompanyRoles(): Promise<Map<string, Role>> {

@@ -11,7 +11,7 @@ talento-sin-clave/
 │   └── web/                 # Next.js (App Router) + Tailwind
 ├── packages/
 │   └── shared/              # Tipos y utilidades compartidas
-├── docs/                    # Autenticación y multi-tenancy
+├── docs/                    # Auth, multi-tenancy, organization
 └── infrastructure/
     └── docker-compose.yml   # PostgreSQL 17
 ```
@@ -33,6 +33,7 @@ Documentación:
 
 - [docs/authentication.md](docs/authentication.md)
 - [docs/multi-tenancy.md](docs/multi-tenancy.md)
+- [docs/organization.md](docs/organization.md)
 
 ## Ejecución
 
@@ -56,7 +57,8 @@ pnpm dev:web
 - API: http://localhost:3001
 - Health: http://localhost:3001/health
 - Auth: `POST /auth/login`, `GET /auth/me`
-- Tenant sample: `GET /companies/current` con `Authorization` + `X-Company-Id`
+- Organization: `/organization/*` con `Authorization` + `X-Company-Id`
+- Tenant sample: `GET /companies/current`
 - Platform sample: `GET /platform/me` (Platform Owner)
 
 ## Scripts raíz
@@ -71,6 +73,6 @@ pnpm dev:web
 
 ## Alcance actual
 
-Incluye: monorepo, API NestJS, web Next.js, Prisma multi-tenant, autenticación JWT + sesiones, tenant context, RBAC por permissions, seed RBAC + seed DEV, `GET /health`.
+Incluye: monorepo, API NestJS, web Next.js, Prisma multi-tenant, autenticación JWT + sesiones, tenant context, RBAC, núcleo organizacional (BusinessUnit/Area/JobLevel/Position/Employee/ReportingLine), seed RBAC + seed DEV, `GET /health`.
 
-Pendiente: cookies/SSO, Employee, Organization, ATS, Performance, proxy Platform Owner.
+Pendiente: cookies/SSO, ATS, Performance, proxy Platform Owner.

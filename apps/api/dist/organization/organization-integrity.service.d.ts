@@ -1,0 +1,85 @@
+import { PrismaService } from '../prisma/prisma.service';
+export declare class OrganizationIntegrityService {
+    private readonly prisma;
+    constructor(prisma: PrismaService);
+    requireBusinessUnit(companyId: string, id: string): Promise<{
+        name: string;
+        id: string;
+        companyId: string;
+        createdAt: Date;
+        status: import("@prisma/client").$Enums.OrganizationEntityStatus;
+        updatedAt: Date;
+        deletedAt: Date | null;
+        code: string | null;
+        description: string | null;
+    }>;
+    requireArea(companyId: string, id: string): Promise<{
+        name: string;
+        id: string;
+        companyId: string;
+        createdAt: Date;
+        status: import("@prisma/client").$Enums.OrganizationEntityStatus;
+        updatedAt: Date;
+        deletedAt: Date | null;
+        code: string | null;
+        description: string | null;
+        businessUnitId: string | null;
+        parentAreaId: string | null;
+    }>;
+    requireJobLevel(companyId: string, id: string): Promise<{
+        name: string;
+        id: string;
+        companyId: string;
+        createdAt: Date;
+        status: import("@prisma/client").$Enums.OrganizationEntityStatus;
+        updatedAt: Date;
+        deletedAt: Date | null;
+        code: string | null;
+        rank: number;
+    }>;
+    requirePosition(companyId: string, id: string): Promise<{
+        name: string;
+        id: string;
+        companyId: string;
+        createdAt: Date;
+        status: import("@prisma/client").$Enums.OrganizationEntityStatus;
+        updatedAt: Date;
+        deletedAt: Date | null;
+        code: string | null;
+        mission: string | null;
+        responsibilities: string | null;
+        requiredExperience: string | null;
+        requiredEducation: string | null;
+        headcount: number;
+        areaId: string;
+        jobLevelId: string | null;
+    }>;
+    requireEmployee(companyId: string, id: string): Promise<{
+        id: string;
+        companyId: string;
+        userId: string | null;
+        createdAt: Date;
+        email: string;
+        firstName: string;
+        lastName: string;
+        status: import("@prisma/client").$Enums.EmployeeStatus;
+        updatedAt: Date;
+        deletedAt: Date | null;
+        businessUnitId: string | null;
+        areaId: string;
+        phone: string | null;
+        birthDate: Date | null;
+        country: string | null;
+        state: string | null;
+        city: string | null;
+        maritalStatus: string | null;
+        childrenCount: number | null;
+        housingType: string | null;
+        emergencyContactName: string | null;
+        emergencyContactPhone: string | null;
+        hireDate: Date | null;
+        terminationDate: Date | null;
+        positionId: string;
+    }>;
+    assertUserMembership(companyId: string, userId: string): Promise<void>;
+}

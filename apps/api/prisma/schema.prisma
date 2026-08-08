@@ -68,6 +68,7 @@ model User {
   memberships CompanyMembership[]
   sessions    UserSession[]
   auditLogs   AuditLog[]
+  employees   Employee[]
 
   @@map("users")
 }
@@ -105,9 +106,15 @@ model Company {
   updatedAt       DateTime      @updatedAt
   deletedAt       DateTime?
 
-  memberships CompanyMembership[]
-  modules     CompanyModule[]
-  auditLogs   AuditLog[]
+  memberships    CompanyMembership[]
+  modules        CompanyModule[]
+  auditLogs      AuditLog[]
+  businessUnits  BusinessUnit[]
+  areas          Area[]
+  jobLevels      JobLevel[]
+  positions      Position[]
+  employees      Employee[]
+  reportingLines EmployeeReportingLine[]
 
   @@map("companies")
 }
@@ -230,4 +237,191 @@ model AuditLog {
   @@index([entity])
   @@index([createdAt])
   @@map("audit_logs")
+}
+
+// ---------------------------------------------------------------------------
+// Organization
+// ---------------------------------------------------------------------------
+
+enum OrganizationEntityStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum EmployeeStatus {
+  ACTIVE
+  INACTIVE
+  TERMINATED
+}
+
+enum ReportingLineType {
+  DIRECT
+  INDIRECT
+}
+
+model BusinessUnit {
+  id          String                   @id @default(uuid()) @db.Uuid
+  companyId   String                   @db.Uuid
+  name        String
+  code        String?
+  description String?
+  status      OrganizationEntityStatus @default(ACTIVE)
+  createdAt   DateTime                 @default(now())
+  updatedAt   DateTime                 @updatedAt
+  deletedAt   DateTime?
+
+  company   Company    @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  areas     Area[]
+  employees Employee[]
+
+  @@unique([companyId, name])
+  @@unique([companyId, code])
+  @@index([companyId])
+  @@map("business_units")
+}
+
+model Area {
+  id             String                   @id @default(uuid()) @db.Uuid
+  companyId      String                   @db.Uuid
+  businessUnitId String?                  @db.Uuid
+  parentAreaId   String?                  @db.Uuid
+  name           String
+  code           String?
+  description    String?
+  status         OrganizationEntityStatus @default(ACTIVE)
+  createdAt      DateTime                 @default(now())
+  updatedAt      DateTime                 @updatedAt
+  deletedAt      DateTime?
+
+  company      Company       @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  businessUnit BusinessUnit? @relation(fields: [businessUnitId], references: [id], onDelete: Restrict)
+  parentArea   Area?         @relation("AreaHierarchy", fields: [parentAreaId], references: [id], onDelete: Restrict)
+  childAreas   Area[]        @relation("AreaHierarchy")
+  positions    Position[]
+  employees    Employee[]
+
+  @@unique([companyId, name])
+  @@unique([companyId, code])
+  @@index([companyId])
+  @@index([businessUnitId])
+  @@index([parentAreaId])
+  @@map("areas")
+}
+
+model JobLevel {
+  id        String                   @id @default(uuid()) @db.Uuid
+  companyId String                   @db.Uuid
+  name      String
+  code      String?
+  rank      Int
+  status    OrganizationEntityStatus @default(ACTIVE)
+  createdAt DateTime                 @default(now())
+  updatedAt DateTime                 @updatedAt
+  deletedAt DateTime?
+
+  company   Company    @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  positions Position[]
+
+  @@unique([companyId, name])
+  @@unique([companyId, rank])
+  @@unique([companyId, code])
+  @@index([companyId])
+  @@map("job_levels")
+}
+
+model Position {
+  id                 String                   @id @default(uuid()) @db.Uuid
+  companyId          String                   @db.Uuid
+  areaId             String                   @db.Uuid
+  jobLevelId         String?                  @db.Uuid
+  name               String
+  code               String?
+  mission            String?
+  responsibilities   String?
+  requiredExperience String?
+  requiredEducation  String?
+  headcount          Int                      @default(1)
+  status             OrganizationEntityStatus @default(ACTIVE)
+  createdAt          DateTime                 @default(now())
+  updatedAt          DateTime                 @updatedAt
+  deletedAt          DateTime?
+
+  company   Company    @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  area      Area       @relation(fields: [areaId], references: [id], onDelete: Restrict)
+  jobLevel  JobLevel?  @relation(fields: [jobLevelId], references: [id], onDelete: Restrict)
+  employees Employee[]
+
+  @@unique([companyId, name])
+  @@unique([companyId, code])
+  @@index([companyId])
+  @@index([areaId])
+  @@index([jobLevelId])
+  @@map("positions")
+}
+
+model Employee {
+  id                    String         @id @default(uuid()) @db.Uuid
+  companyId             String         @db.Uuid
+  userId                String?        @db.Uuid
+  firstName             String
+  lastName              String
+  email                 String
+  phone                 String?
+  birthDate             DateTime?      @db.Date
+  country               String?
+  state                 String?
+  city                  String?
+  maritalStatus         String?
+  childrenCount         Int?
+  housingType           String?
+  emergencyContactName  String?
+  emergencyContactPhone String?
+  businessUnitId        String?        @db.Uuid
+  areaId                String         @db.Uuid
+  positionId            String         @db.Uuid
+  status                EmployeeStatus @default(ACTIVE)
+  hireDate              DateTime?      @db.Date
+  terminationDate       DateTime?      @db.Date
+  createdAt             DateTime       @default(now())
+  updatedAt             DateTime       @updatedAt
+  deletedAt             DateTime?
+
+  company      Company       @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  user         User?         @relation(fields: [userId], references: [id], onDelete: Restrict)
+  businessUnit BusinessUnit? @relation(fields: [businessUnitId], references: [id], onDelete: Restrict)
+  area         Area          @relation(fields: [areaId], references: [id], onDelete: Restrict)
+  position     Position      @relation(fields: [positionId], references: [id], onDelete: Restrict)
+
+  reportingTo    EmployeeReportingLine[] @relation("EmployeeReports")
+  managedReports EmployeeReportingLine[] @relation("ManagerReports")
+
+  @@unique([companyId, email])
+  @@unique([companyId, userId])
+  @@index([companyId])
+  @@index([areaId])
+  @@index([positionId])
+  @@index([businessUnitId])
+  @@index([userId])
+  @@index([status])
+  @@map("employees")
+}
+
+model EmployeeReportingLine {
+  id                String            @id @default(uuid()) @db.Uuid
+  companyId         String            @db.Uuid
+  employeeId        String            @db.Uuid
+  managerEmployeeId String            @db.Uuid
+  type              ReportingLineType
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  company  Company  @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  employee Employee @relation("EmployeeReports", fields: [employeeId], references: [id], onDelete: Restrict)
+  manager  Employee @relation("ManagerReports", fields: [managerEmployeeId], references: [id], onDelete: Restrict)
+
+  @@unique([employeeId, managerEmployeeId, type])
+  @@index([companyId])
+  @@index([employeeId])
+  @@index([managerEmployeeId])
+  @@map("employee_reporting_lines")
 }
