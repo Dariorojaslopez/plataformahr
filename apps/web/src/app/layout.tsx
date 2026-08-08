@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { SessionProvider } from "@/components/auth/session-provider";
+import { QueryProvider } from "@/components/providers/query-provider";
 import { ThemeProvider } from "@/components/theme/theme-provider";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import "./globals.css";
@@ -35,7 +36,9 @@ export default function RootLayout({
       >
         <ThemeProvider>
           <SessionProvider>
-            <TooltipProvider delayDuration={200}>{children}</TooltipProvider>
+            <QueryProvider>
+              <TooltipProvider delayDuration={200}>{children}</TooltipProvider>
+            </QueryProvider>
           </SessionProvider>
         </ThemeProvider>
       </body>

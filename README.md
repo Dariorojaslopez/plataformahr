@@ -38,6 +38,7 @@ Documentación:
 - [docs/ats-candidates.md](docs/ats-candidates.md)
 - [docs/ats-interviews.md](docs/ats-interviews.md)
 - [docs/frontend-auth.md](docs/frontend-auth.md)
+- [docs/frontend-organization.md](docs/frontend-organization.md)
 
 ## Ejecución
 
@@ -63,6 +64,6 @@ pnpm dev:web
 
 ## Alcance actual
 
-Incluye: multi-tenant core, auth JWT/sesiones, organización, ATS 04A–04C, y frontend 05A (design system, auth/session, shell, dashboard, placeholders).
+Incluye: multi-tenant core, auth JWT/sesiones, organización API, ATS 04A–04C, frontend 05A (shell/auth) y 05B (UI Organization).
 
-Pendiente: CRUD UI Organization/ATS, CV/AI/speech-to-text/oferta/contratación, Performance, SSO, cookies HttpOnly para refresh.
+Pendiente: ATS UI, Performance, cookies HttpOnly para refresh, endpoint de permissions efectivos.

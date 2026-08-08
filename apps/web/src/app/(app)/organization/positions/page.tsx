@@ -1,10 +1,5 @@
-import { ComingSoonPage } from "@/components/layout/coming-soon-page";
+import { PositionsPageClient } from "@/components/organization/positions-page";
 
-export default function Page() {
-  return (
-    <ComingSoonPage
-      title="Cargos"
-      description="Catálogo de posiciones y headcount."
-    />
-  );
+export default function PositionsPage() {
+  return <PositionsPageClient />;
 }

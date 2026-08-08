@@ -1,10 +1,11 @@
-import { ComingSoonPage } from "@/components/layout/coming-soon-page";
+import { Suspense } from "react";
+import { EmployeesPageClient } from "@/components/organization/employees-page";
+import { Skeleton } from "@/components/ui/skeleton";
 
-export default function Page() {
+export default function EmployeesPage() {
   return (
-    <ComingSoonPage
-      title="Colaboradores"
-      description="Gestión de empleados de la compañía."
-    />
+    <Suspense fallback={<Skeleton className="h-64 w-full" />}>
+      <EmployeesPageClient />
+    </Suspense>
   );
 }

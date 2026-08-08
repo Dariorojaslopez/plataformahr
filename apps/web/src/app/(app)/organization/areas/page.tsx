@@ -1,10 +1,5 @@
-import { ComingSoonPage } from "@/components/layout/coming-soon-page";
+import { AreasPageClient } from "@/components/organization/areas-page";
 
-export default function Page() {
-  return (
-    <ComingSoonPage
-      title="Áreas"
-      description="Estructura de áreas organizacionales."
-    />
-  );
+export default function AreasPage() {
+  return <AreasPageClient />;
 }

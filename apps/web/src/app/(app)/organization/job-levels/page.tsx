@@ -1,10 +1,5 @@
-import { ComingSoonPage } from "@/components/layout/coming-soon-page";
+import { JobLevelsPageClient } from "@/components/organization/job-levels-page";
 
-export default function Page() {
-  return (
-    <ComingSoonPage
-      title="Niveles"
-      description="Niveles de cargo / job levels."
-    />
-  );
+export default function JobLevelsPage() {
+  return <JobLevelsPageClient />;
 }

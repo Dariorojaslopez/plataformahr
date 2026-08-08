@@ -32,12 +32,8 @@ export function AuthGuard({
       return;
     }
 
-    if (requireCompany && !user.isPlatformOwner) {
-      if (companies.length === 0) {
-        router.replace("/select-company");
-        return;
-      }
-      if (!activeCompanyId) {
+    if (requireCompany) {
+      if (companies.length === 0 || !activeCompanyId) {
         router.replace("/select-company");
       }
     }
@@ -67,11 +63,7 @@ export function AuthGuard({
 
   if (requirePlatformOwner && !user.isPlatformOwner) return null;
 
-  if (
-    requireCompany &&
-    !user.isPlatformOwner &&
-    (!activeCompanyId || companies.length === 0)
-  ) {
+  if (requireCompany && (!activeCompanyId || companies.length === 0)) {
     return null;
   }
 

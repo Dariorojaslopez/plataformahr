@@ -43,6 +43,11 @@ export const APP_NAV: NavSection[] = [
         icon: Users,
       },
       {
+        label: "Unidades de negocio",
+        href: "/organization/business-units",
+        icon: Building2,
+      },
+      {
         label: "Áreas",
         href: "/organization/areas",
         icon: Network,
@@ -108,6 +113,7 @@ export function resolvePageTitle(pathname: string): string {
       if (item.href === pathname) return item.label;
     }
   }
+  if (pathname.startsWith("/organization/employees/")) return "Perfil";
   if (pathname === "/select-company") return "Seleccionar compañía";
   if (pathname === "/platform") return "Platform";
   return "Talento Sin Clave";
