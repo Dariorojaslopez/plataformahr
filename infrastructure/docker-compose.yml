@@ -8,7 +8,8 @@ services:
       POSTGRES_PASSWORD: talento
       POSTGRES_DB: talento
     ports:
-      - '5432:5432'
+      # Host 5433 avoids clashes with a local PostgreSQL on 5432.
+      - '5433:5432'
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:

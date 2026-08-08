@@ -19,7 +19,7 @@ talento-sin-clave/
 |------|------------|--------|
 | Web | Next.js 16, TypeScript, Tailwind | 3000 |
 | API | NestJS 11, Prisma | 3001 |
-| DB | PostgreSQL 17 | 5432 |
+| DB | PostgreSQL 17 | 5433→5432 |
 
 Flujo local: `web` habla con `api` vía `NEXT_PUBLIC_API_URL`. La API usa `DATABASE_URL` (PostgreSQL).
 
@@ -90,11 +90,11 @@ pnpm build:web
 |--------|-------------|
 | `dev:api` / `dev:web` | Dev servers |
 | `infra:up` / `infra:down` / `infra:logs` | Docker Compose (PostgreSQL 17) |
-| `db:generate` / `db:migrate` | Prisma |
+| `db:generate` / `db:migrate` / `db:seed` | Prisma |
 | `lint` / `test` / `build` | Calidad y builds |
 
 ## Alcance actual (bootstrap)
 
-Incluye: monorepo, API NestJS, web Next.js, `packages/shared`, Docker (PostgreSQL 17), Prisma base, `GET /health`.
+Incluye: monorepo, API NestJS, web Next.js, `packages/shared`, Docker (PostgreSQL 17), Prisma multi-tenant core, seed RBAC, `GET /health`.
 
-Pendiente (no implementado aún): autenticación, tenants, users, ATS, Performance, modelo de datos completo.
+Pendiente (no implementado aún): autenticación, guards de tenant, Employee, ATS, Performance.

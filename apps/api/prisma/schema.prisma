@@ -7,4 +7,205 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// Domain models (tenants, users, ATS, performance, etc.) will be added later.
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  INVITED
+  BLOCKED
+}
+
+enum CompanyStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+}
+
+enum Language {
+  ES
+  EN
+  PT
+}
+
+enum MembershipStatus {
+  ACTIVE
+  INACTIVE
+  INVITED
+}
+
+enum RoleScope {
+  PLATFORM
+  COMPANY
+}
+
+enum PlatformModule {
+  ATS
+  PERFORMANCE
+  DEVELOPMENT
+  TRAINING
+}
+
+// ---------------------------------------------------------------------------
+// Identity & access
+// ---------------------------------------------------------------------------
+
+/// Global identity. Platform owners do not require a company membership.
+model User {
+  id              String     @id @default(uuid()) @db.Uuid
+  email           String     @unique
+  passwordHash    String?
+  firstName       String
+  lastName        String
+  status          UserStatus @default(INVITED)
+  isPlatformOwner Boolean    @default(false)
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+  deletedAt       DateTime?
+
+  memberships CompanyMembership[]
+  auditLogs   AuditLog[]
+
+  @@map("users")
+}
+
+/// Tenant root. Business entities must scope by companyId.
+model Company {
+  id              String        @id @default(uuid()) @db.Uuid
+  name            String
+  legalName       String?
+  slug            String        @unique
+  status          CompanyStatus @default(ACTIVE)
+  defaultLanguage Language      @default(ES)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  deletedAt       DateTime?
+
+  memberships CompanyMembership[]
+  modules     CompanyModule[]
+  auditLogs   AuditLog[]
+
+  @@map("companies")
+}
+
+/// User <-> Company membership. Users never store companyId directly.
+model CompanyMembership {
+  id        String           @id @default(uuid()) @db.Uuid
+  userId    String           @db.Uuid
+  companyId String           @db.Uuid
+  status    MembershipStatus @default(INVITED)
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  user    User             @relation(fields: [userId], references: [id], onDelete: Restrict)
+  company Company          @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  roles   MembershipRole[]
+
+  @@unique([userId, companyId])
+  @@index([companyId])
+  @@map("company_memberships")
+}
+
+// ---------------------------------------------------------------------------
+// RBAC
+// ---------------------------------------------------------------------------
+
+model Role {
+  id          String    @id @default(uuid()) @db.Uuid
+  code        String
+  name        String
+  description String?
+  scope       RoleScope
+  isSystem    Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  membershipRoles MembershipRole[]
+  permissions     RolePermission[]
+
+  @@unique([scope, code])
+  @@map("roles")
+}
+
+model Permission {
+  id          String   @id @default(uuid()) @db.Uuid
+  code        String   @unique
+  name        String
+  description String?
+  createdAt   DateTime @default(now())
+
+  roles RolePermission[]
+
+  @@map("permissions")
+}
+
+model MembershipRole {
+  membershipId String   @db.Uuid
+  roleId       String   @db.Uuid
+  createdAt    DateTime @default(now())
+
+  membership CompanyMembership @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+  role       Role              @relation(fields: [roleId], references: [id], onDelete: Restrict)
+
+  @@id([membershipId, roleId])
+  @@map("membership_roles")
+}
+
+model RolePermission {
+  roleId       String   @db.Uuid
+  permissionId String   @db.Uuid
+  createdAt    DateTime @default(now())
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Restrict)
+
+  @@id([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+// ---------------------------------------------------------------------------
+// Tenant modules
+// ---------------------------------------------------------------------------
+
+model CompanyModule {
+  id        String         @id @default(uuid()) @db.Uuid
+  companyId String         @db.Uuid
+  module    PlatformModule
+  enabled   Boolean        @default(false)
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, module])
+  @@map("company_modules")
+}
+
+// ---------------------------------------------------------------------------
+// Audit
+// ---------------------------------------------------------------------------
+
+/// Append-oriented audit trail. companyId is nullable for platform-level actions.
+model AuditLog {
+  id        String   @id @default(uuid()) @db.Uuid
+  companyId String?  @db.Uuid
+  userId    String?  @db.Uuid
+  action    String
+  entity    String
+  entityId  String?
+  metadata  Json?
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  company Company? @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  user    User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([companyId])
+  @@index([userId])
+  @@index([entity])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
