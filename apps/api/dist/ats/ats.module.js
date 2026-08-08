@@ -18,6 +18,10 @@ const applications_controller_1 = require("./applications/applications.controlle
 const applications_service_1 = require("./applications/applications.service");
 const candidates_controller_1 = require("./candidates/candidates.controller");
 const candidates_service_1 = require("./candidates/candidates.service");
+const application_interviews_controller_1 = require("./interviews/application-interviews.controller");
+const interview_form_templates_controller_1 = require("./interviews/interview-form-templates.controller");
+const interviews_controller_1 = require("./interviews/interviews.controller");
+const interviews_service_1 = require("./interviews/interviews.service");
 const pipeline_controller_1 = require("./pipeline/pipeline.controller");
 const vacancy_requests_controller_1 = require("./vacancy-requests/vacancy-requests.controller");
 const vacancy_requests_service_1 = require("./vacancy-requests/vacancy-requests.service");
@@ -35,6 +39,9 @@ exports.AtsModule = AtsModule = __decorate([
             pipeline_controller_1.PipelineController,
             candidates_controller_1.CandidatesController,
             applications_controller_1.ApplicationsController,
+            application_interviews_controller_1.ApplicationInterviewsController,
+            interviews_controller_1.InterviewsController,
+            interview_form_templates_controller_1.InterviewFormTemplatesController,
         ],
         providers: [
             company_context_guard_1.CompanyContextGuard,
@@ -44,6 +51,7 @@ exports.AtsModule = AtsModule = __decorate([
             vacancies_service_1.VacanciesService,
             candidates_service_1.CandidatesService,
             applications_service_1.ApplicationsService,
+            interviews_service_1.InterviewsService,
         ],
     })
 ], AtsModule);

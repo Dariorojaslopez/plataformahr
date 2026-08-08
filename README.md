@@ -36,6 +36,7 @@ Documentación:
 - [docs/organization.md](docs/organization.md)
 - [docs/ats-vacancies.md](docs/ats-vacancies.md)
 - [docs/ats-candidates.md](docs/ats-candidates.md)
+- [docs/ats-interviews.md](docs/ats-interviews.md)
 
 ## Ejecución
 
@@ -57,10 +58,10 @@ pnpm dev:web
 ```
 
 - API: http://localhost:3001
-- Auth / Organization / ATS (vacantes, candidatos, applications, pipeline) bajo JWT + `X-Company-Id`
+- Auth / Organization / ATS (vacantes, candidatos, applications, pipeline, entrevistas) bajo JWT + `X-Company-Id`
 
 ## Alcance actual
 
-Incluye: multi-tenant core, auth JWT/sesiones, organización, ATS fase 04A (VacancyRequest + approvals + Vacancy) y 04B (Candidate + Application + pipeline/Kanban).
+Incluye: multi-tenant core, auth JWT/sesiones, organización, ATS 04A (VacancyRequest + Vacancy), 04B (Candidate + Application + pipeline) y 04C (Interview + forms + transcript textual).
 
-Pendiente: CV/AI/entrevistas/oferta/contratación, Performance, SSO, proxy Platform Owner.
+Pendiente: CV/AI/speech-to-text/oferta/contratación, Performance, SSO, proxy Platform Owner.

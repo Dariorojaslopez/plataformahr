@@ -65,12 +65,14 @@ model User {
   updatedAt       DateTime   @updatedAt
   deletedAt       DateTime?
 
-  memberships               CompanyMembership[]
-  sessions                  UserSession[]
-  auditLogs                 AuditLog[]
-  employees                 Employee[]
-  vacancyApprovalsDecided   VacancyApproval[]
-  applicationStageHistories ApplicationStageHistory[]
+  memberships                 CompanyMembership[]
+  sessions                    UserSession[]
+  auditLogs                   AuditLog[]
+  employees                   Employee[]
+  vacancyApprovalsDecided     VacancyApproval[]
+  applicationStageHistories   ApplicationStageHistory[]
+  interviewAnswers            InterviewAnswer[]
+  interviewTranscriptSegments InterviewTranscriptSegment[]
 
   @@map("users")
 }
@@ -108,21 +110,27 @@ model Company {
   updatedAt       DateTime      @updatedAt
   deletedAt       DateTime?
 
-  memberships               CompanyMembership[]
-  modules                   CompanyModule[]
-  auditLogs                 AuditLog[]
-  businessUnits             BusinessUnit[]
-  areas                     Area[]
-  jobLevels                 JobLevel[]
-  positions                 Position[]
-  employees                 Employee[]
-  reportingLines            EmployeeReportingLine[]
-  vacancyRequests           VacancyRequest[]
-  vacancyApprovals          VacancyApproval[]
-  vacancies                 Vacancy[]
-  candidates                Candidate[]
-  applications              Application[]
-  applicationStageHistories ApplicationStageHistory[]
+  memberships                 CompanyMembership[]
+  modules                     CompanyModule[]
+  auditLogs                   AuditLog[]
+  businessUnits               BusinessUnit[]
+  areas                       Area[]
+  jobLevels                   JobLevel[]
+  positions                   Position[]
+  employees                   Employee[]
+  reportingLines              EmployeeReportingLine[]
+  vacancyRequests             VacancyRequest[]
+  vacancyApprovals            VacancyApproval[]
+  vacancies                   Vacancy[]
+  candidates                  Candidate[]
+  applications                Application[]
+  applicationStageHistories   ApplicationStageHistory[]
+  interviews                  Interview[]
+  interviewFormTemplates      InterviewFormTemplate[]
+  interviewFormQuestions      InterviewFormQuestion[]
+  interviewQuestions          InterviewQuestion[]
+  interviewAnswers            InterviewAnswer[]
+  interviewTranscriptSegments InterviewTranscriptSegment[]
 
   @@map("companies")
 }
@@ -409,6 +417,7 @@ model Employee {
   managedReports           EmployeeReportingLine[] @relation("ManagerReports")
   vacancyRequestsRequested VacancyRequest[]        @relation("VacancyRequestedBy")
   vacancyApprovals         VacancyApproval[]       @relation("VacancyApprover")
+  interviewAssignments     InterviewInterviewer[]
 
   @@unique([companyId, email])
   @@unique([companyId, userId])
@@ -638,10 +647,11 @@ model Application {
   updatedAt          DateTime          @updatedAt
   deletedAt          DateTime?
 
-  company   Company                   @relation(fields: [companyId], references: [id], onDelete: Restrict)
-  candidate Candidate                 @relation(fields: [candidateId], references: [id], onDelete: Restrict)
-  vacancy   Vacancy                   @relation(fields: [vacancyId], references: [id], onDelete: Restrict)
-  history   ApplicationStageHistory[]
+  company    Company                   @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  candidate  Candidate                 @relation(fields: [candidateId], references: [id], onDelete: Restrict)
+  vacancy    Vacancy                   @relation(fields: [vacancyId], references: [id], onDelete: Restrict)
+  history    ApplicationStageHistory[]
+  interviews Interview[]
 
   @@unique([candidateId, vacancyId])
   @@index([companyId])
@@ -670,4 +680,197 @@ model ApplicationStageHistory {
   @@index([applicationId])
   @@index([createdAt])
   @@map("application_stage_histories")
+}
+
+// ---------------------------------------------------------------------------
+// ATS — Interviews, forms & textual transcripts
+// ---------------------------------------------------------------------------
+
+enum InterviewType {
+  HR
+  TECHNICAL
+  MANAGER
+  GENERAL
+  OTHER
+}
+
+enum InterviewStatus {
+  DRAFT
+  SCHEDULED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum InterviewFormStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum InterviewQuestionType {
+  TEXT
+  TEXTAREA
+  RATING
+  YES_NO
+}
+
+enum TranscriptSegmentKind {
+  QUESTION
+  ANSWER
+  NOTE
+  UNCLASSIFIED
+}
+
+model Interview {
+  id                 String          @id @default(uuid()) @db.Uuid
+  companyId          String          @db.Uuid
+  applicationId      String          @db.Uuid
+  type               InterviewType
+  status             InterviewStatus @default(DRAFT)
+  scheduledAt        DateTime?
+  startedAt          DateTime?
+  completedAt        DateTime?
+  cancelledAt        DateTime?
+  location           String?
+  meetingUrl         String?
+  notes              String?
+  /// Client-side display name only. Never a server-accessible file path.
+  localRecordingName String?
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+  deletedAt          DateTime?
+
+  company      Company                      @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  application  Application                  @relation(fields: [applicationId], references: [id], onDelete: Restrict)
+  interviewers InterviewInterviewer[]
+  questions    InterviewQuestion[]
+  transcripts  InterviewTranscriptSegment[]
+
+  @@index([companyId])
+  @@index([applicationId])
+  @@index([status])
+  @@index([type])
+  @@map("interviews")
+}
+
+model InterviewInterviewer {
+  interviewId String   @db.Uuid
+  employeeId  String   @db.Uuid
+  createdAt   DateTime @default(now())
+
+  interview Interview @relation(fields: [interviewId], references: [id], onDelete: Restrict)
+  employee  Employee  @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+
+  @@id([interviewId, employeeId])
+  @@index([employeeId])
+  @@map("interview_interviewers")
+}
+
+model InterviewFormTemplate {
+  id          String              @id @default(uuid()) @db.Uuid
+  companyId   String              @db.Uuid
+  name        String
+  description String?
+  type        InterviewType
+  status      InterviewFormStatus @default(ACTIVE)
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+  deletedAt   DateTime?
+
+  company   Company                 @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  questions InterviewFormQuestion[]
+
+  @@index([companyId])
+  @@index([status])
+  @@index([type])
+  @@map("interview_form_templates")
+}
+
+model InterviewFormQuestion {
+  id         String                @id @default(uuid()) @db.Uuid
+  companyId  String                @db.Uuid
+  templateId String                @db.Uuid
+  text       String
+  type       InterviewQuestionType
+  required   Boolean               @default(true)
+  weight     Int?
+  order      Int
+  createdAt  DateTime              @default(now())
+  updatedAt  DateTime              @updatedAt
+
+  company  Company               @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  template InterviewFormTemplate @relation(fields: [templateId], references: [id], onDelete: Restrict)
+
+  @@unique([templateId, order])
+  @@index([companyId])
+  @@index([templateId])
+  @@map("interview_form_questions")
+}
+
+/// Snapshot of a template question bound to a specific interview.
+model InterviewQuestion {
+  id                       String                @id @default(uuid()) @db.Uuid
+  companyId                String                @db.Uuid
+  interviewId              String                @db.Uuid
+  sourceTemplateQuestionId String?               @db.Uuid
+  text                     String
+  type                     InterviewQuestionType
+  required                 Boolean               @default(true)
+  weight                   Int?
+  order                    Int
+  createdAt                DateTime              @default(now())
+
+  company   Company           @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  interview Interview         @relation(fields: [interviewId], references: [id], onDelete: Restrict)
+  answers   InterviewAnswer[]
+
+  @@unique([interviewId, order])
+  @@index([companyId])
+  @@index([interviewId])
+  @@map("interview_questions")
+}
+
+model InterviewAnswer {
+  id                  String   @id @default(uuid()) @db.Uuid
+  companyId           String   @db.Uuid
+  interviewQuestionId String   @db.Uuid
+  answerText          String?
+  rating              Int?
+  yesNo               Boolean?
+  answeredByUserId    String   @db.Uuid
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  company           Company           @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  interviewQuestion InterviewQuestion @relation(fields: [interviewQuestionId], references: [id], onDelete: Restrict)
+  answeredBy        User              @relation(fields: [answeredByUserId], references: [id], onDelete: Restrict)
+
+  @@unique([interviewQuestionId, answeredByUserId])
+  @@index([companyId])
+  @@index([interviewQuestionId])
+  @@index([answeredByUserId])
+  @@map("interview_answers")
+}
+
+model InterviewTranscriptSegment {
+  id              String                @id @default(uuid()) @db.Uuid
+  companyId       String                @db.Uuid
+  interviewId     String                @db.Uuid
+  sequence        Int
+  speakerLabel    String?
+  kind            TranscriptSegmentKind @default(UNCLASSIFIED)
+  text            String
+  createdByUserId String                @db.Uuid
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
+
+  company   Company   @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  interview Interview @relation(fields: [interviewId], references: [id], onDelete: Restrict)
+  createdBy User      @relation(fields: [createdByUserId], references: [id], onDelete: Restrict)
+
+  @@unique([interviewId, sequence])
+  @@index([companyId])
+  @@index([interviewId])
+  @@index([createdByUserId])
+  @@map("interview_transcript_segments")
 }
