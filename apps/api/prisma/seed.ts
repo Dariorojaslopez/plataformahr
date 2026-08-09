@@ -218,6 +218,49 @@ const PERMISSIONS = [
     description:
       'View cycle analytics dashboards, organizational breakdowns, and CSV exports',
   },
+  {
+    code: 'goals.cycle.read',
+    name: 'Read goal cycles',
+    description: 'View goal periods',
+  },
+  {
+    code: 'goals.cycle.manage',
+    name: 'Manage goal cycles',
+    description: 'Create, update and transition goal periods',
+  },
+  {
+    code: 'goals.goal.read',
+    name: 'Read goals',
+    description: 'View own applicable goals (mine) and cycle metadata',
+  },
+  {
+    code: 'goals.goal.manage',
+    name: 'Manage goals',
+    description: 'Create, update, activate and cancel goals administratively',
+  },
+  {
+    code: 'goals.goal.assign',
+    name: 'Assign goals',
+    description: 'Add or remove goal assignments to employees',
+  },
+  {
+    code: 'goals.progress.update',
+    name: 'Update goal progress',
+    description:
+      'Register key-result check-ins (resource-scoped for collaborators; tenant-wide with goal.manage)',
+  },
+  {
+    code: 'goals.completion.request',
+    name: 'Request goal completion',
+    description:
+      'Request formal goal close (resource-scoped for collaborators; tenant-wide with goal.manage)',
+  },
+  {
+    code: 'goals.completion.review',
+    name: 'Review goal completion',
+    description:
+      'Approve or reject goal completion requests (admin/PM tenant-wide; leaders DIRECT individual only)',
+  },
 ] as const;
 
 const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
@@ -258,6 +301,14 @@ const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
     'performance.result.manage',
     'performance.result.release',
     'performance.analytics.read',
+    'goals.cycle.read',
+    'goals.cycle.manage',
+    'goals.goal.read',
+    'goals.goal.manage',
+    'goals.goal.assign',
+    'goals.progress.update',
+    'goals.completion.request',
+    'goals.completion.review',
   ],
   RECRUITER: [
     'company.read',
@@ -296,6 +347,14 @@ const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
     'performance.result.manage',
     'performance.result.release',
     'performance.analytics.read',
+    'goals.cycle.read',
+    'goals.cycle.manage',
+    'goals.goal.read',
+    'goals.goal.manage',
+    'goals.goal.assign',
+    'goals.progress.update',
+    'goals.completion.request',
+    'goals.completion.review',
   ],
   LEADER: [
     'company.read',
@@ -315,6 +374,9 @@ const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
     'performance.scale.read',
     'performance.evaluation.read',
     'performance.evaluation.respond',
+    'goals.cycle.read',
+    'goals.goal.read',
+    'goals.completion.review',
   ],
   COLLABORATOR: [
     'company.read',
@@ -326,6 +388,10 @@ const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
     'performance.scale.read',
     'performance.evaluation.read',
     'performance.evaluation.respond',
+    'goals.cycle.read',
+    'goals.goal.read',
+    'goals.progress.update',
+    'goals.completion.request',
   ],
 };
 

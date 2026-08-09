@@ -39,6 +39,9 @@ Documentación:
 - [docs/performance-responses.md](docs/performance-responses.md)
 - [docs/performance-results.md](docs/performance-results.md)
 - [docs/performance-analytics.md](docs/performance-analytics.md)
+- [docs/goals-core.md](docs/goals-core.md)
+- [docs/goals-progress.md](docs/goals-progress.md)
+- [docs/goals-completion.md](docs/goals-completion.md)
 - [docs/ats-vacancies.md](docs/ats-vacancies.md)
 - [docs/ats-candidates.md](docs/ats-candidates.md)
 - [docs/ats-interviews.md](docs/ats-interviews.md)
@@ -67,12 +70,12 @@ pnpm dev:web
 ```
 
 - API: http://localhost:3001
-- Auth / Organization / ATS / Performance Core (08A) + Evaluations (08B) + Responses (08C) + Results (08D) + Analytics (08E) + frontend 05A–05C + Performance UI bajo JWT + `X-Company-Id`
+- Auth / Organization / ATS / Performance 08A–08E / Goals 09A–09C + frontend bajo JWT + `X-Company-Id`
 
 ## Alcance actual
 
-Incluye: multi-tenant core, auth JWT/sesiones, organización API, ATS completo hasta Hiring 06B, STT browser (Fase 07), **Performance 08A–08E** (core, evaluations, responses, results/consolidation/release, analytics/CSV), frontend shell/Organization/ATS/Offers/Hiring/Performance.
+Incluye: multi-tenant core, auth JWT/sesiones, organización API, ATS completo hasta Hiring 06B, STT browser (Fase 07), **Performance 08A–08E**, **Goals/OKRs 09A–09C** (periodos, check-ins, progreso operacional, cierre formal, achievement inmutable, team DIRECT, revisión de cierres), frontend shell/Organization/ATS/Offers/Hiring/Performance/Goals.
 
-Pendiente: Whisper local/WASM, diarización/IA, cookies HttpOnly para refresh, endpoint de permissions efectivos, analytics anónimos (minimum cohort size).
+Pendiente: integración Goals↔Performance (09D), Whisper local/WASM, diarización/IA, cookies HttpOnly para refresh, endpoint de permissions efectivos, analytics anónimos (minimum cohort size).
 
-Docs: [docs/ats-offers.md](docs/ats-offers.md) · [docs/ats-hiring.md](docs/ats-hiring.md) · [docs/stt.md](docs/stt.md) · [docs/performance-core.md](docs/performance-core.md) · [docs/performance-evaluations.md](docs/performance-evaluations.md) · [docs/performance-responses.md](docs/performance-responses.md) · [docs/performance-results.md](docs/performance-results.md) · [docs/performance-analytics.md](docs/performance-analytics.md)
+Docs: [docs/ats-offers.md](docs/ats-offers.md) · [docs/ats-hiring.md](docs/ats-hiring.md) · [docs/stt.md](docs/stt.md) · [docs/performance-core.md](docs/performance-core.md) · [docs/performance-evaluations.md](docs/performance-evaluations.md) · [docs/performance-responses.md](docs/performance-responses.md) · [docs/performance-results.md](docs/performance-results.md) · [docs/performance-analytics.md](docs/performance-analytics.md) · [docs/goals-core.md](docs/goals-core.md) · [docs/goals-progress.md](docs/goals-progress.md) · [docs/goals-completion.md](docs/goals-completion.md)

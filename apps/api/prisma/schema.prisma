@@ -65,18 +65,25 @@ model User {
   updatedAt       DateTime   @updatedAt
   deletedAt       DateTime?
 
-  memberships                 CompanyMembership[]
-  sessions                    UserSession[]
-  auditLogs                   AuditLog[]
-  employees                   Employee[]
-  vacancyApprovalsDecided     VacancyApproval[]
-  applicationStageHistories   ApplicationStageHistory[]
-  interviewAnswers            InterviewAnswer[]
-  interviewTranscriptSegments InterviewTranscriptSegment[]
-  jobOffersCreated            JobOffer[]
-  hiringsCompleted            Hiring[]
-  performanceCyclesCreated    PerformanceCycle[]
-  performanceResultsReleased  PerformanceResult[]          @relation("PerformanceResultReleasedBy")
+  memberships                     CompanyMembership[]
+  sessions                        UserSession[]
+  auditLogs                       AuditLog[]
+  employees                       Employee[]
+  vacancyApprovalsDecided         VacancyApproval[]
+  applicationStageHistories       ApplicationStageHistory[]
+  interviewAnswers                InterviewAnswer[]
+  interviewTranscriptSegments     InterviewTranscriptSegment[]
+  jobOffersCreated                JobOffer[]
+  hiringsCompleted                Hiring[]
+  performanceCyclesCreated        PerformanceCycle[]
+  performanceResultsReleased      PerformanceResult[]          @relation("PerformanceResultReleasedBy")
+  goalCyclesCreated               GoalCycle[]
+  goalsCreated                    Goal[]
+  goalCheckInsCreated             GoalCheckIn[]
+  goalCompletionRequestsRequested GoalCompletionRequest[]      @relation("GoalCompletionRequestedBy")
+  goalCompletionRequestsReviewed  GoalCompletionRequest[]      @relation("GoalCompletionReviewedBy")
+  goalResultsRequested            GoalResult[]                 @relation("GoalResultRequestedBy")
+  goalResultsApproved             GoalResult[]                 @relation("GoalResultApprovedBy")
 
   @@map("users")
 }
@@ -148,6 +155,14 @@ model Company {
   performanceEvaluationScaleLevels  PerformanceEvaluationScaleLevel[]
   performanceEvaluationResponses    PerformanceEvaluationResponse[]
   performanceResults                PerformanceResult[]
+  goalCycles                        GoalCycle[]
+  goals                             Goal[]
+  goalAssignments                   GoalAssignment[]
+  goalKeyResults                    GoalKeyResult[]
+  goalCheckIns                      GoalCheckIn[]
+  goalCompletionRequests            GoalCompletionRequest[]
+  goalResults                       GoalResult[]
+  goalResultKeyResults              GoalResultKeyResult[]
 
   @@map("companies")
 }
@@ -334,6 +349,7 @@ model Area {
   employees       Employee[]
   vacancyRequests VacancyRequest[]
   vacancies       Vacancy[]
+  goals           Goal[]
 
   @@unique([companyId, name])
   @@unique([companyId, code])
@@ -440,6 +456,9 @@ model Employee {
   performanceEvaluationsAsSubject   PerformanceEvaluation[]       @relation("EvaluationSubject")
   performanceEvaluationsAsEvaluator PerformanceEvaluation[]       @relation("EvaluationEvaluator")
   performanceResults                PerformanceResult[]
+  goalAssignments                   GoalAssignment[]
+  goalCheckIns                      GoalCheckIn[]
+  goalCompletionRequests            GoalCompletionRequest[]
 
   @@unique([companyId, email])
   @@unique([companyId, userId])
@@ -1331,4 +1350,277 @@ model PerformanceResult {
   @@index([positionIdSnapshot])
   @@index([businessUnitIdSnapshot])
   @@map("performance_results")
+}
+
+// ---------------------------------------------------------------------------
+// Goals / OKRs — Core (09A): periods, goals, key results, assignments
+// Independent of Performance. No progress/check-ins/scoring in 09A.
+// ---------------------------------------------------------------------------
+
+enum GoalCycleStatus {
+  DRAFT
+  ACTIVE
+  CLOSED
+  CANCELLED
+}
+
+/// No TEAM: organization has no Team model. Scope via Employee / Area / Company.
+enum GoalType {
+  INDIVIDUAL
+  AREA
+  COMPANY
+}
+
+/// COMPLETED set only via approved GoalCompletionRequest (09C).
+enum GoalStatus {
+  DRAFT
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+enum GoalCompletionRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum GoalMetricType {
+  NUMBER
+  PERCENTAGE
+  CURRENCY
+  BOOLEAN
+}
+
+enum GoalMetricDirection {
+  INCREASE
+  DECREASE
+}
+
+model GoalCycle {
+  id              String          @id @default(uuid()) @db.Uuid
+  companyId       String          @db.Uuid
+  name            String
+  description     String?
+  startDate       DateTime        @db.Date
+  endDate         DateTime        @db.Date
+  status          GoalCycleStatus @default(DRAFT)
+  createdByUserId String          @db.Uuid
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  createdBy User    @relation(fields: [createdByUserId], references: [id], onDelete: Restrict)
+  goals     Goal[]
+
+  @@index([companyId])
+  @@index([companyId, status])
+  @@index([createdByUserId])
+  @@map("goal_cycles")
+}
+
+/// GoalAssignment = explicit responsibility/assignment to an Employee (not mass materialization).
+model Goal {
+  id              String     @id @default(uuid()) @db.Uuid
+  companyId       String     @db.Uuid
+  cycleId         String     @db.Uuid
+  title           String
+  description     String?
+  type            GoalType
+  status          GoalStatus @default(DRAFT)
+  /// Required when type=AREA; null for INDIVIDUAL/COMPANY.
+  areaId          String?    @db.Uuid
+  weight          Decimal?   @db.Decimal(5, 2)
+  createdByUserId String     @db.Uuid
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+
+  company            Company                 @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  cycle              GoalCycle               @relation(fields: [cycleId], references: [id], onDelete: Restrict)
+  area               Area?                   @relation(fields: [areaId], references: [id], onDelete: Restrict)
+  createdBy          User                    @relation(fields: [createdByUserId], references: [id], onDelete: Restrict)
+  keyResults         GoalKeyResult[]
+  assignments        GoalAssignment[]
+  checkIns           GoalCheckIn[]
+  completionRequests GoalCompletionRequest[]
+  result             GoalResult?
+
+  @@index([companyId])
+  @@index([companyId, cycleId, status])
+  @@index([companyId, type])
+  @@index([areaId])
+  @@index([cycleId])
+  @@index([status])
+  @@index([createdByUserId])
+  @@map("goals")
+}
+
+model GoalAssignment {
+  id         String   @id @default(uuid()) @db.Uuid
+  companyId  String   @db.Uuid
+  goalId     String   @db.Uuid
+  employeeId String   @db.Uuid
+  createdAt  DateTime @default(now())
+
+  company  Company  @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  goal     Goal     @relation(fields: [goalId], references: [id], onDelete: Restrict)
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+
+  @@unique([goalId, employeeId])
+  @@index([companyId])
+  @@index([goalId])
+  @@index([employeeId])
+  @@map("goal_assignments")
+}
+
+model GoalKeyResult {
+  id            String               @id @default(uuid()) @db.Uuid
+  companyId     String               @db.Uuid
+  goalId        String               @db.Uuid
+  title         String
+  description   String?
+  metricType    GoalMetricType
+  direction     GoalMetricDirection?
+  startValue    Decimal?             @db.Decimal(18, 4)
+  targetValue   Decimal?             @db.Decimal(18, 4)
+  targetBoolean Boolean?
+  unit          String?
+  currencyCode  String?              @db.Char(3)
+  weight        Decimal?             @db.Decimal(5, 2)
+  order         Int                  @default(0)
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
+
+  company  Company       @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  goal     Goal          @relation(fields: [goalId], references: [id], onDelete: Restrict)
+  checkIns GoalCheckIn[]
+
+  @@unique([goalId, order])
+  @@index([companyId])
+  @@index([goalId, order])
+  @@map("goal_key_results")
+}
+
+/// Append-only progress event for a Key Result (09B). Latest = max(sequence).
+/// No PATCH/DELETE. Corrections are new check-ins.
+model GoalCheckIn {
+  id                  String   @id @default(uuid()) @db.Uuid
+  companyId           String   @db.Uuid
+  /// Denormalized for indexes/tenant filters; must match keyResult.goalId.
+  goalId              String   @db.Uuid
+  keyResultId         String   @db.Uuid
+  /// Monotonic per KR; UNIQUE(keyResultId, sequence). Latest = max sequence.
+  sequence            Int
+  createdByUserId     String   @db.Uuid
+  /// Optional Employee link when the actor has one; admins may omit.
+  createdByEmployeeId String?  @db.Uuid
+  numericValue        Decimal? @db.Decimal(18, 4)
+  booleanValue        Boolean?
+  comment             String?  @db.VarChar(2000)
+  evidenceReference   String?  @db.VarChar(1000)
+  createdAt           DateTime @default(now())
+
+  company           Company       @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  goal              Goal          @relation(fields: [goalId], references: [id], onDelete: Restrict)
+  keyResult         GoalKeyResult @relation(fields: [keyResultId], references: [id], onDelete: Restrict)
+  createdBy         User          @relation(fields: [createdByUserId], references: [id], onDelete: Restrict)
+  createdByEmployee Employee?     @relation(fields: [createdByEmployeeId], references: [id], onDelete: Restrict)
+
+  @@unique([keyResultId, sequence])
+  @@index([companyId])
+  @@index([goalId])
+  @@index([createdByUserId])
+  @@index([createdAt])
+  @@map("goal_check_ins")
+}
+
+/// Formal close workflow (09C). Multiple historical requests allowed; only one PENDING.
+model GoalCompletionRequest {
+  id                    String                      @id @default(uuid()) @db.Uuid
+  companyId             String                      @db.Uuid
+  goalId                String                      @db.Uuid
+  status                GoalCompletionRequestStatus @default(PENDING)
+  requestedByUserId     String                      @db.Uuid
+  requestedByEmployeeId String?                     @db.Uuid
+  requestedAt           DateTime                    @default(now())
+  requestComment        String?                     @db.VarChar(2000)
+  reviewedByUserId      String?                     @db.Uuid
+  reviewedAt            DateTime?
+  reviewComment         String?                     @db.VarChar(2000)
+  createdAt             DateTime                    @default(now())
+  updatedAt             DateTime                    @updatedAt
+
+  company             Company     @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  goal                Goal        @relation(fields: [goalId], references: [id], onDelete: Restrict)
+  requestedBy         User        @relation("GoalCompletionRequestedBy", fields: [requestedByUserId], references: [id], onDelete: Restrict)
+  requestedByEmployee Employee?   @relation(fields: [requestedByEmployeeId], references: [id], onDelete: Restrict)
+  reviewedBy          User?       @relation("GoalCompletionReviewedBy", fields: [reviewedByUserId], references: [id], onDelete: Restrict)
+  result              GoalResult?
+
+  @@index([companyId, status])
+  @@index([goalId, status])
+  @@index([requestedByUserId])
+  @@index([reviewedByUserId])
+  @@map("goal_completion_requests")
+}
+
+/// Immutable formal achievement result after APPROVED completion (09C).
+/// Not a Performance score. Authority for historical reads after COMPLETED.
+model GoalResult {
+  id                    String   @id @default(uuid()) @db.Uuid
+  companyId             String   @db.Uuid
+  goalId                String   @db.Uuid
+  completionRequestId   String   @db.Uuid
+  /// Formal achievement 0..100 (not progressPercentage, not Performance score).
+  achievementPercentage Decimal  @db.Decimal(5, 2)
+  /// Snapshot of Goal.weight at completion (future aggregation); unused in Goal achievement.
+  goalConfiguredWeight  Decimal? @db.Decimal(5, 2)
+  calculatedAt          DateTime
+  completedAt           DateTime
+  requestedByUserId     String   @db.Uuid
+  approvedByUserId      String   @db.Uuid
+  createdAt             DateTime @default(now())
+
+  company           Company               @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  goal              Goal                  @relation(fields: [goalId], references: [id], onDelete: Restrict)
+  completionRequest GoalCompletionRequest @relation(fields: [completionRequestId], references: [id], onDelete: Restrict)
+  requestedBy       User                  @relation("GoalResultRequestedBy", fields: [requestedByUserId], references: [id], onDelete: Restrict)
+  approvedBy        User                  @relation("GoalResultApprovedBy", fields: [approvedByUserId], references: [id], onDelete: Restrict)
+  keyResults        GoalResultKeyResult[]
+
+  @@unique([goalId])
+  @@unique([completionRequestId])
+  @@index([companyId])
+  @@map("goal_results")
+}
+
+/// Historical KR snapshot for GoalResult. sourceKeyResultId is traceability only (no FK).
+model GoalResultKeyResult {
+  id                    String               @id @default(uuid()) @db.Uuid
+  companyId             String               @db.Uuid
+  goalResultId          String               @db.Uuid
+  sourceKeyResultId     String?              @db.Uuid
+  title                 String
+  description           String?
+  metricType            GoalMetricType
+  direction             GoalMetricDirection?
+  startNumericValue     Decimal?             @db.Decimal(18, 4)
+  targetNumericValue    Decimal?             @db.Decimal(18, 4)
+  targetBoolean         Boolean?
+  finalNumericValue     Decimal?             @db.Decimal(18, 4)
+  finalBooleanValue     Boolean?
+  unit                  String?
+  currencyCode          String?              @db.Char(3)
+  configuredWeight      Decimal?             @db.Decimal(5, 2)
+  effectiveWeight       Decimal?             @db.Decimal(5, 2)
+  achievementPercentage Decimal              @db.Decimal(5, 2)
+  order                 Int                  @default(0)
+  createdAt             DateTime             @default(now())
+
+  company    Company    @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  goalResult GoalResult @relation(fields: [goalResultId], references: [id], onDelete: Restrict)
+
+  @@index([companyId])
+  @@index([goalResultId, order])
+  @@map("goal_result_key_results")
 }
