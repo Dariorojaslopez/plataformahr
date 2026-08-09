@@ -59,6 +59,28 @@ export class CreatePerformanceCycleDto {
   @Min(0)
   @Max(100)
   managerEvaluationWeight?: number;
+
+  /** Optional GoalCycle link (09D). Null/omit = competency-only. */
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null)
+  @IsUUID()
+  goalCycleId?: string | null;
+
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null)
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  @Max(100)
+  competencyResultWeight?: number | null;
+
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null)
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  @Max(100)
+  goalsResultWeight?: number | null;
 }
 
 export class UpdatePerformanceCycleDto {
@@ -104,6 +126,28 @@ export class UpdatePerformanceCycleDto {
   @Min(0)
   @Max(100)
   managerEvaluationWeight?: number;
+
+  /** Editable only while DRAFT. Null clears Goals integration. */
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null)
+  @IsUUID()
+  goalCycleId?: string | null;
+
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null)
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  @Max(100)
+  competencyResultWeight?: number | null;
+
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null)
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  @Max(100)
+  goalsResultWeight?: number | null;
 }
 
 export class ListPerformanceCyclesQueryDto {

@@ -752,9 +752,16 @@ describe('Goals completion (09C)', () => {
       where: { goalId: raceGoal.body.id, status: 'PENDING' },
     });
     if (pendingRace) {
+      // Rejector must differ from requester (self-review denied for approve/reject).
+      const adminUser = await prisma.user.findFirstOrThrow({
+        where: { email: `gc-admin-${suffix}@example.com` },
+        select: { id: true },
+      });
+      const rejectToken =
+        pendingRace.requestedByUserId === adminUser.id ? pmToken : adminToken;
       await request(app.getHttpServer())
         .post(`/goals/completion-requests/${pendingRace.id}/reject`)
-        .set(auth(pmToken))
+        .set(auth(rejectToken))
         .send({ reviewComment: 'Cancel race' })
         .expect(201);
     }

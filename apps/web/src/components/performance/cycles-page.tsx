@@ -5,6 +5,7 @@ import { Eye, Pencil, Plus, Search } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
+import { CycleCompositionFields } from "@/components/performance/cycle-composition-fields";
 import { EntityEditorShell } from "@/components/organization/entity-editor-shell";
 import { FormSelect } from "@/components/organization/form-select";
 import { PaginationControls } from "@/components/organization/pagination-controls";
@@ -27,11 +28,14 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { useCompanyId } from "@/hooks/use-company-id";
 import { getErrorMessage } from "@/lib/api/errors";
+import { goalsApi, goalKeys } from "@/lib/api/goals";
 import { performanceApi, performanceKeys } from "@/lib/api/performance";
 import { canEditCycleMetadata } from "@/lib/performance/activation";
 import {
   buildCreateCyclePayload,
   buildUpdateCyclePayload,
+  cycleFormFromPerformanceCycle,
+  cycleGoalsCompositionIsValid,
   emptyCycleForm,
   type CycleFormState,
 } from "@/lib/performance/cycle-form";
@@ -88,6 +92,19 @@ export function CyclesPageClient() {
     queryFn: () => performanceApi.listCycles(params),
   });
 
+  const goalCyclesQuery = useQuery({
+    queryKey: goalKeys.cycles(companyId, { limit: 100 }),
+    queryFn: () => goalsApi.listCycles({ limit: 100 }),
+    enabled: open,
+  });
+
+  const goalCycleOptions = (goalCyclesQuery.data?.items ?? []).map(
+    (cycle) => ({
+      value: cycle.id,
+      label: `${cycle.name} (${cycle.startDate} → ${cycle.endDate})`,
+    }),
+  );
+
   const saveMutation = useMutation({
     mutationFn: async () => {
       if (!form.name.trim()) {
@@ -104,6 +121,11 @@ export function CyclesPageClient() {
       ) {
         throw new Error(
           "La ponderación de evaluadores debe sumar exactamente 100%.",
+        );
+      }
+      if (!cycleGoalsCompositionIsValid(form)) {
+        throw new Error(
+          "La composición de objetivos requiere un ciclo y pesos que sumen 100%.",
         );
       }
       if (editing) {
@@ -140,16 +162,7 @@ export function CyclesPageClient() {
   function openEdit(cycle: PerformanceCycle) {
     if (!canEditCycleMetadata(cycle.status)) return;
     setEditing(cycle);
-    setForm({
-      name: cycle.name,
-      description: cycle.description ?? "",
-      startDate: cycle.startDate,
-      endDate: cycle.endDate,
-      evaluationStartDate: cycle.evaluationStartDate ?? "",
-      evaluationEndDate: cycle.evaluationEndDate ?? "",
-      selfEvaluationWeight: cycle.selfEvaluationWeight ?? "30",
-      managerEvaluationWeight: cycle.managerEvaluationWeight ?? "70",
-    });
+    setForm(cycleFormFromPerformanceCycle(cycle));
     setFormError(null);
     setOpen(true);
   }
@@ -467,6 +480,13 @@ export function CyclesPageClient() {
               </div>
             </div>
           </div>
+          <CycleCompositionFields
+            form={form}
+            setForm={setForm}
+            goalCycleOptions={goalCycleOptions}
+            goalCyclesLoading={goalCyclesQuery.isLoading}
+            idPrefix="cycles"
+          />
           <p className="text-xs text-muted-foreground">
             Las fechas de evaluación son opcionales; si usas una, debes indicar
             ambas y deben estar dentro del periodo del ciclo.

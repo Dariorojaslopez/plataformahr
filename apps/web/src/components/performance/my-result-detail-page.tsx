@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
+import { ResultGoalsBreakdown } from "@/components/performance/result-goals-breakdown";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ErrorState } from "@/components/ui/error-state";
@@ -12,27 +13,44 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useCompanyId } from "@/hooks/use-company-id";
 import { getErrorMessage } from "@/lib/api/errors";
 import { performanceApi, performanceKeys } from "@/lib/api/performance";
+import {
+  compositionSummaryLabel,
+  isIntegratedComposition,
+} from "@/lib/performance/composition-labels";
 import { CYCLE_STATUS_LABELS } from "@/lib/performance/cycle-labels";
+import { formatResultCompositionWeightLabel } from "@/lib/performance/result-composition-weights";
 import { formatScorePercentage } from "@/lib/performance/response-workspace";
 import {
   RESULT_STATUS_LABELS,
   managerIncludedLabel,
   resultStatusVariant,
 } from "@/lib/performance/result-labels";
+import type { PerformanceResultEmployeeDetail } from "@/types/performance";
 
 /**
  * Employee-facing detail: never surface managerScore, even if the API
  * unexpectedly returns an admin-shaped payload.
  */
-function employeeSafeScores(data: Record<string, unknown>): {
+function employeeSafeDetail(
+  data: Record<string, unknown>,
+): {
   overallScore: string | null;
   selfScore: string | null;
+  competencyScore: string | null;
+  goalsAchievement: string | null;
+  composition: PerformanceResultEmployeeDetail["composition"] | null;
+  configuredCompetencyResultWeight: string | null;
+  configuredGoalsResultWeight: string | null;
+  goals: PerformanceResultEmployeeDetail["goals"];
   managerIncluded: boolean | null;
   effectiveSelfWeight: string | null;
   effectiveManagerWeight: string | null;
 } {
-  // Explicitly ignore managerScore if present on the object.
   void ("managerScore" in data ? data.managerScore : undefined);
+
+  const goals = Array.isArray(data.goals)
+    ? (data.goals as PerformanceResultEmployeeDetail["goals"])
+    : [];
 
   return {
     overallScore:
@@ -47,6 +65,34 @@ function employeeSafeScores(data: Record<string, unknown>): {
             typeof data.selfScore === "number"
           ? String(data.selfScore)
           : null,
+    competencyScore:
+      data.competencyScore == null
+        ? null
+        : typeof data.competencyScore === "string" ||
+            typeof data.competencyScore === "number"
+          ? String(data.competencyScore)
+          : null,
+    goalsAchievement:
+      data.goalsAchievement == null
+        ? null
+        : typeof data.goalsAchievement === "string" ||
+            typeof data.goalsAchievement === "number"
+          ? String(data.goalsAchievement)
+          : null,
+    composition:
+      data.composition === "COMPETENCY_ONLY" ||
+      data.composition === "COMPETENCY_AND_GOALS"
+        ? data.composition
+        : null,
+    configuredCompetencyResultWeight:
+      typeof data.configuredCompetencyResultWeight === "string"
+        ? data.configuredCompetencyResultWeight
+        : null,
+    configuredGoalsResultWeight:
+      typeof data.configuredGoalsResultWeight === "string"
+        ? data.configuredGoalsResultWeight
+        : null,
+    goals,
     managerIncluded:
       typeof data.managerIncluded === "boolean" ? data.managerIncluded : null,
     effectiveSelfWeight:
@@ -92,8 +138,9 @@ export function MyResultDetailPageClient() {
   const data = detailQuery.data;
   if (!data) return null;
 
-  const safe = employeeSafeScores(data as unknown as Record<string, unknown>);
+  const safe = employeeSafeDetail(data as unknown as Record<string, unknown>);
   const cycle = data.cycle;
+  const integrated = isIntegratedComposition(safe.composition ?? undefined);
 
   return (
     <div className="space-y-6">
@@ -115,13 +162,37 @@ export function MyResultDetailPageClient() {
         />
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2">
+      {safe.composition ? (
+        <p className="text-sm text-muted-foreground">
+          Composición: {compositionSummaryLabel(safe.composition)}
+        </p>
+      ) : null}
+
+      <div
+        className={`grid gap-4 ${integrated ? "sm:grid-cols-2 lg:grid-cols-3" : "sm:grid-cols-2"}`}
+      >
         <div className="rounded-lg border border-border bg-card p-4">
           <p className="text-sm text-muted-foreground">Resultado overall</p>
           <p className="mt-1 text-2xl font-semibold">
             {formatScorePercentage(safe.overallScore)}
           </p>
         </div>
+        {integrated ? (
+          <>
+            <div className="rounded-lg border border-border bg-card p-4">
+              <p className="text-sm text-muted-foreground">Competencias</p>
+              <p className="mt-1 text-2xl font-semibold">
+                {formatScorePercentage(safe.competencyScore)}
+              </p>
+            </div>
+            <div className="rounded-lg border border-border bg-card p-4">
+              <p className="text-sm text-muted-foreground">Objetivos</p>
+              <p className="mt-1 text-2xl font-semibold">
+                {formatScorePercentage(safe.goalsAchievement)}
+              </p>
+            </div>
+          </>
+        ) : null}
         <div className="rounded-lg border border-border bg-card p-4">
           <p className="text-sm text-muted-foreground">Tu autoevaluación</p>
           <p className="mt-1 text-2xl font-semibold">
@@ -142,9 +213,20 @@ export function MyResultDetailPageClient() {
         {safe.effectiveSelfWeight != null &&
         safe.effectiveManagerWeight != null ? (
           <p className="text-sm text-muted-foreground">
-            Ponderación efectiva: auto{" "}
+            Ponderación efectiva (competencias): auto{" "}
             {formatScorePercentage(safe.effectiveSelfWeight)}, líder{" "}
             {formatScorePercentage(safe.effectiveManagerWeight)}.
+          </p>
+        ) : null}
+        {integrated &&
+        safe.configuredCompetencyResultWeight != null &&
+        safe.configuredGoalsResultWeight != null ? (
+          <p className="text-sm text-muted-foreground">
+            Resultado general:{" "}
+            {formatResultCompositionWeightLabel(
+              safe.configuredCompetencyResultWeight,
+              safe.configuredGoalsResultWeight,
+            )}
           </p>
         ) : null}
         {"releasedAt" in data && data.releasedAt ? (
@@ -153,6 +235,13 @@ export function MyResultDetailPageClient() {
           </p>
         ) : null}
       </section>
+
+      {integrated ? (
+        <section className="space-y-3 rounded-lg border border-border bg-card p-4">
+          <h2 className="text-base font-semibold">Tus objetivos</h2>
+          <ResultGoalsBreakdown goals={safe.goals} />
+        </section>
+      ) : null}
     </div>
   );
 }

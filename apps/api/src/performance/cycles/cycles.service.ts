@@ -33,6 +33,7 @@ import {
   parseDateOnly,
   parseEvaluatorWeight,
   parseWeight,
+  resolveGoalsCompositionConfig,
 } from '../performance.helpers';
 import type {
   AddCycleCompetencyDto,
@@ -156,6 +157,15 @@ export class CyclesService {
       ) ?? new Prisma.Decimal(70);
     assertEvaluatorWeights({ selfEvaluationWeight, managerEvaluationWeight });
 
+    const goalsComposition = resolveGoalsCompositionConfig({
+      goalCycleId: dto.goalCycleId,
+      competencyResultWeight: dto.competencyResultWeight,
+      goalsResultWeight: dto.goalsResultWeight,
+    });
+    if (goalsComposition.goalCycleId) {
+      await this.requireGoalCycle(companyId, goalsComposition.goalCycleId);
+    }
+
     const created = await this.prisma.performanceCycle.create({
       data: {
         companyId,
@@ -167,6 +177,9 @@ export class CyclesService {
         evaluationEndDate,
         selfEvaluationWeight,
         managerEvaluationWeight,
+        goalCycleId: goalsComposition.goalCycleId,
+        competencyResultWeight: goalsComposition.competencyResultWeight,
+        goalsResultWeight: goalsComposition.goalsResultWeight,
         status: PerformanceCycleStatus.DRAFT,
         createdByUserId: userId,
       },
@@ -236,6 +249,46 @@ export class CyclesService {
       ) ?? existing.managerEvaluationWeight;
     assertEvaluatorWeights({ selfEvaluationWeight, managerEvaluationWeight });
 
+    const goalsCompositionTouched =
+      dto.goalCycleId !== undefined ||
+      dto.competencyResultWeight !== undefined ||
+      dto.goalsResultWeight !== undefined;
+
+    let goalsComposition: ReturnType<
+      typeof resolveGoalsCompositionConfig
+    > | null = null;
+    if (goalsCompositionTouched) {
+      if (dto.goalCycleId === null) {
+        goalsComposition = {
+          goalCycleId: null,
+          competencyResultWeight: null,
+          goalsResultWeight: null,
+        };
+      } else {
+        goalsComposition = resolveGoalsCompositionConfig({
+          goalCycleId:
+            dto.goalCycleId !== undefined
+              ? dto.goalCycleId
+              : existing.goalCycleId,
+          competencyResultWeight:
+            dto.competencyResultWeight !== undefined
+              ? dto.competencyResultWeight
+              : existing.competencyResultWeight == null
+                ? null
+                : Number(existing.competencyResultWeight.toString()),
+          goalsResultWeight:
+            dto.goalsResultWeight !== undefined
+              ? dto.goalsResultWeight
+              : existing.goalsResultWeight == null
+                ? null
+                : Number(existing.goalsResultWeight.toString()),
+        });
+        if (goalsComposition.goalCycleId) {
+          await this.requireGoalCycle(companyId, goalsComposition.goalCycleId);
+        }
+      }
+    }
+
     const updated = await this.prisma.performanceCycle.update({
       where: { id },
       data: {
@@ -249,6 +302,13 @@ export class CyclesService {
         endDate,
         evaluationStartDate,
         evaluationEndDate,
+        ...(goalsComposition
+          ? {
+              goalCycleId: goalsComposition.goalCycleId,
+              competencyResultWeight: goalsComposition.competencyResultWeight,
+              goalsResultWeight: goalsComposition.goalsResultWeight,
+            }
+          : {}),
       },
     });
 
@@ -654,11 +714,24 @@ export class CyclesService {
     return row;
   }
 
+  private async requireGoalCycle(companyId: string, goalCycleId: string) {
+    const row = await this.prisma.goalCycle.findFirst({
+      where: { id: goalCycleId, companyId },
+      select: { id: true },
+    });
+    if (!row) {
+      throw new NotFoundException('Goal cycle not found');
+    }
+    return row;
+  }
+
   private serializeCycle(cycle: PerformanceCycle) {
     return {
       ...cycle,
       selfEvaluationWeight: decimalToString(cycle.selfEvaluationWeight),
       managerEvaluationWeight: decimalToString(cycle.managerEvaluationWeight),
+      competencyResultWeight: decimalToString(cycle.competencyResultWeight),
+      goalsResultWeight: decimalToString(cycle.goalsResultWeight),
       startDate: this.dateOnly(cycle.startDate),
       endDate: this.dateOnly(cycle.endDate),
       evaluationStartDate: cycle.evaluationStartDate

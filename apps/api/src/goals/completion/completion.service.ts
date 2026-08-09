@@ -339,6 +339,7 @@ export class GoalCompletionService {
         where: { id: request.goalId, companyId },
         include: {
           cycle: { select: { status: true } },
+          area: { select: { id: true, name: true } },
           assignments: { select: { employeeId: true } },
           keyResults: { orderBy: { order: 'asc' } },
         },
@@ -461,6 +462,53 @@ export class GoalCompletionService {
         );
       }
 
+      // Audience snapshot at approval (09D): freeze who this GoalResult applies to.
+      let applicableEmployeeRows: Array<{
+        companyId: string;
+        employeeId: string;
+        areaIdSnapshot: string | null;
+        areaNameSnapshot: string | null;
+      }> = [];
+      if (goal.type === GoalType.INDIVIDUAL) {
+        const assignees = await tx.employee.findMany({
+          where: {
+            companyId,
+            id: { in: goal.assignments.map((a) => a.employeeId) },
+            deletedAt: null,
+          },
+          select: {
+            id: true,
+            areaId: true,
+            area: { select: { name: true } },
+          },
+        });
+        applicableEmployeeRows = assignees.map((e) => ({
+          companyId,
+          employeeId: e.id,
+          areaIdSnapshot: e.areaId,
+          areaNameSnapshot: e.area.name,
+        }));
+      } else if (goal.type === GoalType.AREA && goal.areaId) {
+        const inArea = await tx.employee.findMany({
+          where: {
+            companyId,
+            areaId: goal.areaId,
+            deletedAt: null,
+          },
+          select: {
+            id: true,
+            areaId: true,
+            area: { select: { name: true } },
+          },
+        });
+        applicableEmployeeRows = inArea.map((e) => ({
+          companyId,
+          employeeId: e.id,
+          areaIdSnapshot: e.areaId,
+          areaNameSnapshot: e.area.name,
+        }));
+      }
+
       const goalResult = await tx.goalResult.create({
         data: {
           companyId,
@@ -470,11 +518,19 @@ export class GoalCompletionService {
             achievementPercentage.toFixed(2),
           ),
           goalConfiguredWeight: goal.weight,
+          goalTitleSnapshot: goal.title,
+          goalTypeSnapshot: goal.type,
+          areaIdSnapshot: goal.areaId,
+          areaNameSnapshot: goal.area?.name ?? null,
+          appliesCompanyWide: goal.type === GoalType.COMPANY,
           calculatedAt: now,
           completedAt: now,
           requestedByUserId: request.requestedByUserId,
           approvedByUserId: userId,
           keyResults: { create: krSnapshots },
+          ...(applicableEmployeeRows.length > 0
+            ? { applicableEmployees: { create: applicableEmployeeRows } }
+            : {}),
         },
         include: {
           keyResults: { orderBy: { order: 'asc' } },

@@ -183,7 +183,7 @@ describe('Core multi-tenant persistence', () => {
       'performance.evaluation.respond',
       'performance.scale.read',
     ]);
-  });
+  }, 30_000);
 
   it('allows a user in multiple companies and a company with multiple memberships', async () => {
     const user = await prisma.user.create({

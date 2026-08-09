@@ -20,6 +20,10 @@ import {
 import { useCompanyId } from "@/hooks/use-company-id";
 import { getErrorMessage } from "@/lib/api/errors";
 import { performanceApi, performanceKeys } from "@/lib/api/performance";
+import {
+  compositionSummaryLabel,
+  isIntegratedComposition,
+} from "@/lib/performance/composition-labels";
 import { CYCLE_STATUS_LABELS } from "@/lib/performance/cycle-labels";
 import { formatScorePercentage } from "@/lib/performance/response-workspace";
 import {
@@ -76,6 +80,7 @@ export function MyResultsPageClient() {
                 <TableRow>
                   <TableHead>Ciclo</TableHead>
                   <TableHead>Overall</TableHead>
+                  <TableHead>Composición</TableHead>
                   <TableHead>Autoevaluación</TableHead>
                   <TableHead>Estado</TableHead>
                   <TableHead className="text-right">Acciones</TableHead>
@@ -95,6 +100,9 @@ export function MyResultsPageClient() {
                     </TableCell>
                     <TableCell className="font-medium">
                       {formatScorePercentage(item.overallScore)}
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {compositionSummaryLabel(item.composition)}
                     </TableCell>
                     <TableCell>
                       {formatScorePercentage(item.selfScore)}
@@ -127,6 +135,17 @@ export function MyResultsPageClient() {
                 <p className="font-medium">{item.cycle.name}</p>
                 <p className="text-sm">
                   Overall: {formatScorePercentage(item.overallScore)}
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  {compositionSummaryLabel(item.composition)}
+                  {isIntegratedComposition(item.composition) &&
+                  item.competencyScore != null
+                    ? ` · Comp. ${formatScorePercentage(item.competencyScore)}`
+                    : ""}
+                  {isIntegratedComposition(item.composition) &&
+                  item.goalsAchievement != null
+                    ? ` · Obj. ${formatScorePercentage(item.goalsAchievement)}`
+                    : ""}
                 </p>
                 <p className="text-sm text-muted-foreground">
                   Autoevaluación: {formatScorePercentage(item.selfScore)}

@@ -7,6 +7,7 @@ import { useParams } from "next/navigation";
 import { useMemo, useState } from "react";
 import { EntityEditorShell } from "@/components/organization/entity-editor-shell";
 import { FormSelect } from "@/components/organization/form-select";
+import { CycleCompositionFields } from "@/components/performance/cycle-composition-fields";
 import { CycleAnalyticsTab } from "@/components/performance/cycle-analytics-tab";
 import { CycleParticipantsTab } from "@/components/performance/cycle-participants-tab";
 import { Badge } from "@/components/ui/badge";
@@ -30,6 +31,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { useCompanyId } from "@/hooks/use-company-id";
 import { getErrorMessage } from "@/lib/api/errors";
+import { goalsApi, goalKeys } from "@/lib/api/goals";
 import { performanceApi, performanceKeys } from "@/lib/api/performance";
 import {
   canActivateCycle,
@@ -40,6 +42,8 @@ import {
 } from "@/lib/performance/activation";
 import {
   buildUpdateCyclePayload,
+  cycleFormFromPerformanceCycle,
+  cycleGoalsCompositionIsValid,
   type CycleFormState,
 } from "@/lib/performance/cycle-form";
 import {
@@ -50,6 +54,7 @@ import {
   evaluatorWeightsAreValid,
   formatEvaluatorWeightLabel,
 } from "@/lib/performance/evaluator-weights";
+import { formatResultCompositionWeightLabel } from "@/lib/performance/result-composition-weights";
 import { canActivateWeights, sumWeights } from "@/lib/performance/weights";
 import { notifyError, notifySuccess } from "@/lib/ui/notify";
 import type { CycleCompetency } from "@/types/performance";
@@ -106,6 +111,19 @@ export function CycleDetailPageClient() {
     }),
     queryFn: () => performanceApi.listScales({ status: "ACTIVE", limit: 100 }),
   });
+
+  const goalCyclesQuery = useQuery({
+    queryKey: goalKeys.cycles(companyId, { limit: 100 }),
+    queryFn: () => goalsApi.listCycles({ limit: 100 }),
+    enabled: metaOpen,
+  });
+
+  const goalCycleOptions = (goalCyclesQuery.data?.items ?? []).map(
+    (gc) => ({
+      value: gc.id,
+      label: `${gc.name} (${gc.startDate} → ${gc.endDate})`,
+    }),
+  );
 
   const cycle = cycleQuery.data;
   const assignments = useMemo(
@@ -164,6 +182,11 @@ export function CycleDetailPageClient() {
       ) {
         throw new Error(
           "La ponderación de evaluadores debe sumar exactamente 100%.",
+        );
+      }
+      if (!cycleGoalsCompositionIsValid(metaForm)) {
+        throw new Error(
+          "La composición de objetivos requiere un ciclo y pesos que sumen 100%.",
         );
       }
       return performanceApi.updateCycle(
@@ -275,16 +298,7 @@ export function CycleDetailPageClient() {
 
   function openMetaEdit() {
     if (!cycle) return;
-    setMetaForm({
-      name: cycle.name,
-      description: cycle.description ?? "",
-      startDate: cycle.startDate,
-      endDate: cycle.endDate,
-      evaluationStartDate: cycle.evaluationStartDate ?? "",
-      evaluationEndDate: cycle.evaluationEndDate ?? "",
-      selfEvaluationWeight: cycle.selfEvaluationWeight ?? "30",
-      managerEvaluationWeight: cycle.managerEvaluationWeight ?? "70",
-    });
+    setMetaForm(cycleFormFromPerformanceCycle(cycle));
     setMetaError(null);
     setMetaOpen(true);
   }
@@ -396,7 +410,7 @@ export function CycleDetailPageClient() {
         />
       </div>
 
-      <div className="grid gap-4 rounded-lg border border-border bg-card p-4 sm:grid-cols-2 lg:grid-cols-5">
+      <div className="grid gap-4 rounded-lg border border-border bg-card p-4 sm:grid-cols-2 lg:grid-cols-6">
         <div>
           <p className="text-xs text-muted-foreground">Estado</p>
           <Badge variant={cycleStatusVariant(cycle.status)} className="mt-1">
@@ -448,6 +462,17 @@ export function CycleDetailPageClient() {
               Autoevaluación + líder deben sumar 100%.
             </p>
           ) : null}
+        </div>
+        <div>
+          <p className="text-xs text-muted-foreground">Composición del resultado</p>
+          <p className="mt-1 text-sm font-medium">
+            {cycle.goalCycleId
+              ? formatResultCompositionWeightLabel(
+                  cycle.competencyResultWeight,
+                  cycle.goalsResultWeight,
+                )
+              : "Solo competencias"}
+          </p>
         </div>
       </div>
 
@@ -760,6 +785,20 @@ export function CycleDetailPageClient() {
                 </div>
               </div>
             </div>
+            <CycleCompositionFields
+              form={metaForm}
+              setForm={(updater) => {
+                setMetaForm((prev) => {
+                  if (!prev) return prev;
+                  return typeof updater === "function"
+                    ? updater(prev)
+                    : updater;
+                });
+              }}
+              goalCycleOptions={goalCycleOptions}
+              goalCyclesLoading={goalCyclesQuery.isLoading}
+              idPrefix="meta"
+            />
             {metaError ? (
               <p className="text-sm text-destructive" role="alert">
                 {metaError}

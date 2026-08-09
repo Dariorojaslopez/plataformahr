@@ -75,6 +75,67 @@ export function parseDateOnly(value: string, field: string): Date {
   return date;
 }
 
+/**
+ * Resolve optional Goals composition on a PerformanceCycle (09D).
+ * - goalCycleId null → competency/goals weights must be null
+ * - goalCycleId set → both weights required and sum to 100
+ */
+export function resolveGoalsCompositionConfig(input: {
+  goalCycleId: string | null | undefined;
+  competencyResultWeight: number | null | undefined;
+  goalsResultWeight: number | null | undefined;
+}): {
+  goalCycleId: string | null;
+  competencyResultWeight: Prisma.Decimal | null;
+  goalsResultWeight: Prisma.Decimal | null;
+} {
+  const goalCycleId =
+    input.goalCycleId === undefined || input.goalCycleId === null
+      ? null
+      : input.goalCycleId;
+
+  if (goalCycleId == null) {
+    if (
+      input.competencyResultWeight != null ||
+      input.goalsResultWeight != null
+    ) {
+      throw new BadRequestException(
+        'competencyResultWeight and goalsResultWeight require goalCycleId',
+      );
+    }
+    return {
+      goalCycleId: null,
+      competencyResultWeight: null,
+      goalsResultWeight: null,
+    };
+  }
+
+  if (input.competencyResultWeight == null || input.goalsResultWeight == null) {
+    throw new BadRequestException(
+      'competencyResultWeight and goalsResultWeight are required when goalCycleId is set',
+    );
+  }
+
+  const competencyResultWeight = parseEvaluatorWeight(
+    input.competencyResultWeight,
+    'competencyResultWeight',
+  )!;
+  const goalsResultWeight = parseEvaluatorWeight(
+    input.goalsResultWeight,
+    'goalsResultWeight',
+  )!;
+  const sum =
+    Number(competencyResultWeight.toString()) +
+    Number(goalsResultWeight.toString());
+  if (Math.round(sum * 100) / 100 !== WEIGHT_TOTAL_REQUIRED) {
+    throw new BadRequestException(
+      'competencyResultWeight + goalsResultWeight must equal 100',
+    );
+  }
+
+  return { goalCycleId, competencyResultWeight, goalsResultWeight };
+}
+
 export function emptyToNull(value?: string | null): string | null | undefined {
   if (value === undefined) return undefined;
   if (value === null) return null;

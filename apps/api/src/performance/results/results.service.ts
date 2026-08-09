@@ -7,6 +7,7 @@ import {
 import {
   PerformanceCycleStatus,
   PerformanceParticipantStatus,
+  PerformanceResultComposition,
   PerformanceResultStatus,
   Prisma,
 } from '@prisma/client';
@@ -14,12 +15,21 @@ import { AuditService } from '../../core/audit/audit.service';
 import { RbacService } from '../../core/rbac/rbac.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import {
+  findIncompleteApplicableGoals,
+  loadApplicableGoalResultsForEmployee,
+} from '../applicable-goal-results';
+import {
   buildCsvDocument,
   buildPerformanceResultsCsvFilename,
   CSV_EXPORT_MAX_ROWS,
   csvExportExceedsLimit,
   csvExportLimitMessage,
 } from '../csv-export';
+import {
+  aggregateGoalsAchievement,
+  calculateIntegratedOverallScore,
+  GoalsPerformanceIntegrationError,
+} from '../goals-performance-integration';
 import {
   DEFAULT_LIMIT,
   DEFAULT_PAGE,
@@ -82,6 +92,7 @@ export class ResultsService {
             },
           },
           participant: { select: { id: true, status: true } },
+          goalSnapshots: { orderBy: { order: 'asc' } },
         },
         orderBy: { calculatedAt: 'desc' },
         skip,
@@ -131,7 +142,10 @@ export class ResultsService {
       'Unidad de negocio',
       'Autoevaluación',
       'Evaluación del líder',
-      'Resultado',
+      'Resultado general',
+      'Competencias',
+      'Objetivos',
+      'Composición',
       'Estado',
       'Fecha de cálculo',
       'Fecha de publicación',
@@ -147,6 +161,9 @@ export class ResultsService {
       r.selfScore == null ? '' : Number(r.selfScore.toString()),
       r.managerScore == null ? '' : Number(r.managerScore.toString()),
       Number(r.overallScore.toString()),
+      r.competencyScore == null ? '' : Number(r.competencyScore.toString()),
+      r.goalsAchievement == null ? '' : Number(r.goalsAchievement.toString()),
+      r.composition,
       RESULT_STATUS_CSV_LABEL[r.status],
       r.calculatedAt.toISOString(),
       r.releasedAt ? r.releasedAt.toISOString() : '',
@@ -213,6 +230,7 @@ export class ResultsService {
             endDate: true,
           },
         },
+        goalSnapshots: { orderBy: { order: 'asc' } },
       },
       orderBy: { releasedAt: 'desc' },
     });
@@ -254,6 +272,7 @@ export class ResultsService {
         releasedBy: {
           select: { id: true, firstName: true, lastName: true, email: true },
         },
+        goalSnapshots: { orderBy: { order: 'asc' } },
       },
     });
     if (!result) {
@@ -363,6 +382,94 @@ export class ResultsService {
         throw error;
       }
 
+      const competencyScore = consolidation.overallScore;
+      let overallScore = competencyScore;
+      let goalsAchievement: number | null = null;
+      let composition: PerformanceResultComposition =
+        PerformanceResultComposition.COMPETENCY_ONLY;
+      let configuredCompetencyResultWeight: number | null = null;
+      let configuredGoalsResultWeight: number | null = null;
+      let sourceGoalCycleId: string | null = null;
+      let goalSnapshots: Array<{
+        sourceGoalId: string;
+        sourceGoalResultId: string;
+        goalTitle: string;
+        goalType: 'INDIVIDUAL' | 'AREA' | 'COMPANY';
+        achievementPercentage: number;
+        configuredWeight: number | null;
+        effectiveWeight: number;
+        contribution: number;
+        order: number;
+      }> = [];
+
+      if (cycle.goalCycleId) {
+        composition = PerformanceResultComposition.COMPETENCY_AND_GOALS;
+        sourceGoalCycleId = cycle.goalCycleId;
+        configuredCompetencyResultWeight = Number(
+          cycle.competencyResultWeight!.toString(),
+        );
+        configuredGoalsResultWeight = Number(
+          cycle.goalsResultWeight!.toString(),
+        );
+
+        const employeeForGoals = await tx.employee.findFirst({
+          where: { id: participant.employeeId, companyId },
+          select: { areaId: true },
+        });
+        if (!employeeForGoals) {
+          throw new NotFoundException('Employee not found for participant');
+        }
+
+        if (configuredGoalsResultWeight > 0) {
+          const incomplete = await findIncompleteApplicableGoals(tx, {
+            companyId,
+            goalCycleId: cycle.goalCycleId,
+            employeeId: participant.employeeId,
+            employeeAreaId: employeeForGoals.areaId,
+          });
+          if (incomplete.length > 0) {
+            throw new BadRequestException(
+              'Existen objetivos aplicables sin resultado formal (GoalResult) para este colaborador.',
+            );
+          }
+
+          const applicable = await loadApplicableGoalResultsForEmployee(tx, {
+            companyId,
+            goalCycleId: cycle.goalCycleId,
+            employeeId: participant.employeeId,
+          });
+
+          try {
+            const aggregated = aggregateGoalsAchievement(applicable);
+            goalsAchievement = aggregated.goalsAchievement;
+            goalSnapshots = aggregated.snapshots;
+          } catch (error) {
+            if (error instanceof GoalsPerformanceIntegrationError) {
+              throw new BadRequestException(error.message);
+            }
+            throw error;
+          }
+
+          try {
+            overallScore = calculateIntegratedOverallScore({
+              competencyScore,
+              goalsAchievement,
+              competencyResultWeight: configuredCompetencyResultWeight,
+              goalsResultWeight: configuredGoalsResultWeight,
+            });
+          } catch (error) {
+            if (error instanceof GoalsPerformanceIntegrationError) {
+              throw new BadRequestException(error.message);
+            }
+            throw error;
+          }
+        } else {
+          // goalsResultWeight = 0 → Goals does not block; overall = competency.
+          overallScore = competencyScore;
+          goalsAchievement = null;
+        }
+      }
+
       const employee = await tx.employee.findFirst({
         where: { id: participant.employeeId, companyId },
         select: {
@@ -379,46 +486,100 @@ export class ResultsService {
       }
 
       const now = new Date();
-      const result = await tx.performanceResult.create({
-        data: {
-          companyId,
-          cycleId,
-          participantId,
-          employeeId: participant.employeeId,
-          selfScore:
-            consolidation.selfScore == null
-              ? null
-              : new Prisma.Decimal(consolidation.selfScore.toFixed(2)),
-          managerScore:
-            consolidation.managerScore == null
-              ? null
-              : new Prisma.Decimal(consolidation.managerScore.toFixed(2)),
-          overallScore: new Prisma.Decimal(
-            consolidation.overallScore.toFixed(2),
-          ),
-          configuredSelfWeight: new Prisma.Decimal(
-            consolidation.configuredSelfWeight.toFixed(2),
-          ),
-          configuredManagerWeight: new Prisma.Decimal(
-            consolidation.configuredManagerWeight.toFixed(2),
-          ),
-          effectiveSelfWeight: new Prisma.Decimal(
-            consolidation.effectiveSelfWeight.toFixed(2),
-          ),
-          effectiveManagerWeight: new Prisma.Decimal(
-            consolidation.effectiveManagerWeight.toFixed(2),
-          ),
-          status: PerformanceResultStatus.CALCULATED,
-          // Org snapshot at calculate (historical reporting; no FK).
-          areaIdSnapshot: employee.areaId,
-          areaNameSnapshot: employee.area.name,
-          positionIdSnapshot: employee.positionId,
-          positionNameSnapshot: employee.position.name,
-          businessUnitIdSnapshot: employee.businessUnitId,
-          businessUnitNameSnapshot: employee.businessUnit?.name ?? null,
-          calculatedAt: now,
-        },
-      });
+      let result;
+      try {
+        result = await tx.performanceResult.create({
+          data: {
+            companyId,
+            cycleId,
+            participantId,
+            employeeId: participant.employeeId,
+            selfScore:
+              consolidation.selfScore == null
+                ? null
+                : new Prisma.Decimal(consolidation.selfScore.toFixed(2)),
+            managerScore:
+              consolidation.managerScore == null
+                ? null
+                : new Prisma.Decimal(consolidation.managerScore.toFixed(2)),
+            competencyScore: new Prisma.Decimal(competencyScore.toFixed(2)),
+            goalsAchievement:
+              goalsAchievement == null
+                ? null
+                : new Prisma.Decimal(goalsAchievement.toFixed(2)),
+            overallScore: new Prisma.Decimal(overallScore.toFixed(2)),
+            configuredSelfWeight: new Prisma.Decimal(
+              consolidation.configuredSelfWeight.toFixed(2),
+            ),
+            configuredManagerWeight: new Prisma.Decimal(
+              consolidation.configuredManagerWeight.toFixed(2),
+            ),
+            effectiveSelfWeight: new Prisma.Decimal(
+              consolidation.effectiveSelfWeight.toFixed(2),
+            ),
+            effectiveManagerWeight: new Prisma.Decimal(
+              consolidation.effectiveManagerWeight.toFixed(2),
+            ),
+            configuredCompetencyResultWeight:
+              configuredCompetencyResultWeight == null
+                ? null
+                : new Prisma.Decimal(
+                    configuredCompetencyResultWeight.toFixed(2),
+                  ),
+            configuredGoalsResultWeight:
+              configuredGoalsResultWeight == null
+                ? null
+                : new Prisma.Decimal(configuredGoalsResultWeight.toFixed(2)),
+            composition,
+            sourceGoalCycleId,
+            status: PerformanceResultStatus.CALCULATED,
+            areaIdSnapshot: employee.areaId,
+            areaNameSnapshot: employee.area.name,
+            positionIdSnapshot: employee.positionId,
+            positionNameSnapshot: employee.position.name,
+            businessUnitIdSnapshot: employee.businessUnitId,
+            businessUnitNameSnapshot: employee.businessUnit?.name ?? null,
+            calculatedAt: now,
+            ...(goalSnapshots.length > 0
+              ? {
+                  goalSnapshots: {
+                    create: goalSnapshots.map((s) => ({
+                      companyId,
+                      sourceGoalId: s.sourceGoalId,
+                      sourceGoalResultId: s.sourceGoalResultId,
+                      goalTitle: s.goalTitle,
+                      goalType: s.goalType,
+                      achievementPercentage: new Prisma.Decimal(
+                        s.achievementPercentage.toFixed(2),
+                      ),
+                      configuredWeight:
+                        s.configuredWeight == null
+                          ? null
+                          : new Prisma.Decimal(s.configuredWeight.toFixed(2)),
+                      effectiveWeight: new Prisma.Decimal(
+                        s.effectiveWeight.toFixed(2),
+                      ),
+                      contribution: new Prisma.Decimal(
+                        s.contribution.toFixed(2),
+                      ),
+                      order: s.order,
+                    })),
+                  },
+                }
+              : {}),
+          },
+        });
+      } catch (error) {
+        if (
+          error instanceof Prisma.PrismaClientKnownRequestError &&
+          error.code === 'P2002'
+        ) {
+          throw new ConflictException(
+            'Participant already has a calculated result',
+          );
+        }
+        throw error;
+      }
 
       const completed = await tx.performanceCycleParticipant.updateMany({
         where: {
@@ -434,24 +595,30 @@ export class ResultsService {
         );
       }
 
-      return result;
+      return {
+        result,
+        goalCycleId: sourceGoalCycleId,
+        goalSnapshotCount: goalSnapshots.length,
+      };
     });
 
     await this.audit.create({
       action: PERFORMANCE_AUDIT.PERFORMANCE_RESULT_CALCULATED,
       entity: 'PerformanceResult',
-      entityId: created.id,
+      entityId: created.result.id,
       company: { connect: { id: companyId } },
       user: { connect: { id: userId } },
       metadata: {
-        resultId: created.id,
+        performanceResultId: created.result.id,
         participantId,
         cycleId,
-        overallScore: Number(created.overallScore.toString()),
+        goalCycleId: created.goalCycleId,
+        goalResultCount: created.goalSnapshotCount,
+        overallScore: Number(created.result.overallScore.toString()),
       },
     });
 
-    return this.getByIdAdmin(companyId, created.id);
+    return this.getByIdAdmin(companyId, created.result.id);
   }
 
   async release(
@@ -569,12 +736,43 @@ export class ResultsService {
         releasedBy: {
           select: { id: true, firstName: true, lastName: true, email: true },
         },
+        goalSnapshots: { orderBy: { order: 'asc' } },
       },
     });
     if (!result) {
       throw new NotFoundException('Result not found');
     }
     return this.serializeAdminDetail(result);
+  }
+
+  private serializeGoalSnapshots(
+    snapshots:
+      | Array<{
+          id: string;
+          sourceGoalId: string | null;
+          sourceGoalResultId: string | null;
+          goalTitle: string;
+          goalType: string;
+          achievementPercentage: Prisma.Decimal;
+          configuredWeight: Prisma.Decimal | null;
+          effectiveWeight: Prisma.Decimal;
+          contribution: Prisma.Decimal;
+          order: number;
+        }>
+      | undefined,
+  ) {
+    return (snapshots ?? []).map((s) => ({
+      id: s.id,
+      sourceGoalId: s.sourceGoalId,
+      sourceGoalResultId: s.sourceGoalResultId,
+      goalTitle: s.goalTitle,
+      goalType: s.goalType,
+      achievementPercentage: decimalToString(s.achievementPercentage),
+      configuredWeight: decimalToString(s.configuredWeight),
+      effectiveWeight: decimalToString(s.effectiveWeight),
+      contribution: decimalToString(s.contribution),
+      order: s.order,
+    }));
   }
 
   private async lockParticipant(
@@ -606,7 +804,10 @@ export class ResultsService {
     employeeId: string;
     selfScore: Prisma.Decimal | null;
     managerScore: Prisma.Decimal | null;
+    competencyScore?: Prisma.Decimal | null;
+    goalsAchievement?: Prisma.Decimal | null;
     overallScore: Prisma.Decimal;
+    composition?: PerformanceResultComposition;
     status: PerformanceResultStatus;
     areaIdSnapshot: string | null;
     areaNameSnapshot: string | null;
@@ -630,6 +831,18 @@ export class ResultsService {
       endDate: Date;
     };
     participant: { id: string; status: string };
+    goalSnapshots?: Array<{
+      id: string;
+      sourceGoalId: string | null;
+      sourceGoalResultId: string | null;
+      goalTitle: string;
+      goalType: string;
+      achievementPercentage: Prisma.Decimal;
+      configuredWeight: Prisma.Decimal | null;
+      effectiveWeight: Prisma.Decimal;
+      contribution: Prisma.Decimal;
+      order: number;
+    }>;
   }) {
     return {
       id: result.id,
@@ -639,7 +852,11 @@ export class ResultsService {
       employeeId: result.employeeId,
       selfScore: decimalToString(result.selfScore),
       managerScore: decimalToString(result.managerScore),
+      competencyScore: decimalToString(result.competencyScore ?? null),
+      goalsAchievement: decimalToString(result.goalsAchievement ?? null),
       overallScore: decimalToString(result.overallScore),
+      composition:
+        result.composition ?? PerformanceResultComposition.COMPETENCY_ONLY,
       status: result.status,
       areaSnapshot: {
         id: result.areaIdSnapshot,
@@ -657,6 +874,7 @@ export class ResultsService {
       releasedAt: result.releasedAt,
       employee: result.employee,
       participant: result.participant,
+      goals: this.serializeGoalSnapshots(result.goalSnapshots),
       cycle: {
         ...result.cycle,
         startDate: result.cycle.startDate.toISOString().slice(0, 10),
@@ -673,11 +891,17 @@ export class ResultsService {
     employeeId: string;
     selfScore: Prisma.Decimal | null;
     managerScore: Prisma.Decimal | null;
+    competencyScore?: Prisma.Decimal | null;
+    goalsAchievement?: Prisma.Decimal | null;
     overallScore: Prisma.Decimal;
     configuredSelfWeight: Prisma.Decimal;
     configuredManagerWeight: Prisma.Decimal;
     effectiveSelfWeight: Prisma.Decimal;
     effectiveManagerWeight: Prisma.Decimal;
+    configuredCompetencyResultWeight?: Prisma.Decimal | null;
+    configuredGoalsResultWeight?: Prisma.Decimal | null;
+    composition?: PerformanceResultComposition;
+    sourceGoalCycleId?: string | null;
     status: PerformanceResultStatus;
     calculatedAt: Date;
     releasedAt: Date | null;
@@ -706,6 +930,18 @@ export class ResultsService {
       lastName: string;
       email: string;
     } | null;
+    goalSnapshots?: Array<{
+      id: string;
+      sourceGoalId: string | null;
+      sourceGoalResultId: string | null;
+      goalTitle: string;
+      goalType: string;
+      achievementPercentage: Prisma.Decimal;
+      configuredWeight: Prisma.Decimal | null;
+      effectiveWeight: Prisma.Decimal;
+      contribution: Prisma.Decimal;
+      order: number;
+    }>;
   }) {
     return {
       id: result.id,
@@ -715,11 +951,22 @@ export class ResultsService {
       employeeId: result.employeeId,
       selfScore: decimalToString(result.selfScore),
       managerScore: decimalToString(result.managerScore),
+      competencyScore: decimalToString(result.competencyScore ?? null),
+      goalsAchievement: decimalToString(result.goalsAchievement ?? null),
       overallScore: decimalToString(result.overallScore)!,
       configuredSelfWeight: decimalToString(result.configuredSelfWeight),
       configuredManagerWeight: decimalToString(result.configuredManagerWeight),
       effectiveSelfWeight: decimalToString(result.effectiveSelfWeight),
       effectiveManagerWeight: decimalToString(result.effectiveManagerWeight),
+      configuredCompetencyResultWeight: decimalToString(
+        result.configuredCompetencyResultWeight ?? null,
+      ),
+      configuredGoalsResultWeight: decimalToString(
+        result.configuredGoalsResultWeight ?? null,
+      ),
+      composition:
+        result.composition ?? PerformanceResultComposition.COMPETENCY_ONLY,
+      sourceGoalCycleId: result.sourceGoalCycleId ?? null,
       status: result.status,
       calculatedAt: result.calculatedAt,
       releasedAt: result.releasedAt,
@@ -729,6 +976,7 @@ export class ResultsService {
       employee: result.employee,
       participant: result.participant,
       releasedBy: result.releasedBy ?? null,
+      goals: this.serializeGoalSnapshots(result.goalSnapshots),
       cycle: {
         ...result.cycle,
         startDate: result.cycle.startDate.toISOString().slice(0, 10),
@@ -742,6 +990,11 @@ export class ResultsService {
     id: string;
     overallScore: Prisma.Decimal;
     selfScore: Prisma.Decimal | null;
+    competencyScore?: Prisma.Decimal | null;
+    goalsAchievement?: Prisma.Decimal | null;
+    composition?: PerformanceResultComposition;
+    configuredCompetencyResultWeight?: Prisma.Decimal | null;
+    configuredGoalsResultWeight?: Prisma.Decimal | null;
     status: PerformanceResultStatus;
     releasedAt: Date | null;
     calculatedAt: Date;
@@ -752,11 +1005,34 @@ export class ResultsService {
       startDate: Date;
       endDate: Date;
     };
+    goalSnapshots?: Array<{
+      id: string;
+      sourceGoalId: string | null;
+      sourceGoalResultId: string | null;
+      goalTitle: string;
+      goalType: string;
+      achievementPercentage: Prisma.Decimal;
+      configuredWeight: Prisma.Decimal | null;
+      effectiveWeight: Prisma.Decimal;
+      contribution: Prisma.Decimal;
+      order: number;
+    }>;
   }) {
     return {
       id: result.id,
       overallScore: decimalToString(result.overallScore),
       selfScore: decimalToString(result.selfScore),
+      competencyScore: decimalToString(result.competencyScore ?? null),
+      goalsAchievement: decimalToString(result.goalsAchievement ?? null),
+      composition:
+        result.composition ?? PerformanceResultComposition.COMPETENCY_ONLY,
+      configuredCompetencyResultWeight: decimalToString(
+        result.configuredCompetencyResultWeight ?? null,
+      ),
+      configuredGoalsResultWeight: decimalToString(
+        result.configuredGoalsResultWeight ?? null,
+      ),
+      goals: this.serializeGoalSnapshots(result.goalSnapshots),
       status: result.status,
       releasedAt: result.releasedAt,
       calculatedAt: result.calculatedAt,
@@ -773,10 +1049,15 @@ export class ResultsService {
     overallScore: Prisma.Decimal;
     selfScore: Prisma.Decimal | null;
     managerScore: Prisma.Decimal | null;
+    competencyScore?: Prisma.Decimal | null;
+    goalsAchievement?: Prisma.Decimal | null;
     configuredSelfWeight: Prisma.Decimal;
     configuredManagerWeight: Prisma.Decimal;
     effectiveSelfWeight: Prisma.Decimal;
     effectiveManagerWeight: Prisma.Decimal;
+    configuredCompetencyResultWeight?: Prisma.Decimal | null;
+    configuredGoalsResultWeight?: Prisma.Decimal | null;
+    composition?: PerformanceResultComposition;
     status: PerformanceResultStatus;
     releasedAt: Date | null;
     calculatedAt: Date;
@@ -787,6 +1068,18 @@ export class ResultsService {
       startDate: Date;
       endDate: Date;
     };
+    goalSnapshots?: Array<{
+      id: string;
+      sourceGoalId: string | null;
+      sourceGoalResultId: string | null;
+      goalTitle: string;
+      goalType: string;
+      achievementPercentage: Prisma.Decimal;
+      configuredWeight: Prisma.Decimal | null;
+      effectiveWeight: Prisma.Decimal;
+      contribution: Prisma.Decimal;
+      order: number;
+    }>;
   }) {
     const managerIncluded =
       Number(result.effectiveManagerWeight.toString()) > 0;
@@ -794,6 +1087,24 @@ export class ResultsService {
       id: result.id,
       overallScore: decimalToString(result.overallScore),
       selfScore: decimalToString(result.selfScore),
+      competencyScore: decimalToString(result.competencyScore ?? null),
+      goalsAchievement: decimalToString(result.goalsAchievement ?? null),
+      composition:
+        result.composition ?? PerformanceResultComposition.COMPETENCY_ONLY,
+      configuredCompetencyResultWeight: decimalToString(
+        result.configuredCompetencyResultWeight ?? null,
+      ),
+      configuredGoalsResultWeight: decimalToString(
+        result.configuredGoalsResultWeight ?? null,
+      ),
+      goals: this.serializeGoalSnapshots(result.goalSnapshots).map((g) => ({
+        goalTitle: g.goalTitle,
+        goalType: g.goalType,
+        achievementPercentage: g.achievementPercentage,
+        effectiveWeight: g.effectiveWeight,
+        contribution: g.contribution,
+        order: g.order,
+      })),
       // Privacy: never expose managerScore to employee in 08D.
       managerIncluded,
       effectiveSelfWeight: decimalToString(result.effectiveSelfWeight),

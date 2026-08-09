@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
+import { ResultGoalsBreakdown } from "@/components/performance/result-goals-breakdown";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ErrorState } from "@/components/ui/error-state";
@@ -12,7 +13,12 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useCompanyId } from "@/hooks/use-company-id";
 import { getErrorMessage } from "@/lib/api/errors";
 import { performanceApi, performanceKeys } from "@/lib/api/performance";
+import {
+  compositionSummaryLabel,
+  isIntegratedComposition,
+} from "@/lib/performance/composition-labels";
 import { CYCLE_STATUS_LABELS } from "@/lib/performance/cycle-labels";
+import { formatResultCompositionWeightLabel } from "@/lib/performance/result-composition-weights";
 import { formatScorePercentage } from "@/lib/performance/response-workspace";
 import {
   RESULT_STATUS_LABELS,
@@ -66,6 +72,9 @@ export function ResultDetailPageClient() {
   if (!data) return null;
 
   const admin = isAdminDetail(data) ? data : null;
+  const integrated = isIntegratedComposition(
+    admin?.composition ?? ("composition" in data ? data.composition : undefined),
+  );
 
   return (
     <div className="space-y-6">
@@ -95,12 +104,30 @@ export function ResultDetailPageClient() {
         />
       </div>
 
+      {admin ? (
+        <p className="text-sm text-muted-foreground">
+          Composición: {compositionSummaryLabel(admin.composition)}
+        </p>
+      ) : null}
+
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <ScoreCard
           label="Overall"
           value={formatScorePercentage(data.overallScore)}
           emphasize
         />
+        {integrated && admin ? (
+          <>
+            <ScoreCard
+              label="Competencias"
+              value={formatScorePercentage(admin.competencyScore)}
+            />
+            <ScoreCard
+              label="Objetivos"
+              value={formatScorePercentage(admin.goalsAchievement)}
+            />
+          </>
+        ) : null}
         <ScoreCard
           label="Autoevaluación"
           value={formatScorePercentage(
@@ -122,13 +149,22 @@ export function ResultDetailPageClient() {
           <h2 className="text-base font-semibold">Ponderación</h2>
           <dl className="grid gap-3 sm:grid-cols-2">
             <WeightRow
-              label="Configurada (auto / líder)"
+              label="Evaluadores (auto / líder)"
               value={`${formatScorePercentage(admin.configuredSelfWeight)} / ${formatScorePercentage(admin.configuredManagerWeight)}`}
             />
             <WeightRow
-              label="Efectiva (auto / líder)"
+              label="Evaluadores efectivos (auto / líder)"
               value={`${formatScorePercentage(admin.effectiveSelfWeight)} / ${formatScorePercentage(admin.effectiveManagerWeight)}`}
             />
+            {integrated ? (
+              <WeightRow
+                label="Resultado general (comp. / obj.)"
+                value={formatResultCompositionWeightLabel(
+                  admin.configuredCompetencyResultWeight,
+                  admin.configuredGoalsResultWeight,
+                )}
+              />
+            ) : null}
           </dl>
           <dl className="grid gap-2 text-sm text-muted-foreground sm:grid-cols-2">
             <div>
@@ -164,6 +200,13 @@ export function ResultDetailPageClient() {
           ) : null}
         </section>
       )}
+
+      {admin && integrated ? (
+        <section className="space-y-3 rounded-lg border border-border bg-card p-4">
+          <h2 className="text-base font-semibold">Desglose de objetivos</h2>
+          <ResultGoalsBreakdown goals={admin.goals} showConfiguredWeight />
+        </section>
+      ) : null}
     </div>
   );
 }

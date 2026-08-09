@@ -9,6 +9,10 @@ export type PerformanceCycleStatus =
   | "CLOSED"
   | "CANCELLED";
 
+export type PerformanceResultComposition =
+  | "COMPETENCY_ONLY"
+  | "COMPETENCY_AND_GOALS";
+
 export type PerformanceCycle = {
   id: string;
   companyId: string;
@@ -22,6 +26,12 @@ export type PerformanceCycle = {
   selfEvaluationWeight: string;
   /** Decimal from API as fixed string, e.g. "70.00" */
   managerEvaluationWeight: string;
+  /** Linked GoalCycle when integrated (09D); null = competency-only. */
+  goalCycleId: string | null;
+  /** Weight of competencyScore in overall; required when goalCycleId is set. */
+  competencyResultWeight: string | null;
+  /** Weight of goalsAchievement in overall; required when goalCycleId is set. */
+  goalsResultWeight: string | null;
   status: PerformanceCycleStatus;
   createdByUserId: string;
   createdAt: string;
@@ -144,6 +154,9 @@ export type CreatePerformanceCycleInput = {
   evaluationEndDate?: string;
   selfEvaluationWeight?: number;
   managerEvaluationWeight?: number;
+  goalCycleId?: string | null;
+  competencyResultWeight?: number | null;
+  goalsResultWeight?: number | null;
 };
 
 export type UpdatePerformanceCycleInput = {
@@ -155,6 +168,9 @@ export type UpdatePerformanceCycleInput = {
   evaluationEndDate?: string | null;
   selfEvaluationWeight?: number;
   managerEvaluationWeight?: number;
+  goalCycleId?: string | null;
+  competencyResultWeight?: number | null;
+  goalsResultWeight?: number | null;
 };
 
 export type AddCycleCompetencyInput = {
@@ -494,6 +510,19 @@ export type OrgSnapshotRef = {
   name: string | null;
 };
 
+export type PerformanceResultGoalSnapshot = {
+  id?: string;
+  sourceGoalId?: string | null;
+  sourceGoalResultId?: string | null;
+  goalTitle: string;
+  goalType: string;
+  achievementPercentage: string;
+  configuredWeight?: string | null;
+  effectiveWeight: string;
+  contribution: string;
+  order: number;
+};
+
 export type PerformanceResultAdminListItem = {
   id: string;
   companyId: string;
@@ -502,7 +531,11 @@ export type PerformanceResultAdminListItem = {
   employeeId: string;
   selfScore: string | null;
   managerScore: string | null;
+  competencyScore?: string | null;
+  goalsAchievement?: string | null;
   overallScore: string;
+  composition?: PerformanceResultComposition;
+  goals?: PerformanceResultGoalSnapshot[];
   status: PerformanceResultStatus;
   areaSnapshot: OrgSnapshotRef;
   positionSnapshot: OrgSnapshotRef;
@@ -589,11 +622,18 @@ export type PerformanceResultAdminDetail = {
   employeeId: string;
   selfScore: string | null;
   managerScore: string | null;
+  competencyScore: string | null;
+  goalsAchievement: string | null;
   overallScore: string;
   configuredSelfWeight: string;
   configuredManagerWeight: string;
   effectiveSelfWeight: string;
   effectiveManagerWeight: string;
+  configuredCompetencyResultWeight: string | null;
+  configuredGoalsResultWeight: string | null;
+  composition: PerformanceResultComposition;
+  sourceGoalCycleId: string | null;
+  goals: PerformanceResultGoalSnapshot[];
   status: PerformanceResultStatus;
   calculatedAt: string;
   releasedAt: string | null;
@@ -616,16 +656,38 @@ export type PerformanceResultEmployeeListItem = {
   id: string;
   overallScore: string;
   selfScore: string | null;
+  competencyScore?: string | null;
+  goalsAchievement?: string | null;
+  composition?: PerformanceResultComposition;
+  configuredCompetencyResultWeight?: string | null;
+  configuredGoalsResultWeight?: string | null;
+  goals?: PerformanceResultGoalSnapshot[];
   status: PerformanceResultStatus;
   releasedAt: string | null;
   calculatedAt: string;
   cycle: ResultCycleSummary;
 };
 
+export type PerformanceResultEmployeeGoalSnapshot = Pick<
+  PerformanceResultGoalSnapshot,
+  | "goalTitle"
+  | "goalType"
+  | "achievementPercentage"
+  | "effectiveWeight"
+  | "contribution"
+  | "order"
+>;
+
 export type PerformanceResultEmployeeDetail = {
   id: string;
   overallScore: string;
   selfScore: string | null;
+  competencyScore: string | null;
+  goalsAchievement: string | null;
+  composition: PerformanceResultComposition;
+  configuredCompetencyResultWeight: string | null;
+  configuredGoalsResultWeight: string | null;
+  goals: PerformanceResultEmployeeGoalSnapshot[];
   managerIncluded: boolean;
   effectiveSelfWeight: string;
   effectiveManagerWeight: string;
