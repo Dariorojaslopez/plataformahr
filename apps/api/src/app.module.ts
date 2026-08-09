@@ -8,6 +8,7 @@ import { AuthModule } from './auth/auth.module';
 import { CoreModule } from './core/core.module';
 import { HealthModule } from './health/health.module';
 import { OrganizationModule } from './organization/organization.module';
+import { PerformanceModule } from './performance/performance.module';
 import { PlatformModule } from './platform/platform.module';
 import { PrismaModule } from './prisma/prisma.module';
 
@@ -28,6 +29,7 @@ import { PrismaModule } from './prisma/prisma.module';
     AuthModule,
     OrganizationModule,
     AtsModule,
+    PerformanceModule,
     PlatformModule,
     HealthModule,
   ],

@@ -1,0 +1,896 @@
+"use client";
+
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { ArrowLeft, Pencil, Plus, Trash2 } from "lucide-react";
+import Link from "next/link";
+import { useParams } from "next/navigation";
+import { useMemo, useState } from "react";
+import { EntityEditorShell } from "@/components/organization/entity-editor-shell";
+import { FormSelect } from "@/components/organization/form-select";
+import { CycleAnalyticsTab } from "@/components/performance/cycle-analytics-tab";
+import { CycleParticipantsTab } from "@/components/performance/cycle-participants-tab";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { EmptyState } from "@/components/ui/empty-state";
+import { ErrorState } from "@/components/ui/error-state";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { PageHeader } from "@/components/ui/page-header";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Textarea } from "@/components/ui/textarea";
+import { useCompanyId } from "@/hooks/use-company-id";
+import { getErrorMessage } from "@/lib/api/errors";
+import { performanceApi, performanceKeys } from "@/lib/api/performance";
+import {
+  canActivateCycle,
+  canCancelCycle,
+  canCloseCycle,
+  canEditCycleMetadata,
+  canEditCycleStructure,
+} from "@/lib/performance/activation";
+import {
+  buildUpdateCyclePayload,
+  type CycleFormState,
+} from "@/lib/performance/cycle-form";
+import {
+  CYCLE_STATUS_LABELS,
+  cycleStatusVariant,
+} from "@/lib/performance/cycle-labels";
+import {
+  evaluatorWeightsAreValid,
+  formatEvaluatorWeightLabel,
+} from "@/lib/performance/evaluator-weights";
+import { canActivateWeights, sumWeights } from "@/lib/performance/weights";
+import { notifyError, notifySuccess } from "@/lib/ui/notify";
+import type { CycleCompetency } from "@/types/performance";
+
+type CompetencyForm = {
+  competencyId: string;
+  scaleId: string;
+  weight: string;
+  order: string;
+  required: boolean;
+};
+
+const emptyCompetencyForm = (): CompetencyForm => ({
+  competencyId: "",
+  scaleId: "",
+  weight: "",
+  order: "0",
+  required: true,
+});
+
+export function CycleDetailPageClient() {
+  const companyId = useCompanyId();
+  const queryClient = useQueryClient();
+  const params = useParams<{ id: string }>();
+  const cycleId = params.id;
+
+  const [metaOpen, setMetaOpen] = useState(false);
+  const [metaForm, setMetaForm] = useState<CycleFormState | null>(null);
+  const [metaError, setMetaError] = useState<string | null>(null);
+
+  const [compOpen, setCompOpen] = useState(false);
+  const [editingComp, setEditingComp] = useState<CycleCompetency | null>(null);
+  const [compForm, setCompForm] = useState<CompetencyForm>(emptyCompetencyForm());
+  const [compError, setCompError] = useState<string | null>(null);
+
+  const cycleQuery = useQuery({
+    queryKey: performanceKeys.cycle(companyId, cycleId),
+    queryFn: () => performanceApi.getCycle(cycleId),
+  });
+
+  const competenciesQuery = useQuery({
+    queryKey: performanceKeys.competencies(companyId, {
+      status: "ACTIVE",
+      limit: 100,
+    }),
+    queryFn: () =>
+      performanceApi.listCompetencies({ status: "ACTIVE", limit: 100 }),
+  });
+
+  const scalesQuery = useQuery({
+    queryKey: performanceKeys.scales(companyId, {
+      status: "ACTIVE",
+      limit: 100,
+    }),
+    queryFn: () => performanceApi.listScales({ status: "ACTIVE", limit: 100 }),
+  });
+
+  const cycle = cycleQuery.data;
+  const assignments = useMemo(
+    () => cycle?.competencies ?? [],
+    [cycle?.competencies],
+  );
+  const weights = assignments.map((a) => a.weight);
+  const weightTotal = sumWeights(weights);
+  const structureEditable = cycle
+    ? canEditCycleStructure(cycle.status)
+    : false;
+  const metadataEditable = cycle ? canEditCycleMetadata(cycle.status) : false;
+
+  const activateOk = cycle
+    ? canActivateCycle({
+        status: cycle.status,
+        competencyCount: assignments.length,
+        weights,
+        selfEvaluationWeight: cycle.selfEvaluationWeight,
+        managerEvaluationWeight: cycle.managerEvaluationWeight,
+      })
+    : false;
+
+  const assignedCompetencyIds = useMemo(
+    () => new Set(assignments.map((a) => a.competencyId)),
+    [assignments],
+  );
+
+  const availableCompetencies = useMemo(
+    () =>
+      (competenciesQuery.data?.items ?? []).filter(
+        (c) =>
+          editingComp?.competencyId === c.id ||
+          !assignedCompetencyIds.has(c.id),
+      ),
+    [competenciesQuery.data?.items, assignedCompetencyIds, editingComp],
+  );
+
+  async function invalidateCycle() {
+    await queryClient.invalidateQueries({
+      queryKey: performanceKeys.cycle(companyId, cycleId),
+    });
+    await queryClient.invalidateQueries({
+      queryKey: performanceKeys.cycles(companyId),
+    });
+  }
+
+  const metaMutation = useMutation({
+    mutationFn: async () => {
+      if (!metaForm) throw new Error("Formulario incompleto.");
+      if (
+        !evaluatorWeightsAreValid(
+          metaForm.selfEvaluationWeight,
+          metaForm.managerEvaluationWeight,
+        )
+      ) {
+        throw new Error(
+          "La ponderación de evaluadores debe sumar exactamente 100%.",
+        );
+      }
+      return performanceApi.updateCycle(
+        cycleId,
+        buildUpdateCyclePayload(metaForm),
+      );
+    },
+    onSuccess: async () => {
+      await invalidateCycle();
+      setMetaOpen(false);
+      setMetaError(null);
+      notifySuccess("Ciclo actualizado");
+    },
+    onError: (error) => {
+      setMetaError(getErrorMessage(error, "No se pudo actualizar."));
+      notifyError(error, "No se pudo actualizar.");
+    },
+  });
+
+  const activateMutation = useMutation({
+    mutationFn: () => performanceApi.activateCycle(cycleId),
+    onSuccess: async () => {
+      await invalidateCycle();
+      notifySuccess("Ciclo activado");
+    },
+    onError: (error) => notifyError(error, "No se pudo activar el ciclo."),
+  });
+
+  const closeMutation = useMutation({
+    mutationFn: () => performanceApi.closeCycle(cycleId),
+    onSuccess: async () => {
+      await invalidateCycle();
+      notifySuccess("Ciclo cerrado");
+    },
+    onError: (error) => notifyError(error, "No se pudo cerrar el ciclo."),
+  });
+
+  const cancelMutation = useMutation({
+    mutationFn: () => performanceApi.cancelCycle(cycleId),
+    onSuccess: async () => {
+      await invalidateCycle();
+      notifySuccess("Ciclo cancelado");
+    },
+    onError: (error) => notifyError(error, "No se pudo cancelar el ciclo."),
+  });
+
+  const saveCompMutation = useMutation({
+    mutationFn: async () => {
+      if (!compForm.competencyId || !compForm.scaleId) {
+        throw new Error("Competencia y escala son obligatorias.");
+      }
+      const order = Number(compForm.order);
+      if (!Number.isInteger(order) || order < 0) {
+        throw new Error("El orden debe ser un entero >= 0.");
+      }
+      const weightTrimmed = compForm.weight.trim();
+      const weight =
+        weightTrimmed === "" ? null : Number(weightTrimmed);
+      if (weight != null && (!Number.isFinite(weight) || weight < 0 || weight > 100)) {
+        throw new Error("El peso debe estar entre 0 y 100.");
+      }
+
+      if (editingComp) {
+        return performanceApi.updateCycleCompetency(
+          cycleId,
+          editingComp.competencyId,
+          {
+            scaleId: compForm.scaleId,
+            weight,
+            order,
+            required: compForm.required,
+          },
+        );
+      }
+      return performanceApi.addCycleCompetency(cycleId, {
+        competencyId: compForm.competencyId,
+        scaleId: compForm.scaleId,
+        weight,
+        order,
+        required: compForm.required,
+      });
+    },
+    onSuccess: async () => {
+      await invalidateCycle();
+      setCompOpen(false);
+      setEditingComp(null);
+      setCompForm(emptyCompetencyForm());
+      setCompError(null);
+      notifySuccess(
+        editingComp ? "Competencia actualizada" : "Competencia agregada",
+      );
+    },
+    onError: (error) => {
+      setCompError(getErrorMessage(error, "No se pudo guardar."));
+      notifyError(error, "No se pudo guardar.");
+    },
+  });
+
+  const removeCompMutation = useMutation({
+    mutationFn: (competencyId: string) =>
+      performanceApi.removeCycleCompetency(cycleId, competencyId),
+    onSuccess: async () => {
+      await invalidateCycle();
+      notifySuccess("Competencia eliminada del ciclo");
+    },
+    onError: (error) =>
+      notifyError(error, "No se pudo eliminar la competencia."),
+  });
+
+  function openMetaEdit() {
+    if (!cycle) return;
+    setMetaForm({
+      name: cycle.name,
+      description: cycle.description ?? "",
+      startDate: cycle.startDate,
+      endDate: cycle.endDate,
+      evaluationStartDate: cycle.evaluationStartDate ?? "",
+      evaluationEndDate: cycle.evaluationEndDate ?? "",
+      selfEvaluationWeight: cycle.selfEvaluationWeight ?? "30",
+      managerEvaluationWeight: cycle.managerEvaluationWeight ?? "70",
+    });
+    setMetaError(null);
+    setMetaOpen(true);
+  }
+
+  function openAddCompetency() {
+    setEditingComp(null);
+    const nextOrder =
+      assignments.length === 0
+        ? 0
+        : Math.max(...assignments.map((a) => a.order)) + 1;
+    setCompForm({ ...emptyCompetencyForm(), order: String(nextOrder) });
+    setCompError(null);
+    setCompOpen(true);
+  }
+
+  function openEditCompetency(row: CycleCompetency) {
+    setEditingComp(row);
+    setCompForm({
+      competencyId: row.competencyId,
+      scaleId: row.scaleId,
+      weight: row.weight ?? "",
+      order: String(row.order),
+      required: row.required,
+    });
+    setCompError(null);
+    setCompOpen(true);
+  }
+
+  if (cycleQuery.isLoading) {
+    return (
+      <div className="space-y-4">
+        <Skeleton className="h-10 w-64" />
+        <Skeleton className="h-40 w-full" />
+      </div>
+    );
+  }
+
+  if (cycleQuery.isError || !cycle) {
+    return (
+      <ErrorState
+        title="No se pudo cargar el ciclo"
+        description={getErrorMessage(cycleQuery.error, "Error al cargar.")}
+        onRetry={() => void cycleQuery.refetch()}
+      />
+    );
+  }
+
+  const transitionPending =
+    activateMutation.isPending ||
+    closeMutation.isPending ||
+    cancelMutation.isPending;
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <Button variant="ghost" size="sm" className="mb-2 -ml-2" asChild>
+          <Link href="/performance/cycles">
+            <ArrowLeft className="h-4 w-4" />
+            Volver a ciclos
+          </Link>
+        </Button>
+        <PageHeader
+          title={cycle.name}
+          description={cycle.description ?? "Detalle del ciclo de desempeño."}
+          actions={
+            <div className="flex flex-wrap gap-2">
+              {metadataEditable ? (
+                <Button type="button" variant="outline" onClick={openMetaEdit}>
+                  <Pencil className="h-4 w-4" />
+                  Editar datos
+                </Button>
+              ) : null}
+              {cycle.status === "DRAFT" ? (
+                <Button
+                  type="button"
+                  disabled={!activateOk || transitionPending}
+                  onClick={() => activateMutation.mutate()}
+                  title={
+                    !activateOk
+                      ? "Requiere competencias y ponderaciones válidas"
+                      : undefined
+                  }
+                >
+                  Activar
+                </Button>
+              ) : null}
+              {canCloseCycle(cycle.status) ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={transitionPending}
+                  onClick={() => closeMutation.mutate()}
+                >
+                  Cerrar
+                </Button>
+              ) : null}
+              {canCancelCycle(cycle.status) ? (
+                <Button
+                  type="button"
+                  variant="destructive"
+                  disabled={transitionPending}
+                  onClick={() => cancelMutation.mutate()}
+                >
+                  Cancelar ciclo
+                </Button>
+              ) : null}
+            </div>
+          }
+        />
+      </div>
+
+      <div className="grid gap-4 rounded-lg border border-border bg-card p-4 sm:grid-cols-2 lg:grid-cols-5">
+        <div>
+          <p className="text-xs text-muted-foreground">Estado</p>
+          <Badge variant={cycleStatusVariant(cycle.status)} className="mt-1">
+            {CYCLE_STATUS_LABELS[cycle.status]}
+          </Badge>
+        </div>
+        <div>
+          <p className="text-xs text-muted-foreground">Periodo</p>
+          <p className="mt-1 text-sm font-medium">
+            {cycle.startDate} → {cycle.endDate}
+          </p>
+        </div>
+        <div>
+          <p className="text-xs text-muted-foreground">Ventana de evaluación</p>
+          <p className="mt-1 text-sm font-medium">
+            {cycle.evaluationStartDate && cycle.evaluationEndDate
+              ? `${cycle.evaluationStartDate} → ${cycle.evaluationEndDate}`
+              : "—"}
+          </p>
+        </div>
+        <div>
+          <p className="text-xs text-muted-foreground">Ponderación competencias</p>
+          <p className="mt-1 text-sm font-medium">
+            {weightTotal == null
+              ? "Sin ponderar"
+              : `${weightTotal.toFixed(2)}% / 100%`}
+          </p>
+          {weightTotal != null && !canActivateWeights(weights) ? (
+            <p className="mt-1 text-xs text-destructive">
+              Las ponderaciones deben sumar 100% o quedar todas vacías.
+            </p>
+          ) : null}
+        </div>
+        <div>
+          <p className="text-xs text-muted-foreground">
+            Ponderación de evaluadores
+          </p>
+          <p className="mt-1 text-sm font-medium">
+            {formatEvaluatorWeightLabel(
+              cycle.selfEvaluationWeight,
+              cycle.managerEvaluationWeight,
+            )}
+          </p>
+          {!evaluatorWeightsAreValid(
+            cycle.selfEvaluationWeight,
+            cycle.managerEvaluationWeight,
+          ) ? (
+            <p className="mt-1 text-xs text-destructive">
+              Autoevaluación + líder deben sumar 100%.
+            </p>
+          ) : null}
+        </div>
+      </div>
+
+      <Tabs defaultValue="summary">
+        <TabsList>
+          <TabsTrigger value="summary">Resumen</TabsTrigger>
+          <TabsTrigger value="competencies">Competencias</TabsTrigger>
+          <TabsTrigger value="participants">Participantes</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="summary" className="mt-4">
+          <CycleAnalyticsTab cycleId={cycleId} />
+        </TabsContent>
+
+        <TabsContent value="competencies" className="mt-4 space-y-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="text-lg font-semibold">Competencias del ciclo</h2>
+              <p className="text-sm text-muted-foreground">
+                {structureEditable
+                  ? "Configura competencias, escalas y pesos antes de activar."
+                  : "La estructura solo se edita en borrador."}
+              </p>
+            </div>
+            {structureEditable ? (
+              <Button type="button" onClick={openAddCompetency}>
+                <Plus className="h-4 w-4" />
+                Agregar competencia
+              </Button>
+            ) : null}
+          </div>
+
+          {assignments.length === 0 ? (
+            <EmptyState
+              title="Sin competencias"
+              description="Agrega al menos una competencia ACTIVE con escala válida para poder activar el ciclo."
+              action={
+                structureEditable ? (
+                  <Button type="button" onClick={openAddCompetency}>
+                    Agregar competencia
+                  </Button>
+                ) : undefined
+              }
+            />
+          ) : (
+            <>
+              <div className="hidden overflow-hidden rounded-lg border border-border bg-card md:block">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Orden</TableHead>
+                      <TableHead>Competencia</TableHead>
+                      <TableHead>Escala</TableHead>
+                      <TableHead>Peso</TableHead>
+                      <TableHead>Requerida</TableHead>
+                      {structureEditable ? (
+                        <TableHead className="text-right">Acciones</TableHead>
+                      ) : null}
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {assignments.map((row) => (
+                      <TableRow key={row.id}>
+                        <TableCell>{row.order}</TableCell>
+                        <TableCell className="font-medium">
+                          {row.competency?.name ?? row.competencyId}
+                        </TableCell>
+                        <TableCell>
+                          {row.scale?.name ?? row.scaleId}
+                        </TableCell>
+                        <TableCell>
+                          {row.weight != null ? `${row.weight}%` : "—"}
+                        </TableCell>
+                        <TableCell>{row.required ? "Sí" : "No"}</TableCell>
+                        {structureEditable ? (
+                          <TableCell className="text-right">
+                            <div className="flex justify-end gap-1">
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => openEditCompetency(row)}
+                              >
+                                <Pencil className="h-4 w-4" />
+                                Editar
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                disabled={removeCompMutation.isPending}
+                                onClick={() =>
+                                  removeCompMutation.mutate(row.competencyId)
+                                }
+                              >
+                                <Trash2 className="h-4 w-4" />
+                                Quitar
+                              </Button>
+                            </div>
+                          </TableCell>
+                        ) : null}
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+
+              <div className="space-y-3 md:hidden">
+                {assignments.map((row) => (
+                  <div
+                    key={row.id}
+                    className="space-y-2 rounded-lg border border-border bg-card p-4"
+                  >
+                    <p className="font-medium">
+                      {row.competency?.name ?? row.competencyId}
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      Escala: {row.scale?.name ?? row.scaleId}
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      Orden {row.order} · Peso{" "}
+                      {row.weight != null ? `${row.weight}%` : "—"} ·{" "}
+                      {row.required ? "Requerida" : "Opcional"}
+                    </p>
+                    {structureEditable ? (
+                      <div className="flex flex-wrap gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => openEditCompetency(row)}
+                        >
+                          Editar
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          disabled={removeCompMutation.isPending}
+                          onClick={() =>
+                            removeCompMutation.mutate(row.competencyId)
+                          }
+                        >
+                          Quitar
+                        </Button>
+                      </div>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+        </TabsContent>
+
+        <TabsContent value="participants" className="mt-4">
+          <CycleParticipantsTab
+            cycleId={cycleId}
+            cycleStatus={cycle.status}
+          />
+        </TabsContent>
+      </Tabs>
+
+      <EntityEditorShell
+        open={metaOpen}
+        onOpenChange={setMetaOpen}
+        title="Editar ciclo"
+      >
+        {metaForm ? (
+          <form
+            className="space-y-4"
+            onSubmit={(e) => {
+              e.preventDefault();
+              metaMutation.mutate();
+            }}
+          >
+            <div className="space-y-2">
+              <Label htmlFor="meta-name">Nombre *</Label>
+              <Input
+                id="meta-name"
+                value={metaForm.name}
+                onChange={(e) =>
+                  setMetaForm((f) =>
+                    f ? { ...f, name: e.target.value } : f,
+                  )
+                }
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="meta-description">Descripción</Label>
+              <Textarea
+                id="meta-description"
+                value={metaForm.description}
+                onChange={(e) =>
+                  setMetaForm((f) =>
+                    f ? { ...f, description: e.target.value } : f,
+                  )
+                }
+                rows={3}
+              />
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="meta-start">Fecha inicio *</Label>
+                <Input
+                  id="meta-start"
+                  type="date"
+                  value={metaForm.startDate}
+                  onChange={(e) =>
+                    setMetaForm((f) =>
+                      f ? { ...f, startDate: e.target.value } : f,
+                    )
+                  }
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="meta-end">Fecha fin *</Label>
+                <Input
+                  id="meta-end"
+                  type="date"
+                  value={metaForm.endDate}
+                  onChange={(e) =>
+                    setMetaForm((f) =>
+                      f ? { ...f, endDate: e.target.value } : f,
+                    )
+                  }
+                  required
+                />
+              </div>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="meta-eval-start">Inicio evaluación</Label>
+                <Input
+                  id="meta-eval-start"
+                  type="date"
+                  value={metaForm.evaluationStartDate}
+                  onChange={(e) =>
+                    setMetaForm((f) =>
+                      f
+                        ? { ...f, evaluationStartDate: e.target.value }
+                        : f,
+                    )
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="meta-eval-end">Fin evaluación</Label>
+                <Input
+                  id="meta-eval-end"
+                  type="date"
+                  value={metaForm.evaluationEndDate}
+                  onChange={(e) =>
+                    setMetaForm((f) =>
+                      f ? { ...f, evaluationEndDate: e.target.value } : f,
+                    )
+                  }
+                />
+              </div>
+            </div>
+            <div className="space-y-3 rounded-md border border-border p-3">
+              <div>
+                <p className="text-sm font-medium">Ponderación de evaluadores</p>
+                <p className="text-xs text-muted-foreground">
+                  Solo editable en borrador. Autoevaluación + líder = 100%.
+                </p>
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="meta-self-weight">Autoevaluación (%)</Label>
+                  <Input
+                    id="meta-self-weight"
+                    type="number"
+                    min={0}
+                    max={100}
+                    step="0.01"
+                    value={metaForm.selfEvaluationWeight}
+                    onChange={(e) =>
+                      setMetaForm((f) =>
+                        f
+                          ? { ...f, selfEvaluationWeight: e.target.value }
+                          : f,
+                      )
+                    }
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="meta-manager-weight">Líder (%)</Label>
+                  <Input
+                    id="meta-manager-weight"
+                    type="number"
+                    min={0}
+                    max={100}
+                    step="0.01"
+                    value={metaForm.managerEvaluationWeight}
+                    onChange={(e) =>
+                      setMetaForm((f) =>
+                        f
+                          ? {
+                              ...f,
+                              managerEvaluationWeight: e.target.value,
+                            }
+                          : f,
+                      )
+                    }
+                    required
+                  />
+                </div>
+              </div>
+            </div>
+            {metaError ? (
+              <p className="text-sm text-destructive" role="alert">
+                {metaError}
+              </p>
+            ) : null}
+            <div className="flex justify-end gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setMetaOpen(false)}
+              >
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={metaMutation.isPending}>
+                {metaMutation.isPending ? "Guardando…" : "Guardar"}
+              </Button>
+            </div>
+          </form>
+        ) : null}
+      </EntityEditorShell>
+
+      <EntityEditorShell
+        open={compOpen}
+        onOpenChange={setCompOpen}
+        title={
+          editingComp ? "Editar competencia del ciclo" : "Agregar competencia"
+        }
+      >
+        <form
+          className="space-y-4"
+          onSubmit={(e) => {
+            e.preventDefault();
+            saveCompMutation.mutate();
+          }}
+        >
+          <FormSelect
+            id="comp-select"
+            label="Competencia"
+            required
+            disabled={Boolean(editingComp)}
+            value={compForm.competencyId}
+            onChange={(competencyId) => {
+              const selected = availableCompetencies.find(
+                (c) => c.id === competencyId,
+              );
+              setCompForm((f) => ({
+                ...f,
+                competencyId,
+                scaleId:
+                  f.scaleId ||
+                  selected?.defaultScaleId ||
+                  "",
+              }));
+            }}
+            options={availableCompetencies.map((c) => ({
+              value: c.id,
+              label: c.code ? `${c.name} (${c.code})` : c.name,
+            }))}
+          />
+          <FormSelect
+            id="scale-select"
+            label="Escala"
+            required
+            value={compForm.scaleId}
+            onChange={(scaleId) => setCompForm((f) => ({ ...f, scaleId }))}
+            options={(scalesQuery.data?.items ?? []).map((s) => ({
+              value: s.id,
+              label: s.name,
+            }))}
+          />
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="comp-weight">Peso (%)</Label>
+              <Input
+                id="comp-weight"
+                type="number"
+                min={0}
+                max={100}
+                step="0.01"
+                value={compForm.weight}
+                onChange={(e) =>
+                  setCompForm((f) => ({ ...f, weight: e.target.value }))
+                }
+                placeholder="Vacío = sin ponderar"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="comp-order">Orden</Label>
+              <Input
+                id="comp-order"
+                type="number"
+                min={0}
+                value={compForm.order}
+                onChange={(e) =>
+                  setCompForm((f) => ({ ...f, order: e.target.value }))
+                }
+              />
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="comp-required"
+              checked={compForm.required}
+              onCheckedChange={(checked) =>
+                setCompForm((f) => ({
+                  ...f,
+                  required: checked === true,
+                }))
+              }
+            />
+            <Label htmlFor="comp-required">Requerida</Label>
+          </div>
+          {compError ? (
+            <p className="text-sm text-destructive" role="alert">
+              {compError}
+            </p>
+          ) : null}
+          <div className="flex justify-end gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setCompOpen(false)}
+            >
+              Cancelar
+            </Button>
+            <Button type="submit" disabled={saveCompMutation.isPending}>
+              {saveCompMutation.isPending ? "Guardando…" : "Guardar"}
+            </Button>
+          </div>
+        </form>
+      </EntityEditorShell>
+    </div>
+  );
+}

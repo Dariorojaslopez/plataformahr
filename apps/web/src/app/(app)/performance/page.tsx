@@ -1,10 +1,5 @@
-import { ComingSoonPage } from "@/components/layout/coming-soon-page";
+import { redirect } from "next/navigation";
 
-export default function Page() {
-  return (
-    <ComingSoonPage
-      title="Performance"
-      description="Módulo de desempeño (pendiente)."
-    />
-  );
+export default function PerformancePage() {
+  redirect("/performance/cycles");
 }

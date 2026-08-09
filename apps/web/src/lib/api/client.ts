@@ -67,17 +67,16 @@ async function parseError(response: Response): Promise<ApiError> {
   return new ApiError(response.status, message, details);
 }
 
-export async function apiRequest<T>(
+async function executeFetch(
   path: string,
-  options: ApiRequestOptions = {},
-): Promise<T> {
+  options: ApiRequestOptions,
+): Promise<Response> {
   const {
     method = "GET",
     body,
     headers = {},
     auth = true,
     companyId,
-    skipRefresh = false,
     signal,
   } = options;
 
@@ -103,9 +102,8 @@ export async function apiRequest<T>(
     requestHeaders["X-Company-Id"] = resolvedCompanyId;
   }
 
-  let response: Response;
   try {
-    response = await fetch(`${getApiBaseUrl()}${path}`, {
+    return await fetch(`${getApiBaseUrl()}${path}`, {
       method,
       headers: requestHeaders,
       body: body === undefined ? undefined : JSON.stringify(body),
@@ -116,6 +114,15 @@ export async function apiRequest<T>(
       ? error
       : new TypeError("Network request failed");
   }
+}
+
+export async function apiRequest<T>(
+  path: string,
+  options: ApiRequestOptions = {},
+): Promise<T> {
+  const { auth = true, skipRefresh = false } = options;
+
+  const response = await executeFetch(path, options);
 
   if (response.status === 401 && auth && !skipRefresh) {
     const refreshed = await runSingleFlightRefresh();
@@ -137,6 +144,66 @@ export async function apiRequest<T>(
   const text = await response.text();
   if (!text) return undefined as T;
   return JSON.parse(text) as T;
+}
+
+export type ApiBlobResponse = {
+  blob: Blob;
+  filename: string | null;
+  contentType: string | null;
+};
+
+function filenameFromContentDisposition(
+  header: string | null,
+): string | null {
+  if (!header) return null;
+  const utfMatch = /filename\*=UTF-8''([^;]+)/i.exec(header);
+  if (utfMatch?.[1]) {
+    try {
+      return decodeURIComponent(utfMatch[1]);
+    } catch {
+      return utfMatch[1];
+    }
+  }
+  const plain = /filename="?([^";]+)"?/i.exec(header);
+  return plain?.[1] ?? null;
+}
+
+/** Authenticated binary download (keeps Bearer + X-Company-Id). */
+export async function apiRequestBlob(
+  path: string,
+  options: ApiRequestOptions = {},
+): Promise<ApiBlobResponse> {
+  const { auth = true, skipRefresh = false } = options;
+  const withAccept: ApiRequestOptions = {
+    ...options,
+    headers: {
+      Accept: "text/csv, application/octet-stream, */*",
+      ...options.headers,
+    },
+  };
+
+  const response = await executeFetch(path, withAccept);
+
+  if (response.status === 401 && auth && !skipRefresh) {
+    const refreshed = await runSingleFlightRefresh();
+    if (refreshed) {
+      return apiRequestBlob(path, { ...options, skipRefresh: true });
+    }
+    clearSession();
+    throw new ApiError(401, "Unauthorized");
+  }
+
+  if (!response.ok) {
+    throw await parseError(response);
+  }
+
+  return {
+    blob: await response.blob(),
+    filename: filenameFromContentDisposition(
+      response.headers.get("Content-Disposition"),
+    ),
+    contentType: response.headers.get("Content-Type"),
+  };
 }
 
 export async function refreshAccessToken(): Promise<boolean> {

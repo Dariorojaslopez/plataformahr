@@ -75,6 +75,8 @@ model User {
   interviewTranscriptSegments InterviewTranscriptSegment[]
   jobOffersCreated            JobOffer[]
   hiringsCompleted            Hiring[]
+  performanceCyclesCreated    PerformanceCycle[]
+  performanceResultsReleased  PerformanceResult[]          @relation("PerformanceResultReleasedBy")
 
   @@map("users")
 }
@@ -112,29 +114,40 @@ model Company {
   updatedAt       DateTime      @updatedAt
   deletedAt       DateTime?
 
-  memberships                 CompanyMembership[]
-  modules                     CompanyModule[]
-  auditLogs                   AuditLog[]
-  businessUnits               BusinessUnit[]
-  areas                       Area[]
-  jobLevels                   JobLevel[]
-  positions                   Position[]
-  employees                   Employee[]
-  reportingLines              EmployeeReportingLine[]
-  vacancyRequests             VacancyRequest[]
-  vacancyApprovals            VacancyApproval[]
-  vacancies                   Vacancy[]
-  candidates                  Candidate[]
-  applications                Application[]
-  applicationStageHistories   ApplicationStageHistory[]
-  interviews                  Interview[]
-  interviewFormTemplates      InterviewFormTemplate[]
-  interviewFormQuestions      InterviewFormQuestion[]
-  interviewQuestions          InterviewQuestion[]
-  interviewAnswers            InterviewAnswer[]
-  interviewTranscriptSegments InterviewTranscriptSegment[]
-  jobOffers                   JobOffer[]
-  hirings                     Hiring[]
+  memberships                       CompanyMembership[]
+  modules                           CompanyModule[]
+  auditLogs                         AuditLog[]
+  businessUnits                     BusinessUnit[]
+  areas                             Area[]
+  jobLevels                         JobLevel[]
+  positions                         Position[]
+  employees                         Employee[]
+  reportingLines                    EmployeeReportingLine[]
+  vacancyRequests                   VacancyRequest[]
+  vacancyApprovals                  VacancyApproval[]
+  vacancies                         Vacancy[]
+  candidates                        Candidate[]
+  applications                      Application[]
+  applicationStageHistories         ApplicationStageHistory[]
+  interviews                        Interview[]
+  interviewFormTemplates            InterviewFormTemplate[]
+  interviewFormQuestions            InterviewFormQuestion[]
+  interviewQuestions                InterviewQuestion[]
+  interviewAnswers                  InterviewAnswer[]
+  interviewTranscriptSegments       InterviewTranscriptSegment[]
+  jobOffers                         JobOffer[]
+  hirings                           Hiring[]
+  performanceCycles                 PerformanceCycle[]
+  competencies                      Competency[]
+  competencyScales                  CompetencyScale[]
+  competencyScaleLevels             CompetencyScaleLevel[]
+  performanceCycleCompetencies      PerformanceCycleCompetency[]
+  performanceCycleParticipants      PerformanceCycleParticipant[]
+  performanceEvaluations            PerformanceEvaluation[]
+  performanceEvaluationCompetencies PerformanceEvaluationCompetency[]
+  performanceEvaluationScaleLevels  PerformanceEvaluationScaleLevel[]
+  performanceEvaluationResponses    PerformanceEvaluationResponse[]
+  performanceResults                PerformanceResult[]
 
   @@map("companies")
 }
@@ -417,12 +430,16 @@ model Employee {
   area         Area          @relation(fields: [areaId], references: [id], onDelete: Restrict)
   position     Position      @relation(fields: [positionId], references: [id], onDelete: Restrict)
 
-  reportingTo              EmployeeReportingLine[] @relation("EmployeeReports")
-  managedReports           EmployeeReportingLine[] @relation("ManagerReports")
-  vacancyRequestsRequested VacancyRequest[]        @relation("VacancyRequestedBy")
-  vacancyApprovals         VacancyApproval[]       @relation("VacancyApprover")
-  interviewAssignments     InterviewInterviewer[]
-  hiring                   Hiring?
+  reportingTo                       EmployeeReportingLine[]       @relation("EmployeeReports")
+  managedReports                    EmployeeReportingLine[]       @relation("ManagerReports")
+  vacancyRequestsRequested          VacancyRequest[]              @relation("VacancyRequestedBy")
+  vacancyApprovals                  VacancyApproval[]             @relation("VacancyApprover")
+  interviewAssignments              InterviewInterviewer[]
+  hiring                            Hiring?
+  performanceParticipations         PerformanceCycleParticipant[]
+  performanceEvaluationsAsSubject   PerformanceEvaluation[]       @relation("EvaluationSubject")
+  performanceEvaluationsAsEvaluator PerformanceEvaluation[]       @relation("EvaluationEvaluator")
+  performanceResults                PerformanceResult[]
 
   @@unique([companyId, email])
   @@unique([companyId, userId])
@@ -974,4 +991,344 @@ model Hiring {
   @@index([vacancyId])
   @@index([hiredByUserId])
   @@map("hirings")
+}
+
+// ---------------------------------------------------------------------------
+// Performance — Cycles, competencies & scales (08A configuration core)
+// Evaluations / assignments (08B): participants + SELF/MANAGER + snapshots
+// ---------------------------------------------------------------------------
+
+enum PerformanceCycleStatus {
+  DRAFT
+  ACTIVE
+  CLOSED
+  CANCELLED
+}
+
+enum PerformanceParticipantStatus {
+  ACTIVE
+  COMPLETED
+  EXCLUDED
+}
+
+enum PerformanceEvaluationType {
+  SELF
+  MANAGER
+}
+
+enum PerformanceEvaluationStatus {
+  PENDING
+  IN_PROGRESS
+  SUBMITTED
+}
+
+enum PerformanceResultStatus {
+  CALCULATED
+  RELEASED
+}
+
+model PerformanceCycle {
+  id                      String                 @id @default(uuid()) @db.Uuid
+  companyId               String                 @db.Uuid
+  name                    String
+  description             String?
+  startDate               DateTime               @db.Date
+  endDate                 DateTime               @db.Date
+  evaluationStartDate     DateTime?              @db.Date
+  evaluationEndDate       DateTime?              @db.Date
+  status                  PerformanceCycleStatus @default(DRAFT)
+  /// Configured evaluator weights (DRAFT-editable). Must sum to 100 at activation.
+  /// Defaults 30/70 for new cycles; not hardcoded in consolidation logic.
+  selfEvaluationWeight    Decimal                @default(30.00) @db.Decimal(5, 2)
+  managerEvaluationWeight Decimal                @default(70.00) @db.Decimal(5, 2)
+  createdByUserId         String                 @db.Uuid
+  createdAt               DateTime               @default(now())
+  updatedAt               DateTime               @updatedAt
+
+  company      Company                       @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  createdBy    User                          @relation(fields: [createdByUserId], references: [id], onDelete: Restrict)
+  competencies PerformanceCycleCompetency[]
+  participants PerformanceCycleParticipant[]
+  evaluations  PerformanceEvaluation[]
+  results      PerformanceResult[]
+
+  @@index([companyId])
+  @@index([status])
+  @@index([createdByUserId])
+  @@map("performance_cycles")
+}
+
+model Competency {
+  id             String                   @id @default(uuid()) @db.Uuid
+  companyId      String                   @db.Uuid
+  name           String
+  code           String?
+  description    String?
+  status         OrganizationEntityStatus @default(ACTIVE)
+  defaultScaleId String?                  @db.Uuid
+  createdAt      DateTime                 @default(now())
+  updatedAt      DateTime                 @updatedAt
+  deletedAt      DateTime?
+
+  company          Company                      @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  defaultScale     CompetencyScale?             @relation("CompetencyDefaultScale", fields: [defaultScaleId], references: [id], onDelete: Restrict)
+  cycleAssignments PerformanceCycleCompetency[]
+
+  @@unique([companyId, name])
+  @@unique([companyId, code])
+  @@index([companyId])
+  @@index([status])
+  @@index([defaultScaleId])
+  @@map("competencies")
+}
+
+model CompetencyScale {
+  id          String                   @id @default(uuid()) @db.Uuid
+  companyId   String                   @db.Uuid
+  name        String
+  description String?
+  status      OrganizationEntityStatus @default(ACTIVE)
+  createdAt   DateTime                 @default(now())
+  updatedAt   DateTime                 @updatedAt
+  deletedAt   DateTime?
+
+  company                Company                      @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  levels                 CompetencyScaleLevel[]
+  defaultForCompetencies Competency[]                 @relation("CompetencyDefaultScale")
+  cycleAssignments       PerformanceCycleCompetency[]
+
+  @@unique([companyId, name])
+  @@index([companyId])
+  @@index([status])
+  @@map("competency_scales")
+}
+
+model CompetencyScaleLevel {
+  id          String   @id @default(uuid()) @db.Uuid
+  companyId   String   @db.Uuid
+  scaleId     String   @db.Uuid
+  value       Int
+  label       String
+  description String?
+  order       Int
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  company Company         @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  scale   CompetencyScale @relation(fields: [scaleId], references: [id], onDelete: Restrict)
+
+  @@unique([scaleId, value])
+  @@unique([scaleId, order])
+  @@index([companyId])
+  @@index([scaleId])
+  @@map("competency_scale_levels")
+}
+
+model PerformanceCycleCompetency {
+  id           String   @id @default(uuid()) @db.Uuid
+  companyId    String   @db.Uuid
+  cycleId      String   @db.Uuid
+  competencyId String   @db.Uuid
+  scaleId      String   @db.Uuid
+  weight       Decimal? @db.Decimal(5, 2)
+  order        Int      @default(0)
+  required     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  company    Company          @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  cycle      PerformanceCycle @relation(fields: [cycleId], references: [id], onDelete: Restrict)
+  competency Competency       @relation(fields: [competencyId], references: [id], onDelete: Restrict)
+  scale      CompetencyScale  @relation(fields: [scaleId], references: [id], onDelete: Restrict)
+
+  @@unique([cycleId, competencyId])
+  @@index([companyId])
+  @@index([cycleId])
+  @@index([competencyId])
+  @@index([scaleId])
+  @@map("performance_cycle_competencies")
+}
+
+/// Employee participation in an ACTIVE performance cycle.
+model PerformanceCycleParticipant {
+  id         String                       @id @default(uuid()) @db.Uuid
+  companyId  String                       @db.Uuid
+  cycleId    String                       @db.Uuid
+  employeeId String                       @db.Uuid
+  status     PerformanceParticipantStatus @default(ACTIVE)
+  createdAt  DateTime                     @default(now())
+  updatedAt  DateTime                     @updatedAt
+
+  company     Company                 @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  cycle       PerformanceCycle        @relation(fields: [cycleId], references: [id], onDelete: Restrict)
+  employee    Employee                @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  evaluations PerformanceEvaluation[]
+  result      PerformanceResult?
+
+  @@unique([cycleId, employeeId])
+  @@index([companyId])
+  @@index([cycleId])
+  @@index([employeeId])
+  @@index([status])
+  @@map("performance_cycle_participants")
+}
+
+/// Materialized evaluation (SELF or MANAGER) with competency/scale snapshots.
+model PerformanceEvaluation {
+  id                  String                      @id @default(uuid()) @db.Uuid
+  companyId           String                      @db.Uuid
+  cycleId             String                      @db.Uuid
+  participantId       String                      @db.Uuid
+  employeeId          String                      @db.Uuid
+  evaluatorEmployeeId String?                     @db.Uuid
+  type                PerformanceEvaluationType
+  status              PerformanceEvaluationStatus @default(PENDING)
+  startedAt           DateTime?
+  submittedAt         DateTime?
+  /// Individual score for THIS evaluation only (0.00–100.00). Set on submit.
+  /// SELF and MANAGER scores stay independent (no consolidation in 08C).
+  scorePercentage     Decimal?                    @db.Decimal(5, 2)
+  createdAt           DateTime                    @default(now())
+  updatedAt           DateTime                    @updatedAt
+
+  company           Company                           @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  cycle             PerformanceCycle                  @relation(fields: [cycleId], references: [id], onDelete: Restrict)
+  participant       PerformanceCycleParticipant       @relation(fields: [participantId], references: [id], onDelete: Restrict)
+  employee          Employee                          @relation("EvaluationSubject", fields: [employeeId], references: [id], onDelete: Restrict)
+  evaluatorEmployee Employee?                         @relation("EvaluationEvaluator", fields: [evaluatorEmployeeId], references: [id], onDelete: Restrict)
+  competencies      PerformanceEvaluationCompetency[]
+  responses         PerformanceEvaluationResponse[]
+
+  @@unique([participantId, type])
+  @@index([companyId])
+  @@index([cycleId])
+  @@index([participantId])
+  @@index([employeeId])
+  @@index([evaluatorEmployeeId])
+  @@index([type])
+  @@index([status])
+  @@map("performance_evaluations")
+}
+
+/// Historical snapshot of a cycle competency for one evaluation.
+/// source* ids are traceability only (no FK) so catalog changes never break history.
+model PerformanceEvaluationCompetency {
+  id                 String   @id @default(uuid()) @db.Uuid
+  companyId          String   @db.Uuid
+  evaluationId       String   @db.Uuid
+  sourceCompetencyId String?  @db.Uuid
+  sourceScaleId      String?  @db.Uuid
+  name               String
+  code               String?
+  description        String?
+  scaleName          String
+  weight             Decimal? @db.Decimal(5, 2)
+  required           Boolean  @default(true)
+  order              Int      @default(0)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  company    Company                           @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  evaluation PerformanceEvaluation             @relation(fields: [evaluationId], references: [id], onDelete: Restrict)
+  levels     PerformanceEvaluationScaleLevel[]
+  response   PerformanceEvaluationResponse?
+
+  @@index([companyId])
+  @@index([evaluationId])
+  @@index([sourceCompetencyId])
+  @@map("performance_evaluation_competencies")
+}
+
+model PerformanceEvaluationScaleLevel {
+  id                     String   @id @default(uuid()) @db.Uuid
+  companyId              String   @db.Uuid
+  evaluationCompetencyId String   @db.Uuid
+  sourceScaleLevelId     String?  @db.Uuid
+  value                  Int
+  label                  String
+  description            String?
+  order                  Int
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  company              Company                         @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  evaluationCompetency PerformanceEvaluationCompetency @relation(fields: [evaluationCompetencyId], references: [id], onDelete: Restrict)
+  selectedByResponses  PerformanceEvaluationResponse[]
+
+  @@index([companyId])
+  @@index([evaluationCompetencyId])
+  @@map("performance_evaluation_scale_levels")
+}
+
+/// One rating (+ optional comment) per snapshot competency within an evaluation.
+model PerformanceEvaluationResponse {
+  id                     String   @id @default(uuid()) @db.Uuid
+  companyId              String   @db.Uuid
+  evaluationId           String   @db.Uuid
+  evaluationCompetencyId String   @db.Uuid
+  selectedScaleLevelId   String   @db.Uuid
+  /// Copied from snapshot level.value at save time (historical rating).
+  ratingValue            Int
+  comment                String?
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  company              Company                         @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  evaluation           PerformanceEvaluation           @relation(fields: [evaluationId], references: [id], onDelete: Restrict)
+  evaluationCompetency PerformanceEvaluationCompetency @relation(fields: [evaluationCompetencyId], references: [id], onDelete: Restrict)
+  selectedScaleLevel   PerformanceEvaluationScaleLevel @relation(fields: [selectedScaleLevelId], references: [id], onDelete: Restrict)
+
+  @@unique([evaluationId, evaluationCompetencyId])
+  @@unique([evaluationCompetencyId])
+  @@index([companyId])
+  @@index([evaluationId])
+  @@index([selectedScaleLevelId])
+  @@map("performance_evaluation_responses")
+}
+
+/// Historical consolidated result for a participant (SELF/MANAGER). Immutable after calculate.
+model PerformanceResult {
+  id                       String                  @id @default(uuid()) @db.Uuid
+  companyId                String                  @db.Uuid
+  cycleId                  String                  @db.Uuid
+  participantId            String                  @db.Uuid
+  employeeId               String                  @db.Uuid
+  selfScore                Decimal?                @db.Decimal(5, 2)
+  managerScore             Decimal?                @db.Decimal(5, 2)
+  overallScore             Decimal                 @db.Decimal(5, 2)
+  configuredSelfWeight     Decimal                 @db.Decimal(5, 2)
+  configuredManagerWeight  Decimal                 @db.Decimal(5, 2)
+  effectiveSelfWeight      Decimal                 @db.Decimal(5, 2)
+  effectiveManagerWeight   Decimal                 @db.Decimal(5, 2)
+  status                   PerformanceResultStatus @default(CALCULATED)
+  /// Org snapshot at calculate time (display authority). IDs without FK for history.
+  areaIdSnapshot           String?                 @db.Uuid
+  areaNameSnapshot         String?
+  positionIdSnapshot       String?                 @db.Uuid
+  positionNameSnapshot     String?
+  businessUnitIdSnapshot   String?                 @db.Uuid
+  businessUnitNameSnapshot String?
+  calculatedAt             DateTime
+  releasedAt               DateTime?
+  releasedByUserId         String?                 @db.Uuid
+  createdAt                DateTime                @default(now())
+  updatedAt                DateTime                @updatedAt
+
+  company     Company                     @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  cycle       PerformanceCycle            @relation(fields: [cycleId], references: [id], onDelete: Restrict)
+  participant PerformanceCycleParticipant @relation(fields: [participantId], references: [id], onDelete: Restrict)
+  employee    Employee                    @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  releasedBy  User?                       @relation("PerformanceResultReleasedBy", fields: [releasedByUserId], references: [id], onDelete: Restrict)
+
+  @@unique([participantId])
+  @@index([companyId])
+  @@index([cycleId])
+  @@index([employeeId])
+  @@index([status])
+  @@index([companyId, cycleId])
+  @@index([cycleId, status])
+  @@index([areaIdSnapshot])
+  @@index([positionIdSnapshot])
+  @@index([businessUnitIdSnapshot])
+  @@map("performance_results")
 }

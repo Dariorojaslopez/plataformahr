@@ -2,13 +2,17 @@ import {
   BriefcaseBusiness,
   Building2,
   CalendarDays,
+  ChartColumn,
   ClipboardList,
   FileText,
   Gauge,
   GitBranch,
   LayoutDashboard,
   Layers3,
+  Medal,
   Network,
+  SlidersHorizontal,
+  Target,
   Users,
   type LucideIcon,
 } from "lucide-react";
@@ -104,10 +108,34 @@ export const APP_NAV: NavSection[] = [
     title: "Performance",
     items: [
       {
-        label: "Performance",
-        href: "/performance",
+        label: "Ciclos",
+        href: "/performance/cycles",
         icon: Gauge,
-        disabled: true,
+      },
+      {
+        label: "Mis evaluaciones",
+        href: "/performance/my-evaluations",
+        icon: ClipboardList,
+      },
+      {
+        label: "Mis resultados",
+        href: "/performance/my-results",
+        icon: Medal,
+      },
+      {
+        label: "Resultados",
+        href: "/performance/results",
+        icon: ChartColumn,
+      },
+      {
+        label: "Competencias",
+        href: "/performance/competencies",
+        icon: Target,
+      },
+      {
+        label: "Escalas",
+        href: "/performance/scales",
+        icon: SlidersHorizontal,
       },
     ],
   },
@@ -126,6 +154,15 @@ export function resolvePageTitle(pathname: string): string {
   if (pathname.startsWith("/ats/applications/")) return "Aplicación";
   if (pathname.startsWith("/ats/interviews/")) return "Entrevista";
   if (pathname === "/ats/interview-templates") return "Plantillas de entrevista";
+  if (pathname.startsWith("/performance/cycles/")) return "Ciclo";
+  if (pathname.startsWith("/performance/scales/")) return "Escala";
+  if (pathname.startsWith("/performance/evaluations/")) return "Evaluación";
+  if (pathname.startsWith("/performance/results/")) return "Resultado";
+  if (pathname.startsWith("/performance/my-results/")) return "Mi resultado";
+  if (pathname === "/performance/my-evaluations") return "Mis evaluaciones";
+  if (pathname === "/performance/my-results") return "Mis resultados";
+  if (pathname === "/performance/results") return "Resultados";
+  if (pathname === "/performance") return "Performance";
   if (pathname === "/select-company") return "Seleccionar compañía";
   if (pathname === "/platform") return "Platform";
   return "Talento Sin Clave";
