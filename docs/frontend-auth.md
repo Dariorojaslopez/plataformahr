@@ -1,44 +1,49 @@
-# Frontend authentication (Phase 05A)
+# Frontend authentication (Fase 10)
 
 ## Current contract
 
-The API returns `accessToken` + `refreshToken` in JSON bodies for:
+| Endpoint | Response | Cookies |
+|----------|----------|---------|
+| `POST /auth/login` | `accessToken`, `user`, `companies` | Sets HttpOnly `tsc_refresh` |
+| `POST /auth/refresh` | `accessToken` only | Rotates `tsc_refresh` (cookie in, cookie out) |
+| `POST /auth/logout` | `{ success: true }` | Clears `tsc_refresh` |
+| `GET /auth/me` | identity + companies | — |
 
-- `POST /auth/login`
-- `POST /auth/refresh`
+The browser **cannot** read the refresh token via JavaScript.
 
-There are **no HttpOnly cookies** for refresh tokens yet.
-
-## Session strategy (temporary)
+## Session strategy
 
 | Data | Storage | Notes |
 |------|---------|-------|
-| `accessToken` | **Memory only** | Cleared on full page unload; restored via refresh on bootstrap |
-| `refreshToken` | `sessionStorage` (temporary) | Survives reload in the same tab; cleared when the tab/session ends |
-| `activeCompanyId` | `sessionStorage` | UI tenant selection; security still enforced by API `X-Company-Id` |
-| Sidebar collapsed | `localStorage` | Non-sensitive UI preference only |
+| `accessToken` | **Memory only** | Lost on full reload; restored via cookie refresh bootstrap |
+| `refreshToken` | **HttpOnly cookie** (`Path=/auth`) | Never in `sessionStorage` / `localStorage` |
+| `activeCompanyId` | `sessionStorage` | UI tenant selection; API still enforces `X-Company-Id` |
+| Sidebar collapsed | `localStorage` | Non-sensitive UI preference |
 
-**`sessionStorage` is not equivalent to an HttpOnly cookie.**
+Legacy key `tsc.refreshToken` is cleared on `clearSession` if present.
 
-Any XSS in the frontend origin can still read `sessionStorage`. This phase accepts that limitation only because the backend contract currently exposes refresh tokens to JavaScript.
+## Bootstrap (reload)
 
-## Planned migration
-
-Move refresh token handling to:
-
-- `HttpOnly`
-- `Secure`
-- `SameSite` controlled by the API
-
-Then the browser will no longer need `sessionStorage` for tokens, and the frontend will stop persisting refresh tokens in JS-accessible storage.
+1. Status starts as `loading`
+2. `refreshAccessToken()` → `POST /auth/refresh` with `credentials: 'include'`
+3. On success → `meRequest()` → authenticated
+4. On failure → anonymous / login
 
 ## Refresh behavior
 
 1. Authenticated `apiRequest` receives `401`
-2. Single-flight refresh (`POST /auth/refresh`) runs once
-3. Tokens update; original request retries once
-4. If refresh fails → clear session → treat as logged out
+2. Single-flight refresh once
+3. Retry original request once
+4. If refresh fails → clear session → logged out
+
+Fetch uses `credentials: 'include'` only against `NEXT_PUBLIC_API_URL` (configured API).
 
 ## Logout
 
-`POST /auth/logout` with Bearer access token, then clear local session and redirect to `/login`.
+1. `POST /auth/logout` with Bearer access token (best effort)
+2. Clear memory session + tenant UI state even if logout API fails
+3. Redirect to `/login`
+
+## Cross-origin note
+
+Local web (`:3000`) and API (`:3001`) are different origins. Cookie uses `SameSite=None; Secure` so the browser sends it on credentialed refresh. See [security.md](./security.md).

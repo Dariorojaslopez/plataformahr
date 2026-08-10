@@ -26,7 +26,9 @@ talento-sin-clave/
 
 ```bash
 cp .env.example apps/api/.env
-# Configura JWT_*, CORS_ORIGINS y, si vas a probar auth, DEV_* credentials.
+# Configura JWT_* (secretos distintos y fuertes en prod), CORS_ORIGINS,
+# cookies (COOKIE_SAMESITE / COOKIE_SECURE si aplica) y DEV_* solo en local.
+# Auth: refresh en cookie HttpOnly — ver docs/security.md y docs/frontend-auth.md.
 ```
 
 Documentación:
@@ -76,8 +78,8 @@ pnpm dev:web
 
 ## Alcance actual
 
-Incluye: multi-tenant core, auth JWT/sesiones, organización API, ATS completo hasta Hiring 06B, STT browser (Fase 07), **Performance 08A–08E**, **Goals/OKRs 09A–09E** (periodos, check-ins, progreso, cierre formal, integración Goals↔Performance, QA integral V1 cerrada), frontend shell/Organization/ATS/Offers/Hiring/Performance/Goals.
+Incluye: multi-tenant core, auth JWT/sesiones con **refresh HttpOnly cookie** (Fase 10), organización API, ATS completo hasta Hiring 06B, STT browser (Fase 07), **Performance 08A–08E**, **Goals/OKRs 09A–09E**, hardening de seguridad de producción (CORS, headers, validación de env, CSRF-lite), frontend shell/Organization/ATS/Offers/Hiring/Performance/Goals.
 
-Pendiente: Whisper local/WASM, diarización/IA, cookies HttpOnly para refresh, endpoint de permissions efectivos, analytics anónimos (minimum cohort size).
+Pendiente: Whisper local/WASM, diarización/IA, endpoint de permissions efectivos, analytics anónimos (minimum cohort size), infra cloud / CI/CD / observabilidad (Fase 11+).
 
 Docs: [docs/ats-offers.md](docs/ats-offers.md) · [docs/ats-hiring.md](docs/ats-hiring.md) · [docs/stt.md](docs/stt.md) · [docs/performance-core.md](docs/performance-core.md) · [docs/performance-evaluations.md](docs/performance-evaluations.md) · [docs/performance-responses.md](docs/performance-responses.md) · [docs/performance-results.md](docs/performance-results.md) · [docs/performance-analytics.md](docs/performance-analytics.md) · [docs/goals-core.md](docs/goals-core.md) · [docs/goals-progress.md](docs/goals-progress.md) · [docs/goals-completion.md](docs/goals-completion.md) · [docs/goals-performance-integration.md](docs/goals-performance-integration.md) · [docs/qa-performance-goals-v1.md](docs/qa-performance-goals-v1.md)

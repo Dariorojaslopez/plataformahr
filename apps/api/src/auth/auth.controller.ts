@@ -1,9 +1,24 @@
-import { Body, Controller, Get, Post, Req, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Inject,
+  Post,
+  Req,
+  Res,
+  UseGuards,
+} from '@nestjs/common';
 import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
-import type { Request } from 'express';
+import type { Request, Response } from 'express';
+import {
+  clearRefreshCookie,
+  readRefreshCookie,
+  setRefreshCookie,
+} from '../config/refresh-cookie';
+import { SECURITY_CONFIG } from '../config/security.constants';
+import type { SecurityRuntimeConfig } from '../config/security.config';
 import { CurrentUser } from './decorators/current-user.decorator';
 import { LoginDto } from './dto/login.dto';
-import { RefreshDto } from './dto/refresh.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { AuthService } from './auth.service';
 import type { AuthenticatedUser } from './auth.types';
@@ -22,36 +37,77 @@ function requestMeta(req: Request): {
 
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(
+    private readonly authService: AuthService,
+    @Inject(SECURITY_CONFIG)
+    private readonly security: SecurityRuntimeConfig,
+  ) {}
 
   @Post('login')
   @UseGuards(ThrottlerGuard)
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
-  login(@Body() body: LoginDto, @Req() req: Request) {
-    return this.authService.login(body.email, body.password, requestMeta(req));
+  async login(
+    @Body() body: LoginDto,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const result = await this.authService.login(
+      body.email,
+      body.password,
+      requestMeta(req),
+    );
+    setRefreshCookie(res, result.refreshToken, this.security);
+    res.setHeader('Cache-Control', 'no-store');
+    return {
+      accessToken: result.accessToken,
+      user: result.user,
+      companies: result.companies,
+    };
   }
 
   @Post('refresh')
   @UseGuards(ThrottlerGuard)
   @Throttle({ default: { limit: 20, ttl: 60_000 } })
-  refresh(@Body() body: RefreshDto, @Req() req: Request) {
-    return this.authService.refresh(body.refreshToken, requestMeta(req));
+  async refresh(
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const refreshToken = readRefreshCookie(
+      req.cookies as Record<string, string> | undefined,
+    );
+    const result = await this.authService.refresh(
+      refreshToken,
+      requestMeta(req),
+    );
+    setRefreshCookie(res, result.refreshToken, this.security);
+    res.setHeader('Cache-Control', 'no-store');
+    return { accessToken: result.accessToken };
   }
 
   @Post('logout')
   @UseGuards(JwtAuthGuard)
-  async logout(@CurrentUser() user: AuthenticatedUser, @Req() req: Request) {
+  async logout(
+    @CurrentUser() user: AuthenticatedUser,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
     await this.authService.logout(
       user.userId,
       user.sessionId,
       requestMeta(req),
     );
+    clearRefreshCookie(res, this.security);
+    res.setHeader('Cache-Control', 'no-store');
     return { success: true };
   }
 
   @Get('me')
   @UseGuards(JwtAuthGuard)
-  me(@CurrentUser() user: AuthenticatedUser) {
+  me(
+    @CurrentUser() user: AuthenticatedUser,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    res.setHeader('Cache-Control', 'no-store');
     return this.authService.getMe(user.userId);
   }
 }

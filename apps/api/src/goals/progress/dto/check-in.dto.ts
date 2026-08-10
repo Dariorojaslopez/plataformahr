@@ -27,6 +27,7 @@ export class CreateCheckInDto {
   @MaxLength(2000)
   comment?: string | null;
 
+  /** Free text or URL; frontend only linkifies via safeHttpUrl. */
   @IsOptional()
   @IsString()
   @MaxLength(1000)

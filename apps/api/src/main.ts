@@ -1,32 +1,16 @@
-import { ValidationPipe } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
+import { configureApp } from './config/configure-app';
+import { validateSecurityEnv } from './config/security.config';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
-  const config = app.get(ConfigService);
+  const security = validateSecurityEnv(process.env);
 
-  const corsOrigins = (
-    config.get<string>('CORS_ORIGINS') ?? 'http://localhost:3000'
-  )
-    .split(',')
-    .map((origin) => origin.trim())
-    .filter((origin) => origin.length > 0);
-
-  app.enableCors({
-    origin: corsOrigins,
-    credentials: true,
+  const app = await NestFactory.create(AppModule, {
+    bodyParser: false,
   });
+  configureApp(app, { security });
 
-  app.useGlobalPipes(
-    new ValidationPipe({
-      whitelist: true,
-      forbidNonWhitelisted: true,
-      transform: true,
-    }),
-  );
-
-  await app.listen(config.get<string>('PORT') ?? 3001);
+  await app.listen(process.env.PORT ?? '3001');
 }
 void bootstrap();

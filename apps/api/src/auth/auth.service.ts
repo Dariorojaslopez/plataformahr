@@ -27,14 +27,15 @@ export type PublicCompany = {
   slug: string;
 };
 
-export type AuthTokensResponse = {
+/** Internal login result — refreshToken is set only as HttpOnly cookie. */
+export type AuthLoginResult = {
   accessToken: string;
   refreshToken: string;
   user: PublicUser;
   companies: PublicCompany[];
 };
 
-export type TokensOnlyResponse = {
+export type AuthRefreshResult = {
   accessToken: string;
   refreshToken: string;
 };
@@ -52,7 +53,7 @@ export class AuthService {
     email: string,
     password: string,
     meta?: { ipAddress?: string; userAgent?: string },
-  ): Promise<AuthTokensResponse> {
+  ): Promise<AuthLoginResult> {
     const normalizedEmail = email.trim().toLowerCase();
     const user = await this.prisma.user.findUnique({
       where: { email: normalizedEmail },
@@ -113,9 +114,13 @@ export class AuthService {
   }
 
   async refresh(
-    refreshToken: string,
+    refreshToken: string | undefined,
     meta?: { ipAddress?: string; userAgent?: string },
-  ): Promise<TokensOnlyResponse> {
+  ): Promise<AuthRefreshResult> {
+    if (!refreshToken) {
+      throw new UnauthorizedException('Invalid refresh token');
+    }
+
     let payload;
     try {
       payload = this.tokens.verifyRefreshToken(refreshToken);
@@ -141,6 +146,13 @@ export class AuthService {
       refreshToken,
     );
     if (!tokenMatches) {
+      // Likely refresh reuse after rotation — revoke the session.
+      if (session.revokedAt === null) {
+        await this.prisma.userSession.update({
+          where: { id: session.id },
+          data: { revokedAt: new Date() },
+        });
+      }
       throw new UnauthorizedException('Invalid refresh token');
     }
 

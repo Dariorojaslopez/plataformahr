@@ -8,6 +8,7 @@ import {
   Post,
   UseGuards,
 } from '@nestjs/common';
+import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import type { AuthenticatedUser, TenantContext } from '../../auth/auth.types';
 import { CurrentUser } from '../../auth/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
@@ -54,6 +55,8 @@ export class OffersController {
   }
 
   @Post(':id/accept')
+  @UseGuards(ThrottlerGuard)
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
   @RequirePermissions('ats.offer.respond')
   accept(
     @CurrentTenant() tenant: TenantContext,
@@ -64,6 +67,8 @@ export class OffersController {
   }
 
   @Post(':id/reject')
+  @UseGuards(ThrottlerGuard)
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
   @RequirePermissions('ats.offer.respond')
   reject(
     @CurrentTenant() tenant: TenantContext,

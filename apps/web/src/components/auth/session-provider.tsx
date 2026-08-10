@@ -15,14 +15,14 @@ import { refreshAccessToken } from "@/lib/api/client";
 import { getErrorMessage } from "@/lib/api/errors";
 import {
   clearSession,
+  getAccessToken,
   getActiveCompanyId,
-  getRefreshToken,
   getSessionCompanies,
   getSessionSnapshot,
   getSessionUser,
+  setAccessToken,
   setActiveCompanyId,
   setSessionIdentity,
-  setTokens,
   subscribeSession,
   type SessionSnapshot,
 } from "@/lib/auth/session-store";
@@ -52,7 +52,6 @@ const SessionContext = createContext<SessionContextValue | null>(null);
 
 const emptySnapshot: SessionSnapshot = {
   accessToken: null,
-  refreshToken: null,
   user: null,
   companies: [],
   activeCompanyId: null,
@@ -74,18 +73,13 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     let cancelled = false;
 
     async function bootstrap() {
-      const refreshToken = getRefreshToken();
-      if (!refreshToken) {
+      // Access token is memory-only; recover via HttpOnly refresh cookie.
+      const refreshed = await refreshAccessToken();
+      if (!refreshed) {
         if (!cancelled) {
           clearSession();
           setStatus("anonymous");
         }
-        return;
-      }
-
-      const refreshed = await refreshAccessToken();
-      if (!refreshed) {
-        if (!cancelled) setStatus("anonymous");
         return;
       }
 
@@ -117,7 +111,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
   const login = useCallback(async (email: string, password: string) => {
     const result = await loginRequest(email, password);
-    setTokens(result.accessToken, result.refreshToken);
+    setAccessToken(result.accessToken);
     setSessionIdentity(result.user, result.companies);
     if (result.companies.length === 1) {
       setActiveCompanyId(result.companies[0].id);
@@ -130,11 +124,11 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
   const logout = useCallback(async () => {
     try {
-      if (getSessionUser()) {
+      if (getAccessToken() || getSessionUser()) {
         await logoutRequest();
       }
     } catch {
-      // always clear local session
+      // always clear local session; server clears cookie on success
     } finally {
       clearSession();
       setStatus("anonymous");

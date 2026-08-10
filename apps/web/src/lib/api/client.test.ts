@@ -8,8 +8,8 @@ import {
 import {
   clearSession,
   getAccessToken,
+  setAccessToken,
   setActiveCompanyId,
-  setTokens,
 } from "@/lib/auth/session-store";
 import { ApiError } from "@/lib/api/errors";
 
@@ -27,7 +27,7 @@ describe("api client", () => {
   });
 
   it("adds Authorization and X-Company-Id headers", async () => {
-    setTokens("token-abc", "refresh-abc");
+    setAccessToken("token-abc");
     setActiveCompanyId("company-xyz");
 
     vi.mocked(fetch).mockResolvedValue(
@@ -42,6 +42,7 @@ describe("api client", () => {
     expect(fetch).toHaveBeenCalledWith(
       "http://localhost:3001/auth/me",
       expect.objectContaining({
+        credentials: "include",
         headers: expect.objectContaining({
           Authorization: "Bearer token-abc",
           "X-Company-Id": "company-xyz",
@@ -51,7 +52,7 @@ describe("api client", () => {
   });
 
   it("omits company header when companyId is null", async () => {
-    setTokens("token-abc", "refresh-abc");
+    setAccessToken("token-abc");
     setActiveCompanyId("company-xyz");
 
     vi.mocked(fetch).mockResolvedValue(
@@ -88,7 +89,7 @@ describe("api client", () => {
   });
 
   it("clears session when refresh fails after 401", async () => {
-    setTokens("expired", "refresh-bad");
+    setAccessToken("expired");
     registerRefreshHandler(async () => false);
 
     vi.mocked(fetch).mockResolvedValue(

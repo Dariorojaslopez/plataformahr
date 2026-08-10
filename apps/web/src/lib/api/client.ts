@@ -3,10 +3,9 @@ import {
   clearSession,
   getAccessToken,
   getActiveCompanyId,
-  getRefreshToken,
-  setTokens,
+  setAccessToken,
 } from "@/lib/auth/session-store";
-import type { TokensOnlyResponse } from "@/types/auth";
+import type { AccessTokenResponse } from "@/types/auth";
 
 export type ApiRequestOptions = {
   method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
@@ -16,6 +15,8 @@ export type ApiRequestOptions = {
   companyId?: string | null;
   skipRefresh?: boolean;
   signal?: AbortSignal;
+  /** Include cookies (refresh). Default true for same API origin only. */
+  credentials?: RequestCredentials;
 };
 
 const DEFAULT_API_URL = "http://localhost:3001";
@@ -78,6 +79,7 @@ async function executeFetch(
     auth = true,
     companyId,
     signal,
+    credentials = "include",
   } = options;
 
   const requestHeaders: Record<string, string> = {
@@ -108,6 +110,7 @@ async function executeFetch(
       headers: requestHeaders,
       body: body === undefined ? undefined : JSON.stringify(body),
       signal,
+      credentials,
     });
   } catch (error) {
     throw error instanceof Error
@@ -206,19 +209,17 @@ export async function apiRequestBlob(
   };
 }
 
+/** Refresh via HttpOnly cookie (credentials include). No JS-readable refresh token. */
 export async function refreshAccessToken(): Promise<boolean> {
-  const refreshToken = getRefreshToken();
-  if (!refreshToken) return false;
-
   try {
-    const tokens = await apiRequest<TokensOnlyResponse>("/auth/refresh", {
+    const tokens = await apiRequest<AccessTokenResponse>("/auth/refresh", {
       method: "POST",
-      body: { refreshToken },
       auth: false,
       skipRefresh: true,
       companyId: null,
+      credentials: "include",
     });
-    setTokens(tokens.accessToken, tokens.refreshToken);
+    setAccessToken(tokens.accessToken);
     return true;
   } catch {
     clearSession();

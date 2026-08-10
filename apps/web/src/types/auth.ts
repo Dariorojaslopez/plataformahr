@@ -12,16 +12,15 @@ export type PublicCompany = {
   slug: string;
 };
 
+/** Login / session identity response (refresh token is HttpOnly cookie only). */
 export type AuthTokensResponse = {
   accessToken: string;
-  refreshToken: string;
   user: PublicUser;
   companies: PublicCompany[];
 };
 
-export type TokensOnlyResponse = {
+export type AccessTokenResponse = {
   accessToken: string;
-  refreshToken: string;
 };
 
 export type AuthMeResponse = PublicUser & {

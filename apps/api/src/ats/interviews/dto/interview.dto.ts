@@ -21,6 +21,7 @@ import {
   InterviewType,
   TranscriptSegmentKind,
 } from '@prisma/client';
+import { IsSafeHttpUrl } from '../../../common/validators/is-safe-http-url';
 
 export class CreateInterviewDto {
   @IsEnum(InterviewType)
@@ -38,6 +39,7 @@ export class CreateInterviewDto {
   @IsOptional()
   @IsString()
   @MaxLength(500)
+  @IsSafeHttpUrl()
   meetingUrl?: string;
 
   @IsOptional()
@@ -73,6 +75,7 @@ export class UpdateInterviewDto {
   @IsOptional()
   @IsString()
   @MaxLength(500)
+  @IsSafeHttpUrl()
   meetingUrl?: string | null;
 
   @IsOptional()

@@ -1,13 +1,8 @@
 import type { PublicCompany, PublicUser } from "@/types/auth";
 
-const REFRESH_TOKEN_KEY = "tsc.refreshToken";
 const COMPANY_ID_KEY = "tsc.activeCompanyId";
 const SIDEBAR_KEY = "tsc.sidebarCollapsed";
 
-/**
- * Temporary sessionStorage usage for refresh token persistence across reloads.
- * This is NOT equivalent to HttpOnly cookies. See docs/frontend-auth.md.
- */
 function canUseSessionStorage(): boolean {
   return typeof window !== "undefined" && typeof sessionStorage !== "undefined";
 }
@@ -18,7 +13,6 @@ function canUseLocalStorage(): boolean {
 
 export type SessionSnapshot = {
   accessToken: string | null;
-  refreshToken: string | null;
   user: PublicUser | null;
   companies: PublicCompany[];
   activeCompanyId: string | null;
@@ -45,12 +39,6 @@ export function getAccessToken(): string | null {
   return accessTokenMemory;
 }
 
-export function getRefreshToken(): string | null {
-  if (typeof window === "undefined") return null;
-  if (!canUseSessionStorage()) return null;
-  return sessionStorage.getItem(REFRESH_TOKEN_KEY);
-}
-
 export function getActiveCompanyId(): string | null {
   if (activeCompanyIdMemory) return activeCompanyIdMemory;
   if (!canUseSessionStorage()) return null;
@@ -68,19 +56,21 @@ export function getSessionCompanies(): PublicCompany[] {
 export function getSessionSnapshot(): SessionSnapshot {
   return {
     accessToken: accessTokenMemory,
-    refreshToken: getRefreshToken(),
     user: userMemory,
     companies: companiesMemory,
     activeCompanyId: getActiveCompanyId(),
   };
 }
 
-export function setTokens(accessToken: string, refreshToken: string): void {
+/** Access token stays in memory only. Refresh lives in HttpOnly cookie. */
+export function setAccessToken(accessToken: string): void {
   accessTokenMemory = accessToken;
-  if (canUseSessionStorage()) {
-    sessionStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
-  }
   emit();
+}
+
+/** @deprecated use setAccessToken — kept briefly for call-site migration */
+export function setTokens(accessToken: string): void {
+  setAccessToken(accessToken);
 }
 
 export function setSessionIdentity(
@@ -111,8 +101,9 @@ export function clearSession(): void {
   companiesMemory = [];
   activeCompanyIdMemory = null;
   if (canUseSessionStorage()) {
-    sessionStorage.removeItem(REFRESH_TOKEN_KEY);
     sessionStorage.removeItem(COMPANY_ID_KEY);
+    // Legacy cleanup if an old tab still has a refresh token key.
+    sessionStorage.removeItem("tsc.refreshToken");
   }
   emit();
 }
@@ -140,13 +131,26 @@ export function subscribeSidebar(listener: () => void): () => void {
   return () => sidebarListeners.delete(listener);
 }
 
-/** Test helper — assert tokens never touch localStorage. */
-export function assertNoTokenLocalStorage(): boolean {
-  if (!canUseLocalStorage()) return true;
-  for (let i = 0; i < localStorage.length; i += 1) {
-    const key = localStorage.key(i);
-    if (!key) continue;
-    if (key.toLowerCase().includes("token")) return false;
+/** Assert auth tokens never touch Web Storage. */
+export function assertNoTokenWebStorage(): boolean {
+  if (canUseLocalStorage()) {
+    for (let i = 0; i < localStorage.length; i += 1) {
+      const key = localStorage.key(i);
+      if (!key) continue;
+      if (key.toLowerCase().includes("token")) return false;
+    }
+  }
+  if (canUseSessionStorage()) {
+    for (let i = 0; i < sessionStorage.length; i += 1) {
+      const key = sessionStorage.key(i);
+      if (!key) continue;
+      if (key.toLowerCase().includes("token")) return false;
+    }
   }
   return true;
+}
+
+/** @deprecated alias */
+export function assertNoTokenLocalStorage(): boolean {
+  return assertNoTokenWebStorage();
 }

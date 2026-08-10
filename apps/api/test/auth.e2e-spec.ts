@@ -1,6 +1,4 @@
-import { INestApplication, ValidationPipe } from '@nestjs/common';
-import { Test, TestingModule } from '@nestjs/testing';
-import { ThrottlerGuard } from '@nestjs/throttler';
+import { INestApplication } from '@nestjs/common';
 import {
   CompanyStatus,
   MembershipStatus,
@@ -11,9 +9,14 @@ import {
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import request from 'supertest';
-import { App } from 'supertest/types';
-import { AppModule } from '../src/app.module';
 import { PasswordHashingService } from '../src/auth/password-hashing.service';
+import { REFRESH_COOKIE_NAME } from '../src/config/security.config';
+import {
+  cookieFlags,
+  createSecurityAwareE2eApp,
+  extractCookieValue,
+} from './e2e-app';
+
 function loadEnvFile(filePath: string): void {
   const content = readFileSync(filePath, 'utf8');
   for (const line of content.split('\n')) {
@@ -33,7 +36,6 @@ loadEnvFile(join(__dirname, '../.env'));
 
 type LoginBody = {
   accessToken: string;
-  refreshToken: string;
   user: {
     id: string;
     email: string;
@@ -43,7 +45,7 @@ type LoginBody = {
 };
 
 describe('Auth + tenant + RBAC (e2e)', () => {
-  let app: INestApplication<App>;
+  let app: INestApplication;
   let prisma: PrismaClient;
   let hasher: PasswordHashingService;
   const suffix = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -62,22 +64,8 @@ describe('Auth + tenant + RBAC (e2e)', () => {
     prisma = new PrismaClient();
     hasher = new PasswordHashingService();
 
-    const moduleFixture: TestingModule = await Test.createTestingModule({
-      imports: [AppModule],
-    })
-      .overrideGuard(ThrottlerGuard)
-      .useValue({ canActivate: () => true })
-      .compile();
-
-    app = moduleFixture.createNestApplication();
-    app.useGlobalPipes(
-      new ValidationPipe({
-        whitelist: true,
-        forbidNonWhitelisted: true,
-        transform: true,
-      }),
-    );
-    await app.init();
+    const created = await createSecurityAwareE2eApp();
+    app = created.app;
 
     adminEmail = `admin-${suffix}@example.com`;
     adminPassword = `AdminPass-${suffix}!`;
@@ -179,16 +167,32 @@ describe('Auth + tenant + RBAC (e2e)', () => {
     return response.body as LoginBody;
   }
 
-  it('logs in successfully and omits passwordHash', async () => {
-    const body = await loginAs(adminEmail, adminPassword);
+  it('logs in successfully with HttpOnly refresh cookie and no refresh in JSON', async () => {
+    const response = await request(app.getHttpServer())
+      .post('/auth/login')
+      .send({ email: adminEmail, password: adminPassword })
+      .expect(201);
+    const body = response.body as LoginBody;
     expect(body.accessToken).toBeDefined();
-    expect(body.refreshToken).toBeDefined();
+    expect(
+      (body as LoginBody & { refreshToken?: string }).refreshToken,
+    ).toBeUndefined();
     expect(body.user.email).toBe(adminEmail);
     expect(body.user.isPlatformOwner).toBe(false);
     expect(body.companies).toEqual([
       expect.objectContaining({ id: companyId, slug: `auth-co-${suffix}` }),
     ]);
     expect(JSON.stringify(body)).not.toContain('passwordHash');
+
+    const setCookie = response.headers['set-cookie'];
+    const token = extractCookieValue(setCookie, REFRESH_COOKIE_NAME);
+    expect(token).toBeTruthy();
+    expect(token!.length).toBeGreaterThan(20);
+    const flags = cookieFlags(setCookie, REFRESH_COOKIE_NAME);
+    expect(flags.httpOnly).toBe(true);
+    expect(flags.path).toBe('/auth');
+    expect(flags.sameSite?.toLowerCase()).toBe('lax');
+    expect(flags.secure).toBe(false);
   });
 
   it('rejects invalid credentials with a generic error', async () => {
@@ -251,51 +255,87 @@ describe('Auth + tenant + RBAC (e2e)', () => {
       .expect(401);
   });
 
-  it('refreshes tokens and rotates refresh token', async () => {
-    const first = await loginAs(adminEmail, adminPassword);
-    const refreshed = await request(app.getHttpServer())
-      .post('/auth/refresh')
-      .send({ refreshToken: first.refreshToken })
+  it('refreshes via cookie, rotates, and rejects replay of old cookie', async () => {
+    const agent = request.agent(app.getHttpServer());
+    const loginRes = await agent
+      .post('/auth/login')
+      .send({ email: adminEmail, password: adminPassword })
       .expect(201);
+    const oldRefresh = extractCookieValue(
+      loginRes.headers['set-cookie'],
+      REFRESH_COOKIE_NAME,
+    );
+    expect(oldRefresh).toBeTruthy();
 
+    const refreshed = await agent.post('/auth/refresh').expect(201);
     const body = refreshed.body as {
       accessToken: string;
-      refreshToken: string;
+      refreshToken?: string;
     };
     expect(body.accessToken).toBeDefined();
-    expect(body.refreshToken).toBeDefined();
-    expect(body.refreshToken).not.toBe(first.refreshToken);
+    expect(body.refreshToken).toBeUndefined();
+    const newRefresh = extractCookieValue(
+      refreshed.headers['set-cookie'],
+      REFRESH_COOKIE_NAME,
+    );
+    expect(newRefresh).toBeTruthy();
+    expect(newRefresh).not.toBe(oldRefresh);
 
+    // Rotated cookie works once more before any replay
+    const refreshedAgain = await agent.post('/auth/refresh').expect(201);
+    const newest = extractCookieValue(
+      refreshedAgain.headers['set-cookie'],
+      REFRESH_COOKIE_NAME,
+    );
+    expect(newest).toBeTruthy();
+
+    // Replay of an older refresh → 401 and session revoke
     await request(app.getHttpServer())
       .post('/auth/refresh')
-      .send({ refreshToken: first.refreshToken })
+      .set('Cookie', `${REFRESH_COOKIE_NAME}=${oldRefresh}`)
       .expect(401);
 
+    // After reuse detection, even the latest cookie for that session fails
     await request(app.getHttpServer())
       .post('/auth/refresh')
-      .send({ refreshToken: body.refreshToken })
+      .set('Cookie', `${REFRESH_COOKIE_NAME}=${newest}`)
+      .expect(401);
+  });
+
+  it('rejects refresh without cookie', async () => {
+    await request(app.getHttpServer()).post('/auth/refresh').expect(401);
+  });
+
+  it('rejects access token used as refresh cookie', async () => {
+    const session = await loginAs(adminEmail, adminPassword);
+    await request(app.getHttpServer())
+      .post('/auth/refresh')
+      .set('Cookie', `${REFRESH_COOKIE_NAME}=${session.accessToken}`)
+      .expect(401);
+  });
+
+  it('logout revokes session and clears refresh cookie', async () => {
+    const agent = request.agent(app.getHttpServer());
+    const loginRes = await agent
+      .post('/auth/login')
+      .send({ email: adminEmail, password: adminPassword })
       .expect(201);
-  });
+    const accessToken = (loginRes.body as LoginBody).accessToken;
 
-  it('rejects access token used as refresh token', async () => {
-    const session = await loginAs(adminEmail, adminPassword);
-    await request(app.getHttpServer())
-      .post('/auth/refresh')
-      .send({ refreshToken: session.accessToken })
-      .expect(401);
-  });
-
-  it('logout revokes the refresh token', async () => {
-    const session = await loginAs(adminEmail, adminPassword);
-    await request(app.getHttpServer())
+    const logoutRes = await agent
       .post('/auth/logout')
-      .set('Authorization', `Bearer ${session.accessToken}`)
+      .set('Authorization', `Bearer ${accessToken}`)
       .expect(201);
+    const cleared = extractCookieValue(
+      logoutRes.headers['set-cookie'],
+      REFRESH_COOKIE_NAME,
+    );
+    // Cleared cookie typically has empty value or Max-Age=0
+    expect(cleared === null || cleared === '' || cleared === 'undefined').toBe(
+      true,
+    );
 
-    await request(app.getHttpServer())
-      .post('/auth/refresh')
-      .send({ refreshToken: session.refreshToken })
-      .expect(401);
+    await agent.post('/auth/refresh').expect(401);
   });
 
   it('returns 401 for protected routes without JWT', async () => {

@@ -4,21 +4,21 @@
 
 The API uses email/password login with:
 
-- **Argon2id** password hashing
-- Short-lived **JWT access tokens**
-- Longer-lived **JWT refresh tokens** bound to `UserSession`
-- Refresh token **rotation** and session **revocation**
+- **Argon2id** password hashing (`memoryCost=19456`, `timeCost=2`, `parallelism=1`)
+- Short-lived **JWT access tokens** (Bearer, memory on the client)
+- Longer-lived **JWT refresh tokens** in an **HttpOnly** cookie (`tsc_refresh`), bound to `UserSession`
+- Refresh token **rotation**, hash storage, and session **revocation**
 
-Passwords and refresh tokens are never stored in plaintext. `passwordHash` is never returned by the API.
+Passwords and refresh tokens are never stored in plaintext. `passwordHash` and refresh tokens are never returned in JSON API bodies.
 
 ## Endpoints
 
 | Method | Path | Auth | Notes |
 |--------|------|------|-------|
-| `POST` | `/auth/login` | public | Rate limited |
-| `POST` | `/auth/refresh` | refresh token body | Rate limited |
-| `POST` | `/auth/logout` | Bearer access token | Revokes current session |
-| `GET` | `/auth/me` | Bearer access token | Identity + active companies |
+| `POST` | `/auth/login` | public | Rate limited; sets refresh cookie; generic errors |
+| `POST` | `/auth/refresh` | refresh **cookie** | Rate limited; rotates cookie |
+| `POST` | `/auth/logout` | Bearer access token | Revokes session; clears cookie |
+| `GET` | `/auth/me` | Bearer access token | Identity + active companies; `Cache-Control: no-store` |
 | `GET` | `/companies/current` | Bearer + `X-Company-Id` + `company.read` | Tenant-aware sample |
 | `GET` | `/platform/me` | Bearer + Platform Owner | Platform sample |
 
@@ -36,33 +36,25 @@ Refresh payload (minimum):
 { "sub": "<userId>", "sid": "<sessionId>", "type": "refresh", "jti": "<unique-id>" }
 ```
 
-`jti` ensures each rotated refresh token is unique even within the same second.
+Secrets and TTL:
 
-Secrets and TTL are configured via env:
-
-- `JWT_ACCESS_SECRET`
-- `JWT_REFRESH_SECRET`
+- `JWT_ACCESS_SECRET` / `JWT_REFRESH_SECRET` (must differ; strong in production)
 - `JWT_ACCESS_TTL` (default `15m`)
 - `JWT_REFRESH_TTL` (default `7d`)
 
-Access and refresh use **different** secrets. An access token is rejected by `/auth/refresh`.
-
 ## Session lifecycle
 
-1. Login creates a `UserSession` and stores only `refreshTokenHash`.
-2. Refresh verifies the JWT + hash, then rotates the refresh token and updates the hash/`lastUsedAt`.
-3. Logout sets `revokedAt` for the current session (`sid` from the access token).
-4. Revoked or expired sessions cannot refresh.
+1. Login creates `UserSession`, stores `refreshTokenHash`, sets HttpOnly cookie.
+2. Refresh reads cookie only, verifies JWT + hash, rotates token/hash/cookie.
+3. Reuse of an old refresh after rotation → session revoked.
+4. Logout sets `revokedAt` and clears cookie.
+5. Access tokens remain valid until TTL after logout (no per-request DB `sid` check). See [security.md](./security.md).
 
 ## Rate limiting
 
-`POST /auth/login` and `POST /auth/refresh` use NestJS Throttler (in-memory).
-
-This is adequate for a single API instance. If the API is horizontally scaled, replace or back the limiter with a shared store.
+`POST /auth/login`, `POST /auth/refresh`, and selected sensitive mutations use NestJS Throttler (in-memory). Multi-instance shared store is future debt.
 
 ## Audit
-
-Safe audit actions recorded today:
 
 - `AUTH_LOGIN_SUCCESS`
 - `AUTH_REFRESH`
@@ -72,11 +64,11 @@ Metadata excludes passwords, tokens and hashes.
 
 ## DEV seed
 
-`pnpm db:seed:dev` creates an idempotent Platform Owner, company and CLIENT_ADMIN for local testing.
+`pnpm db:seed:dev` / `pnpm db:seed:qa` are **forbidden** when `NODE_ENV=production`.
 
-Requires:
+Requires `DEV_*` / QA env credentials for local only.
 
-- `DEV_OWNER_EMAIL` / `DEV_OWNER_PASSWORD`
-- `DEV_ADMIN_EMAIL` / `DEV_ADMIN_PASSWORD`
+## See also
 
-Refuses to run when `NODE_ENV=production`. Not part of the base RBAC seed.
+- [security.md](./security.md) — threat model, CSRF, CORS, cookies
+- [frontend-auth.md](./frontend-auth.md) — browser session bootstrap
