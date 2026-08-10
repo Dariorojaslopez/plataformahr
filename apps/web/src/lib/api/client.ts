@@ -65,7 +65,8 @@ async function parseError(response: Response): Promise<ApiError> {
   } catch {
     // non-JSON body
   }
-  return new ApiError(response.status, message, details);
+  const headerId = response.headers.get("X-Request-Id");
+  return new ApiError(response.status, message, details, headerId);
 }
 
 async function executeFetch(

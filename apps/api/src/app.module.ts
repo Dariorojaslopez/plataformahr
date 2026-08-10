@@ -9,6 +9,7 @@ import { SECURITY_CONFIG } from './config/security.constants';
 import { validateSecurityEnv } from './config/security.config';
 import { CoreModule } from './core/core.module';
 import { HealthModule } from './health/health.module';
+import { ObservabilityModule } from './observability/observability.module';
 import { OrganizationModule } from './organization/organization.module';
 import { GoalsModule } from './goals/goals.module';
 import { PerformanceModule } from './performance/performance.module';
@@ -34,6 +35,7 @@ class SecurityConfigModule {}
       envFilePath: ['.env', '../../.env'],
     }),
     SecurityConfigModule,
+    ObservabilityModule,
     ThrottlerModule.forRoot([
       {
         ttl: 60_000,

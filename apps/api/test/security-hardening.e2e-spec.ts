@@ -152,6 +152,46 @@ describe('Security hardening (Fase 10)', () => {
     expect(JSON.stringify(res.body)).not.toContain('DATABASE');
   });
 
+  it('ready returns ready without leaking internals', async () => {
+    const res = await request(app.getHttpServer()).get('/ready').expect(200);
+    expect(res.body).toEqual({ status: 'ready' });
+    expect(JSON.stringify(res.body).toLowerCase()).not.toContain('postgres');
+    expect(JSON.stringify(res.body)).not.toContain('DATABASE');
+  });
+
+  it('generates X-Request-Id when missing and preserves valid incoming', async () => {
+    const generated = await request(app.getHttpServer())
+      .get('/health')
+      .expect(200);
+    const id = generated.headers['x-request-id'];
+    expect(typeof id).toBe('string');
+    expect(id.length).toBeGreaterThanOrEqual(8);
+
+    const preserved = await request(app.getHttpServer())
+      .get('/health')
+      .set('X-Request-Id', 'client-correlation-001')
+      .expect(200);
+    expect(preserved.headers['x-request-id']).toBe('client-correlation-001');
+
+    const replaced = await request(app.getHttpServer())
+      .get('/health')
+      .set('X-Request-Id', 'bad')
+      .expect(200);
+    expect(replaced.headers['x-request-id']).not.toBe('bad');
+    expect(
+      String(replaced.headers['x-request-id']).length,
+    ).toBeGreaterThanOrEqual(8);
+  });
+
+  it('exposes prometheus metrics without PII labels', async () => {
+    await request(app.getHttpServer()).get('/health').expect(200);
+    const res = await request(app.getHttpServer()).get('/metrics').expect(200);
+    expect(res.text).toContain('http_requests_total');
+    expect(res.text.toLowerCase()).not.toContain('authorization');
+    expect(res.text.toLowerCase()).not.toContain('password');
+    expect(res.text).not.toContain(email);
+  });
+
   it('cross-tenant company header does not expose other company', async () => {
     const other = await prisma.company.create({
       data: {

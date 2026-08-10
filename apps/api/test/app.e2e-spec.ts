@@ -18,6 +18,7 @@ describe('App (e2e)', () => {
         $disconnect: () => Promise.resolve(),
         onModuleInit: () => Promise.resolve(),
         onModuleDestroy: () => Promise.resolve(),
+        $queryRawUnsafe: () => Promise.resolve([{ '?column?': 1 }]),
       })
       .compile();
 
@@ -37,6 +38,13 @@ describe('App (e2e)', () => {
       .get('/health')
       .expect(200)
       .expect({ status: 'ok' });
+  });
+
+  it('/ready (GET)', () => {
+    return request(app.getHttpServer())
+      .get('/ready')
+      .expect(200)
+      .expect({ status: 'ready' });
   });
 
   afterEach(async () => {

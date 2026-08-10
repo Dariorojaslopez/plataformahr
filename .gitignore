@@ -26,3 +26,13 @@ pnpm-debug.log*
 .env
 .env.*
 !.env.example
+!.env.prod.example
+!.env.staging.example
+infrastructure/.env.prod
+infrastructure/.env.staging
+
+# database backups / dumps (never commit)
+backups/
+*.dump
+*.sql.gz
+*.backup

@@ -1,0 +1,223 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: '22.16.0'
+  PNPM_VERSION: '11.20.0'
+
+jobs:
+  quality:
+    name: Quality (Prisma + lint)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - name: Install
+        run: pnpm install --frozen-lockfile
+      - name: Prisma validate + format gate
+        working-directory: apps/api
+        run: |
+          pnpm exec prisma validate
+          pnpm exec prisma format
+          git diff --exit-code -- prisma/schema.prisma
+      - name: Prisma generate
+        run: pnpm db:generate
+      - name: Lint
+        run: pnpm lint
+
+  unit:
+    name: Unit tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @talento/shared build
+      - run: pnpm db:generate
+      - run: pnpm test
+
+  e2e:
+    name: E2E (PostgreSQL 17)
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: ci
+          POSTGRES_PASSWORD: ci
+          POSTGRES_DB: talento_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ci -d talento_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://ci:ci@localhost:5432/talento_ci?schema=public
+      NODE_ENV: test
+      JWT_ACCESS_SECRET: ci-access-secret-min-32-characters-xx
+      JWT_REFRESH_SECRET: ci-refresh-secret-min-32-characters-yy
+      JWT_ACCESS_TTL: 15m
+      JWT_REFRESH_TTL: 7d
+      CORS_ORIGINS: http://localhost:3000
+      COOKIE_SAMESITE: lax
+      COOKIE_SECURE: 'false'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @talento/shared build
+      - run: pnpm db:generate
+      - name: Migrate deploy (clean CI DB)
+        run: pnpm db:migrate:deploy
+      - name: Seed RBAC catalog (no DEV users)
+        run: pnpm db:seed
+      - name: E2E
+        run: pnpm test:e2e
+
+  migrate-gate:
+    name: Migration gate (empty DB)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: mig
+          POSTGRES_PASSWORD: mig
+          POSTGRES_DB: talento_mig
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U mig -d talento_mig"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://mig:mig@localhost:5432/talento_mig?schema=public
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm db:generate
+      - name: migrate deploy from empty database
+        run: pnpm db:migrate:deploy
+      - name: Install psql client
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+      - name: Count applied migrations
+        run: |
+          PGPASSWORD=mig psql -h localhost -U mig -d talento_mig -c \
+            "SELECT COUNT(*) AS migrations FROM _prisma_migrations;"
+
+  build:
+    name: Build API + Web
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm db:generate
+      - name: Build API
+        run: pnpm build:api
+        env:
+          NODE_ENV: production
+      - name: Build Web
+        run: pnpm build:web
+        env:
+          NODE_ENV: production
+          NEXT_PUBLIC_API_URL: http://localhost:3001
+          NEXT_PUBLIC_STT_LANGUAGE: es-CO
+
+  docker:
+    name: Docker build API + Web
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Build API image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/api/Dockerfile
+          push: false
+          tags: talento-api:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Build Web image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/web/Dockerfile
+          push: false
+          tags: talento-web:${{ github.sha }}
+          build-args: |
+            NEXT_PUBLIC_API_URL=http://localhost:3001
+            NEXT_PUBLIC_STT_LANGUAGE=es-CO
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  audit:
+    name: Dependency audit (high+)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: pnpm audit
+        # Fail on high/critical; document lows as debt.
+        run: pnpm audit --audit-level=high

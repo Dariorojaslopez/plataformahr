@@ -11,6 +11,10 @@ async function bootstrap() {
   });
   configureApp(app, { security });
 
-  await app.listen(process.env.PORT ?? '3001');
+  // Allow Nest lifecycle (Prisma disconnect) on SIGTERM/SIGINT (Docker stop).
+  app.enableShutdownHooks();
+
+  const port = process.env.PORT ?? '3001';
+  await app.listen(port);
 }
 void bootstrap();

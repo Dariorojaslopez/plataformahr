@@ -2,14 +2,33 @@ export class ApiError extends Error {
   readonly status: number;
   readonly code: string;
   readonly details: unknown;
+  readonly requestId: string | null;
 
-  constructor(status: number, message: string, details?: unknown) {
+  constructor(
+    status: number,
+    message: string,
+    details?: unknown,
+    requestId?: string | null,
+  ) {
     super(message);
     this.name = "ApiError";
     this.status = status;
     this.code = statusToCode(status);
     this.details = details;
+    this.requestId = requestId ?? extractRequestId(details);
   }
+}
+
+function extractRequestId(details: unknown): string | null {
+  if (
+    details &&
+    typeof details === "object" &&
+    "requestId" in details &&
+    typeof (details as { requestId: unknown }).requestId === "string"
+  ) {
+    return (details as { requestId: string }).requestId;
+  }
+  return null;
 }
 
 function statusToCode(status: number): string {
@@ -47,7 +66,12 @@ export function getErrorMessage(error: unknown, fallback: string): string {
     if (error.status === 400 || error.status === 422) {
       return error.message || "Solicitud inválida.";
     }
-    if (error.status >= 500) return "Error del servidor. Inténtalo más tarde.";
+    if (error.status >= 500) {
+      const ref = error.requestId
+        ? ` Código de referencia: ${error.requestId}.`
+        : "";
+      return `Error del servidor. Inténtalo más tarde.${ref}`;
+    }
     return error.message || fallback;
   }
   if (error instanceof TypeError) {

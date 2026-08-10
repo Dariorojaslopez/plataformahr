@@ -10,6 +10,7 @@ import {
 } from 'express';
 import helmet from 'helmet';
 import { AllExceptionsFilter } from '../common/filters/all-exceptions.filter';
+import { requestIdMiddleware } from '../observability/request-id.middleware';
 import {
   isAllowedCorsOrigin,
   type SecurityRuntimeConfig,
@@ -26,6 +27,17 @@ export function configureApp(
 ): SecurityRuntimeConfig {
   const security = options?.security ?? validateSecurityEnv(process.env);
 
+  // Behind a single trusted reverse proxy / load balancer (see docs/production-infrastructure.md).
+  // TRUST_PROXY=1 enables Express trust proxy hop count 1 for X-Forwarded-* / secure cookies / req.ip.
+  const trustProxy = process.env.TRUST_PROXY?.trim();
+  if (trustProxy === '1' || trustProxy?.toLowerCase() === 'true') {
+    const httpAdapter = app.getHttpAdapter();
+    const instance = httpAdapter.getInstance() as {
+      set?: (k: string, v: unknown) => void;
+    };
+    instance.set?.('trust proxy', 1);
+  }
+
   app.use(json({ limit: security.jsonBodyLimit }));
   app.use(urlencoded({ extended: true, limit: security.jsonBodyLimit }));
 
@@ -40,6 +52,7 @@ export function configureApp(
   );
 
   app.use(cookieParser());
+  app.use(requestIdMiddleware);
 
   app.enableCors({
     origin: (
@@ -65,7 +78,9 @@ export function configureApp(
       'Accept',
       'X-Company-Id',
       'X-Requested-With',
+      'X-Request-Id',
     ],
+    exposedHeaders: ['X-Request-Id'],
   });
 
   // CSRF-lite for cookie-authenticated auth mutations: Origin must be allowlisted when present.

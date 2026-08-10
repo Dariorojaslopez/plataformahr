@@ -1,0 +1,127 @@
+# Production-like reference stack (portable; not a cloud deployment).
+#
+# From repository root:
+#   cp infrastructure/.env.prod.example infrastructure/.env.prod
+#   # fill secrets (never commit .env.prod)
+#   docker compose -f infrastructure/docker-compose.prod.yml --env-file infrastructure/.env.prod up -d postgres
+#   docker compose -f infrastructure/docker-compose.prod.yml --env-file infrastructure/.env.prod run --rm migrate
+#   docker compose -f infrastructure/docker-compose.prod.yml --env-file infrastructure/.env.prod up -d --build api web
+#
+# Debug DB from host (temporary): docker compose exec postgres psql -U "$POSTGRES_USER" -d "$POSTGRES_DB"
+
+name: talento-prod
+
+services:
+  postgres:
+    image: postgres:17
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?set POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:?set POSTGRES_DB}
+      TZ: UTC
+    volumes:
+      - talento_prod_pgdata:/var/lib/postgresql/data
+    networks:
+      - internal
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"']
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+    # No host ports: PostgreSQL stays on the internal network only.
+
+  migrate:
+    build:
+      context: ..
+      dockerfile: apps/api/Dockerfile
+    image: talento-api:${IMAGE_TAG:-local}
+    restart: 'no'
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL}
+    networks:
+      - internal
+    depends_on:
+      postgres:
+        condition: service_healthy
+    entrypoint:
+      ['npx', 'prisma', 'migrate', 'deploy', '--schema=prisma/schema.prisma']
+
+  api:
+    build:
+      context: ..
+      dockerfile: apps/api/Dockerfile
+    image: talento-api:${IMAGE_TAG:-local}
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+      TZ: UTC
+      DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL}
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:?set JWT_ACCESS_SECRET}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?set JWT_REFRESH_SECRET}
+      JWT_ACCESS_TTL: ${JWT_ACCESS_TTL:-15m}
+      JWT_REFRESH_TTL: ${JWT_REFRESH_TTL:-7d}
+      CORS_ORIGINS: ${CORS_ORIGINS:?set CORS_ORIGINS}
+      COOKIE_SAMESITE: ${COOKIE_SAMESITE:-none}
+      COOKIE_SECURE: ${COOKIE_SECURE:-true}
+      TRUST_PROXY: ${TRUST_PROXY:-1}
+      JSON_BODY_LIMIT: ${JSON_BODY_LIMIT:-1mb}
+    networks:
+      - internal
+      - edge
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - '${API_HOST_PORT:-3001}:3001'
+    healthcheck:
+      test: ['CMD', 'wget', '-qO-', 'http://127.0.0.1:3001/ready']
+      interval: 15s
+      timeout: 5s
+      retries: 8
+      start_period: 25s
+    stop_grace_period: 30s
+
+  web:
+    build:
+      context: ..
+      dockerfile: apps/web/Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:?set NEXT_PUBLIC_API_URL}
+        NEXT_PUBLIC_STT_LANGUAGE: ${NEXT_PUBLIC_STT_LANGUAGE:-es-CO}
+    image: talento-web:${IMAGE_TAG:-local}
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      TZ: UTC
+      HOSTNAME: 0.0.0.0
+    networks:
+      - edge
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - '${WEB_HOST_PORT:-3000}:3000'
+    healthcheck:
+      test: ['CMD', 'wget', '-qO-', 'http://127.0.0.1:3000/']
+      interval: 15s
+      timeout: 5s
+      retries: 8
+      start_period: 25s
+    stop_grace_period: 20s
+
+networks:
+  # DB + migrate + API (no direct internet egress)
+  internal:
+    driver: bridge
+    internal: true
+  # Published web/api edge
+  edge:
+    driver: bridge
+
+volumes:
+  talento_prod_pgdata:

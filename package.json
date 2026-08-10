@@ -14,15 +14,21 @@
     "infra:up": "docker compose -f infrastructure/docker-compose.yml up -d",
     "infra:down": "docker compose -f infrastructure/docker-compose.yml down",
     "infra:logs": "docker compose -f infrastructure/docker-compose.yml logs -f",
+    "infra:prod:up": "docker compose -f infrastructure/docker-compose.prod.yml --env-file infrastructure/.env.prod up -d --build",
+    "infra:prod:down": "docker compose -f infrastructure/docker-compose.prod.yml --env-file infrastructure/.env.prod down",
+    "infra:prod:migrate": "docker compose -f infrastructure/docker-compose.prod.yml --env-file infrastructure/.env.prod run --rm migrate",
     "db:generate": "pnpm --filter api prisma:generate",
     "db:migrate": "pnpm --filter api prisma:migrate",
+    "db:migrate:deploy": "pnpm --filter api prisma:migrate:deploy",
     "db:seed": "pnpm --filter api prisma:seed",
     "db:seed:dev": "pnpm --filter api prisma:seed:dev",
-    "db:seed:qa": "pnpm --filter api prisma:seed:qa"
+    "db:seed:qa": "pnpm --filter api prisma:seed:qa",
+    "db:backup": "bash scripts/backup-postgres.sh",
+    "db:restore": "bash scripts/restore-postgres.sh"
   },
 
   "engines": {
-    "node": ">=20"
+    "node": ">=20 <25"
   },
   "packageManager": "pnpm@11.20.0"
 }

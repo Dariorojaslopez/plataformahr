@@ -4,15 +4,16 @@ import {
   ExceptionFilter,
   HttpException,
   HttpStatus,
-  Logger,
 } from '@nestjs/common';
 import { HttpAdapterHost } from '@nestjs/core';
 import { Prisma } from '@prisma/client';
+import type { Request } from 'express';
+import { writeStructuredLog } from '../../observability/structured-logger';
+
+type RequestWithId = Request & { requestId?: string };
 
 @Catch()
 export class AllExceptionsFilter implements ExceptionFilter {
-  private readonly logger = new Logger(AllExceptionsFilter.name);
-
   constructor(
     private readonly httpAdapterHost: HttpAdapterHost,
     private readonly isProduction: boolean,
@@ -21,6 +22,8 @@ export class AllExceptionsFilter implements ExceptionFilter {
   catch(exception: unknown, host: ArgumentsHost): void {
     const { httpAdapter } = this.httpAdapterHost;
     const ctx = host.switchToHttp();
+    const request = ctx.getRequest<RequestWithId>();
+    const requestId = request.requestId;
 
     let status = HttpStatus.INTERNAL_SERVER_ERROR;
     let message: string | string[] = 'Internal server error';
@@ -48,21 +51,46 @@ export class AllExceptionsFilter implements ExceptionFilter {
         status = HttpStatus.BAD_REQUEST;
         message = 'Database request failed';
       }
-      this.logger.warn(`Prisma ${exception.code}`);
+      writeStructuredLog({
+        level: 'warn',
+        message: 'prisma_error',
+        requestId,
+        errorName: exception.code,
+        context: AllExceptionsFilter.name,
+      });
     } else if (exception instanceof Error) {
-      this.logger.error(exception.message, exception.stack);
+      writeStructuredLog({
+        level: 'error',
+        message: exception.message,
+        requestId,
+        errorName: exception.name,
+        context: AllExceptionsFilter.name,
+        // Stack only in server logs; never in client body.
+        stack: this.isProduction ? undefined : exception.stack,
+      });
       if (!this.isProduction) {
         message = exception.message;
       }
     } else {
-      this.logger.error('Unknown exception');
+      writeStructuredLog({
+        level: 'error',
+        message: 'Unknown exception',
+        requestId,
+        context: AllExceptionsFilter.name,
+      });
     }
 
-    const body = {
+    const body: {
+      statusCode: number;
+      message: string | string[];
+      requestId?: string;
+    } = {
       statusCode: status,
       message,
-      // Never expose stack/path/SQL to clients in production.
     };
+    if (requestId) {
+      body.requestId = requestId;
+    }
 
     httpAdapter.reply(ctx.getResponse(), body, status);
   }

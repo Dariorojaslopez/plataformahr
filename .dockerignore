@@ -1,0 +1,54 @@
+.git
+.gitignore
+.pnpm-store
+node_modules
+**/node_modules
+**/dist
+**/.next
+**/coverage
+**/*.tsbuildinfo
+**/.turbo
+**/.vercel
+
+# Secrets and local env (examples allowed)
+.env
+.env.*
+!**/.env.example
+!**/.env.prod.example
+
+# Local / IDE / OS
+.DS_Store
+.idea
+.vscode
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Backups and dumps
+backups/
+**/*.dump
+**/*.sql.gz
+**/*.backup
+
+# Certs / keys
+*.pem
+*.key
+*.crt
+*.p12
+
+# Audio / local media
+**/audio/
+**/*.wav
+**/*.webm
+**/*.mp3
+
+# Agent / editor noise
+.cursor
+agent-transcripts
+**/CLAUDE.md
+**/AGENTS.md
+
+# Docs not required for build (keep Docker context small; Dockerfiles do not COPY docs)
+# Note: README is small; exclude heavy local artifacts only.

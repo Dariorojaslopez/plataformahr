@@ -1,3 +1,13 @@
+/**
+ * Production-safe RBAC catalog bootstrap.
+ *
+ * - Upserts company roles, permissions, and role↔permission links only.
+ * - Does NOT create users, passwords, companies, or demo data.
+ * - Does NOT truncate/reset tables.
+ * - Idempotent; safe to re-run in staging/production after migrate deploy.
+ *
+ * Demo/QA users: use `seed.dev.ts` / `seed.qa.ts` (blocked when NODE_ENV=production).
+ */
 import {
   PrismaClient,
   RoleScope,

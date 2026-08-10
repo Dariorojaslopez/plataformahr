@@ -13,14 +13,18 @@ talento-sin-clave/
 │   └── shared/              # Tipos y utilidades compartidas
 ├── docs/                    # Auth, multi-tenancy, organization, ATS, Performance
 └── infrastructure/
-    └── docker-compose.yml   # PostgreSQL 17
+    ├── docker-compose.yml        # DEV PostgreSQL 17
+    ├── docker-compose.prod.yml   # production-like stack (portable)
+    └── nginx.example.conf        # reverse proxy reference
 ```
 
 | Capa | Tecnología | Puerto |
 |------|------------|--------|
 | Web | Next.js 16, TypeScript, Tailwind | 3000 |
 | API | NestJS 11, Prisma | 3001 |
-| DB | PostgreSQL 17 | 5433→5432 |
+| DB | PostgreSQL 17 | DEV 5433→5432 (prod compose: internal only) |
+
+Infra / release docs: [docs/staging.md](docs/staging.md) · [docs/environment-matrix.md](docs/environment-matrix.md) · [docs/release.md](docs/release.md) · [docs/production-infrastructure.md](docs/production-infrastructure.md) · [docs/operations-runbook.md](docs/operations-runbook.md) · [docs/security.md](docs/security.md) · [docs/ci-cd.md](docs/ci-cd.md) · [docs/observability.md](docs/observability.md) · [docs/release-notes-v1.0.md](docs/release-notes-v1.0.md) · [docs/known-issues-v1.md](docs/known-issues-v1.md)
 
 ## Configuración
 
@@ -80,6 +84,20 @@ pnpm dev:web
 
 Incluye: multi-tenant core, auth JWT/sesiones con **refresh HttpOnly cookie** (Fase 10), organización API, ATS completo hasta Hiring 06B, STT browser (Fase 07), **Performance 08A–08E**, **Goals/OKRs 09A–09E**, hardening de seguridad de producción (CORS, headers, validación de env, CSRF-lite), frontend shell/Organization/ATS/Offers/Hiring/Performance/Goals.
 
-Pendiente: Whisper local/WASM, diarización/IA, endpoint de permissions efectivos, analytics anónimos (minimum cohort size), infra cloud / CI/CD / observabilidad (Fase 11+).
+Incluye también **Fase 11** (Docker/prod-like), **Fase 12** (GitHub Actions CI, logs estructurados, requestId, métricas Prometheus `/metrics`) y **Fase 13** (staging readiness, QA final, release candidate docs/checklists — sin deploy/tag remoto).
 
-Docs: [docs/ats-offers.md](docs/ats-offers.md) · [docs/ats-hiring.md](docs/ats-hiring.md) · [docs/stt.md](docs/stt.md) · [docs/performance-core.md](docs/performance-core.md) · [docs/performance-evaluations.md](docs/performance-evaluations.md) · [docs/performance-responses.md](docs/performance-responses.md) · [docs/performance-results.md](docs/performance-results.md) · [docs/performance-analytics.md](docs/performance-analytics.md) · [docs/goals-core.md](docs/goals-core.md) · [docs/goals-progress.md](docs/goals-progress.md) · [docs/goals-completion.md](docs/goals-completion.md) · [docs/goals-performance-integration.md](docs/goals-performance-integration.md) · [docs/qa-performance-goals-v1.md](docs/qa-performance-goals-v1.md)
+Pendiente post-V1: Whisper local/WASM, diarización/IA, observabilidad hosted (Grafana/etc.), cloud provisioning, proxy same-origin `/api`.
+
+## Production-like (local lab)
+
+```bash
+cp infrastructure/.env.prod.example infrastructure/.env.prod
+# editar secretos
+docker compose -f infrastructure/docker-compose.prod.yml --env-file infrastructure/.env.prod up -d postgres
+pnpm infra:prod:migrate
+docker compose -f infrastructure/docker-compose.prod.yml --env-file infrastructure/.env.prod up -d --build api web
+```
+
+Node: ver `.nvmrc` (**22.16.0** recomendado; engines `>=20 <25`). pnpm: `packageManager` en root (`pnpm@11.20.0`).
+
+Docs: [docs/ats-offers.md](docs/ats-offers.md) · [docs/ats-hiring.md](docs/ats-hiring.md) · [docs/stt.md](docs/stt.md) · [docs/production-infrastructure.md](docs/production-infrastructure.md) · [docs/operations-runbook.md](docs/operations-runbook.md)

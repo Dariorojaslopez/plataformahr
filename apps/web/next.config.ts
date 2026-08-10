@@ -1,3 +1,4 @@
+import path from "node:path";
 import type { NextConfig } from "next";
 
 /**
@@ -30,6 +31,9 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  output: "standalone",
+  // Monorepo: include files outside apps/web for standalone tracing.
+  outputFileTracingRoot: path.join(__dirname, "../.."),
   poweredByHeader: false,
   productionBrowserSourceMaps: false,
   async headers() {
