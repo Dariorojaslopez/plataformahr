@@ -5,10 +5,14 @@ import type { AuthenticatedUser } from '../auth/auth.types';
 import { UsersService } from '../core/users/users.service';
 import { PlatformOwnerOnly } from './decorators/platform-owner-only.decorator';
 import { PlatformOwnerGuard } from './guards/platform-owner.guard';
+import { PlatformService } from './platform.service';
 
 @Controller('platform')
 export class PlatformController {
-  constructor(private readonly usersService: UsersService) {}
+  constructor(
+    private readonly usersService: UsersService,
+    private readonly platformService: PlatformService,
+  ) {}
 
   @Get('me')
   @UseGuards(JwtAuthGuard, PlatformOwnerGuard)
@@ -26,5 +30,13 @@ export class PlatformController {
       lastName: user.lastName,
       isPlatformOwner: user.isPlatformOwner,
     };
+  }
+
+  /** Catalog of ACTIVE companies for Platform Owner tenant entry. */
+  @Get('companies')
+  @UseGuards(JwtAuthGuard, PlatformOwnerGuard)
+  @PlatformOwnerOnly()
+  listCompanies() {
+    return this.platformService.listActiveCompanies();
   }
 }

@@ -3,6 +3,7 @@ import type {
   AuthMeResponse,
   AuthTokensResponse,
   PlatformMeResponse,
+  PublicCompany,
 } from "@/types/auth";
 
 export async function loginRequest(
@@ -32,6 +33,12 @@ export async function meRequest(): Promise<AuthMeResponse> {
 
 export async function platformMeRequest(): Promise<PlatformMeResponse> {
   return apiRequest<PlatformMeResponse>("/platform/me", {
+    companyId: null,
+  });
+}
+
+export async function platformCompaniesRequest(): Promise<PublicCompany[]> {
+  return apiRequest<PublicCompany[]>("/platform/companies", {
     companyId: null,
   });
 }

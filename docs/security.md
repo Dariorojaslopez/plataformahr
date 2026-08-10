@@ -74,7 +74,8 @@ An explicit CSRF token is **not** used (would be decorative if not validated end
 ## User / membership status
 
 - Login/refresh require `User.status === ACTIVE` and `deletedAt === null`.
-- Tenant context requires ACTIVE membership + ACTIVE company + ACTIVE user.
+- Tenant context requires ACTIVE membership + ACTIVE company + ACTIVE user
+  (or Platform Owner + ACTIVE company when entering without membership).
 - Role/permission changes take effect from DB on next authorized request (not from client claims).
 
 ## CORS

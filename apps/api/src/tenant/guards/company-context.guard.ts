@@ -9,6 +9,7 @@ import { CompanyStatus, MembershipStatus, UserStatus } from '@prisma/client';
 import type { Request } from 'express';
 import {
   COMPANY_ID_HEADER,
+  PLATFORM_OWNER_TENANT_MEMBERSHIP,
   type AuthenticatedUser,
   type TenantContext,
 } from '../../auth/auth.types';
@@ -50,32 +51,63 @@ export class CompanyContextGuard implements CanActivate {
       },
     });
 
-    if (!membership) {
-      throw new ForbiddenException('Invalid company membership');
+    if (membership) {
+      if (
+        membership.user.deletedAt !== null ||
+        membership.user.status !== UserStatus.ACTIVE
+      ) {
+        throw new ForbiddenException('Invalid company membership');
+      }
+
+      if (membership.status !== MembershipStatus.ACTIVE) {
+        throw new ForbiddenException('Membership is not active');
+      }
+
+      if (
+        membership.company.deletedAt !== null ||
+        membership.company.status !== CompanyStatus.ACTIVE
+      ) {
+        throw new ForbiddenException('Company is not available');
+      }
+
+      request.tenantContext = {
+        userId: user.userId,
+        companyId: membership.companyId,
+        membershipId: membership.id,
+        viaPlatformOwner: false,
+      };
+      return true;
     }
 
+    // No membership: Platform Owner may enter any ACTIVE company.
+    const dbUser = await this.prisma.user.findUnique({
+      where: { id: user.userId },
+    });
     if (
-      membership.user.deletedAt !== null ||
-      membership.user.status !== UserStatus.ACTIVE
+      !dbUser ||
+      dbUser.deletedAt !== null ||
+      dbUser.status !== UserStatus.ACTIVE ||
+      !dbUser.isPlatformOwner
     ) {
       throw new ForbiddenException('Invalid company membership');
     }
 
-    if (membership.status !== MembershipStatus.ACTIVE) {
-      throw new ForbiddenException('Membership is not active');
-    }
-
+    const company = await this.prisma.company.findUnique({
+      where: { id: companyId },
+    });
     if (
-      membership.company.deletedAt !== null ||
-      membership.company.status !== CompanyStatus.ACTIVE
+      !company ||
+      company.deletedAt !== null ||
+      company.status !== CompanyStatus.ACTIVE
     ) {
       throw new ForbiddenException('Company is not available');
     }
 
     request.tenantContext = {
       userId: user.userId,
-      companyId: membership.companyId,
-      membershipId: membership.id,
+      companyId: company.id,
+      membershipId: PLATFORM_OWNER_TENANT_MEMBERSHIP,
+      viaPlatformOwner: true,
     };
 
     return true;

@@ -36,6 +36,8 @@ const nextConfig: NextConfig = {
   outputFileTracingRoot: path.join(__dirname, "../.."),
   poweredByHeader: false,
   productionBrowserSourceMaps: false,
+  // Hide the Next.js "N" floating DevTools badge in development.
+  devIndicators: false,
   async headers() {
     return [
       {

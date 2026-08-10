@@ -26,7 +26,44 @@ let companiesMemory: PublicCompany[] = [];
 let activeCompanyIdMemory: string | null = null;
 const listeners = new Set<Listener>();
 
+/** Cached for useSyncExternalStore — must be referentially stable between emits. */
+let cachedSnapshot: SessionSnapshot = {
+  accessToken: null,
+  user: null,
+  companies: companiesMemory,
+  activeCompanyId: null,
+};
+
+function resolveActiveCompanyId(): string | null {
+  if (activeCompanyIdMemory) return activeCompanyIdMemory;
+  if (!canUseSessionStorage()) return null;
+  const fromStorage = sessionStorage.getItem(COMPANY_ID_KEY);
+  if (fromStorage) {
+    activeCompanyIdMemory = fromStorage;
+  }
+  return fromStorage;
+}
+
+function rebuildSnapshot(): void {
+  const activeCompanyId = resolveActiveCompanyId();
+  if (
+    cachedSnapshot.accessToken === accessTokenMemory &&
+    cachedSnapshot.user === userMemory &&
+    cachedSnapshot.companies === companiesMemory &&
+    cachedSnapshot.activeCompanyId === activeCompanyId
+  ) {
+    return;
+  }
+  cachedSnapshot = {
+    accessToken: accessTokenMemory,
+    user: userMemory,
+    companies: companiesMemory,
+    activeCompanyId,
+  };
+}
+
 function emit(): void {
+  rebuildSnapshot();
   for (const listener of listeners) listener();
 }
 
@@ -40,9 +77,7 @@ export function getAccessToken(): string | null {
 }
 
 export function getActiveCompanyId(): string | null {
-  if (activeCompanyIdMemory) return activeCompanyIdMemory;
-  if (!canUseSessionStorage()) return null;
-  return sessionStorage.getItem(COMPANY_ID_KEY);
+  return resolveActiveCompanyId();
 }
 
 export function getSessionUser(): PublicUser | null {
@@ -54,12 +89,8 @@ export function getSessionCompanies(): PublicCompany[] {
 }
 
 export function getSessionSnapshot(): SessionSnapshot {
-  return {
-    accessToken: accessTokenMemory,
-    user: userMemory,
-    companies: companiesMemory,
-    activeCompanyId: getActiveCompanyId(),
-  };
+  rebuildSnapshot();
+  return cachedSnapshot;
 }
 
 /** Access token stays in memory only. Refresh lives in HttpOnly cookie. */

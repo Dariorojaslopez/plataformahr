@@ -16,10 +16,18 @@ export type AuthenticatedUser = {
   sessionId: string;
 };
 
+/**
+ * Synthetic membership id used when a Platform Owner enters a tenant
+ * without a CompanyMembership. Never accept this value from clients.
+ */
+export const PLATFORM_OWNER_TENANT_MEMBERSHIP = '__platform_owner__' as const;
+
 export type TenantContext = {
   userId: string;
   companyId: string;
   membershipId: string;
+  /** True when access is via Platform Owner bypass (not a real membership). */
+  viaPlatformOwner: boolean;
 };
 
 export const COMPANY_ID_HEADER = 'x-company-id';

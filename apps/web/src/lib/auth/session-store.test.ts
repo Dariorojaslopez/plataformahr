@@ -59,4 +59,15 @@ describe("session-store", () => {
     expect(snap).not.toHaveProperty("refreshToken");
     expect(snap.accessToken).toBe("a");
   });
+
+  it("returns a stable snapshot reference between updates (useSyncExternalStore)", () => {
+    const a = getSessionSnapshot();
+    const b = getSessionSnapshot();
+    expect(a).toBe(b);
+
+    setAccessToken("token");
+    const c = getSessionSnapshot();
+    expect(c).not.toBe(a);
+    expect(getSessionSnapshot()).toBe(c);
+  });
 });

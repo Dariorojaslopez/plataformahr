@@ -20,7 +20,10 @@ Passwords and refresh tokens are never stored in plaintext. `passwordHash` and r
 | `POST` | `/auth/logout` | Bearer access token | Revokes session; clears cookie |
 | `GET` | `/auth/me` | Bearer access token | Identity + active companies; `Cache-Control: no-store` |
 | `GET` | `/companies/current` | Bearer + `X-Company-Id` + `company.read` | Tenant-aware sample |
-| `GET` | `/platform/me` | Bearer + Platform Owner | Platform sample |
+| `GET` | `/platform/me` | Bearer + Platform Owner | Platform identity |
+| `GET` | `/platform/companies` | Bearer + Platform Owner | ACTIVE companies catalog for tenant entry |
+
+Platform Owner may call tenant routes with `X-Company-Id` for any **ACTIVE** company without a membership. Regular users still require an ACTIVE membership for that company.
 
 ## Tokens
 

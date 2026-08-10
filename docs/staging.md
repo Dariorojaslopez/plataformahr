@@ -1,6 +1,6 @@
 # Staging readiness
 
-Portable staging configuration for **Talento sin clave** V1. No cloud vendor lock-in.
+Portable staging configuration for **Talento** V1. No cloud vendor lock-in.
 Companion docs: [environment-matrix.md](./environment-matrix.md) · [release.md](./release.md) · [production-infrastructure.md](./production-infrastructure.md) · [operations-runbook.md](./operations-runbook.md).
 
 ## Purpose

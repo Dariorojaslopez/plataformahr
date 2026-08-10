@@ -7,7 +7,7 @@ import {
 } from './index.ts';
 
 test('APP_NAME is defined', () => {
-  assert.equal(APP_NAME, 'talento-sin-clave');
+  assert.equal(APP_NAME, 'talento');
 });
 
 test('createHealthResponse returns ok', () => {

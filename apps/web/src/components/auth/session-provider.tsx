@@ -10,7 +10,7 @@ import {
   useSyncExternalStore,
   type ReactNode,
 } from "react";
-import { loginRequest, logoutRequest, meRequest } from "@/lib/api/auth";
+import { loginRequest, logoutRequest, meRequest, platformCompaniesRequest } from "@/lib/api/auth";
 import { refreshAccessToken } from "@/lib/api/client";
 import { getErrorMessage } from "@/lib/api/errors";
 import {
@@ -46,6 +46,8 @@ type SessionContextValue = {
   logout: () => Promise<void>;
   selectCompany: (companyId: string) => void;
   clearActiveCompany: () => void;
+  /** Platform Owner: populate selectable companies from GET /platform/companies */
+  setPlatformCompanies: (companies: PublicCompany[]) => void;
 };
 
 const SessionContext = createContext<SessionContextValue | null>(null);
@@ -86,15 +88,23 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       try {
         const me = await meRequest();
         if (cancelled) return;
-        setSessionIdentity(me, me.companies);
+        let companies = me.companies;
+        if (me.isPlatformOwner && companies.length === 0) {
+          try {
+            companies = await platformCompaniesRequest();
+          } catch {
+            companies = [];
+          }
+        }
+        setSessionIdentity(me, companies);
         const existingCompany = getActiveCompanyId();
         if (
           existingCompany &&
-          me.companies.some((company) => company.id === existingCompany)
+          companies.some((company) => company.id === existingCompany)
         ) {
           setActiveCompanyId(existingCompany);
-        } else if (me.companies.length === 1) {
-          setActiveCompanyId(me.companies[0].id);
+        } else if (companies.length === 1 && !me.isPlatformOwner) {
+          setActiveCompanyId(companies[0].id);
         }
         setStatus("authenticated");
       } catch {
@@ -147,6 +157,12 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     setActiveCompanyId(null);
   }, []);
 
+  const setPlatformCompanies = useCallback((companies: PublicCompany[]) => {
+    const currentUser = getSessionUser();
+    if (!currentUser?.isPlatformOwner) return;
+    setSessionIdentity(currentUser, companies);
+  }, []);
+
   const activeCompany =
     snapshot.companies.find(
       (company) => company.id === snapshot.activeCompanyId,
@@ -163,6 +179,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       logout,
       selectCompany,
       clearActiveCompany,
+      setPlatformCompanies,
     }),
     [
       status,
@@ -174,6 +191,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       logout,
       selectCompany,
       clearActiveCompany,
+      setPlatformCompanies,
     ],
   );
 

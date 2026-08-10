@@ -7,6 +7,7 @@ import {
   type RolePermission,
   RoleScope,
 } from '@prisma/client';
+import { PLATFORM_OWNER_TENANT_MEMBERSHIP } from '../../auth/auth.types';
 import { PrismaService } from '../../prisma/prisma.service';
 
 @Injectable()
@@ -24,12 +25,22 @@ export class RbacService {
   }
 
   listRolesForMembership(membershipId: string): Promise<MembershipRole[]> {
+    if (membershipId === PLATFORM_OWNER_TENANT_MEMBERSHIP) {
+      return Promise.resolve([]);
+    }
     return this.prisma.membershipRole.findMany({ where: { membershipId } });
   }
 
   async getPermissionCodesForMembership(
     membershipId: string,
   ): Promise<Set<string>> {
+    if (membershipId === PLATFORM_OWNER_TENANT_MEMBERSHIP) {
+      const permissions = await this.prisma.permission.findMany({
+        select: { code: true },
+      });
+      return new Set(permissions.map((p) => p.code));
+    }
+
     const links = await this.prisma.membershipRole.findMany({
       where: { membershipId },
       include: {
@@ -55,6 +66,14 @@ export class RbacService {
   }
 
   async getRoleCodesForMembership(membershipId: string): Promise<Set<string>> {
+    if (membershipId === PLATFORM_OWNER_TENANT_MEMBERSHIP) {
+      const roles = await this.prisma.role.findMany({
+        where: { scope: RoleScope.COMPANY },
+        select: { code: true },
+      });
+      return new Set(roles.map((r) => r.code));
+    }
+
     const links = await this.prisma.membershipRole.findMany({
       where: { membershipId },
       include: { role: true },

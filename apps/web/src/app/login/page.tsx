@@ -12,7 +12,7 @@ export default function LoginPage() {
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(255,255,255,0.12),transparent_45%),radial-gradient(circle_at_80%_0%,rgba(255,255,255,0.08),transparent_35%)]" />
         <div className="relative">
           <p className="text-sm font-medium tracking-wide text-white/80">
-            Talento Sin Clave
+            Talento
           </p>
         </div>
         <div className="relative max-w-md space-y-4">
@@ -32,7 +32,7 @@ export default function LoginPage() {
       <section className="flex items-center justify-center px-6 py-12">
         <div className="w-full max-w-md space-y-8">
           <div className="space-y-2 lg:hidden">
-            <p className="text-sm font-medium text-primary">Talento Sin Clave</p>
+            <p className="text-sm font-medium text-primary">Talento</p>
             <h1 className="text-2xl font-semibold tracking-tight">
               Inicia sesión
             </h1>

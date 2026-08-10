@@ -1,4 +1,4 @@
-export const APP_NAME = 'talento-sin-clave' as const;
+export const APP_NAME = 'talento' as const;
 
 export type HealthStatus = {
   status: 'ok';

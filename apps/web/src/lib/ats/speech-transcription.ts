@@ -6,7 +6,7 @@
  *
  * Browser SpeechRecognition may use vendor cloud services depending on the
  * browser — we do NOT claim "fully local processing". We DO claim:
- * Talento Sin Clave does not store interview audio on the server.
+ * Talento does not store interview audio on the server.
  */
 
 export type SpeechSessionStatus =
@@ -354,7 +354,7 @@ export const AUTOMATIC_TRANSCRIPTION_UNAVAILABLE_MESSAGE =
   "Transcripción automática no disponible en este navegador";
 
 export const STT_PRIVACY_NOTICE =
-  "Al iniciar la transcripción, el navegador utilizará el micrófono. La plataforma guardará únicamente el texto transcrito. Talento Sin Clave no almacena el audio en el servidor.";
+  "Al iniciar la transcripción, el navegador utilizará el micrófono. La plataforma guardará únicamente el texto transcrito. Talento no almacena el audio en el servidor.";
 
 export const STT_CONSENT_HINT =
   "Asegúrate de contar con la autorización correspondiente antes de transcribir la entrevista.";

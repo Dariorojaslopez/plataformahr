@@ -510,12 +510,51 @@ describe('Auth + tenant + RBAC (e2e)', () => {
       .expect(403);
   });
 
-  it('does not grant Platform Owner automatic tenant access without membership', async () => {
+  it('lists active companies for Platform Owner and blocks normal users', async () => {
+    const ownerSession = await loginAs(ownerEmail, ownerPassword);
+    const listed = await request(app.getHttpServer())
+      .get('/platform/companies')
+      .set('Authorization', `Bearer ${ownerSession.accessToken}`)
+      .expect(200);
+    expect(Array.isArray(listed.body)).toBe(true);
+    expect(
+      (listed.body as { id: string; slug: string }[]).some(
+        (c) => c.id === companyId,
+      ),
+    ).toBe(true);
+
+    const adminSession = await loginAs(adminEmail, adminPassword);
+    await request(app.getHttpServer())
+      .get('/platform/companies')
+      .set('Authorization', `Bearer ${adminSession.accessToken}`)
+      .expect(403);
+  });
+
+  it('allows Platform Owner tenant access without membership for ACTIVE companies', async () => {
+    const ownerSession = await loginAs(ownerEmail, ownerPassword);
+    const current = await request(app.getHttpServer())
+      .get('/companies/current')
+      .set('Authorization', `Bearer ${ownerSession.accessToken}`)
+      .set('X-Company-Id', companyId)
+      .expect(200);
+    expect(current.body).toMatchObject({
+      id: companyId,
+    });
+  });
+
+  it('rejects Platform Owner tenant access for inactive companies', async () => {
+    const inactive = await prisma.company.create({
+      data: {
+        name: `Inactive Owner Co ${suffix}`,
+        slug: `inactive-owner-${suffix}`,
+        status: CompanyStatus.INACTIVE,
+      },
+    });
     const ownerSession = await loginAs(ownerEmail, ownerPassword);
     await request(app.getHttpServer())
       .get('/companies/current')
       .set('Authorization', `Bearer ${ownerSession.accessToken}`)
-      .set('X-Company-Id', companyId)
+      .set('X-Company-Id', inactive.id)
       .expect(403);
   });
 });

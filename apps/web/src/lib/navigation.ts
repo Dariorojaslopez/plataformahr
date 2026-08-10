@@ -203,5 +203,5 @@ export function resolvePageTitle(pathname: string): string {
   if (pathname === "/my-goals") return "Mis objetivos";
   if (pathname === "/select-company") return "Seleccionar compañía";
   if (pathname === "/platform") return "Platform";
-  return "Talento Sin Clave";
+  return "Talento";
 }

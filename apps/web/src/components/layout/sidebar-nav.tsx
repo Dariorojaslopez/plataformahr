@@ -32,7 +32,7 @@ export function SidebarNav({
       >
         {!collapsed ? (
           <div>
-            <p className="text-sm font-semibold tracking-tight">Talento Sin Clave</p>
+            <p className="text-sm font-semibold tracking-tight">Talento</p>
             <p className="text-[11px] text-sidebar-foreground/60">Gestión de talento</p>
           </div>
         ) : (

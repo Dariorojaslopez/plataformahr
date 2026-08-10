@@ -4,7 +4,7 @@
 
 ## Summary
 
-First production-ready candidate of **Talento sin clave**: multi-tenant HR platform with ATS, Performance, and Goals/OKRs, hardened auth, portable Docker deploy path, CI, and observability baselines.
+First production-ready candidate of **Talento**: multi-tenant HR platform with ATS, Performance, and Goals/OKRs, hardened auth, portable Docker deploy path, CI, and observability baselines.
 
 ## Modules (existing)
 

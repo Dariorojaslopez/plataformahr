@@ -1,11 +1,11 @@
-# Talento sin clave
+# Talento
 
 Monorepo de la plataforma de talento (ATS + Performance).
 
 ## Arquitectura
 
 ```text
-talento-sin-clave/
+talento/
 ├── apps/
 │   ├── api/                 # NestJS + Prisma (API REST)
 │   └── web/                 # Next.js (App Router) + Tailwind

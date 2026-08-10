@@ -30,7 +30,7 @@ Sustituible a futuro por Whisper local/WASM o cloud **sin** enviar audio a NestJ
 `BrowserSpeechTranscriptionProvider` usa `SpeechRecognition` / `webkitSpeechRecognition`.
 
 **Privacidad:** el navegador puede procesar audio vía servicios del fabricante.  
-**Garantía de producto:** Talento Sin Clave no almacena audio en el servidor.
+**Garantía de producto:** Talento no almacena audio en el servidor.
 
 ## Compatibilidad
 
