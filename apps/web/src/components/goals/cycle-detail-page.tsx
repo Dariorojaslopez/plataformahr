@@ -106,36 +106,39 @@ export function GoalCycleDetailPageClient() {
             {cycle.status === "DRAFT" ? (
               <Button
                 type="button"
+                disabled={activateMutation.isPending}
                 onClick={() => {
                   if (confirm("¿Activar este periodo?"))
                     activateMutation.mutate();
                 }}
               >
-                Activar
+                {activateMutation.isPending ? "Activando…" : "Activar"}
               </Button>
             ) : null}
             {cycle.status === "ACTIVE" ? (
               <Button
                 type="button"
                 variant="secondary"
+                disabled={closeMutation.isPending}
                 onClick={() => {
                   if (confirm("¿Cerrar periodo? No debe haber objetivos ACTIVE."))
                     closeMutation.mutate();
                 }}
               >
-                Cerrar
+                {closeMutation.isPending ? "Cerrando…" : "Cerrar"}
               </Button>
             ) : null}
             {cycle.status === "DRAFT" || cycle.status === "ACTIVE" ? (
               <Button
                 type="button"
                 variant="destructive"
+                disabled={cancelMutation.isPending}
                 onClick={() => {
                   if (confirm("¿Cancelar este periodo?"))
                     cancelMutation.mutate();
                 }}
               >
-                Cancelar
+                {cancelMutation.isPending ? "Cancelando…" : "Cancelar"}
               </Button>
             ) : null}
             <Button type="button" asChild>
@@ -160,12 +163,20 @@ export function GoalCycleDetailPageClient() {
       <section className="space-y-3">
         <h2 className="text-lg font-semibold">Objetivos del periodo</h2>
         {goalsQuery.isLoading ? <Skeleton className="h-20 w-full" /> : null}
-        {goals.length === 0 ? (
+        {goalsQuery.isError ? (
+          <ErrorState
+            title="No se pudieron cargar los objetivos"
+            description={getErrorMessage(goalsQuery.error, "Error")}
+            onRetry={() => void goalsQuery.refetch()}
+          />
+        ) : null}
+        {goalsQuery.isSuccess && goals.length === 0 ? (
           <EmptyState
             title="Sin objetivos"
             description="Crea objetivos DRAFT y actívalos cuando el periodo esté ACTIVE."
           />
-        ) : (
+        ) : null}
+        {goals.length > 0 ? (
           <div className="overflow-hidden rounded-lg border">
             <Table>
               <TableHeader>
@@ -196,7 +207,7 @@ export function GoalCycleDetailPageClient() {
               </TableBody>
             </Table>
           </div>
-        )}
+        ) : null}
       </section>
     </div>
   );

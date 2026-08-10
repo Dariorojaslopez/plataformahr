@@ -264,24 +264,27 @@ export function GoalDetailPageClient() {
             {draft ? (
               <Button
                 type="button"
-                disabled={!canActivateFromChecklist(checks)}
+                disabled={
+                  !canActivateFromChecklist(checks) || activateMutation.isPending
+                }
                 onClick={() => {
                   if (confirm("¿Activar objetivo? La estructura quedará congelada."))
                     activateMutation.mutate();
                 }}
               >
-                Activar
+                {activateMutation.isPending ? "Activando…" : "Activar"}
               </Button>
             ) : null}
             {goal.status === "DRAFT" || goal.status === "ACTIVE" ? (
               <Button
                 type="button"
                 variant="destructive"
+                disabled={cancelMutation.isPending}
                 onClick={() => {
                   if (confirm("¿Cancelar objetivo?")) cancelMutation.mutate();
                 }}
               >
-                Cancelar
+                {cancelMutation.isPending ? "Cancelando…" : "Cancelar"}
               </Button>
             ) : null}
           </div>
@@ -392,6 +395,16 @@ export function GoalDetailPageClient() {
 
       <section className="space-y-3" aria-label="Cierre y resultado">
         <h2 className="text-lg font-semibold">Cierre / Resultado</h2>
+        {goal.status === "COMPLETED" && resultQuery.isLoading ? (
+          <Skeleton className="h-24 w-full" />
+        ) : null}
+        {goal.status === "COMPLETED" && resultQuery.isError ? (
+          <ErrorState
+            title="No se pudo cargar el resultado formal"
+            description={getErrorMessage(resultQuery.error, "Error")}
+            onRetry={() => void resultQuery.refetch()}
+          />
+        ) : null}
         {goal.status === "COMPLETED" && resultQuery.data ? (
           <div className="space-y-3 rounded-lg border border-border p-4">
             <p className="text-base font-medium tabular-nums">
@@ -434,11 +447,12 @@ export function GoalDetailPageClient() {
               </p>
             ) : null}
           </div>
-        ) : (
+        ) : null}
+        {goal.status !== "COMPLETED" ? (
           <p className="text-sm text-muted-foreground">
             El resultado formal aparece cuando el cierre se aprueba.
           </p>
-        )}
+        ) : null}
         {(completionHistoryQuery.data?.items.length ?? 0) > 0 ? (
           <ul className="space-y-2 text-sm">
             {completionHistoryQuery.data!.items.map((r) => (

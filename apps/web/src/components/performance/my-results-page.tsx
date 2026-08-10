@@ -144,7 +144,7 @@ export function MyResultsPageClient() {
                     : ""}
                   {isIntegratedComposition(item.composition) &&
                   item.goalsAchievement != null
-                    ? ` · Obj. ${formatScorePercentage(item.goalsAchievement)}`
+                    ? ` · Cumpl. obj. ${formatScorePercentage(item.goalsAchievement)}`
                     : ""}
                 </p>
                 <p className="text-sm text-muted-foreground">

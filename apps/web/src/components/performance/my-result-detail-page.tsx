@@ -186,7 +186,9 @@ export function MyResultDetailPageClient() {
               </p>
             </div>
             <div className="rounded-lg border border-border bg-card p-4">
-              <p className="text-sm text-muted-foreground">Objetivos</p>
+              <p className="text-sm text-muted-foreground">
+                Cumplimiento de objetivos
+              </p>
               <p className="mt-1 text-2xl font-semibold">
                 {formatScorePercentage(safe.goalsAchievement)}
               </p>

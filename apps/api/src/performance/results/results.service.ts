@@ -429,7 +429,7 @@ export class ResultsService {
           });
           if (incomplete.length > 0) {
             throw new BadRequestException(
-              'Existen objetivos aplicables sin resultado formal (GoalResult) para este colaborador.',
+              'Existen objetivos aplicables sin resultado formal aprobado para este colaborador.',
             );
           }
 

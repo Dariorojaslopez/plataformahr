@@ -448,15 +448,15 @@ model Employee {
   area         Area          @relation(fields: [areaId], references: [id], onDelete: Restrict)
   position     Position      @relation(fields: [positionId], references: [id], onDelete: Restrict)
 
-  reportingTo                       EmployeeReportingLine[]       @relation("EmployeeReports")
-  managedReports                    EmployeeReportingLine[]       @relation("ManagerReports")
-  vacancyRequestsRequested          VacancyRequest[]              @relation("VacancyRequestedBy")
-  vacancyApprovals                  VacancyApproval[]             @relation("VacancyApprover")
+  reportingTo                       EmployeeReportingLine[]        @relation("EmployeeReports")
+  managedReports                    EmployeeReportingLine[]        @relation("ManagerReports")
+  vacancyRequestsRequested          VacancyRequest[]               @relation("VacancyRequestedBy")
+  vacancyApprovals                  VacancyApproval[]              @relation("VacancyApprover")
   interviewAssignments              InterviewInterviewer[]
   hiring                            Hiring?
   performanceParticipations         PerformanceCycleParticipant[]
-  performanceEvaluationsAsSubject   PerformanceEvaluation[]       @relation("EvaluationSubject")
-  performanceEvaluationsAsEvaluator PerformanceEvaluation[]       @relation("EvaluationEvaluator")
+  performanceEvaluationsAsSubject   PerformanceEvaluation[]        @relation("EvaluationSubject")
+  performanceEvaluationsAsEvaluator PerformanceEvaluation[]        @relation("EvaluationEvaluator")
   performanceResults                PerformanceResult[]
   goalAssignments                   GoalAssignment[]
   goalCheckIns                      GoalCheckIn[]
@@ -1326,46 +1326,46 @@ model PerformanceEvaluationResponse {
 /// 08D: composition COMPETENCY_ONLY → overallScore is competency consolidation.
 /// 09D: COMPETENCY_AND_GOALS → overallScore blends competencyScore + goalsAchievement.
 model PerformanceResult {
-  id                              String                       @id @default(uuid()) @db.Uuid
-  companyId                       String                       @db.Uuid
-  cycleId                         String                       @db.Uuid
-  participantId                   String                       @db.Uuid
-  employeeId                      String                       @db.Uuid
-  selfScore                       Decimal?                     @db.Decimal(5, 2)
-  managerScore                    Decimal?                     @db.Decimal(5, 2)
+  id                               String                       @id @default(uuid()) @db.Uuid
+  companyId                        String                       @db.Uuid
+  cycleId                          String                       @db.Uuid
+  participantId                    String                       @db.Uuid
+  employeeId                       String                       @db.Uuid
+  selfScore                        Decimal?                     @db.Decimal(5, 2)
+  managerScore                     Decimal?                     @db.Decimal(5, 2)
   /// For COMPETENCY_ONLY equals historical 08D overall. For integrated = competency component.
-  competencyScore                 Decimal?                     @db.Decimal(5, 2)
-  goalsAchievement                Decimal?                     @db.Decimal(5, 2)
+  competencyScore                  Decimal?                     @db.Decimal(5, 2)
+  goalsAchievement                 Decimal?                     @db.Decimal(5, 2)
   /// Effective overall (analytics/CSV authority). Legacy rows: competency consolidation.
-  overallScore                    Decimal                      @db.Decimal(5, 2)
-  configuredSelfWeight            Decimal                      @db.Decimal(5, 2)
-  configuredManagerWeight         Decimal                      @db.Decimal(5, 2)
-  effectiveSelfWeight             Decimal                      @db.Decimal(5, 2)
-  effectiveManagerWeight          Decimal                      @db.Decimal(5, 2)
-  configuredCompetencyResultWeight Decimal?                    @db.Decimal(5, 2)
-  configuredGoalsResultWeight     Decimal?                     @db.Decimal(5, 2)
-  composition                     PerformanceResultComposition @default(COMPETENCY_ONLY)
+  overallScore                     Decimal                      @db.Decimal(5, 2)
+  configuredSelfWeight             Decimal                      @db.Decimal(5, 2)
+  configuredManagerWeight          Decimal                      @db.Decimal(5, 2)
+  effectiveSelfWeight              Decimal                      @db.Decimal(5, 2)
+  effectiveManagerWeight           Decimal                      @db.Decimal(5, 2)
+  configuredCompetencyResultWeight Decimal?                     @db.Decimal(5, 2)
+  configuredGoalsResultWeight      Decimal?                     @db.Decimal(5, 2)
+  composition                      PerformanceResultComposition @default(COMPETENCY_ONLY)
   /// GoalCycle id used at calculate (traceability; no FK required for history).
-  sourceGoalCycleId               String?                      @db.Uuid
-  status                          PerformanceResultStatus      @default(CALCULATED)
+  sourceGoalCycleId                String?                      @db.Uuid
+  status                           PerformanceResultStatus      @default(CALCULATED)
   /// Org snapshot at calculate time (display authority). IDs without FK for history.
-  areaIdSnapshot                  String?                      @db.Uuid
-  areaNameSnapshot                String?
-  positionIdSnapshot              String?                      @db.Uuid
-  positionNameSnapshot            String?
-  businessUnitIdSnapshot          String?                      @db.Uuid
-  businessUnitNameSnapshot        String?
-  calculatedAt                    DateTime
-  releasedAt                      DateTime?
-  releasedByUserId                String?                      @db.Uuid
-  createdAt                       DateTime                     @default(now())
-  updatedAt                       DateTime                     @updatedAt
+  areaIdSnapshot                   String?                      @db.Uuid
+  areaNameSnapshot                 String?
+  positionIdSnapshot               String?                      @db.Uuid
+  positionNameSnapshot             String?
+  businessUnitIdSnapshot           String?                      @db.Uuid
+  businessUnitNameSnapshot         String?
+  calculatedAt                     DateTime
+  releasedAt                       DateTime?
+  releasedByUserId                 String?                      @db.Uuid
+  createdAt                        DateTime                     @default(now())
+  updatedAt                        DateTime                     @updatedAt
 
-  company     Company                     @relation(fields: [companyId], references: [id], onDelete: Restrict)
-  cycle       PerformanceCycle            @relation(fields: [cycleId], references: [id], onDelete: Restrict)
-  participant PerformanceCycleParticipant @relation(fields: [participantId], references: [id], onDelete: Restrict)
-  employee    Employee                    @relation(fields: [employeeId], references: [id], onDelete: Restrict)
-  releasedBy  User?                       @relation("PerformanceResultReleasedBy", fields: [releasedByUserId], references: [id], onDelete: Restrict)
+  company       Company                     @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  cycle         PerformanceCycle            @relation(fields: [cycleId], references: [id], onDelete: Restrict)
+  participant   PerformanceCycleParticipant @relation(fields: [participantId], references: [id], onDelete: Restrict)
+  employee      Employee                    @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  releasedBy    User?                       @relation("PerformanceResultReleasedBy", fields: [releasedByUserId], references: [id], onDelete: Restrict)
   goalSnapshots PerformanceResultGoal[]
 
   @@unique([participantId])
@@ -1384,19 +1384,19 @@ model PerformanceResult {
 
 /// Historical Goals included in a PerformanceResult (09D). No FK to Goal/GoalResult.
 model PerformanceResultGoal {
-  id                    String    @id @default(uuid()) @db.Uuid
-  companyId             String    @db.Uuid
-  performanceResultId   String    @db.Uuid
-  sourceGoalId          String?   @db.Uuid
-  sourceGoalResultId    String?   @db.Uuid
+  id                    String   @id @default(uuid()) @db.Uuid
+  companyId             String   @db.Uuid
+  performanceResultId   String   @db.Uuid
+  sourceGoalId          String?  @db.Uuid
+  sourceGoalResultId    String?  @db.Uuid
   goalTitle             String
   goalType              GoalType
-  achievementPercentage Decimal   @db.Decimal(5, 2)
-  configuredWeight      Decimal?  @db.Decimal(5, 2)
-  effectiveWeight       Decimal   @db.Decimal(5, 2)
-  contribution          Decimal   @db.Decimal(5, 2)
-  order                 Int       @default(0)
-  createdAt             DateTime  @default(now())
+  achievementPercentage Decimal  @db.Decimal(5, 2)
+  configuredWeight      Decimal? @db.Decimal(5, 2)
+  effectiveWeight       Decimal  @db.Decimal(5, 2)
+  contribution          Decimal  @db.Decimal(5, 2)
+  order                 Int      @default(0)
+  createdAt             DateTime @default(now())
 
   company           Company           @relation(fields: [companyId], references: [id], onDelete: Restrict)
   performanceResult PerformanceResult @relation(fields: [performanceResultId], references: [id], onDelete: Restrict)

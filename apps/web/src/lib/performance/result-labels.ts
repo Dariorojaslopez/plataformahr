@@ -40,8 +40,21 @@ export function canCalculateParticipantResult(params: {
 
 export function canReleaseParticipantResult(
   participant: Pick<CycleParticipantListItem, "result">,
+  cycleStatus?: PerformanceCycleStatus,
 ): boolean {
-  return participant.result?.status === "CALCULATED";
+  if (participant.result?.status !== "CALCULATED") return false;
+  // Backend allows release on ACTIVE or CLOSED (not CANCELLED/DRAFT).
+  if (cycleStatus != null && cycleStatus !== "ACTIVE" && cycleStatus !== "CLOSED") {
+    return false;
+  }
+  return true;
+}
+
+/** Result mutations (calculate/release) allowed while cycle is ACTIVE or CLOSED. */
+export function canMutateParticipantResults(
+  cycleStatus: PerformanceCycleStatus,
+): boolean {
+  return cycleStatus === "ACTIVE" || cycleStatus === "CLOSED";
 }
 
 export function managerIncludedLabel(managerIncluded: boolean): string {

@@ -123,7 +123,7 @@ export function ResultDetailPageClient() {
               value={formatScorePercentage(admin.competencyScore)}
             />
             <ScoreCard
-              label="Objetivos"
+              label="Cumplimiento de objetivos"
               value={formatScorePercentage(admin.goalsAchievement)}
             />
           </>

@@ -129,7 +129,7 @@ export function resolveGoalsCompositionConfig(input: {
     Number(goalsResultWeight.toString());
   if (Math.round(sum * 100) / 100 !== WEIGHT_TOTAL_REQUIRED) {
     throw new BadRequestException(
-      'competencyResultWeight + goalsResultWeight must equal 100',
+      'El peso de competencias y el de objetivos deben sumar 100',
     );
   }
 

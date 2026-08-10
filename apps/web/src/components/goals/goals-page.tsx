@@ -269,6 +269,34 @@ export function GoalsPageClient() {
               </TableBody>
             </Table>
           </div>
+          <div className="space-y-3 md:hidden">
+            {items.map((row) => (
+              <div
+                key={row.id}
+                className="space-y-2 rounded-lg border border-border bg-card p-4"
+              >
+                <p className="font-medium">{row.title}</p>
+                <p className="text-sm text-muted-foreground">
+                  {row.cycle.name} · {GOAL_TYPE_LABELS[row.type]}
+                  {row.area?.name ? ` · ${row.area.name}` : ""}
+                </p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge variant={goalStatusVariant(row.status)}>
+                    {GOAL_STATUS_LABELS[row.status]}
+                  </Badge>
+                  <span className="text-sm text-muted-foreground">
+                    KR: {row.keyResultCount}
+                  </span>
+                </div>
+                <Button type="button" variant="outline" size="sm" asChild>
+                  <Link href={`/goals/${row.id}`}>
+                    <Eye className="h-4 w-4" />
+                    Ver
+                  </Link>
+                </Button>
+              </div>
+            ))}
+          </div>
           <PaginationControls
             page={params.page ?? 1}
             totalPages={listQuery.data?.totalPages ?? 1}

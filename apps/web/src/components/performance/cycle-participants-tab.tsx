@@ -46,6 +46,7 @@ import {
   RELEASE_RESULT_CONFIRMATION,
   RESULT_STATUS_LABELS,
   canCalculateParticipantResult,
+  canMutateParticipantResults,
   canReleaseParticipantResult,
   resultStatusVariant,
 } from "@/lib/performance/result-labels";
@@ -85,6 +86,7 @@ export function CycleParticipantsTab({ cycleId, cycleStatus }: Props) {
   const companyId = useCompanyId();
   const queryClient = useQueryClient();
   const canAssign = cycleStatus === "ACTIVE";
+  const canMutateResults = canMutateParticipantResults(cycleStatus);
 
   const [page, setPage] = useState(1);
   const [searchInput, setSearchInput] = useState("");
@@ -384,7 +386,7 @@ export function CycleParticipantsTab({ cycleId, cycleStatus }: Props) {
                   <TableHead>Autoeval.</TableHead>
                   <TableHead>Líder eval.</TableHead>
                   <TableHead>Resultado</TableHead>
-                  {canAssign ? (
+                  {canAssign || canMutateResults ? (
                     <TableHead className="text-right">Acciones</TableHead>
                   ) : null}
                 </TableRow>
@@ -396,6 +398,7 @@ export function CycleParticipantsTab({ cycleId, cycleStatus }: Props) {
                     row={row}
                     cycleStatus={cycleStatus}
                     canAssign={canAssign}
+                    canMutateResults={canMutateResults}
                     excluding={excludeMutation.isPending}
                     calculating={
                       calculateMutation.isPending &&
@@ -420,7 +423,10 @@ export function CycleParticipantsTab({ cycleId, cycleStatus }: Props) {
                 cycleStatus,
                 participant: row,
               });
-              const canRelease = canReleaseParticipantResult(row);
+              const canRelease = canReleaseParticipantResult(
+                row,
+                cycleStatus,
+              );
               return (
                 <div
                   key={row.id}
@@ -468,7 +474,7 @@ export function CycleParticipantsTab({ cycleId, cycleStatus }: Props) {
                         </Link>
                       </Button>
                     ) : null}
-                    {canAssign && canCalculate ? (
+                    {canMutateResults && canCalculate ? (
                       <Button
                         type="button"
                         variant="outline"
@@ -480,7 +486,7 @@ export function CycleParticipantsTab({ cycleId, cycleStatus }: Props) {
                         Calcular resultado
                       </Button>
                     ) : null}
-                    {canAssign && canRelease ? (
+                    {canMutateResults && canRelease ? (
                       <Button
                         type="button"
                         variant="outline"
@@ -695,6 +701,7 @@ function ParticipantTableRow({
   row,
   cycleStatus,
   canAssign,
+  canMutateResults,
   excluding,
   calculating,
   releasing,
@@ -705,6 +712,7 @@ function ParticipantTableRow({
   row: CycleParticipantListItem;
   cycleStatus: PerformanceCycleStatus;
   canAssign: boolean;
+  canMutateResults: boolean;
   excluding: boolean;
   calculating: boolean;
   releasing: boolean;
@@ -716,7 +724,8 @@ function ParticipantTableRow({
     cycleStatus,
     participant: row,
   });
-  const canRelease = canReleaseParticipantResult(row);
+  const canRelease = canReleaseParticipantResult(row, cycleStatus);
+  const showActions = canAssign || canMutateResults;
 
   return (
     <TableRow>
@@ -762,7 +771,7 @@ function ParticipantTableRow({
           "—"
         )}
       </TableCell>
-      {canAssign ? (
+      {showActions ? (
         <TableCell className="text-right">
           <div className="flex flex-wrap justify-end gap-1">
             {row.result ? (
@@ -773,7 +782,7 @@ function ParticipantTableRow({
                 </Link>
               </Button>
             ) : null}
-            {canCalculate ? (
+            {canMutateResults && canCalculate ? (
               <Button
                 type="button"
                 variant="ghost"
@@ -785,7 +794,7 @@ function ParticipantTableRow({
                 Calcular resultado
               </Button>
             ) : null}
-            {canRelease ? (
+            {canMutateResults && canRelease ? (
               <Button
                 type="button"
                 variant="ghost"
@@ -797,7 +806,7 @@ function ParticipantTableRow({
                 Publicar
               </Button>
             ) : null}
-            {row.status === "ACTIVE" ? (
+            {canAssign && row.status === "ACTIVE" ? (
               <Button
                 type="button"
                 variant="ghost"

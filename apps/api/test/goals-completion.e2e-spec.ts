@@ -831,4 +831,108 @@ describe('Goals completion (09C)', () => {
       'ranking',
     );
   });
+
+  it('09E privacy: AREA/COMPANY viewers do not receive rejection reviewComment', async () => {
+    // Main suite closes the shared cycle; use a dedicated ACTIVE cycle.
+    const privacyCycle = await request(app.getHttpServer())
+      .post('/goals/cycles')
+      .set(auth(adminToken))
+      .send({
+        name: `Privacy Cycle ${suffix}`,
+        startDate: '2026-01-01',
+        endDate: '2026-12-31',
+      })
+      .expect(201);
+    const privacyCycleId = privacyCycle.body.id as string;
+    await request(app.getHttpServer())
+      .post(`/goals/cycles/${privacyCycleId}/activate`)
+      .set(auth(adminToken))
+      .expect(201);
+
+    const areaGoal = await request(app.getHttpServer())
+      .post('/goals')
+      .set(auth(adminToken))
+      .send({
+        cycleId: privacyCycleId,
+        title: `Privacy AREA ${suffix}`,
+        type: 'AREA',
+        areaId: areaAId,
+      })
+      .expect(201);
+    const areaGoalId = areaGoal.body.id as string;
+    const kr = await request(app.getHttpServer())
+      .post(`/goals/${areaGoalId}/key-results`)
+      .set(auth(adminToken))
+      .send({
+        title: 'KR',
+        metricType: 'NUMBER',
+        direction: 'INCREASE',
+        startValue: 0,
+        targetValue: 10,
+      })
+      .expect(201);
+    await activateGoal(areaGoalId);
+    // AREA check-ins require manage (or applicable writer per 09B rules); use admin.
+    await request(app.getHttpServer())
+      .post(`/goals/${areaGoalId}/key-results/${kr.body.id}/check-ins`)
+      .set(auth(adminToken))
+      .send({ numericValue: 5 })
+      .expect(201);
+    const req = await request(app.getHttpServer())
+      .post(`/goals/${areaGoalId}/completion-requests`)
+      .set(auth(adminToken))
+      .send({ requestComment: 'secreto-request' })
+      .expect(201);
+    await request(app.getHttpServer())
+      .post(`/goals/completion-requests/${req.body.id}/reject`)
+      .set(auth(pmToken))
+      .send({ reviewComment: 'secreto-review-area' })
+      .expect(201);
+
+    // Collaborator in area sees the goal in mine but not rejection comments.
+    const mine = await request(app.getHttpServer())
+      .get('/goals/mine')
+      .set(auth(collabToken))
+      .expect(200);
+    const mineRow = (
+      mine.body as {
+        items: Array<{
+          id: string;
+          latestRejection?: { reviewComment: string | null } | null;
+        }>;
+      }
+    ).items.find((g) => g.id === areaGoalId);
+    expect(mineRow).toBeDefined();
+    expect(mineRow?.latestRejection?.reviewComment ?? null).toBeNull();
+
+    // Leader has completion.review but cannot review AREA → no comments on history.
+    const history = await request(app.getHttpServer())
+      .get(`/goals/${areaGoalId}/completion-requests`)
+      .set(auth(leaderToken))
+      .expect(200);
+    const rejected = (
+      history.body as {
+        items: Array<{
+          status: string;
+          reviewComment: string | null;
+          requestComment: string | null;
+        }>;
+      }
+    ).items.find((r) => r.status === 'REJECTED');
+    expect(rejected).toBeDefined();
+    expect(rejected?.reviewComment).toBeNull();
+    expect(rejected?.requestComment).toBeNull();
+
+    // Admin/PM manage retains comments.
+    const adminHistory = await request(app.getHttpServer())
+      .get(`/goals/${areaGoalId}/completion-requests`)
+      .set(auth(adminToken))
+      .expect(200);
+    const adminRejected = (
+      adminHistory.body as {
+        items: Array<{ status: string; reviewComment: string | null }>;
+      }
+    ).items.find((r) => r.status === 'REJECTED');
+    expect(adminRejected?.reviewComment).toBe('secreto-review-area');
+  });
 });

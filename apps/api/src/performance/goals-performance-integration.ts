@@ -65,14 +65,14 @@ export function assertCompositionWeights(
     goalsResultWeight > 100
   ) {
     throw new GoalsPerformanceIntegrationError(
-      'Composition weights must be between 0 and 100',
+      'Los pesos de composición deben estar entre 0 y 100',
     );
   }
   if (
     roundScorePercentage(competencyResultWeight + goalsResultWeight) !== 100
   ) {
     throw new GoalsPerformanceIntegrationError(
-      'competencyResultWeight + goalsResultWeight must equal 100',
+      'El peso de competencias y el de objetivos deben sumar 100',
     );
   }
 }
@@ -157,12 +157,12 @@ export function calculateIntegratedOverallScore(
 
   if (competencyScore < 0 || competencyScore > 100) {
     throw new GoalsPerformanceIntegrationError(
-      'competencyScore must be between 0 and 100',
+      'El resultado de competencias debe estar entre 0 y 100',
     );
   }
   if (goalsAchievement < 0 || goalsAchievement > 100) {
     throw new GoalsPerformanceIntegrationError(
-      'goalsAchievement must be between 0 and 100',
+      'El cumplimiento de objetivos debe estar entre 0 y 100',
     );
   }
 

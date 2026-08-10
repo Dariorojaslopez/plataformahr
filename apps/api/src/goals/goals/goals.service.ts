@@ -219,6 +219,7 @@ export class GoalsService {
     goals: Array<{
       id: string;
       status: GoalStatus;
+      type: GoalType;
       keyResults: Array<{
         id: string;
         goalId: string;
@@ -244,11 +245,23 @@ export class GoalsService {
       goals,
     );
     const goalIds = goals.map((g) => g.id);
-    const [pending, rejected, results] = await Promise.all([
+    const [pending, rejectedRaw, results] = await Promise.all([
       this.completionService.getPendingForGoals(companyId, goalIds),
       this.completionService.getLatestRejectedForGoals(companyId, goalIds),
       this.completionService.getResultsForGoals(companyId, goalIds),
     ]);
+    const rejected =
+      await this.completionService.redactRejectionCommentsForViewer(
+        companyId,
+        userId,
+        membershipId,
+        goals.map((g) => ({
+          id: g.id,
+          type: g.type,
+          assignments: g.assignments,
+        })),
+        rejectedRaw,
+      );
 
     return goals.map((g) => {
       const m = meta.get(g.id)!;

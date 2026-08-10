@@ -6,6 +6,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { formatAchievementPercent } from "@/lib/goals/completion";
 import { GOAL_TYPE_LABELS } from "@/lib/goals/labels";
 import { formatScorePercentage } from "@/lib/performance/response-workspace";
 import type {
@@ -62,7 +63,7 @@ export function ResultGoalsBreakdown({
                 <TableCell className="font-medium">{goal.goalTitle}</TableCell>
                 <TableCell>{goalTypeLabel(goal.goalType)}</TableCell>
                 <TableCell>
-                  {formatScorePercentage(goal.achievementPercentage)}
+                  {formatAchievementPercent(goal.achievementPercentage)}
                 </TableCell>
                 {showConfiguredWeight ? (
                   <TableCell>
@@ -93,7 +94,7 @@ export function ResultGoalsBreakdown({
             <p className="font-medium">{goal.goalTitle}</p>
             <p className="text-muted-foreground">
               {goalTypeLabel(goal.goalType)} · Cumplimiento{" "}
-              {formatScorePercentage(goal.achievementPercentage)}
+              {formatAchievementPercent(goal.achievementPercentage)}
             </p>
             <p className="text-muted-foreground">
               Peso efectivo {formatScorePercentage(goal.effectiveWeight)} ·

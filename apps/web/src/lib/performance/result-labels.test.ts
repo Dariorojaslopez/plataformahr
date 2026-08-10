@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   canCalculateParticipantResult,
+  canMutateParticipantResults,
   canReleaseParticipantResult,
   managerIncludedLabel,
   RESULT_STATUS_LABELS,
@@ -109,22 +110,23 @@ describe("result labels", () => {
     ).toBe(false);
   });
 
-  it("allows release only for CALCULATED results", () => {
-    expect(
-      canReleaseParticipantResult(
-        baseParticipant({
-          result: {
-            id: "r1",
-            status: "CALCULATED",
-            overallScore: "78.13",
-            selfScore: "82.50",
-            managerScore: "76.25",
-            calculatedAt: "",
-            releasedAt: null,
-          },
-        }),
-      ),
-    ).toBe(true);
+  it("allows release only for CALCULATED results on ACTIVE/CLOSED cycles", () => {
+    const calculated = baseParticipant({
+      result: {
+        id: "r1",
+        status: "CALCULATED",
+        overallScore: "78.13",
+        selfScore: "82.50",
+        managerScore: "76.25",
+        calculatedAt: "",
+        releasedAt: null,
+      },
+    });
+    expect(canReleaseParticipantResult(calculated)).toBe(true);
+    expect(canReleaseParticipantResult(calculated, "ACTIVE")).toBe(true);
+    expect(canReleaseParticipantResult(calculated, "CLOSED")).toBe(true);
+    expect(canReleaseParticipantResult(calculated, "CANCELLED")).toBe(false);
+    expect(canReleaseParticipantResult(calculated, "DRAFT")).toBe(false);
     expect(
       canReleaseParticipantResult(
         baseParticipant({
@@ -138,9 +140,13 @@ describe("result labels", () => {
             releasedAt: "",
           },
         }),
+        "CLOSED",
       ),
     ).toBe(false);
     expect(canReleaseParticipantResult(baseParticipant())).toBe(false);
+    expect(canMutateParticipantResults("CLOSED")).toBe(true);
+    expect(canMutateParticipantResults("ACTIVE")).toBe(true);
+    expect(canMutateParticipantResults("DRAFT")).toBe(false);
   });
 
   it("describes managerIncluded for employee view", () => {

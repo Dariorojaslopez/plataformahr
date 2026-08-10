@@ -907,19 +907,114 @@ export class GoalCompletionService {
   ) {
     const granted =
       await this.rbac.getPermissionCodesForMembership(membershipId);
+    if (granted.has('goals.goal.manage')) {
+      return { showComments: true, showActors: true };
+    }
+
+    const goal = await this.prisma.goal.findFirst({
+      where: { id: goalId, companyId },
+      include: { assignments: { select: { employeeId: true } } },
+    });
+    if (!goal) return { showComments: false, showActors: false };
+
+    const employee = await this.findEmployeeForUser(companyId, userId);
+    if (employee) {
+      const assignment = await this.prisma.goalAssignment.findFirst({
+        where: { companyId, goalId, employeeId: employee.id },
+      });
+      if (assignment) return { showComments: true, showActors: true };
+    }
+
+    // Review permission alone is not enough: only DIRECT INDIVIDUAL reviewers.
     if (
-      granted.has('goals.goal.manage') ||
-      granted.has('goals.completion.review')
+      granted.has('goals.completion.review') &&
+      (await this.canLeaderReviewGoal(companyId, userId, goal))
     ) {
       return { showComments: true, showActors: true };
     }
-    const employee = await this.findEmployeeForUser(companyId, userId);
-    if (!employee) return { showComments: false, showActors: false };
-    const assignment = await this.prisma.goalAssignment.findFirst({
-      where: { companyId, goalId, employeeId: employee.id },
-    });
-    if (assignment) return { showComments: true, showActors: true };
+
     return { showComments: false, showActors: false };
+  }
+
+  /**
+   * Redact rejection reviewComment for list/mine enrichments.
+   * Viewers of AREA/COMPANY (non-assignee, non-authorized reviewer) must not see comments.
+   */
+  async redactRejectionCommentsForViewer(
+    companyId: string,
+    userId: string,
+    membershipId: string,
+    goals: Array<{
+      id: string;
+      type: GoalType;
+      assignments: Array<{ employeeId: string }>;
+    }>,
+    rejected: Map<
+      string,
+      { id: string; reviewComment: string | null; reviewedAt: Date | null }
+    >,
+  ): Promise<
+    Map<
+      string,
+      { id: string; reviewComment: string | null; reviewedAt: Date | null }
+    >
+  > {
+    if (rejected.size === 0) return rejected;
+
+    const granted =
+      await this.rbac.getPermissionCodesForMembership(membershipId);
+    if (granted.has('goals.goal.manage')) return rejected;
+
+    const employee = await this.findEmployeeForUser(companyId, userId);
+    const assignedGoalIds = new Set<string>();
+    if (employee) {
+      const rows = await this.prisma.goalAssignment.findMany({
+        where: {
+          companyId,
+          employeeId: employee.id,
+          goalId: { in: goals.map((g) => g.id) },
+        },
+        select: { goalId: true },
+      });
+      for (const r of rows) assignedGoalIds.add(r.goalId);
+    }
+
+    let directReportIds = new Set<string>();
+    if (employee && granted.has('goals.completion.review')) {
+      const lines = await this.prisma.employeeReportingLine.findMany({
+        where: {
+          companyId,
+          managerEmployeeId: employee.id,
+          type: ReportingLineType.DIRECT,
+        },
+        select: { employeeId: true },
+      });
+      directReportIds = new Set(lines.map((l) => l.employeeId));
+    }
+
+    const out = new Map<
+      string,
+      { id: string; reviewComment: string | null; reviewedAt: Date | null }
+    >();
+    for (const [goalId, row] of rejected) {
+      const goal = goals.find((g) => g.id === goalId);
+      let show = assignedGoalIds.has(goalId);
+      if (
+        !show &&
+        goal &&
+        goal.type === GoalType.INDIVIDUAL &&
+        granted.has('goals.completion.review') &&
+        goal.assignments.length > 0 &&
+        goal.assignments.every((a) => directReportIds.has(a.employeeId))
+      ) {
+        show = true;
+      }
+      out.set(goalId, {
+        ...row,
+        reviewComment: show ? row.reviewComment : null,
+      });
+    }
+    return out;
   }
 
   private async assertCanAccessGoal(
