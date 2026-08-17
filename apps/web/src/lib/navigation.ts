@@ -12,6 +12,7 @@ import {
   ListChecks,
   Medal,
   Network,
+  Share2,
   SlidersHorizontal,
   Target,
   Users,
@@ -47,6 +48,11 @@ export const APP_NAV: NavSection[] = [
         label: "Colaboradores",
         href: "/organization/employees",
         icon: Users,
+      },
+      {
+        label: "Organigrama",
+        href: "/organization/org-chart",
+        icon: Share2,
       },
       {
         label: "Unidades de negocio",

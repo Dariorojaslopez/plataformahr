@@ -148,8 +148,60 @@ Additive migration `position_custom_fields`. Existing positions start with zero 
 | GET/POST/PATCH | `/organization/employees` (+ `/:id`) | read / manage |
 | GET | `/organization/employees/:id/organization-profile` | read |
 | GET/POST/DELETE | `/organization/employees/:id/reporting-lines` | read / manage |
+| GET | `/organization/org-chart` | read |
 
 All require JWT + `X-Company-Id`.
+
+## Organization chart
+
+Read-only forest of **people**, not a second org structure.
+
+### Source of truth
+
+Hierarchy comes from `EmployeeReportingLine` where `type = DIRECT` (`employeeId` → `managerEmployeeId`). There is no `Employee.managerId` column.
+
+Do **not** infer who reports to whom from BusinessUnit → Area → JobLevel → Position. Those entities are context on each node (`Employee` → `Position` → optional `JobLevel` → `Area` → optional `BusinessUnit`).
+
+`INDIRECT` (dotted-line) reporting is out of scope and is not drawn.
+
+### Integrity
+
+Write-path rules already live in `ReportingLinesService` (no schema change for the chart):
+
+- manager and employee must share company (`requireEmployee`);
+- employee cannot be their own manager;
+- at most one `DIRECT` manager (partial unique index + `409`);
+- cycles (direct or indirect) are rejected (`wouldCreateReportingCycle`).
+
+The chart builder still breaks any stored cycle so rendering cannot recurse forever.
+
+### Roots and virtual company node
+
+Employees whose DIRECT manager is missing from the visible set (no manager, manager inactive/filtered, or manager not loaded) become roots. Multiple roots are valid. The UI/export may show a **virtual company node** as a visual parent; it is not persisted.
+
+### Filters
+
+- Soft-deleted employees (`deletedAt`) are never included.
+- Default: `status = ACTIVE` only.
+- `GET /organization/org-chart?includeInactive=true` also includes `INACTIVE` and `TERMINATED`.
+
+### Response
+
+DTO nodes include: `employeeId`, names, `status`, `managerId`, `position`, optional `jobLevel`, `area`, optional `businessUnit`, `children`. No email, phone, address, salary, documents, ATS, or Performance fields.
+
+Loaded with one `company.findFirst` and one `employee.findMany` (DIRECT line nested, `take: 1`). The tree is assembled in memory.
+
+### Permissions
+
+`organization.read`. `companyId` from `TenantContext` / `X-Company-Id`. Cross-tenant headers do not leak another company's chart.
+
+### Export
+
+PNG and PDF are generated in the browser from an SVG layout (company name, generation date, names, titles). The API is not used for export.
+
+### Out of scope
+
+Drag-and-drop, editing managers from the chart, vacant seats, dotted-line, temporal history, Performance, ATS.
 
 ## Manual SQL
 

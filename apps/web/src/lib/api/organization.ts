@@ -15,6 +15,7 @@ import type {
   JobLevelCompetencies,
   ListEmployeesParams,
   OrganizationProfile,
+  OrgChart,
   PaginatedEmployees,
   Position,
   PositionCustomFieldDefinition,
@@ -144,6 +145,13 @@ export const organizationApi = {
       `/organization/employees/${id}/organization-profile`,
     ),
 
+  getOrgChart: (includeInactive = false) =>
+    apiRequest<OrgChart>(
+      `/organization/org-chart${toQuery({
+        includeInactive: includeInactive ? "true" : undefined,
+      })}`,
+    ),
+
   createEmployee: (body: CreateEmployeeInput) =>
     apiRequest<Employee>("/organization/employees", { method: "POST", body }),
 
@@ -192,6 +200,8 @@ export const orgKeys = {
     [...orgKeys.all(companyId), "employee", id] as const,
   employeeProfile: (companyId: string, id: string) =>
     [...orgKeys.all(companyId), "employee-profile", id] as const,
+  orgChart: (companyId: string, includeInactive: boolean) =>
+    [...orgKeys.all(companyId), "org-chart", includeInactive] as const,
   reportingLines: (companyId: string, id: string) =>
     [...orgKeys.all(companyId), "reporting-lines", id] as const,
 };

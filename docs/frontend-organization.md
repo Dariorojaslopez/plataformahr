@@ -26,3 +26,11 @@ On **Niveles**, each row has **Competencias**: a checklist of the company compet
 
 Create/edit **Cargos** renders active definitions dynamically (input / number / checkbox / date / select). Inactive fields with stored values appear as read-only `Etiqueta: Valor`. IDs and keys are not shown on the position form.
 
+## Organigrama
+
+**Organigrama** (`/organization/org-chart`) is a read-only chart of DIRECT reports. Cards show name (link to `/organization/employees/:id`), position, area, optional business unit, and job level when present. Inactive status is badged only when the include-inactive toggle is on.
+
+The company name is a visual root only. Several employees without a visible manager appear as sibling roots under that node.
+
+Zoom/pan live in the viewport (no diagram library). PNG/PDF export uses an in-browser SVG layout — no extra npm dependency and no HTML posted to the API. Default query is active employees; the checkbox requests `includeInactive=true`.
+

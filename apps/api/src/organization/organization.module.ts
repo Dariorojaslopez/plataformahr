@@ -13,6 +13,8 @@ import { EmployeesService } from './employees/employees.service';
 import { JobLevelCompetenciesService } from './job-levels/job-level-competencies.service';
 import { JobLevelsController } from './job-levels/job-levels.controller';
 import { JobLevelsService } from './job-levels/job-levels.service';
+import { OrgChartController } from './org-chart/org-chart.controller';
+import { OrgChartService } from './org-chart/org-chart.service';
 import { OrganizationIntegrityService } from './organization-integrity.service';
 import { PositionsController } from './positions/positions.controller';
 import { PositionsService } from './positions/positions.service';
@@ -28,6 +30,7 @@ import { ReportingLinesService } from './reporting-lines/reporting-lines.service
     JobLevelsController,
     PositionsController,
     PositionCustomFieldsController,
+    OrgChartController,
     EmployeesController,
   ],
   providers: [
@@ -40,6 +43,7 @@ import { ReportingLinesService } from './reporting-lines/reporting-lines.service
     JobLevelCompetenciesService,
     PositionsService,
     PositionCustomFieldsService,
+    OrgChartService,
     EmployeesService,
     ReportingLinesService,
   ],

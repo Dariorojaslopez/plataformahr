@@ -212,6 +212,28 @@ export type OrganizationProfile = {
   indirectManagers: ManagerSummary[];
 };
 
+export type OrgChartNode = {
+  employeeId: string;
+  firstName: string;
+  lastName: string;
+  status: EmployeeStatus;
+  managerId: string | null;
+  position: { id: string; name: string };
+  jobLevel: { id: string; name: string; rank: number } | null;
+  area: { id: string; name: string };
+  businessUnit: { id: string; name: string } | null;
+  children: OrgChartNode[];
+};
+
+export type OrgChart = {
+  company: { id: string; name: string };
+  generatedAt: string;
+  includeInactive: boolean;
+  employeeCount: number;
+  rootCount: number;
+  roots: OrgChartNode[];
+};
+
 export type ReportingLine = {
   id: string;
   companyId: string;

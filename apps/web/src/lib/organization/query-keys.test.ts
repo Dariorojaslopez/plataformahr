@@ -16,5 +16,6 @@ describe("org query keys tenant isolation", () => {
     expect(orgKeys.areaTree("c1")[1]).toBe("c1");
     expect(orgKeys.jobLevelCompetencies("c1", "jl1")[1]).toBe("c1");
     expect(orgKeys.positionCustomFields("c1")[1]).toBe("c1");
+    expect(orgKeys.orgChart("c1", false)[1]).toBe("c1");
   });
 });

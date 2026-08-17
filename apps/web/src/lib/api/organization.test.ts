@@ -189,4 +189,17 @@ describe("organizationApi", () => {
     expect(vi.mocked(fetch).mock.calls[1]?.[1]).toMatchObject({ method: "POST" });
     expect(vi.mocked(fetch).mock.calls[2]?.[1]).toMatchObject({ method: "PATCH" });
   });
+
+  it("loads the organization chart", async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      new Response(JSON.stringify({ roots: [], employeeCount: 0 }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+    await organizationApi.getOrgChart(true);
+    expect(String(vi.mocked(fetch).mock.calls[0]?.[0])).toContain(
+      "/organization/org-chart?includeInactive=true",
+    );
+  });
 });

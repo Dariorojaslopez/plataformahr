@@ -1646,4 +1646,274 @@ describe('Organization core (e2e)', () => {
         .expect(200);
     });
   });
+
+  describe('organization chart', () => {
+    const headersA = () => ({
+      Authorization: `Bearer ${adminAToken}`,
+      'X-Company-Id': companyAId,
+    });
+    const headersB = () => ({
+      Authorization: `Bearer ${adminBToken}`,
+      'X-Company-Id': companyBId,
+    });
+
+    type ChartNode = {
+      employeeId: string;
+      firstName: string;
+      lastName: string;
+      status: string;
+      managerId: string | null;
+      position: { name: string };
+      jobLevel: { name: string } | null;
+      area: { name: string };
+      businessUnit: { name: string } | null;
+      children: ChartNode[];
+    };
+    type ChartBody = {
+      company: { id: string; name: string };
+      includeInactive: boolean;
+      employeeCount: number;
+      rootCount: number;
+      roots: ChartNode[];
+    };
+
+    function flatten(nodes: ChartNode[]): ChartNode[] {
+      return nodes.flatMap((node) => [node, ...flatten(node.children)]);
+    }
+
+    it('returns an empty forest for a company without employees', async () => {
+      const company = await prisma.company.create({
+        data: {
+          name: `Org Chart Empty ${suffix}`,
+          slug: `org-chart-empty-${suffix}`,
+          status: CompanyStatus.ACTIVE,
+        },
+      });
+      const password = `OrgPass-${suffix}!`;
+      const user = await prisma.user.create({
+        data: {
+          email: `orgchart-empty-${suffix}@example.com`,
+          passwordHash: await hasher.hash(password),
+          firstName: 'Empty',
+          lastName: 'Admin',
+          status: UserStatus.ACTIVE,
+        },
+      });
+      const roleAdmin = await prisma.role.findUniqueOrThrow({
+        where: {
+          scope_code: { scope: RoleScope.COMPANY, code: 'CLIENT_ADMIN' },
+        },
+      });
+      const membership = await prisma.companyMembership.create({
+        data: {
+          userId: user.id,
+          companyId: company.id,
+          status: MembershipStatus.ACTIVE,
+        },
+      });
+      await prisma.membershipRole.create({
+        data: { membershipId: membership.id, roleId: roleAdmin.id },
+      });
+      const login = await request(app.getHttpServer())
+        .post('/auth/login')
+        .send({ email: `orgchart-empty-${suffix}@example.com`, password })
+        .expect(201);
+      const token = (login.body as LoginBody).accessToken;
+
+      const res = await request(app.getHttpServer())
+        .get('/organization/org-chart')
+        .set('Authorization', `Bearer ${token}`)
+        .set('X-Company-Id', company.id)
+        .expect(200);
+      const body = res.body as ChartBody;
+      expect(body.roots).toEqual([]);
+      expect(body.employeeCount).toBe(0);
+      expect(body.rootCount).toBe(0);
+      expect(body.company.id).toBe(company.id);
+    });
+
+    it('builds one root, multiple roots and three DIRECT levels', async () => {
+      const area = await request(app.getHttpServer())
+        .post('/organization/areas')
+        .set(headersA())
+        .send({ name: `Chart Area ${suffix}` })
+        .expect(201);
+      const areaId = (area.body as { id: string }).id;
+      const position = await request(app.getHttpServer())
+        .post('/organization/positions')
+        .set(headersA())
+        .send({
+          name: `Chart Position ${suffix}`,
+          areaId,
+          jobLevelId: jobLevelAId,
+        })
+        .expect(201);
+      const positionId = (position.body as { id: string }).id;
+
+      const root = await request(app.getHttpServer())
+        .post('/organization/employees')
+        .set(headersA())
+        .send({
+          firstName: 'Root',
+          lastName: 'Chart',
+          email: `chart-root-${suffix}@example.com`,
+          areaId,
+          positionId,
+        })
+        .expect(201);
+      const mid = await request(app.getHttpServer())
+        .post('/organization/employees')
+        .set(headersA())
+        .send({
+          firstName: 'Mid',
+          lastName: 'Chart',
+          email: `chart-mid-${suffix}@example.com`,
+          areaId,
+          positionId,
+        })
+        .expect(201);
+      const leaf = await request(app.getHttpServer())
+        .post('/organization/employees')
+        .set(headersA())
+        .send({
+          firstName: 'Leaf',
+          lastName: 'Chart',
+          email: `chart-leaf-${suffix}@example.com`,
+          areaId,
+          positionId,
+        })
+        .expect(201);
+      const extraRoot = await request(app.getHttpServer())
+        .post('/organization/employees')
+        .set(headersA())
+        .send({
+          firstName: 'Solo',
+          lastName: 'Chart',
+          email: `chart-solo-${suffix}@example.com`,
+          areaId,
+          positionId,
+        })
+        .expect(201);
+
+      const rootId = (root.body as { id: string }).id;
+      const midId = (mid.body as { id: string }).id;
+      const leafId = (leaf.body as { id: string }).id;
+      const extraRootId = (extraRoot.body as { id: string }).id;
+
+      await request(app.getHttpServer())
+        .post(`/organization/employees/${midId}/reporting-lines`)
+        .set(headersA())
+        .send({ managerEmployeeId: rootId, type: ReportingLineType.DIRECT })
+        .expect(201);
+      await request(app.getHttpServer())
+        .post(`/organization/employees/${leafId}/reporting-lines`)
+        .set(headersA())
+        .send({ managerEmployeeId: midId, type: ReportingLineType.DIRECT })
+        .expect(201);
+
+      const res = await request(app.getHttpServer())
+        .get('/organization/org-chart')
+        .set(headersA())
+        .expect(200);
+      const body = res.body as ChartBody;
+      const nodes = flatten(body.roots);
+      const rootNode = nodes.find((node) => node.employeeId === rootId);
+      const extra = body.roots.find((node) => node.employeeId === extraRootId);
+
+      expect(body.roots.length).toBeGreaterThanOrEqual(2);
+      expect(extra?.managerId).toBeNull();
+      expect(rootNode?.children[0]?.employeeId).toBe(midId);
+      expect(rootNode?.children[0]?.children[0]?.employeeId).toBe(leafId);
+      expect(rootNode?.jobLevel?.name).toBeTruthy();
+      expect(JSON.stringify(body)).not.toMatch(
+        /email|phone|birthDate|salary|emergencyContact/i,
+      );
+    });
+
+    it('omits businessUnit when the company does not use them', async () => {
+      const listed = await request(app.getHttpServer())
+        .get('/organization/org-chart')
+        .set('Authorization', `Bearer ${adminBToken}`)
+        .set('X-Company-Id', companyBId)
+        .expect(200);
+      const body = listed.body as ChartBody;
+      for (const node of flatten(body.roots)) {
+        expect(node.businessUnit).toBeNull();
+      }
+    });
+
+    it('hides another tenant chart and rejects missing organization.read', async () => {
+      await request(app.getHttpServer())
+        .get('/organization/org-chart')
+        .set(headersB())
+        .expect(200);
+
+      const other = await request(app.getHttpServer())
+        .get('/organization/org-chart')
+        .set('Authorization', `Bearer ${adminBToken}`)
+        .set('X-Company-Id', companyAId)
+        .expect(403);
+      expect(JSON.stringify(other.body)).not.toContain(companyAId);
+
+      const password = `OrgPass-${suffix}!`;
+      const noPerms = await prisma.user.create({
+        data: {
+          email: `orgchart-noperm-${suffix}@example.com`,
+          passwordHash: await hasher.hash(password),
+          firstName: 'No',
+          lastName: 'Perms',
+          status: UserStatus.ACTIVE,
+        },
+      });
+      await prisma.companyMembership.create({
+        data: {
+          userId: noPerms.id,
+          companyId: companyAId,
+          status: MembershipStatus.ACTIVE,
+        },
+      });
+      const login = await request(app.getHttpServer())
+        .post('/auth/login')
+        .send({ email: `orgchart-noperm-${suffix}@example.com`, password })
+        .expect(201);
+
+      await request(app.getHttpServer())
+        .get('/organization/org-chart')
+        .set('Authorization', `Bearer ${(login.body as LoginBody).accessToken}`)
+        .set('X-Company-Id', companyAId)
+        .expect(403);
+    });
+
+    it('defaults to ACTIVE employees and includes inactive when requested', async () => {
+      await request(app.getHttpServer())
+        .patch(`/organization/employees/${employeeBId}`)
+        .set(headersB())
+        .send({ status: 'INACTIVE' })
+        .expect(200);
+
+      const activeOnly = await request(app.getHttpServer())
+        .get('/organization/org-chart')
+        .set(headersB())
+        .expect(200);
+      const activeBody = activeOnly.body as ChartBody;
+      expect(activeBody.includeInactive).toBe(false);
+      expect(
+        flatten(activeBody.roots).some(
+          (node) => node.employeeId === employeeBId,
+        ),
+      ).toBe(false);
+
+      const withInactive = await request(app.getHttpServer())
+        .get('/organization/org-chart?includeInactive=true')
+        .set(headersB())
+        .expect(200);
+      const inactiveBody = withInactive.body as ChartBody;
+      expect(inactiveBody.includeInactive).toBe(true);
+      const inactiveNode = flatten(inactiveBody.roots).find(
+        (node) => node.employeeId === employeeBId,
+      );
+      expect(inactiveNode?.status).toBe('INACTIVE');
+      expect(inactiveNode?.businessUnit).toBeNull();
+    });
+  });
 });
