@@ -1,6 +1,7 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Copy, ExternalLink } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
@@ -11,19 +12,37 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useCompanyId } from "@/hooks/use-company-id";
 import { atsApi, atsKeys } from "@/lib/api/ats";
 import { getErrorMessage } from "@/lib/api/errors";
+import { publicJobUrl } from "@/lib/ats/public-job-url";
 import {
   formatDate,
   VACANCY_STATUS_LABELS,
   vacancyStatusVariant,
 } from "@/lib/ats/labels";
+import { notifyError, notifySuccess } from "@/lib/ui/notify";
 
 export function VacancyDetailPageClient() {
   const companyId = useCompanyId();
+  const queryClient = useQueryClient();
   const { id } = useParams<{ id: string }>();
 
   const detailQuery = useQuery({
     queryKey: atsKeys.vacancy(companyId, id),
     queryFn: () => atsApi.getVacancy(id),
+  });
+
+  const publicationMutation = useMutation({
+    mutationFn: (action: "publish" | "unpublish") =>
+      action === "publish"
+        ? atsApi.publishVacancy(id)
+        : atsApi.unpublishVacancy(id),
+    onSuccess: async (_, action) => {
+      await queryClient.invalidateQueries({ queryKey: atsKeys.all(companyId) });
+      notifySuccess(
+        action === "publish" ? "Vacante publicada" : "Vacante despublicada",
+      );
+    },
+    onError: (error) =>
+      notifyError(error, "No se pudo cambiar la publicación."),
   });
 
   if (detailQuery.isLoading) {
@@ -57,6 +76,49 @@ export function VacancyDetailPageClient() {
         description="Detalle de vacante"
         actions={
           <div className="flex flex-wrap gap-2">
+            {vacancy.status === "OPEN" && !vacancy.publishedAt ? (
+              <Button
+                type="button"
+                disabled={publicationMutation.isPending}
+                onClick={() => publicationMutation.mutate("publish")}
+              >
+                Publicar
+              </Button>
+            ) : null}
+            {vacancy.publishedAt ? (
+              <>
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={publicationMutation.isPending}
+                  onClick={() => publicationMutation.mutate("unpublish")}
+                >
+                  Despublicar
+                </Button>
+                {vacancy.publicId ? (
+                  <>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => void copyPublicLink(vacancy.publicId!)}
+                    >
+                      <Copy className="size-4" />
+                      Copiar enlace
+                    </Button>
+                    <Button variant="outline" asChild>
+                      <a
+                        href={`/jobs/${encodeURIComponent(vacancy.publicId)}`}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        <ExternalLink className="size-4" />
+                        Abrir pública
+                      </a>
+                    </Button>
+                  </>
+                ) : null}
+              </>
+            ) : null}
             <Button asChild>
               <Link href={`/ats/pipeline?vacancyId=${vacancy.id}`}>
                 Ver pipeline
@@ -73,6 +135,11 @@ export function VacancyDetailPageClient() {
         <Field label="Estado">
           <Badge variant={vacancyStatusVariant(vacancy.status)}>
             {VACANCY_STATUS_LABELS[vacancy.status]}
+          </Badge>
+        </Field>
+        <Field label="Publicación">
+          <Badge variant={vacancy.publishedAt ? "success" : "secondary"}>
+            {vacancy.publishedAt ? "Publicada" : "No publicada"}
           </Badge>
         </Field>
         <Field label="Cargo">{vacancy.position?.name ?? "—"}</Field>
@@ -96,6 +163,17 @@ export function VacancyDetailPageClient() {
       </section>
     </div>
   );
+}
+
+async function copyPublicLink(publicId: string) {
+  try {
+    await navigator.clipboard.writeText(
+      publicJobUrl(publicId, window.location.origin),
+    );
+    notifySuccess("Enlace público copiado");
+  } catch {
+    notifyError(new Error("Clipboard unavailable"), "No se pudo copiar.");
+  }
 }
 
 function Field({

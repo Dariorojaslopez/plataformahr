@@ -15,15 +15,21 @@ import type {
   MoveApplicationInput,
   Paginated,
   PipelineResponse,
+  PublicJob,
+  PublicJobApplicationInput,
   RejectDecisionInput,
   UpdateCandidateInput,
+  UpdateVacancyApprovalWorkflowInput,
   UpdateVacancyInput,
   UpdateVacancyRequestInput,
   Vacancy,
+  VacancyApprovalWorkflow,
   VacancyRequest,
 } from "@/types/ats";
 
-function toQuery(params: Record<string, string | number | undefined>): string {
+function toQuery(
+  params: Record<string, string | number | boolean | undefined>,
+): string {
   const search = new URLSearchParams();
   for (const [key, value] of Object.entries(params)) {
     if (value === undefined || value === "") continue;
@@ -40,6 +46,7 @@ export const atsApi = {
         status: params.status,
         type: params.type,
         requestedByEmployeeId: params.requestedByEmployeeId,
+        pendingMyApproval: params.pendingMyApproval === true ? true : undefined,
         search: params.search,
         page: params.page,
         limit: params.limit,
@@ -78,6 +85,15 @@ export const atsApi = {
       body,
     }),
 
+  getVacancyApprovalWorkflow: () =>
+    apiRequest<VacancyApprovalWorkflow>("/ats/vacancy-approval-workflow"),
+
+  updateVacancyApprovalWorkflow: (body: UpdateVacancyApprovalWorkflowInput) =>
+    apiRequest<VacancyApprovalWorkflow>("/ats/vacancy-approval-workflow", {
+      method: "PUT",
+      body,
+    }),
+
   listVacancies: (params: ListVacanciesParams = {}) =>
     apiRequest<Paginated<Vacancy>>(
       `/ats/vacancies${toQuery({
@@ -95,6 +111,12 @@ export const atsApi = {
       method: "PATCH",
       body,
     }),
+
+  publishVacancy: (id: string) =>
+    apiRequest<Vacancy>(`/ats/vacancies/${id}/publish`, { method: "POST" }),
+
+  unpublishVacancy: (id: string) =>
+    apiRequest<Vacancy>(`/ats/vacancies/${id}/unpublish`, { method: "POST" }),
 
   getVacancyPipeline: (vacancyId: string) =>
     apiRequest<PipelineResponse>(`/ats/vacancies/${vacancyId}/pipeline`),
@@ -160,12 +182,33 @@ export const atsApi = {
     apiRequest<ApplicationStageHistory[]>(`/ats/applications/${id}/history`),
 };
 
+export const publicJobsApi = {
+  get: (publicId: string) =>
+    apiRequest<PublicJob>(`/public/jobs/${encodeURIComponent(publicId)}`, {
+      auth: false,
+      companyId: null,
+    }),
+
+  apply: (publicId: string, body: PublicJobApplicationInput) =>
+    apiRequest<{ ok: true }>(
+      `/public/jobs/${encodeURIComponent(publicId)}/apply`,
+      {
+        method: "POST",
+        body,
+        auth: false,
+        companyId: null,
+      },
+    ),
+};
+
 export const atsKeys = {
   all: (companyId: string) => ["ats", companyId] as const,
   vacancyRequests: (companyId: string, params: ListVacancyRequestsParams = {}) =>
     [...atsKeys.all(companyId), "vacancy-requests", params] as const,
   vacancyRequest: (companyId: string, id: string) =>
     [...atsKeys.all(companyId), "vacancy-request", id] as const,
+  vacancyApprovalWorkflow: (companyId: string) =>
+    [...atsKeys.all(companyId), "vacancy-approval-workflow"] as const,
   vacancies: (companyId: string, params: ListVacanciesParams = {}) =>
     [...atsKeys.all(companyId), "vacancies", params] as const,
   vacancy: (companyId: string, id: string) =>

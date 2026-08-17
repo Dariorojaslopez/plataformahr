@@ -168,6 +168,7 @@ export function VacanciesPageClient() {
                   <TableHead>Plazas</TableHead>
                   <TableHead>Cubiertas</TableHead>
                   <TableHead>Estado</TableHead>
+                  <TableHead>Publicación</TableHead>
                   <TableHead>Apertura</TableHead>
                   <TableHead className="text-right">Acciones</TableHead>
                 </TableRow>
@@ -205,6 +206,9 @@ export function VacanciesPageClient() {
                     {VACANCY_STATUS_LABELS[vacancy.status]}
                   </Badge>
                 </div>
+                <Badge variant={vacancy.publishedAt ? "success" : "secondary"}>
+                  {vacancy.publishedAt ? "Publicada" : "No publicada"}
+                </Badge>
                 <p className="text-sm text-muted-foreground">
                   {vacancy.filledCount}/{vacancy.headcount} plazas ·{" "}
                   {formatDateShort(vacancy.openedAt)}
@@ -251,6 +255,11 @@ function VacancyRow({
       <TableCell>
         <Badge variant={vacancyStatusVariant(vacancy.status)}>
           {VACANCY_STATUS_LABELS[vacancy.status]}
+        </Badge>
+      </TableCell>
+      <TableCell>
+        <Badge variant={vacancy.publishedAt ? "success" : "secondary"}>
+          {vacancy.publishedAt ? "Publicada" : "No publicada"}
         </Badge>
       </TableCell>
       <TableCell>{formatDateShort(vacancy.openedAt)}</TableCell>

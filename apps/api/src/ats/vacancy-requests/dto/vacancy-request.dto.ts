@@ -11,7 +11,7 @@ import {
   MinLength,
   ValidateIf,
 } from 'class-validator';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import { VacancyRequestStatus, VacancyRequestType } from '@prisma/client';
 import { DEFAULT_LIMIT, DEFAULT_PAGE, MAX_LIMIT } from '../../ats.constants';
 
@@ -118,6 +118,11 @@ export class ListVacancyRequestsQueryDto {
   @IsOptional()
   @IsUUID()
   requestedByEmployeeId?: string;
+
+  @IsOptional()
+  @Transform(({ value }) => value === true || value === 'true' || value === '1')
+  @IsBoolean()
+  pendingMyApproval?: boolean;
 
   @IsOptional()
   @IsString()

@@ -19,6 +19,7 @@ import { FormSelect } from "@/components/organization/form-select";
 import { PaginationControls } from "@/components/organization/pagination-controls";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
 import { Input } from "@/components/ui/input";
@@ -73,6 +74,7 @@ function useRequestFilters() {
     status:
       (searchParams.get("status") as VacancyRequestStatus | null) ?? undefined,
     type: (searchParams.get("type") as VacancyRequestType | null) ?? undefined,
+    pendingMyApproval: searchParams.get("pendingMyApproval") === "true",
     requestedByEmployeeId:
       searchParams.get("requestedByEmployeeId") ?? undefined,
     page: Number(searchParams.get("page") ?? "1") || 1,
@@ -88,6 +90,7 @@ function useRequestFilters() {
     if (merged.requestedByEmployeeId) {
       sp.set("requestedByEmployeeId", merged.requestedByEmployeeId);
     }
+    if (merged.pendingMyApproval) sp.set("pendingMyApproval", "true");
     if (merged.page && merged.page > 1) sp.set("page", String(merged.page));
     const qs = sp.toString();
     router.replace(qs ? `${pathname}?${qs}` : pathname);
@@ -126,6 +129,10 @@ export function VacancyRequestsPageClient() {
   const employeesQuery = useQuery({
     queryKey: orgKeys.employees(companyId, { page: 1, limit: 100 }),
     queryFn: () => organizationApi.listEmployees({ page: 1, limit: 100 }),
+  });
+  const workflowQuery = useQuery({
+    queryKey: atsKeys.vacancyApprovalWorkflow(companyId),
+    queryFn: () => atsApi.getVacancyApprovalWorkflow(),
   });
 
   const positionOptions = useMemo(
@@ -301,6 +308,18 @@ export function VacancyRequestsPageClient() {
           emptyLabel="Todos"
           options={employeeOptions}
         />
+        <label className="flex items-center gap-2 pb-1 text-sm">
+          <Checkbox
+            checked={params.pendingMyApproval === true}
+            onCheckedChange={(checked) =>
+              setParams({
+                pendingMyApproval: checked === true,
+                page: 1,
+              })
+            }
+          />
+          Pendientes de mi aprobación
+        </label>
       </div>
 
       {listQuery.isLoading ? (
@@ -466,6 +485,7 @@ export function VacancyRequestsPageClient() {
           employees={employeeOptions}
           linkedEmployeeExists={linkedEmployeeExists}
           canProxyRequester={canProxyRequester}
+          showGeneralManagerOption={!workflowQuery.data?.enabled}
           submitLabel={editing ? "Guardar cambios" : "Crear solicitud"}
         />
       </EntityEditorShell>

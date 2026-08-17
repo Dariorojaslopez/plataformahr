@@ -9,7 +9,6 @@ import {
   ApprovalStatus,
   OrganizationEntityStatus,
   Prisma,
-  ReportingLineType,
   VacancyApprovalStep,
   VacancyRequestStatus,
   VacancyRequestType,
@@ -27,7 +26,6 @@ import {
   DEFAULT_PAGE,
   MAX_LIMIT,
   PROXY_REQUESTER_ROLE_CODES,
-  TEMP_APPROVER_ROLE_CODE,
   VACANCY_REQUESTER_ERRORS,
 } from '../ats.constants';
 import type {
@@ -37,6 +35,24 @@ import type {
   RejectDecisionDto,
   UpdateVacancyRequestDto,
 } from './dto/vacancy-request.dto';
+import {
+  canDecideStep,
+  currentPendingStep,
+  type ApprovalActor,
+} from './vacancy-approval.helpers';
+import { VacancyApprovalWorkflowService } from './vacancy-approval-workflow.service';
+
+const APPROVAL_INCLUDE = {
+  orderBy: { sequence: 'asc' as const },
+  include: {
+    approverEmployee: {
+      select: { id: true, firstName: true, lastName: true, email: true },
+    },
+    decidedByUser: {
+      select: { id: true, firstName: true, lastName: true },
+    },
+  },
+};
 
 @Injectable()
 export class VacancyRequestsService {
@@ -45,18 +61,23 @@ export class VacancyRequestsService {
     private readonly audit: AuditService,
     private readonly integrity: OrganizationIntegrityService,
     private readonly rbac: RbacService,
+    private readonly workflow: VacancyApprovalWorkflowService,
   ) {}
 
-  async list(companyId: string, query: ListVacancyRequestsQueryDto) {
+  async list(tenant: TenantContext, query: ListVacancyRequestsQueryDto) {
     const page = query.page ?? DEFAULT_PAGE;
     const limit = Math.min(query.limit ?? DEFAULT_LIMIT, MAX_LIMIT);
     const skip = (page - 1) * limit;
     const search = query.search?.trim();
+    const actor = await this.resolveActor(tenant);
 
     const where: Prisma.VacancyRequestWhereInput = {
-      companyId,
+      companyId: tenant.companyId,
       deletedAt: null,
       ...(query.status ? { status: query.status } : {}),
+      ...(query.pendingMyApproval
+        ? { status: VacancyRequestStatus.PENDING_APPROVAL }
+        : {}),
       ...(query.type ? { type: query.type } : {}),
       ...(query.requestedByEmployeeId
         ? { requestedByEmployeeId: query.requestedByEmployeeId }
@@ -80,6 +101,34 @@ export class VacancyRequestsService {
         : {}),
     };
 
+    if (query.pendingMyApproval) {
+      const pending = await this.prisma.vacancyRequest.findMany({
+        where,
+        include: {
+          existingPosition: { select: { id: true, name: true } },
+          requestedArea: { select: { id: true, name: true } },
+          requestedByEmployee: {
+            select: { id: true, firstName: true, lastName: true, email: true },
+          },
+          approvals: APPROVAL_INCLUDE,
+        },
+        orderBy: { createdAt: 'desc' },
+      });
+      const mine = pending.filter((item) =>
+        this.userCanDecideCurrentStep(item.status, item.approvals, actor),
+      );
+      const items = mine
+        .slice(skip, skip + limit)
+        .map((item) => this.withDecisionFlag(item, actor));
+      return {
+        items,
+        page,
+        limit,
+        total: mine.length,
+        totalPages: Math.ceil(mine.length / limit) || 1,
+      };
+    }
+
     const [items, total] = await this.prisma.$transaction([
       this.prisma.vacancyRequest.findMany({
         where,
@@ -89,7 +138,7 @@ export class VacancyRequestsService {
           requestedByEmployee: {
             select: { id: true, firstName: true, lastName: true, email: true },
           },
-          approvals: { orderBy: { sequence: 'asc' } },
+          approvals: APPROVAL_INCLUDE,
         },
         orderBy: { createdAt: 'desc' },
         skip,
@@ -99,7 +148,7 @@ export class VacancyRequestsService {
     ]);
 
     return {
-      items,
+      items: items.map((item) => this.withDecisionFlag(item, actor)),
       page,
       limit,
       total,
@@ -107,9 +156,9 @@ export class VacancyRequestsService {
     };
   }
 
-  async getById(companyId: string, id: string) {
+  async getById(tenant: TenantContext, id: string) {
     const request = await this.prisma.vacancyRequest.findFirst({
-      where: { id, companyId, deletedAt: null },
+      where: { id, companyId: tenant.companyId, deletedAt: null },
       include: {
         existingPosition: true,
         requestedArea: true,
@@ -117,14 +166,15 @@ export class VacancyRequestsService {
         requestedByEmployee: {
           select: { id: true, firstName: true, lastName: true, email: true },
         },
-        approvals: { orderBy: { sequence: 'asc' } },
+        approvals: APPROVAL_INCLUDE,
         vacancy: true,
       },
     });
     if (!request) {
       throw new NotFoundException('Vacancy request not found');
     }
-    return request;
+    const actor = await this.resolveActor(tenant);
+    return this.withDecisionFlag(request, actor);
   }
 
   async create(
@@ -239,48 +289,12 @@ export class VacancyRequestsService {
       generalManagerApprovalRequired: request.generalManagerApprovalRequired,
     });
 
-    const directManager = await this.prisma.employeeReportingLine.findFirst({
-      where: {
-        companyId: tenant.companyId,
-        employeeId: request.requestedByEmployeeId,
-        type: ReportingLineType.DIRECT,
-      },
+    const approvalsData = await this.workflow.buildSnapshot({
+      companyId: tenant.companyId,
+      vacancyRequestId: id,
+      requestedByEmployeeId: request.requestedByEmployeeId,
+      generalManagerApprovalRequired: request.generalManagerApprovalRequired,
     });
-    if (!directManager) {
-      throw new BadRequestException(
-        'Cannot submit: requester has no DIRECT manager reporting line',
-      );
-    }
-
-    const approvalsData: Prisma.VacancyApprovalCreateManyInput[] = [
-      {
-        companyId: tenant.companyId,
-        vacancyRequestId: id,
-        step: VacancyApprovalStep.DIRECT_MANAGER,
-        sequence: 1,
-        approverEmployeeId: directManager.managerEmployeeId,
-        status: ApprovalStatus.PENDING,
-      },
-      {
-        companyId: tenant.companyId,
-        vacancyRequestId: id,
-        step: VacancyApprovalStep.HR,
-        sequence: 2,
-        requiredRoleCode: TEMP_APPROVER_ROLE_CODE,
-        status: ApprovalStatus.PENDING,
-      },
-    ];
-
-    if (request.generalManagerApprovalRequired) {
-      approvalsData.push({
-        companyId: tenant.companyId,
-        vacancyRequestId: id,
-        step: VacancyApprovalStep.GENERAL_MANAGER,
-        sequence: 3,
-        requiredRoleCode: TEMP_APPROVER_ROLE_CODE,
-        status: ApprovalStatus.PENDING,
-      });
-    }
 
     const result = await this.prisma.$transaction(async (tx) => {
       const transition = await tx.vacancyRequest.updateMany({
@@ -303,7 +317,7 @@ export class VacancyRequestsService {
 
       return tx.vacancyRequest.findFirstOrThrow({
         where: { id, companyId: tenant.companyId },
-        include: { approvals: { orderBy: { sequence: 'asc' } } },
+        include: { approvals: APPROVAL_INCLUDE },
       });
     });
 
@@ -313,10 +327,18 @@ export class VacancyRequestsService {
       entityId: id,
       company: { connect: { id: tenant.companyId } },
       user: { connect: { id: tenant.userId } },
-      metadata: { id, status: VacancyRequestStatus.PENDING_APPROVAL },
+      metadata: {
+        id,
+        status: VacancyRequestStatus.PENDING_APPROVAL,
+        steps: approvalsData.map((step) => ({
+          sequence: step.sequence,
+          step: step.step,
+        })),
+      },
     });
 
-    return result;
+    const actor = await this.resolveActor(tenant);
+    return this.withDecisionFlag(result, actor);
   }
 
   async approve(tenant: TenantContext, id: string, dto: ApprovalDecisionDto) {
@@ -340,20 +362,19 @@ export class VacancyRequestsService {
         deletedAt: null,
         status: VacancyRequestStatus.PENDING_APPROVAL,
       },
-      include: { approvals: { orderBy: { sequence: 'asc' } } },
+      include: { approvals: APPROVAL_INCLUDE },
     });
     if (!request) {
       throw new NotFoundException('Vacancy request not found or not pending');
     }
 
-    const current = request.approvals.find(
-      (step) => step.status === ApprovalStatus.PENDING,
-    );
+    const current = currentPendingStep(request.approvals);
     if (!current) {
       throw new ConflictException('No pending approval step');
     }
 
-    await this.assertCanDecideStep(tenant, current);
+    const actor = await this.resolveActor(tenant);
+    this.assertCanDecideStep(current, actor);
 
     if (decision === 'reject') {
       const rejected = await this.prisma.$transaction(async (tx) => {
@@ -389,9 +410,19 @@ export class VacancyRequestsService {
           throw new ConflictException('Vacancy request is no longer pending');
         }
 
+        await tx.vacancyApproval.updateMany({
+          where: {
+            vacancyRequestId: id,
+            companyId: tenant.companyId,
+            status: ApprovalStatus.PENDING,
+            sequence: { gt: current.sequence },
+          },
+          data: { status: ApprovalStatus.SKIPPED },
+        });
+
         return tx.vacancyRequest.findFirstOrThrow({
           where: { id, companyId: tenant.companyId },
-          include: { approvals: { orderBy: { sequence: 'asc' } } },
+          include: { approvals: APPROVAL_INCLUDE },
         });
       });
 
@@ -404,11 +435,13 @@ export class VacancyRequestsService {
         metadata: {
           id,
           step: current.step,
+          sequence: current.sequence,
           status: VacancyRequestStatus.REJECTED,
+          comment: comment?.trim() ?? null,
         },
       });
 
-      return rejected;
+      return this.withDecisionFlag(rejected, actor);
     }
 
     const approved = await this.prisma.$transaction(async (tx) => {
@@ -441,7 +474,7 @@ export class VacancyRequestsService {
         return tx.vacancyRequest.findFirstOrThrow({
           where: { id, companyId: tenant.companyId },
           include: {
-            approvals: { orderBy: { sequence: 'asc' } },
+            approvals: APPROVAL_INCLUDE,
             vacancy: true,
           },
         });
@@ -467,7 +500,7 @@ export class VacancyRequestsService {
       return tx.vacancyRequest.findFirstOrThrow({
         where: { id, companyId: tenant.companyId },
         include: {
-          approvals: { orderBy: { sequence: 'asc' } },
+          approvals: APPROVAL_INCLUDE,
           vacancy: true,
         },
       });
@@ -486,6 +519,7 @@ export class VacancyRequestsService {
       metadata: {
         id,
         step: current.step,
+        sequence: current.sequence,
         status: approved.status,
       },
     });
@@ -504,7 +538,7 @@ export class VacancyRequestsService {
       });
     }
 
-    return approved;
+    return this.withDecisionFlag(approved, actor);
   }
 
   private async createVacancyFromApprovedRequest(
@@ -624,48 +658,77 @@ export class VacancyRequestsService {
     }
   }
 
-  private async assertCanDecideStep(
-    tenant: TenantContext,
+  private assertCanDecideStep(
     step: {
       step: VacancyApprovalStep;
       approverEmployeeId: string | null;
       requiredRoleCode: string | null;
     },
-  ): Promise<void> {
-    if (step.step === VacancyApprovalStep.DIRECT_MANAGER) {
-      if (!step.approverEmployeeId) {
-        throw new ForbiddenException(
-          'Direct manager approver is not configured',
-        );
-      }
-      const employee = await this.prisma.employee.findFirst({
+    actor: ApprovalActor,
+  ): void {
+    if (canDecideStep(step, actor)) {
+      return;
+    }
+    if (
+      step.step === VacancyApprovalStep.DIRECT_MANAGER ||
+      step.step === VacancyApprovalStep.SPECIFIC_EMPLOYEE
+    ) {
+      throw new ForbiddenException(
+        'Only the assigned approver can decide this step',
+      );
+    }
+    if (!step.requiredRoleCode) {
+      throw new ForbiddenException('Required role is not configured');
+    }
+    throw new ForbiddenException(
+      `Membership must have role ${step.requiredRoleCode} for this step`,
+    );
+  }
+
+  private async resolveActor(tenant: TenantContext): Promise<ApprovalActor> {
+    const [roleCodes, employee] = await Promise.all([
+      this.rbac.getRoleCodesForMembership(tenant.membershipId),
+      this.prisma.employee.findFirst({
         where: {
-          id: step.approverEmployeeId,
           companyId: tenant.companyId,
           userId: tenant.userId,
           deletedAt: null,
         },
-      });
-      if (!employee) {
-        throw new ForbiddenException(
-          'Only the assigned direct manager can approve this step',
-        );
-      }
-      return;
-    }
+        select: { id: true },
+      }),
+    ]);
+    return {
+      roleCodes,
+      userEmployeeId: employee?.id ?? null,
+    };
+  }
 
-    if (!step.requiredRoleCode) {
-      throw new ForbiddenException('Required role is not configured');
+  private userCanDecideCurrentStep(
+    status: VacancyRequestStatus,
+    approvals: Parameters<typeof currentPendingStep>[0],
+    actor: ApprovalActor,
+  ): boolean {
+    if (status !== VacancyRequestStatus.PENDING_APPROVAL) {
+      return false;
     }
-    const hasRole = await this.rbac.membershipHasRoleCode(
-      tenant.membershipId,
-      step.requiredRoleCode,
-    );
-    if (!hasRole) {
-      throw new ForbiddenException(
-        `Membership must have role ${step.requiredRoleCode} for this step`,
-      );
-    }
+    const current = currentPendingStep(approvals);
+    return current !== null && canDecideStep(current, actor);
+  }
+
+  private withDecisionFlag<
+    T extends {
+      status: VacancyRequestStatus;
+      approvals: Parameters<typeof currentPendingStep>[0];
+    },
+  >(request: T, actor: ApprovalActor): T & { currentUserCanDecide: boolean } {
+    return {
+      ...request,
+      currentUserCanDecide: this.userCanDecideCurrentStep(
+        request.status,
+        request.approvals,
+        actor,
+      ),
+    };
   }
 
   private async resolveRequesterEmployeeId(

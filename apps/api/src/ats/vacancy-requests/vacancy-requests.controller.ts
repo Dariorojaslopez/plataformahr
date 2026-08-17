@@ -37,7 +37,7 @@ export class VacancyRequestsController {
     @CurrentTenant() tenant: TenantContext,
     @Query() query: ListVacancyRequestsQueryDto,
   ) {
-    return this.vacancyRequestsService.list(tenant.companyId, query);
+    return this.vacancyRequestsService.list(tenant, query);
   }
 
   @Get(':id')
@@ -46,7 +46,7 @@ export class VacancyRequestsController {
     @CurrentTenant() tenant: TenantContext,
     @Param('id', ParseUUIDPipe) id: string,
   ) {
-    return this.vacancyRequestsService.getById(tenant.companyId, id);
+    return this.vacancyRequestsService.getById(tenant, id);
   }
 
   @Post()

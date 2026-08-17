@@ -5,6 +5,7 @@ UI de Vacancy Requests, Vacancies, Candidates, Applications y Pipeline sobre la 
 ## Alcance
 
 - Solicitudes de vacante: listado, create/edit (DRAFT), submit, approve/reject, detalle + flujo
+- Configuración ATS: **Aprobación de solicitudes** (`/ats/settings/approvals`) — pasos secuenciales por compañía
 - Vacantes: listado, detalle, transiciones de estado (PATCH)
 - Candidatos: listado, create/edit, detalle, postulación a vacante OPEN
 - Aplicaciones: detalle + historial de etapas
@@ -45,10 +46,11 @@ Drag & drop (`@dnd-kit`) solo permite destinos válidos. Menú **Mover a…** si
 ## Labels
 
 Centralizados en `apps/web/src/lib/ats/labels.ts` (stages, statuses, approval steps).
+Timeline de solicitudes: `apps/web/src/lib/ats/approval-timeline.ts` (nombres, no UUID; pendiente vs esperando).
 
 ## RBAC limitation
 
-No hay endpoint de permissions efectivos. Acciones visibles para el flujo; backend responde 403 y la UI muestra mensaje claro.
+No hay endpoint de permissions efectivos para ocultar navegación. En **detalle de solicitud**, Aprobar/Rechazar se muestran solo si la API envía `currentUserCanDecide: true` (paso actual + actor concreto). El listado puede filtrar `pendingMyApproval=true`. El backend sigue siendo autoritativo.
 
 ## Responsive
 

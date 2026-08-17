@@ -140,6 +140,8 @@ model Company {
   reportingLines                    EmployeeReportingLine[]
   vacancyRequests                   VacancyRequest[]
   vacancyApprovals                  VacancyApproval[]
+  vacancyApprovalWorkflow           VacancyApprovalWorkflow?
+  vacancyApprovalWorkflowSteps      VacancyApprovalWorkflowStep[]
   vacancies                         Vacancy[]
   candidates                        Candidate[]
   applications                      Application[]
@@ -559,6 +561,7 @@ model Employee {
   managedReports                    EmployeeReportingLine[]        @relation("ManagerReports")
   vacancyRequestsRequested          VacancyRequest[]               @relation("VacancyRequestedBy")
   vacancyApprovals                  VacancyApproval[]              @relation("VacancyApprover")
+  vacancyApprovalWorkflowSteps      VacancyApprovalWorkflowStep[]  @relation("WorkflowStepApprover")
   interviewAssignments              InterviewInterviewer[]
   hiring                            Hiring?
   performanceParticipations         PerformanceCycleParticipant[]
@@ -622,6 +625,14 @@ enum VacancyApprovalStep {
   DIRECT_MANAGER
   HR
   GENERAL_MANAGER
+  ROLE
+  SPECIFIC_EMPLOYEE
+}
+
+enum VacancyApproverType {
+  MANAGER_OF_REQUESTER
+  SPECIFIC_EMPLOYEE
+  ROLE
 }
 
 enum ApprovalStatus {
@@ -680,6 +691,7 @@ model VacancyApproval {
   vacancyRequestId   String              @db.Uuid
   step               VacancyApprovalStep
   sequence           Int
+  label              String?
   approverEmployeeId String?             @db.Uuid
   requiredRoleCode   String?
   status             ApprovalStatus      @default(PENDING)
@@ -694,12 +706,49 @@ model VacancyApproval {
   approverEmployee Employee?      @relation("VacancyApprover", fields: [approverEmployeeId], references: [id], onDelete: Restrict)
   decidedByUser    User?          @relation(fields: [decidedByUserId], references: [id], onDelete: SetNull)
 
-  @@unique([vacancyRequestId, step])
+  @@unique([vacancyRequestId, sequence])
   @@index([companyId])
   @@index([vacancyRequestId])
   @@index([status])
   @@index([approverEmployeeId])
   @@map("vacancy_approvals")
+}
+
+/// Per-company configuration for vacancy-request approval steps.
+/// `enabled = false` (or missing row) keeps the legacy hardcoded flow.
+model VacancyApprovalWorkflow {
+  id        String   @id @default(uuid()) @db.Uuid
+  companyId String   @unique @db.Uuid
+  enabled   Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  company Company                       @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  steps   VacancyApprovalWorkflowStep[]
+
+  @@map("vacancy_approval_workflows")
+}
+
+model VacancyApprovalWorkflowStep {
+  id                 String              @id @default(uuid()) @db.Uuid
+  companyId          String              @db.Uuid
+  workflowId         String              @db.Uuid
+  sequence           Int
+  approverType       VacancyApproverType
+  label              String?
+  specificEmployeeId String?             @db.Uuid
+  requiredRoleCode   String?
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+
+  company          Company                 @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  workflow         VacancyApprovalWorkflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  specificEmployee Employee?               @relation("WorkflowStepApprover", fields: [specificEmployeeId], references: [id], onDelete: Restrict)
+
+  @@unique([workflowId, sequence])
+  @@index([companyId])
+  @@index([specificEmployeeId])
+  @@map("vacancy_approval_workflow_steps")
 }
 
 model Vacancy {
@@ -713,6 +762,8 @@ model Vacancy {
   headcount        Int
   filledCount      Int           @default(0)
   status           VacancyStatus @default(OPEN)
+  publicId         String?       @unique
+  publishedAt      DateTime?
   openedAt         DateTime      @default(now())
   closedAt         DateTime?
   createdAt        DateTime      @default(now())
@@ -823,13 +874,13 @@ model ApplicationStageHistory {
   applicationId   String            @db.Uuid
   fromStage       ApplicationStage?
   toStage         ApplicationStage
-  changedByUserId String            @db.Uuid
+  changedByUserId String?           @db.Uuid
   comment         String?
   createdAt       DateTime          @default(now())
 
   company     Company     @relation(fields: [companyId], references: [id], onDelete: Restrict)
   application Application @relation(fields: [applicationId], references: [id], onDelete: Restrict)
-  changedBy   User        @relation(fields: [changedByUserId], references: [id], onDelete: Restrict)
+  changedBy   User?       @relation(fields: [changedByUserId], references: [id], onDelete: Restrict)
 
   @@index([companyId])
   @@index([applicationId])

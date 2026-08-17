@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { AuthModule } from '../auth/auth.module';
 import { AuditModule } from '../core/audit/audit.module';
+import { CompaniesModule } from '../core/companies/companies.module';
 import { RbacModule } from '../core/rbac/rbac.module';
 import { OrganizationIntegrityService } from '../organization/organization-integrity.service';
 import { PermissionGuard } from '../rbac/guards/permission.guard';
@@ -21,13 +22,18 @@ import { HiringService } from './hiring/hiring.service';
 import { PipelineController } from './pipeline/pipeline.controller';
 import { VacancyRequestsController } from './vacancy-requests/vacancy-requests.controller';
 import { VacancyRequestsService } from './vacancy-requests/vacancy-requests.service';
+import { VacancyApprovalWorkflowController } from './vacancy-requests/vacancy-approval-workflow.controller';
+import { VacancyApprovalWorkflowService } from './vacancy-requests/vacancy-approval-workflow.service';
 import { VacanciesController } from './vacancies/vacancies.controller';
 import { VacanciesService } from './vacancies/vacancies.service';
+import { PublicJobsController } from './public-jobs/public-jobs.controller';
+import { PublicJobsService } from './public-jobs/public-jobs.service';
 
 @Module({
-  imports: [AuthModule, RbacModule, AuditModule],
+  imports: [AuthModule, RbacModule, AuditModule, CompaniesModule],
   controllers: [
     VacancyRequestsController,
+    VacancyApprovalWorkflowController,
     VacanciesController,
     PipelineController,
     CandidatesController,
@@ -38,18 +44,21 @@ import { VacanciesService } from './vacancies/vacancies.service';
     InterviewsController,
     InterviewFormTemplatesController,
     OffersController,
+    PublicJobsController,
   ],
   providers: [
     CompanyContextGuard,
     PermissionGuard,
     OrganizationIntegrityService,
     VacancyRequestsService,
+    VacancyApprovalWorkflowService,
     VacanciesService,
     CandidatesService,
     ApplicationsService,
     InterviewsService,
     OffersService,
     HiringService,
+    PublicJobsService,
   ],
 })
 export class AtsModule {}

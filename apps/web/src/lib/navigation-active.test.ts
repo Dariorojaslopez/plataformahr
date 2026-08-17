@@ -104,6 +104,7 @@ describe("resolveActiveNavHref", () => {
       "/ats/vacancy-requests/req-1",
       "/ats/interviews/int-1",
       "/ats/interview-templates",
+      "/ats/settings/approvals",
       "/performance/cycles/c-1",
       "/performance/results/r-1",
       "/performance/my-results/r-1",

@@ -31,8 +31,6 @@ import { atsApi, atsKeys } from "@/lib/api/ats";
 import { ApiError, getErrorMessage } from "@/lib/api/errors";
 import { organizationApi, orgKeys } from "@/lib/api/organization";
 import {
-  APPROVAL_STATUS_LABELS,
-  APPROVAL_STEP_LABELS,
   approvalStatusVariant,
   formatDate,
   formatEmployeeName,
@@ -40,6 +38,10 @@ import {
   VACANCY_REQUEST_TYPE_LABELS,
   vacancyRequestStatusVariant,
 } from "@/lib/ats/labels";
+import {
+  buildApprovalTimeline,
+  canShowVacancyDecisionActions,
+} from "@/lib/ats/approval-timeline";
 import {
   describeVacancyRequesterField,
   findLinkedEmployeeId,
@@ -86,24 +88,10 @@ export function VacancyRequestDetailPageClient() {
     queryKey: orgKeys.employees(companyId, { page: 1, limit: 100 }),
     queryFn: () => organizationApi.listEmployees({ page: 1, limit: 100 }),
   });
-
-  const employeeById = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const emp of employeesQuery.data?.items ?? []) {
-      map.set(emp.id, `${emp.firstName} ${emp.lastName}`.trim());
-    }
-    return map;
-  }, [employeesQuery.data]);
-
-  const employeeByUserId = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const emp of employeesQuery.data?.items ?? []) {
-      if (emp.userId) {
-        map.set(emp.userId, `${emp.firstName} ${emp.lastName}`.trim());
-      }
-    }
-    return map;
-  }, [employeesQuery.data]);
+  const workflowQuery = useQuery({
+    queryKey: atsKeys.vacancyApprovalWorkflow(companyId),
+    queryFn: () => atsApi.getVacancyApprovalWorkflow(),
+  });
 
   const linkedEmployeeExists = Boolean(
     findLinkedEmployeeId(employeesQuery.data?.items ?? [], user?.id),
@@ -116,8 +104,7 @@ export function VacancyRequestDetailPageClient() {
 
   const request = detailQuery.data;
   const approvals = useMemo(
-    () =>
-      [...(request?.approvals ?? [])].sort((a, b) => a.sequence - b.sequence),
+    () => buildApprovalTimeline(request?.approvals ?? []),
     [request?.approvals],
   );
 
@@ -245,7 +232,7 @@ export function VacancyRequestDetailPageClient() {
                 </Button>
               </>
             ) : null}
-            {request.status === "PENDING_APPROVAL" ? (
+            {canShowVacancyDecisionActions(request) ? (
               <>
                 <Button type="button" onClick={() => setApproveOpen(true)}>
                   Aprobar
@@ -308,7 +295,7 @@ export function VacancyRequestDetailPageClient() {
       </section>
 
       <section className="space-y-4">
-        <h2 className="text-lg font-semibold">Flujo de aprobación</h2>
+        <h2 className="text-lg font-semibold">Aprobaciones</h2>
         {approvals.length === 0 ? (
           <p className="text-sm text-muted-foreground">
             Aún no hay pasos de aprobación. Envía la solicitud para iniciar el
@@ -325,41 +312,24 @@ export function VacancyRequestDetailPageClient() {
                   />
                 ) : null}
                 <span className="mt-1 flex size-6 shrink-0 items-center justify-center rounded-full border border-border bg-card text-xs">
-                  {step.sequence}
+                  {step.marker}
                 </span>
                 <div className="min-w-0 flex-1 space-y-1">
                   <div className="flex flex-wrap items-center gap-2">
-                    <p className="font-medium">
-                      {APPROVAL_STEP_LABELS[step.step]}
-                    </p>
+                    <p className="font-medium">{step.title}</p>
                     <Badge variant={approvalStatusVariant(step.status)}>
-                      {APPROVAL_STATUS_LABELS[step.status]}
+                      {step.statusLabel}
                     </Badge>
                   </div>
-                  {step.approverEmployeeId ? (
+                  {step.actor ? (
                     <p className="text-xs text-muted-foreground">
-                      Aprobador:{" "}
-                      {employeeById.get(step.approverEmployeeId) ??
-                        "Colaborador asignado"}
-                    </p>
-                  ) : null}
-                  {step.requiredRoleCode ? (
-                    <p className="text-xs text-muted-foreground">
-                      Rol requerido:{" "}
-                      {step.requiredRoleCode === "CLIENT_ADMIN"
-                        ? "Administrador de compañía"
-                        : step.requiredRoleCode}
+                      Aprobador: {step.actor}
                     </p>
                   ) : null}
                   {step.decidedAt ? (
                     <p className="text-xs text-muted-foreground">
                       Decidido: {formatDate(step.decidedAt)}
-                      {step.decidedByUserId
-                        ? ` · ${
-                            employeeByUserId.get(step.decidedByUserId) ??
-                            "Usuario del tenant"
-                          }`
-                        : ""}
+                      {step.decidedBy ? ` · ${step.decidedBy}` : ""}
                     </p>
                   ) : null}
                   {step.comment ? (
@@ -412,6 +382,7 @@ export function VacancyRequestDetailPageClient() {
           }))}
           linkedEmployeeExists={linkedEmployeeExists}
           canProxyRequester={canProxyRequester}
+          showGeneralManagerOption={!workflowQuery.data?.enabled}
           submitLabel="Guardar cambios"
         />
       </EntityEditorShell>

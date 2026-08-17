@@ -114,6 +114,7 @@ type VacancyRequestFormProps = {
   employees: Option[];
   linkedEmployeeExists: boolean;
   canProxyRequester: boolean;
+  showGeneralManagerOption?: boolean;
   submitLabel?: string;
 };
 
@@ -130,6 +131,7 @@ export function VacancyRequestForm({
   employees,
   linkedEmployeeExists,
   canProxyRequester,
+  showGeneralManagerOption = true,
   submitLabel = "Guardar",
 }: VacancyRequestFormProps) {
   const requesterField = describeVacancyRequesterField({
@@ -281,18 +283,20 @@ export function VacancyRequestForm({
         />
       </div>
 
-      <label className="flex items-center gap-2 text-sm">
-        <Checkbox
-          checked={values.generalManagerApprovalRequired}
-          onCheckedChange={(checked) =>
-            onChange({
-              ...values,
-              generalManagerApprovalRequired: checked === true,
-            })
-          }
-        />
-        Requiere aprobación de Gerencia General
-      </label>
+      {showGeneralManagerOption ? (
+        <label className="flex items-center gap-2 text-sm">
+          <Checkbox
+            checked={values.generalManagerApprovalRequired}
+            onCheckedChange={(checked) =>
+              onChange({
+                ...values,
+                generalManagerApprovalRequired: checked === true,
+              })
+            }
+          />
+          Requiere aprobación de Gerencia General
+        </label>
+      ) : null}
 
       {error ? (
         <p className="text-sm text-destructive" role="alert">

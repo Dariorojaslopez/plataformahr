@@ -93,6 +93,20 @@ describe("VacancyRequestForm requester field", () => {
     ).toBeInTheDocument();
   });
 
+  it("hides the general manager option when a configurable workflow is enabled", () => {
+    render(
+      <VacancyRequestForm
+        {...baseProps}
+        linkedEmployeeExists
+        canProxyRequester
+        showGeneralManagerOption={false}
+      />,
+    );
+    expect(
+      screen.queryByText("Requiere aprobación de Gerencia General"),
+    ).not.toBeInTheDocument();
+  });
+
   it("blocks submit and explains when there is no linked employee and no proxy", () => {
     render(
       <VacancyRequestForm

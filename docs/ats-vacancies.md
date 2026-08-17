@@ -5,7 +5,8 @@
 This phase covers:
 
 - `VacancyRequest` (DRAFT → approval workflow → APPROVED/REJECTED)
-- `VacancyApproval` steps
+- `VacancyApproval` snapshot steps
+- Per-company `VacancyApprovalWorkflow` configuration
 - Automatic `Vacancy` creation on full approval
 - Basic vacancy status management
 
@@ -24,15 +25,43 @@ Types:
 
 ### Approval workflow
 
-On submit (`DRAFT` → `PENDING_APPROVAL`):
+Configuration (`VacancyApprovalWorkflow` + `VacancyApprovalWorkflowStep`) is per company.
 
-1. `DIRECT_MANAGER` — resolved from `EmployeeReportingLine` type `DIRECT`
-2. `HR` — temporary `requiredRoleCode = CLIENT_ADMIN`
-3. `GENERAL_MANAGER` — only if `generalManagerApprovalRequired`; temporary `requiredRoleCode = CLIENT_ADMIN`
+A snapshot (`VacancyApproval` rows) is created **only on submit** (`DRAFT` → `PENDING_APPROVAL`). Changing the company workflow later does **not** rewrite in-flight or historical requests.
 
-Submit fails if the requester has no DIRECT manager.
+Supported approver types (deterministic with the current domain):
 
-Steps must be decided in sequence. Only the current `PENDING` step can be approved/rejected.
+| Type | Resolution |
+|------|------------|
+| `MANAGER_OF_REQUESTER` | `requestedByEmployeeId` → `EmployeeReportingLine` `DIRECT` → manager `Employee`. The manager must have `userId` and an **active** membership in the company. Otherwise submit fails with an explicit 400. |
+| `SPECIFIC_EMPLOYEE` | Employee in the same company, with `userId` and active membership. Cross-tenant IDs return `Employee not found`. |
+| `ROLE` | Existing **COMPANY** role code (e.g. `CLIENT_ADMIN`). Anyone with that membership role and `ats.vacancy.approve` can decide the current step. |
+
+There is no separate “HR owner” entity. The previous HR step used role `CLIENT_ADMIN`; configurable ROLE steps can express that without inventing a new RRHH source.
+
+Not implemented: permission expressions, parallel steps, SLA, delegation, a generic BPM engine.
+
+### Legacy fallback
+
+Companies **without** a workflow row, or with `enabled = false`, keep the previous hardcoded path:
+
+1. `DIRECT_MANAGER`
+2. `HR` (`requiredRoleCode = CLIENT_ADMIN`)
+3. `GENERAL_MANAGER` only if `generalManagerApprovalRequired` on that request
+
+Submit still requires a DIRECT manager in the legacy path. `generalManagerApprovalRequired` is ignored once a configurable workflow is enabled.
+
+### Sequential decisions
+
+Only the first `PENDING` step by `sequence` can be approved or rejected.
+
+- Approve a step → the next `PENDING` step becomes current.
+- Approve the last step → request `APPROVED` and a `Vacancy` is created.
+- Reject a step → request `REJECTED`, comment persisted on the step, later steps `SKIPPED`.
+
+### Authorization
+
+`ats.vacancy.approve` is required **and** the caller must be the concrete actor of the current step (assigned employee, or membership role). There is no silent admin override. `CLIENT_ADMIN` cannot approve a manager/specific-employee step unless they are that employee.
 
 ### Vacancy
 
@@ -65,16 +94,16 @@ Do not increment twice.
 
 | Permission | Purpose |
 |------------|---------|
-| `ats.vacancy.read` | List/get requests and vacancies |
+| `ats.vacancy.read` | List/get requests, vacancies, and the approval workflow |
 | `ats.vacancy.request` | Create/update/submit drafts |
 | `ats.vacancy.approve` | Approve/reject (plus step eligibility) |
-| `ats.vacancy.manage` | Patch vacancy description/status |
+| `ats.vacancy.manage` | Patch vacancy description/status; **update** the approval workflow |
 
-`ats.vacancy.approve` alone is not enough: DIRECT_MANAGER must match the linked employee; HR/GM require the configured role.
+`ats.vacancy.approve` alone is not enough: employee-bound steps must match the linked employee; role steps require the snapshot `requiredRoleCode`.
 
-## Temporary HR / General Manager decision
+## Notifications
 
-Until dedicated approver configuration exists, HR and GENERAL_MANAGER steps authorize via membership role `CLIENT_ADMIN`. They remain separate workflow steps so configuration can replace role resolution later without changing the model.
+There is no email/queue notification system in this codebase. Future work can hook after submit (notify first approver) and after a step is approved (notify the next pending actor). Do not add a mail engine here.
 
 ## Concurrency / idempotency
 
@@ -82,6 +111,7 @@ Until dedicated approver configuration exists, HR and GENERAL_MANAGER steps auth
 - Step decisions use conditional `updateMany` on `status = PENDING`
 - Finalization uses conditional transition to `APPROVED`
 - Unique `vacancyRequestId` on `Vacancy` blocks duplicate vacancy creation
+- Unique `(vacancyRequestId, sequence)` on `VacancyApproval` (step type may repeat)
 
 ## Manual SQL
 
@@ -93,13 +123,39 @@ Migration `ats_vacancy_core_checks` adds CHECKs for:
 - type/field coherence for EXISTING vs NEW
 - approval `sequence >= 1`
 
+Migration `vacancy_approval_workflows` is additive: new workflow tables, `label` on snapshots, unique `(vacancyRequestId, sequence)`, and CHECKs on workflow step fields. Existing approval rows are not rewritten.
+
 ## Endpoints
 
 | Method | Path | Permission |
 |--------|------|------------|
 | GET/POST/PATCH | `/ats/vacancy-requests` | read / request |
+| GET | `/ats/vacancy-requests?pendingMyApproval=true` | read (filtered to current actor) |
 | POST | `/ats/vacancy-requests/:id/submit` | request |
 | POST | `/ats/vacancy-requests/:id/approve\|reject` | approve |
+| GET | `/ats/vacancy-approval-workflow` | read |
+| PUT | `/ats/vacancy-approval-workflow` | manage |
 | GET/PATCH | `/ats/vacancies` | read / manage |
+| POST | `/ats/vacancies/:id/publish` | manage |
+| POST | `/ats/vacancies/:id/unpublish` | manage |
+| GET | `/public/jobs/:publicId` | Public |
+| POST | `/public/jobs/:publicId/apply` | Public (rate limited) |
 
-All require JWT + validated `X-Company-Id` tenant context.
+Only `/ats/...` routes require JWT + validated `X-Company-Id`. Public job
+routes derive the company exclusively from the vacancy `publicId` and reject
+unknown body fields such as `companyId`.
+
+## Public vacancy publication
+
+Approval and publication are separate. A `Vacancy` is still created only after
+its `VacancyRequest` is fully approved. An OPEN vacancy becomes public only
+after the explicit publish action sets `publishedAt`; its random `publicId` is
+created once and remains stable across unpublish/republish cycles. PAUSED,
+CLOSED, CANCELLED, deleted, inactive-company, and unpublished vacancies return
+the same public not-available response.
+
+Public apply reuses Candidate by `(companyId, email)`, creates Application and
+initial history transactionally, and relies on the existing
+`(candidateId, vacancyId)` unique key for concurrent duplicate protection.
+Unpublishing never removes ATS history. CAPTCHA is a possible future anti-spam
+layer; this phase uses strict DTO validation and endpoint throttling.

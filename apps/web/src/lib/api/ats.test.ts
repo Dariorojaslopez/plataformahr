@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { atsApi, atsKeys } from "@/lib/api/ats";
+import { atsApi, atsKeys, publicJobsApi } from "@/lib/api/ats";
 
 vi.mock("@/lib/api/client", () => ({
   apiRequest: vi.fn(),
@@ -21,9 +21,10 @@ describe("atsApi", () => {
       type: "EXISTING_POSITION",
       search: "dev",
       page: 2,
+      pendingMyApproval: true,
     });
     expect(mockedRequest).toHaveBeenCalledWith(
-      "/ats/vacancy-requests?status=DRAFT&type=EXISTING_POSITION&search=dev&page=2",
+      "/ats/vacancy-requests?status=DRAFT&type=EXISTING_POSITION&pendingMyApproval=true&search=dev&page=2",
     );
   });
 
@@ -48,6 +49,29 @@ describe("atsApi", () => {
     );
   });
 
+  it("reads and updates the vacancy approval workflow", async () => {
+    await atsApi.getVacancyApprovalWorkflow();
+    await atsApi.updateVacancyApprovalWorkflow({
+      enabled: true,
+      steps: [{ approverType: "ROLE", requiredRoleCode: "CLIENT_ADMIN" }],
+    });
+    expect(mockedRequest).toHaveBeenNthCalledWith(
+      1,
+      "/ats/vacancy-approval-workflow",
+    );
+    expect(mockedRequest).toHaveBeenNthCalledWith(
+      2,
+      "/ats/vacancy-approval-workflow",
+      {
+        method: "PUT",
+        body: {
+          enabled: true,
+          steps: [{ approverType: "ROLE", requiredRoleCode: "CLIENT_ADMIN" }],
+        },
+      },
+    );
+  });
+
   it("lists vacancies and patches status", async () => {
     await atsApi.listVacancies({ status: "OPEN", search: "eng" });
     await atsApi.updateVacancy("v1", { status: "PAUSED" });
@@ -58,6 +82,43 @@ describe("atsApi", () => {
       method: "PATCH",
       body: { status: "PAUSED" },
     });
+  });
+
+  it("publishes vacancies and calls public endpoints without tenant auth", async () => {
+    await atsApi.publishVacancy("v1");
+    await atsApi.unpublishVacancy("v1");
+    await publicJobsApi.get("public-1");
+    await publicJobsApi.apply("public-1", {
+      firstName: "Ana",
+      lastName: "Ruiz",
+      email: "ana@example.com",
+      phone: "3001234567",
+      documentType: "CC",
+      documentNumber: "123",
+    });
+    expect(mockedRequest).toHaveBeenNthCalledWith(
+      1,
+      "/ats/vacancies/v1/publish",
+      { method: "POST" },
+    );
+    expect(mockedRequest).toHaveBeenNthCalledWith(
+      2,
+      "/ats/vacancies/v1/unpublish",
+      { method: "POST" },
+    );
+    expect(mockedRequest).toHaveBeenNthCalledWith(3, "/public/jobs/public-1", {
+      auth: false,
+      companyId: null,
+    });
+    expect(mockedRequest).toHaveBeenNthCalledWith(
+      4,
+      "/public/jobs/public-1/apply",
+      expect.objectContaining({
+        method: "POST",
+        auth: false,
+        companyId: null,
+      }),
+    );
   });
 
   it("creates candidate and application", async () => {

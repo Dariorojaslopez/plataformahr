@@ -4,6 +4,7 @@ import type {
   ApprovalStatus,
   CandidateStatus,
   VacancyApprovalStep,
+  VacancyApproverType,
   VacancyRequestStatus,
   VacancyRequestType,
   VacancyStatus,
@@ -54,6 +55,22 @@ export const APPROVAL_STEP_LABELS: Record<VacancyApprovalStep, string> = {
   DIRECT_MANAGER: "Líder directo",
   HR: "RRHH",
   GENERAL_MANAGER: "Gerencia General",
+  ROLE: "Rol",
+  SPECIFIC_EMPLOYEE: "Colaborador",
+};
+
+export const VACANCY_APPROVER_TYPE_LABELS: Record<VacancyApproverType, string> = {
+  MANAGER_OF_REQUESTER: "Jefe directo del solicitante",
+  SPECIFIC_EMPLOYEE: "Colaborador específico",
+  ROLE: "Rol de la compañía",
+};
+
+export const COMPANY_ROLE_LABELS: Record<string, string> = {
+  CLIENT_ADMIN: "Administrador de compañía",
+  LEADER: "Líder",
+  RECRUITER: "Reclutador",
+  PERFORMANCE_MANAGER: "Gestor de performance",
+  COLLABORATOR: "Colaborador",
 };
 
 export const APPROVAL_STATUS_LABELS: Record<ApprovalStatus, string> = {

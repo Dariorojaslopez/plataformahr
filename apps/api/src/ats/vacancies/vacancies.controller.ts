@@ -5,6 +5,7 @@ import {
   Param,
   ParseUUIDPipe,
   Patch,
+  Post,
   Query,
   UseGuards,
 } from '@nestjs/common';
@@ -50,5 +51,25 @@ export class VacanciesController {
     @Body() dto: UpdateVacancyDto,
   ) {
     return this.vacanciesService.update(tenant.companyId, user.userId, id, dto);
+  }
+
+  @Post(':id/publish')
+  @RequirePermissions('ats.vacancy.manage')
+  publish(
+    @CurrentTenant() tenant: TenantContext,
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.vacanciesService.publish(tenant.companyId, user.userId, id);
+  }
+
+  @Post(':id/unpublish')
+  @RequirePermissions('ats.vacancy.manage')
+  unpublish(
+    @CurrentTenant() tenant: TenantContext,
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.vacanciesService.unpublish(tenant.companyId, user.userId, id);
   }
 }

@@ -10,7 +10,14 @@ export type VacancyRequestStatus =
 export type VacancyApprovalStep =
   | "DIRECT_MANAGER"
   | "HR"
-  | "GENERAL_MANAGER";
+  | "GENERAL_MANAGER"
+  | "ROLE"
+  | "SPECIFIC_EMPLOYEE";
+
+export type VacancyApproverType =
+  | "MANAGER_OF_REQUESTER"
+  | "SPECIFIC_EMPLOYEE"
+  | "ROLE";
 
 export type ApprovalStatus = "PENDING" | "APPROVED" | "REJECTED" | "SKIPPED";
 
@@ -67,6 +74,7 @@ export type VacancyApproval = {
   vacancyRequestId: string;
   step: VacancyApprovalStep;
   sequence: number;
+  label: string | null;
   approverEmployeeId: string | null;
   requiredRoleCode: string | null;
   status: ApprovalStatus;
@@ -75,6 +83,8 @@ export type VacancyApproval = {
   comment: string | null;
   createdAt: string;
   updatedAt: string;
+  approverEmployee?: EmployeeRef | null;
+  decidedByUser?: { id: string; firstName: string; lastName: string } | null;
 };
 
 export type VacancyRequest = {
@@ -100,6 +110,7 @@ export type VacancyRequest = {
   requestedByEmployee?: EmployeeRef | null;
   approvals?: VacancyApproval[];
   vacancy?: { id: string; title: string; status: VacancyStatus } | null;
+  currentUserCanDecide?: boolean;
 };
 
 export type Vacancy = {
@@ -113,6 +124,8 @@ export type Vacancy = {
   headcount: number;
   filledCount: number;
   status: VacancyStatus;
+  publicId: string | null;
+  publishedAt: string | null;
   openedAt: string;
   closedAt: string | null;
   createdAt: string;
@@ -124,6 +137,26 @@ export type Vacancy = {
     type: VacancyRequestType;
     status: VacancyRequestStatus;
   } | null;
+};
+
+export type PublicJob = {
+  publicId: string;
+  title: string;
+  description: string | null;
+  areaName: string;
+  companyName: string;
+  brandPrimaryColor: string;
+  hasLogo: boolean;
+  publishedAt: string;
+};
+
+export type PublicJobApplicationInput = {
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string;
+  documentType: string;
+  documentNumber: string;
 };
 
 export type Candidate = {
@@ -163,7 +196,7 @@ export type ApplicationStageHistory = {
   id: string;
   fromStage: ApplicationStage | null;
   toStage: ApplicationStage;
-  changedByUserId: string;
+  changedByUserId: string | null;
   comment: string | null;
   createdAt: string;
 };
@@ -192,9 +225,36 @@ export type ListVacancyRequestsParams = {
   status?: VacancyRequestStatus;
   type?: VacancyRequestType;
   requestedByEmployeeId?: string;
+  pendingMyApproval?: boolean;
   search?: string;
   page?: number;
   limit?: number;
+};
+
+export type VacancyApprovalWorkflowStep = {
+  id: string;
+  sequence: number;
+  approverType: VacancyApproverType;
+  label: string | null;
+  specificEmployeeId: string | null;
+  requiredRoleCode: string | null;
+  specificEmployee?: EmployeeRef | null;
+};
+
+export type VacancyApprovalWorkflow = {
+  enabled: boolean;
+  steps: VacancyApprovalWorkflowStep[];
+  allowedRoles: Array<{ code: string; name: string }>;
+};
+
+export type UpdateVacancyApprovalWorkflowInput = {
+  enabled: boolean;
+  steps: Array<{
+    approverType: VacancyApproverType;
+    label?: string | null;
+    specificEmployeeId?: string | null;
+    requiredRoleCode?: string | null;
+  }>;
 };
 
 export type ListVacanciesParams = {

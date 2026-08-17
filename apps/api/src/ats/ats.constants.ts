@@ -5,11 +5,15 @@ export const ATS_AUDIT = {
   VACANCY_REQUEST_APPROVED_STEP: 'VACANCY_REQUEST_APPROVED_STEP',
   VACANCY_REQUEST_REJECTED: 'VACANCY_REQUEST_REJECTED',
   VACANCY_REQUEST_APPROVED: 'VACANCY_REQUEST_APPROVED',
+  VACANCY_APPROVAL_WORKFLOW_UPDATED: 'VACANCY_APPROVAL_WORKFLOW_UPDATED',
   VACANCY_CREATED: 'VACANCY_CREATED',
   VACANCY_STATUS_CHANGED: 'VACANCY_STATUS_CHANGED',
+  VACANCY_PUBLISHED: 'VACANCY_PUBLISHED',
+  VACANCY_UNPUBLISHED: 'VACANCY_UNPUBLISHED',
   CANDIDATE_CREATED: 'CANDIDATE_CREATED',
   CANDIDATE_UPDATED: 'CANDIDATE_UPDATED',
   APPLICATION_CREATED: 'APPLICATION_CREATED',
+  PUBLIC_APPLICATION_CREATED: 'PUBLIC_APPLICATION_CREATED',
   APPLICATION_STAGE_CHANGED: 'APPLICATION_STAGE_CHANGED',
   INTERVIEW_CREATED: 'INTERVIEW_CREATED',
   INTERVIEW_UPDATED: 'INTERVIEW_UPDATED',
@@ -39,6 +43,8 @@ export const MAX_LIMIT = 100;
 /** Temporary role used for HR and General Manager approval steps. */
 export const TEMP_APPROVER_ROLE_CODE = 'CLIENT_ADMIN';
 
+export const MAX_VACANCY_APPROVAL_STEPS = 10;
+
 export const PROXY_REQUESTER_ROLE_CODES = [
   'CLIENT_ADMIN',
   'RECRUITER',
@@ -50,6 +56,25 @@ export const VACANCY_REQUESTER_ERRORS = {
   NO_LINKED_EMPLOYEE:
     'Tu usuario no tiene un colaborador asociado. Contacta al administrador de la compañía.',
   CANNOT_PROXY: 'No puedes crear solicitudes en nombre de otro colaborador.',
+} as const;
+
+export const VACANCY_APPROVAL_ERRORS = {
+  NO_DIRECT_MANAGER:
+    'Cannot submit: requester has no DIRECT manager reporting line',
+  MANAGER_NO_USER:
+    "Cannot submit: the requester's direct manager has no user account in this company",
+  SPECIFIC_EMPLOYEE_NO_USER:
+    'Cannot submit: the assigned approver has no user account in this company',
+  EMPTY_WORKFLOW:
+    'Cannot submit: the approval workflow is enabled but has no steps',
+  ENABLED_WITHOUT_STEPS:
+    'Enable the workflow only after adding at least one approval step',
+  UNKNOWN_ROLE: 'Unknown company role',
+  INVALID_ROLE_FIELDS: 'ROLE steps require requiredRoleCode and no employee',
+  INVALID_EMPLOYEE_FIELDS:
+    'SPECIFIC_EMPLOYEE steps require specificEmployeeId and no role',
+  INVALID_MANAGER_FIELDS:
+    'MANAGER_OF_REQUESTER steps cannot include an employee or role',
 } as const;
 
 export const PIPELINE_STAGES = [

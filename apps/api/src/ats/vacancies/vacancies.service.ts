@@ -1,9 +1,11 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma, VacancyStatus, type Vacancy } from '@prisma/client';
+import { randomBytes } from 'node:crypto';
 import { AuditService } from '../../core/audit/audit.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import {
@@ -160,6 +162,84 @@ export class VacanciesService {
       });
     }
 
+    return updated;
+  }
+
+  async publish(
+    companyId: string,
+    userId: string,
+    id: string,
+  ): Promise<Vacancy> {
+    const existing = await this.prisma.vacancy.findFirst({
+      where: { id, companyId, deletedAt: null },
+    });
+    if (!existing) {
+      throw new NotFoundException('Vacancy not found');
+    }
+    if (existing.status !== VacancyStatus.OPEN) {
+      throw new BadRequestException('Only OPEN vacancies can be published');
+    }
+    if (existing.publishedAt) {
+      return existing;
+    }
+
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      try {
+        const updated = await this.prisma.vacancy.update({
+          where: { id },
+          data: {
+            publicId:
+              existing.publicId ?? randomBytes(12).toString('base64url'),
+            publishedAt: new Date(),
+          },
+        });
+        await this.audit.create({
+          action: ATS_AUDIT.VACANCY_PUBLISHED,
+          entity: 'Vacancy',
+          entityId: updated.id,
+          company: { connect: { id: companyId } },
+          user: { connect: { id: userId } },
+          metadata: { vacancyId: updated.id, publicId: updated.publicId },
+        });
+        return updated;
+      } catch (error: unknown) {
+        const publicIdCollision =
+          error instanceof Prisma.PrismaClientKnownRequestError &&
+          error.code === 'P2002' &&
+          !existing.publicId;
+        if (!publicIdCollision) throw error;
+      }
+    }
+    throw new ConflictException('Could not allocate a public vacancy URL');
+  }
+
+  async unpublish(
+    companyId: string,
+    userId: string,
+    id: string,
+  ): Promise<Vacancy> {
+    const existing = await this.prisma.vacancy.findFirst({
+      where: { id, companyId, deletedAt: null },
+    });
+    if (!existing) {
+      throw new NotFoundException('Vacancy not found');
+    }
+    if (!existing.publishedAt) {
+      return existing;
+    }
+
+    const updated = await this.prisma.vacancy.update({
+      where: { id },
+      data: { publishedAt: null },
+    });
+    await this.audit.create({
+      action: ATS_AUDIT.VACANCY_UNPUBLISHED,
+      entity: 'Vacancy',
+      entityId: updated.id,
+      company: { connect: { id: companyId } },
+      user: { connect: { id: userId } },
+      metadata: { vacancyId: updated.id, publicId: updated.publicId },
+    });
     return updated;
   }
 }
