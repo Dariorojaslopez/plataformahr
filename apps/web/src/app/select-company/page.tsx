@@ -21,8 +21,13 @@ export default function SelectCompanyPage() {
     logout,
     setPlatformCompanies,
   } = useSession();
-  const [loadingPlatform, setLoadingPlatform] = useState(false);
   const [platformError, setPlatformError] = useState<string | null>(null);
+  const [platformFetchFinished, setPlatformFetchFinished] = useState(false);
+  const loadingPlatform =
+    Boolean(user?.isPlatformOwner) &&
+    companies.length === 0 &&
+    !platformFetchFinished &&
+    platformError === null;
 
   useEffect(() => {
     if (status === "loading") return;
@@ -30,28 +35,27 @@ export default function SelectCompanyPage() {
       router.replace("/login");
       return;
     }
-    if (user.isPlatformOwner && companies.length === 0) {
-      let cancelled = false;
-      setLoadingPlatform(true);
-      void platformCompaniesRequest()
-        .then((list) => {
-          if (cancelled) return;
-          setPlatformCompanies(list);
-          setPlatformError(null);
-        })
-        .catch((err: unknown) => {
-          if (cancelled) return;
-          setPlatformError(
-            getErrorMessage(err, "No se pudieron cargar las compañías"),
-          );
-        })
-        .finally(() => {
-          if (!cancelled) setLoadingPlatform(false);
-        });
-      return () => {
-        cancelled = true;
-      };
-    }
+    if (!user.isPlatformOwner || companies.length > 0) return;
+
+    let cancelled = false;
+    void platformCompaniesRequest()
+      .then((list) => {
+        if (cancelled) return;
+        setPlatformCompanies(list);
+        setPlatformError(null);
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        setPlatformError(
+          getErrorMessage(err, "No se pudieron cargar las compañías"),
+        );
+      })
+      .finally(() => {
+        if (!cancelled) setPlatformFetchFinished(true);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [status, user, companies.length, router, setPlatformCompanies]);
 
   if (status === "loading" || !user || loadingPlatform) {

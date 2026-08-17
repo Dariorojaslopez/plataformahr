@@ -1,28 +1,47 @@
 # Operations runbook (portable)
 
-Companion to [production-infrastructure.md](./production-infrastructure.md), [staging.md](./staging.md), and [release.md](./release.md). No cloud-vendor assumptions.
+Companion to [production-infrastructure.md](./production-infrastructure.md), [staging.md](./staging.md), [release.md](./release.md), and [ci-cd.md](./ci-cd.md).
 
-## Deploy (conceptual)
+## Deploy (production VPS)
 
-1. Build images (`talento-api`, `talento-web`) from a clean git revision.
-2. Push/tag externally when a registry exists (not in this phase).
-3. Ensure secrets available in the runtime environment (not in Git).
-4. **Run migrations once** against the target DB (`migrate deploy`).
-5. If migration fails → **stop**; do not roll out new API replicas.
-6. Start/replace API, then Web.
-7. Verify `/health`, `/ready`, and a smoke login if data exists.
+Automatic: `git push origin main` → all CI jobs green → GitHub Environment `production` → SSH → `scripts/deploy-prod.sh <sha>`.
+
+Directory: `/opt/plataforma-hr`. Runtime secrets: `infrastructure/.env.prod` (never in GitHub). User: non-root deploy user in the `docker` group. **Never** deploy as `root`.
+
+```text
+1. Refuse dirty working tree; git fetch; checkout --detach $SHA
+2. Ensure postgres is up (volume talento_prod_pgdata kept)
+3. Backup via postgres container → backups/talento-<UTC>-<sha12>.dump
+4. IMAGE_TAG=$SHA docker compose build api web
+5. docker compose run --rm --no-build migrate
+   if fail → stop; do not roll out new API/Web
+6. up -d --no-deps --no-build api, then web
+7. curl API /health, API /ready, Web /
+   if fail → application rollback to previous SHA images if they exist
+```
+
+Manual (same machine, same user):
+
+```bash
+/opt/plataforma-hr/scripts/deploy-prod.sh <full-git-sha>
+```
+
+Do **not** use `git pull` as the deploy mechanism.
 
 ## Migrate
 
+Production CD uses the compose `migrate` service (`prisma migrate deploy` in the API image). Node/pnpm/Prisma are **not** required on the host.
+
 ```bash
-# Local/prod-like compose
+# Lab / explicit
 pnpm infra:prod:migrate
 
-# Or host toolchain against a DATABASE_URL
-pnpm db:migrate:deploy
+# Equivalent
+docker compose -f infrastructure/docker-compose.prod.yml \
+  --env-file infrastructure/.env.prod run --rm --no-build migrate
 ```
 
-Never use `prisma migrate dev` against production.
+Never use `prisma migrate dev`, `prisma db push`, or `migrate reset` against production.
 
 ## Start / stop / restart
 
@@ -31,23 +50,35 @@ Never use `prisma migrate dev` against production.
 pnpm infra:up
 pnpm infra:down
 
-# Production-like stack
+# Production-like lab stack (migrate completes before API because of depends_on)
 pnpm infra:prod:up
-pnpm infra:prod:down
 
-# Restart a single service
+# Restart a single service (does not remove volumes)
 docker compose -f infrastructure/docker-compose.prod.yml --env-file infrastructure/.env.prod restart api
 ```
 
-## Health checks
+### Forbidden in production
 
 ```bash
-curl -fsS "$API_BASE/health"   # expect {"status":"ok"}
-curl -fsS "$API_BASE/ready"    # expect {"status":"ready"} ; 503 if DB down
-curl -fsSI "$WEB_BASE/"        # expect HTTP 200
-# Metrics are internal — do not expose publicly
-curl -fsS "$API_BASE/metrics" | head
+docker compose -f infrastructure/docker-compose.prod.yml --env-file infrastructure/.env.prod down
+docker compose -f infrastructure/docker-compose.prod.yml --env-file infrastructure/.env.prod down -v
 ```
+
+`down -v` deletes `talento_prod_pgdata`. `pnpm infra:prod:down` is `down` without `-v` (containers/networks only) — **do not use it on the live VPS** as part of CD; it still stops PostgreSQL.
+
+## Health checks
+
+From the VPS (published compose ports; defaults 3001 / 3000):
+
+```bash
+curl -fsS "http://127.0.0.1:3001/health"   # expect {"status":"ok"}
+curl -fsS "http://127.0.0.1:3001/ready"    # expect {"status":"ready"} ; 503 if DB down
+curl -fsSI "http://127.0.0.1:3000/"        # expect HTTP 200
+# Metrics are internal — do not expose publicly
+curl -fsS "http://127.0.0.1:3001/metrics" | head
+```
+
+CD waits with retries (`HEALTH_ATTEMPTS` / `HEALTH_DELAY_SECS`, defaults 30×4s).
 
 ## Find a request by requestId
 
@@ -63,21 +94,30 @@ curl -fsS "$API_BASE/metrics" | head
 
 ## CI failure
 
-See [ci-cd.md](./ci-cd.md). Re-run the failing job locally with the same Node/pnpm versions. Migration gate failures mean schema history is broken — fix-forward, do not edit applied migrations.
+See [ci-cd.md](./ci-cd.md). Re-run the failing job locally with the same Node/pnpm versions. Migration gate failures mean schema history is broken — fix-forward, do not edit applied migrations. A red CI job on `main` **blocks** production deploy.
 
 ## Image rollback
 
-Redeploy previous immutable image tags (`:<sha>` or `:vX.Y.Z`). Do not auto-rollback the database.
+```bash
+/opt/plataforma-hr/scripts/rollback-prod.sh <previous-full-sha>
+```
+
+Requires `talento-api:<sha>` and `talento-web:<sha>` already present. Does **not** run migrations. Does **not** restore PostgreSQL. Prisma is forward-only: old images only work if the current schema is still compatible.
 
 ## Backup
+
+CD pre-migrate dump (preferred in production):
+
+`/opt/plataforma-hr/backups/talento-<UTC>-<sha12>.dump`
+
+Copy dumps off the machine. Schedule an extra daily dump as a starting point.
+
+Lab script (needs `pg_dump` on PATH and a reachable `DATABASE_URL` — not the internal compose hostname `postgres` from the host):
 
 ```bash
 export DATABASE_URL='postgresql://...'
 pnpm db:backup
-# → backups/talento-<UTC>.dump
 ```
-
-Copy dumps off the machine. Schedule daily as a starting point.
 
 ## Restore
 
@@ -86,7 +126,7 @@ export DATABASE_URL='postgresql://.../temporary_db'
 pnpm db:restore -- --yes ./backups/talento-XXXX.dump
 ```
 
-Requires `--yes`. Prefer restore into a **temporary** database, validate, then cut over.
+Requires `--yes`. Prefer restore into a **temporary** database, validate, then cut over. Not invoked by deploy or rollback scripts.
 
 ## Incident: DB unavailable
 
@@ -101,13 +141,13 @@ Restart API only if connections are wedged after prolonged outage.
 
 ## Incident: bad environment
 
-Production process **exits at startup** if secrets/CORS/DB URL fail validation (Fase 10). Fix env and recreate the container; do not weaken validators.
+Production process **exits at startup** if secrets/CORS/DB URL fail validation (Fase 10). Fix env and recreate the API container; do not weaken validators.
 
 ## Incident: migration failure
 
-1. Do not deploy new application revision.
+1. Do not deploy new application revision (script already stops before API rollout).
 2. Capture Prisma error (ops logs).
-3. Fix-forward with a new migration, or restore DB from backup if corrupted.
+3. Fix-forward with a new migration, or restore DB from backup if corrupted (human approval).
 4. No automatic destructive DB rollback.
 
 ## Rollback (application)

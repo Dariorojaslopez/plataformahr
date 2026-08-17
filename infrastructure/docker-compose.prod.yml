@@ -1,11 +1,14 @@
 # Production-like reference stack (portable; not a cloud deployment).
 #
-# From repository root:
+# Production CD (VPS /opt/plataforma-hr) uses scripts/deploy-prod.sh with IMAGE_TAG=<git-sha>.
+# Never run `docker compose down` or `docker compose down -v` (volume talento_prod_pgdata).
+#
+# Manual lab bring-up from repository root:
 #   cp infrastructure/.env.prod.example infrastructure/.env.prod
 #   # fill secrets (never commit .env.prod)
 #   docker compose -f infrastructure/docker-compose.prod.yml --env-file infrastructure/.env.prod up -d postgres
 #   docker compose -f infrastructure/docker-compose.prod.yml --env-file infrastructure/.env.prod run --rm migrate
-#   docker compose -f infrastructure/docker-compose.prod.yml --env-file infrastructure/.env.prod up -d --build api web
+#   docker compose -f infrastructure/docker-compose.prod.yml --env-file infrastructure/.env.prod up -d --no-deps --build api web
 #
 # Debug DB from host (temporary): docker compose exec postgres psql -U "$POSTGRES_USER" -d "$POSTGRES_DB"
 
@@ -75,6 +78,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     ports:
       - '${API_HOST_PORT:-3001}:3001'
     healthcheck:

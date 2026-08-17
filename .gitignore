@@ -36,3 +36,6 @@ backups/
 *.dump
 *.sql.gz
 *.backup
+
+# VPS deploy state (current IMAGE_TAG SHA)
+.deploy-sha

@@ -7,7 +7,8 @@ on:
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  # PRs: cancel superseded runs. main: never cancel — a production deploy must finish.
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 permissions:
   contents: read
@@ -60,6 +61,46 @@ jobs:
       - run: pnpm --filter @talento/shared build
       - run: pnpm db:generate
       - run: pnpm test
+
+  integration:
+    name: Persistence (PostgreSQL 17)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: ci
+          POSTGRES_PASSWORD: ci
+          POSTGRES_DB: talento_persistence
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ci -d talento_persistence"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://ci:ci@localhost:5432/talento_persistence?schema=public
+      NODE_ENV: test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @talento/shared build
+      - run: pnpm db:generate
+      - name: Migrate deploy (clean CI DB)
+        run: pnpm db:migrate:deploy
+      - name: Seed RBAC catalog (no DEV users)
+        run: pnpm db:seed
+      - name: Persistence tests
+        run: pnpm test:integration
 
   e2e:
     name: E2E (PostgreSQL 17)
@@ -221,3 +262,54 @@ jobs:
       - name: pnpm audit
         # Fail on high/critical; document lows as debt.
         run: pnpm audit --audit-level=high
+
+  deploy:
+    name: Deploy production
+    needs: [quality, unit, integration, e2e, migrate-gate, build, docker, audit]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    environment: production
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+
+      - name: Configure SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME/.ssh"
+          chmod 700 "$HOME/.ssh"
+          printf '%s\n' "$SSH_PRIVATE_KEY" > "$HOME/.ssh/deploy_key"
+          chmod 600 "$HOME/.ssh/deploy_key"
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          chmod 644 "$HOME/.ssh/known_hosts"
+
+      - name: Deploy SHA to VPS
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_PORT: ${{ secrets.SSH_PORT }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          DEPLOY_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          PORT="${SSH_PORT:-22}"
+          DEST="${SSH_USER}@${SSH_HOST}"
+          KEY="$HOME/.ssh/deploy_key"
+          SSH_BASE=(-i "$KEY" -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o BatchMode=yes -o ConnectTimeout=15)
+          ssh "${SSH_BASE[@]}" -p "$PORT" "$DEST" 'mkdir -p /tmp/plataforma-hr-ci && chmod 700 /tmp/plataforma-hr-ci'
+          scp "${SSH_BASE[@]}" -P "$PORT" \
+            scripts/deploy-prod.sh \
+            scripts/prod-common.sh \
+            scripts/rollback-prod.sh \
+            "${DEST}:/tmp/plataforma-hr-ci/"
+          ssh "${SSH_BASE[@]}" -p "$PORT" "$DEST" \
+            "chmod 700 /tmp/plataforma-hr-ci/*.sh && /tmp/plataforma-hr-ci/deploy-prod.sh '${DEPLOY_SHA}'"

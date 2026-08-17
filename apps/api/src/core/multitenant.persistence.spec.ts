@@ -1,3 +1,7 @@
+/**
+ * Integration / persistence tests against a real PostgreSQL database.
+ * Run with `pnpm test:integration` (not `pnpm test`).
+ */
 import {
   PlatformModule,
   Prisma,
@@ -10,25 +14,35 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 function loadEnvFile(filePath: string): void {
-  const content = readFileSync(filePath, 'utf8');
-  for (const line of content.split('\n')) {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith('#')) {
-      continue;
+  try {
+    const content = readFileSync(filePath, 'utf8');
+    for (const line of content.split('\n')) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith('#')) {
+        continue;
+      }
+      const separatorIndex = trimmed.indexOf('=');
+      if (separatorIndex <= 0) {
+        continue;
+      }
+      const key = trimmed.slice(0, separatorIndex);
+      const value = trimmed.slice(separatorIndex + 1);
+      if (process.env[key] === undefined) {
+        process.env[key] = value;
+      }
     }
-    const separatorIndex = trimmed.indexOf('=');
-    if (separatorIndex <= 0) {
-      continue;
-    }
-    const key = trimmed.slice(0, separatorIndex);
-    const value = trimmed.slice(separatorIndex + 1);
-    if (process.env[key] === undefined) {
-      process.env[key] = value;
-    }
+  } catch {
+    // Optional when DATABASE_URL is already provided (CI).
   }
 }
 
 loadEnvFile(join(__dirname, '../../.env'));
+
+if (!process.env.DATABASE_URL) {
+  throw new Error(
+    'DATABASE_URL is required for persistence tests (pnpm test:integration)',
+  );
+}
 
 const prisma = new PrismaClient();
 

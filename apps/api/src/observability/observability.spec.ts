@@ -1,6 +1,10 @@
 import { isValidRequestId, resolveRequestId } from './request-id';
 import { normalizeHttpRoute } from './metrics.service';
-import { redactSensitive } from './structured-logger';
+import {
+  redactSensitive,
+  writeStructuredLog,
+  type StructuredLogFields,
+} from './structured-logger';
 
 describe('request-id', () => {
   it('accepts valid ids', () => {
@@ -71,12 +75,12 @@ describe('writeStructuredLog safety', () => {
 
   it('does not throw when JSON serialization fails on circular refs', () => {
     process.env.LOG_FORMAT = 'json';
-    // Re-require not needed: useJsonFormat reads env per call.
-    const { writeStructuredLog } = require('./structured-logger') as {
-      writeStructuredLog: (fields: Record<string, unknown>) => void;
+    // useJsonFormat reads LOG_FORMAT per call; a static import is sufficient.
+    const circular: StructuredLogFields & { self?: unknown } = {
+      level: 'info',
+      message: 'circ',
     };
-    const circular: Record<string, unknown> = { level: 'info', message: 'circ' };
     circular.self = circular;
-    expect(() => writeStructuredLog(circular as never)).not.toThrow();
+    expect(() => writeStructuredLog(circular)).not.toThrow();
   });
 });
