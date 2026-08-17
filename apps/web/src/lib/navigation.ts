@@ -15,6 +15,7 @@ import {
   Share2,
   SlidersHorizontal,
   Target,
+  Upload,
   Users,
   type LucideIcon,
 } from "lucide-react";
@@ -53,6 +54,11 @@ export const APP_NAV: NavSection[] = [
         label: "Organigrama",
         href: "/organization/org-chart",
         icon: Share2,
+      },
+      {
+        label: "Importación masiva",
+        href: "/organization/import",
+        icon: Upload,
       },
       {
         label: "Unidades de negocio",

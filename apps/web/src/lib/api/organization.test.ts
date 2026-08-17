@@ -202,4 +202,25 @@ describe("organizationApi", () => {
       "/organization/org-chart?includeInactive=true",
     );
   });
+
+  it("posts organization import CSV as raw text", async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      new Response(JSON.stringify({ canApply: true, issues: [] }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+    await organizationApi.previewImport("recordType,code\n");
+    expect(String(vi.mocked(fetch).mock.calls[0]?.[0])).toContain(
+      "/organization/import/preview",
+    );
+    expect(vi.mocked(fetch).mock.calls[0]?.[1]).toMatchObject({
+      method: "POST",
+      body: "recordType,code\n",
+    });
+    const headers = vi.mocked(fetch).mock.calls[0]?.[1]?.headers as
+      | Record<string, string>
+      | undefined;
+    expect(headers?.["Content-Type"]).toMatch(/text\/csv/);
+  });
 });

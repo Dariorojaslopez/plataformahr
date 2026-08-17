@@ -10,6 +10,7 @@ import type { AccessTokenResponse } from "@/types/auth";
 export type ApiRequestOptions = {
   method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
   body?: unknown;
+  rawBody?: string;
   headers?: Record<string, string>;
   auth?: boolean;
   companyId?: string | null;
@@ -76,6 +77,7 @@ async function executeFetch(
   const {
     method = "GET",
     body,
+    rawBody,
     headers = {},
     auth = true,
     companyId,
@@ -88,7 +90,10 @@ async function executeFetch(
     ...headers,
   };
 
-  if (body !== undefined) {
+  if (rawBody !== undefined) {
+    requestHeaders["Content-Type"] =
+      requestHeaders["Content-Type"] ?? "text/csv; charset=utf-8";
+  } else if (body !== undefined) {
     requestHeaders["Content-Type"] = "application/json";
   }
 
@@ -109,7 +114,12 @@ async function executeFetch(
     return await fetch(`${getApiBaseUrl()}${path}`, {
       method,
       headers: requestHeaders,
-      body: body === undefined ? undefined : JSON.stringify(body),
+      body:
+        rawBody !== undefined
+          ? rawBody
+          : body === undefined
+            ? undefined
+            : JSON.stringify(body),
       signal,
       credentials,
     });

@@ -382,3 +382,39 @@ export type CreateReportingLineInput = {
   managerEmployeeId: string;
   type: ReportingLineType;
 };
+
+export type OrgImportIssue = {
+  row: number;
+  field: string;
+  message: string;
+  level: "error" | "warning";
+};
+
+export type OrgImportEntityCounts = {
+  create: number;
+  update: number;
+  omit: number;
+};
+
+export type OrgImportSummary = {
+  businessUnits: OrgImportEntityCounts;
+  areas: OrgImportEntityCounts;
+  jobLevels: OrgImportEntityCounts;
+  positions: OrgImportEntityCounts;
+  employees: OrgImportEntityCounts;
+  reportingLines: OrgImportEntityCounts;
+};
+
+export type OrgImportPreview = {
+  rowsTotal: number;
+  rowsValid: number;
+  rowsInvalid: number;
+  rowsEmpty: number;
+  canApply: boolean;
+  summary: OrgImportSummary;
+  issues: OrgImportIssue[];
+};
+
+export type OrgImportApplyResult = OrgImportPreview & {
+  applied: boolean;
+};

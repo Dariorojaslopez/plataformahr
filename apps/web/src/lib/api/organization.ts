@@ -1,4 +1,4 @@
-import { apiRequest } from "@/lib/api/client";
+import { apiRequest, apiRequestBlob } from "@/lib/api/client";
 import type {
   Area,
   AreaTreeNode,
@@ -16,6 +16,8 @@ import type {
   ListEmployeesParams,
   OrganizationProfile,
   OrgChart,
+  OrgImportApplyResult,
+  OrgImportPreview,
   PaginatedEmployees,
   Position,
   PositionCustomFieldDefinition,
@@ -151,6 +153,21 @@ export const organizationApi = {
         includeInactive: includeInactive ? "true" : undefined,
       })}`,
     ),
+
+  downloadImportTemplate: () =>
+    apiRequestBlob("/organization/import/template"),
+
+  previewImport: (csv: string) =>
+    apiRequest<OrgImportPreview>("/organization/import/preview", {
+      method: "POST",
+      rawBody: csv,
+    }),
+
+  applyImport: (csv: string) =>
+    apiRequest<OrgImportApplyResult>("/organization/import/apply", {
+      method: "POST",
+      rawBody: csv,
+    }),
 
   createEmployee: (body: CreateEmployeeInput) =>
     apiRequest<Employee>("/organization/employees", { method: "POST", body }),

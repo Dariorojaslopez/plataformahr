@@ -66,6 +66,14 @@ export class AllExceptionsFilter implements ExceptionFilter {
         errorName: exception.code,
         context: AllExceptionsFilter.name,
       });
+    } else if (
+      exception &&
+      typeof exception === 'object' &&
+      'status' in exception &&
+      (exception as { status?: number }).status === 413
+    ) {
+      status = HttpStatus.PAYLOAD_TOO_LARGE;
+      message = 'El archivo supera el tamaño máximo permitido.';
     } else if (exception instanceof Error) {
       writeStructuredLog({
         level: 'error',

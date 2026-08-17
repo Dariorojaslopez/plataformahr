@@ -3,6 +3,7 @@ import { HttpAdapterHost } from '@nestjs/core';
 import cookieParser from 'cookie-parser';
 import {
   json,
+  text,
   urlencoded,
   type NextFunction,
   type Request,
@@ -11,6 +12,7 @@ import {
 import helmet from 'helmet';
 import { AllExceptionsFilter } from '../common/filters/all-exceptions.filter';
 import { requestIdMiddleware } from '../observability/request-id.middleware';
+import { ORG_IMPORT_MAX_BYTES } from '../organization/import/import.constants';
 import {
   isAllowedCorsOrigin,
   type SecurityRuntimeConfig,
@@ -38,6 +40,12 @@ export function configureApp(
     instance.set?.('trust proxy', 1);
   }
 
+  app.use(
+    text({
+      type: ['text/csv', 'text/plain'],
+      limit: ORG_IMPORT_MAX_BYTES,
+    }),
+  );
   app.use(json({ limit: security.jsonBodyLimit }));
   app.use(urlencoded({ extended: true, limit: security.jsonBodyLimit }));
 

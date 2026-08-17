@@ -15,6 +15,8 @@ import { JobLevelsController } from './job-levels/job-levels.controller';
 import { JobLevelsService } from './job-levels/job-levels.service';
 import { OrgChartController } from './org-chart/org-chart.controller';
 import { OrgChartService } from './org-chart/org-chart.service';
+import { OrgImportController } from './import/import.controller';
+import { OrgImportService } from './import/import.service';
 import { OrganizationIntegrityService } from './organization-integrity.service';
 import { PositionsController } from './positions/positions.controller';
 import { PositionsService } from './positions/positions.service';
@@ -31,6 +33,7 @@ import { ReportingLinesService } from './reporting-lines/reporting-lines.service
     PositionsController,
     PositionCustomFieldsController,
     OrgChartController,
+    OrgImportController,
     EmployeesController,
   ],
   providers: [
@@ -44,6 +47,7 @@ import { ReportingLinesService } from './reporting-lines/reporting-lines.service
     PositionsService,
     PositionCustomFieldsService,
     OrgChartService,
+    OrgImportService,
     EmployeesService,
     ReportingLinesService,
   ],

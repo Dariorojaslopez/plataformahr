@@ -34,3 +34,7 @@ The company name is a visual root only. Several employees without a visible mana
 
 Zoom/pan live in the viewport (no diagram library). PNG/PDF export uses an in-browser SVG layout — no extra npm dependency and no HTML posted to the API. Default query is active employees; the checkbox requests `includeInactive=true`.
 
+## Importación masiva
+
+**Importación masiva** (`/organization/import`) downloads a CSV template, validates it (preview), then applies only if there are no blocking errors. The apply button stays disabled while the preview has errors. Results are summarized per entity (created / updated). Row errors are shown as `Fila N · campo: mensaje`.
+

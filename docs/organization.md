@@ -149,6 +149,9 @@ Additive migration `position_custom_fields`. Existing positions start with zero 
 | GET | `/organization/employees/:id/organization-profile` | read |
 | GET/POST/DELETE | `/organization/employees/:id/reporting-lines` | read / manage |
 | GET | `/organization/org-chart` | read |
+| GET | `/organization/import/template` | manage |
+| POST | `/organization/import/preview` | manage |
+| POST | `/organization/import/apply` | manage |
 
 All require JWT + `X-Company-Id`.
 
@@ -202,6 +205,52 @@ PNG and PDF are generated in the browser from an SVG layout (company name, gener
 ### Out of scope
 
 Drag-and-drop, editing managers from the chart, vacant seats, dotted-line, temporal history, Performance, ATS.
+
+## Bulk organization import
+
+Administrative two-phase CSV import. Preview never writes. Apply re-validates inside a single Prisma transaction (60s timeout) and rolls back on failure.
+
+### Format
+
+- UTF-8 CSV (BOM allowed). No XLSX, macros, or formulas.
+- One file, discriminator `recordType`: `businessUnit` | `area` | `jobLevel` | `position` | `employee`.
+- Structure and people share a stable header so Excel can fill one sheet without a ZIP.
+- `companyId` is forbidden. Codes resolve only in the current tenant.
+
+Headers: `recordType,code,name,description,status,rank,headcount,businessUnitCode,areaCode,parentAreaCode,jobLevelCode,positionCode,email,firstName,lastName,managerEmail`.
+
+### Identifiers (create/update)
+
+| Entity | Match | Notes |
+|--------|--------|------|
+| BusinessUnit / Area / JobLevel / Position | `code` (required in the file) | UI still allows creating without code; import does not. |
+| Employee | `email` (normalized) | There is no `employeeNumber`. Email is the existing unique key. |
+
+No deletes. Missing file rows are left untouched.
+
+Updateable: name, description, status, rank, headcount, area/BU/parent/jobLevel links, employee names/area/position/status/optional BU. Never overwritten from this CSV: phone, address, emergency contacts, `userId`, position mission/custom fields, job-level competencies.
+
+Empty `managerEmail` does not clear an existing DIRECT line.
+
+### Order
+
+BusinessUnits → JobLevels → Areas (parents first) → Positions → Employees → DIRECT reporting lines. Manager rows may appear after the collaborator.
+
+### BusinessUnit optional
+
+Area without `businessUnitCode` is valid. A specified unknown BU is an error.
+
+### Custom fields / competencies
+
+Deferred. Dynamic `cf:*` columns and competency catalogs would make the v1 contract fragile. Second version.
+
+### Limits and security
+
+6 MB, 4 000 data rows, `text/csv` or `text/plain`, no permanent file storage. Template cells are formula-sanitized (`=`, `+`, `-`, `@`). Permission: `organization.manage` including preview. Audit: one `ORGANIZATION_IMPORTED` row with counts, not the file.
+
+### Reporting
+
+Only `DIRECT` via `managerEmail`. Self-manager, missing manager, and cycles (file + existing) are rejected before write.
 
 ## Manual SQL
 
