@@ -99,6 +99,25 @@ SELF y MANAGER del mismo participant reciben la **misma** configuración (compet
 
 Por competencia: `scaleName` + niveles `value`, `label`, `description?`, `order`, `sourceScaleLevelId?`.
 
+## JobLevel competencies (organizational source, not yet applied)
+
+Organization now stores live assignments `JobLevelCompetency` (Company → JobLevel ↔ Competency catalog).
+
+**Current Performance behavior is unchanged:** a cycle still uses `PerformanceCycleCompetency` (manual per cycle). Participant materialization copies **that cycle list** into `PerformanceEvaluationCompetency`. It does not read job-level assignments.
+
+Resolver prepared for a later change: `resolveCompetenciesForEmployee` (`apps/api/src/performance/job-level-competencies.ts`) walks Employee → Position.jobLevelId → JobLevelCompetency.
+
+### Freeze boundary (do not violate)
+
+| Moment | Reads live JobLevelCompetency? | Historical authority |
+|--------|--------------------------------|----------------------|
+| Cycle DRAFT competency config | Future: may *copy* into cycle | No |
+| Cycle activate | No (validates cycle rows) | No |
+| Participant / evaluation materialization | **No** today; this is the freeze | `PerformanceEvaluationCompetency` |
+| Submit / calculate / close | No | Snapshots already stored |
+
+Changing JobLevel competencies after evaluations exist **must not** rewrite evaluation snapshots. Catalog `Competency` edits also do not rewrite snapshots (`sourceCompetencyId` has no FK).
+
 ## Assignment transaction
 
 Individual (`POST .../participants`):

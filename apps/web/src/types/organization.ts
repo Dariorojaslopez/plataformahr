@@ -184,6 +184,29 @@ export type CreateJobLevelInput = {
 
 export type UpdateJobLevelInput = Partial<CreateJobLevelInput>;
 
+export type JobLevelCompetencyItem = {
+  id: string;
+  name: string;
+  code: string | null;
+  status: OrganizationEntityStatus;
+};
+
+export type JobLevelCompetencies = {
+  jobLevelId: string;
+  jobLevel: {
+    id: string;
+    name: string;
+    code: string | null;
+    rank: number;
+  };
+  assigned: JobLevelCompetencyItem[];
+  catalog: JobLevelCompetencyItem[];
+};
+
+export type ReplaceJobLevelCompetenciesInput = {
+  competencyIds: string[];
+};
+
 export type CreatePositionInput = {
   name: string;
   areaId: string;

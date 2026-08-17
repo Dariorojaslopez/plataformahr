@@ -127,6 +127,7 @@ model Company {
   businessUnits                     BusinessUnit[]
   areas                             Area[]
   jobLevels                         JobLevel[]
+  jobLevelCompetencies              JobLevelCompetency[]
   positions                         Position[]
   employees                         Employee[]
   reportingLines                    EmployeeReportingLine[]
@@ -372,15 +373,37 @@ model JobLevel {
   updatedAt DateTime                 @updatedAt
   deletedAt DateTime?
 
-  company         Company          @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  company         Company               @relation(fields: [companyId], references: [id], onDelete: Restrict)
   positions       Position[]
   vacancyRequests VacancyRequest[]
+  competencies    JobLevelCompetency[]
 
   @@unique([companyId, name])
   @@unique([companyId, rank])
   @@unique([companyId, code])
   @@index([companyId])
   @@map("job_levels")
+}
+
+/// Tenant-scoped assignment of catalog competencies to a job level.
+/// Live configuration only — Performance evaluations snapshot cycle competencies separately.
+model JobLevelCompetency {
+  id            String   @id @default(uuid()) @db.Uuid
+  companyId     String   @db.Uuid
+  jobLevelId    String   @db.Uuid
+  competencyId  String   @db.Uuid
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  company    Company    @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  jobLevel   JobLevel   @relation(fields: [jobLevelId], references: [id], onDelete: Restrict)
+  competency Competency @relation(fields: [competencyId], references: [id], onDelete: Restrict)
+
+  @@unique([jobLevelId, competencyId])
+  @@index([companyId])
+  @@index([jobLevelId])
+  @@index([competencyId])
+  @@map("job_level_competencies")
 }
 
 model Position {
@@ -1106,9 +1129,10 @@ model Competency {
   updatedAt      DateTime                 @updatedAt
   deletedAt      DateTime?
 
-  company          Company                      @relation(fields: [companyId], references: [id], onDelete: Restrict)
-  defaultScale     CompetencyScale?             @relation("CompetencyDefaultScale", fields: [defaultScaleId], references: [id], onDelete: Restrict)
-  cycleAssignments PerformanceCycleCompetency[]
+  company             Company                      @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  defaultScale        CompetencyScale?             @relation("CompetencyDefaultScale", fields: [defaultScaleId], references: [id], onDelete: Restrict)
+  cycleAssignments    PerformanceCycleCompetency[]
+  jobLevelAssignments JobLevelCompetency[]
 
   @@unique([companyId, name])
   @@unique([companyId, code])

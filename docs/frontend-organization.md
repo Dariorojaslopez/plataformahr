@@ -15,3 +15,7 @@ Manage actions are visible in the UI; the backend remains authoritative and retu
 A company is not required to use business units. The minimum valid structure is Company → Area → JobLevel → Position → Employee.
 
 In area forms, **Unidad de negocio** is optional. Empty selection maps to `undefined` on create and `null` on update — never a sentinel like `"none"`. When the company has no business units, the Unidad column and employee filter are omitted. When it does and an area/employee has none, the UI shows `Sin unidad de negocio`.
+
+## Job level competencies
+
+On **Niveles**, each row has **Competencias**: a checklist of the company competency catalog (name, optional code, status). Selection is optional and saved with `PUT /organization/job-levels/:id/competencies` `{ competencyIds }`. Empty array clears the level. The create-level form does not require competencies.

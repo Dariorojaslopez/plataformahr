@@ -19,12 +19,23 @@ An `Employee` always belongs to one `Company`. `userId` is optional. When set, t
 |--------|------|
 | `BusinessUnit` | Optional grouping. Companies may have zero business units. |
 | `Area` | Hierarchical unit (`parentAreaId`). `businessUnitId` is optional (`null` is valid). |
-| `JobLevel` | Ranked career/organizational level for positions |
-| `Position` | Job/role definition (not the occupant) |
+| `JobLevel` | Ranked career/organizational level for positions. May have zero or more competencies. |
+| `JobLevelCompetency` | Tenant-scoped many-to-many: a job level ↔ catalog `Competency`. Unique `(jobLevelId, competencyId)`. |
+| `Position` | Job/role definition (not the occupant). Optional `jobLevelId` pointing at `JobLevel`. |
 | `Employee` | Occupant of a position in an area. `businessUnitId` is optional. |
 | `EmployeeReportingLine` | Leadership links (`DIRECT` / `INDIRECT`) |
 
 Minimum valid structure: Company → Area → JobLevel → Position → Employee. Business units may sit between Company and Area when the company uses them. Existing business units are unchanged; the module remains available.
+
+Competencies are configured **on the JobLevel**, not on the Position:
+
+Company → [BusinessUnit] → Area → JobLevel → Competencies → Position → Employee
+
+`Position.jobLevelId` is the real link (nullable). There is no Position↔Competency table.
+
+A job level may be created with no competencies. The same catalog competency may be assigned to several levels. Assignments start empty after migrate; nothing is auto-filled.
+
+Live `JobLevelCompetency` rows are **not** historical. Performance still evaluates the competencies copied onto a cycle (`PerformanceCycleCompetency`) and frozen into `PerformanceEvaluationCompetency` when a participant is materialized. Editing a level tomorrow must not rewrite closed evaluations. See [performance-evaluations.md](./performance-evaluations.md) and `resolveCompetenciesForEmployee` in `apps/api/src/performance/job-level-competencies.ts`.
 
 ## Reporting lines
 
@@ -61,6 +72,7 @@ Seeded for `CLIENT_ADMIN` (read+manage) and read-only for `LEADER`, `RECRUITER`,
 | GET/POST/PATCH | `/organization/areas` | read / manage |
 | GET | `/organization/areas/tree` | read |
 | GET/POST/PATCH | `/organization/job-levels` | read / manage |
+| GET/PUT | `/organization/job-levels/:id/competencies` | read / manage |
 | GET/POST/PATCH | `/organization/positions` (+ `/:id`) | read / manage |
 | GET/POST/PATCH | `/organization/employees` (+ `/:id`) | read / manage |
 | GET | `/organization/employees/:id/organization-profile` | read |

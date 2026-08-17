@@ -78,6 +78,8 @@ Representa: “esta competencia se evalúa en este ciclo con esta escala”.
 DELETE elimina solo la relación, no la Competency global.
 Solo editable en DRAFT.
 
+Organizational defaults live on `JobLevelCompetency` (see [organization.md](./organization.md)). Cycles do **not** auto-import them in this phase.
+
 ## Weight semantics
 
 - `weight` = `Decimal(5,2)` nullable.

@@ -114,4 +114,43 @@ describe("organizationApi", () => {
       method: "DELETE",
     });
   });
+
+  it("loads and replaces job level competencies", async () => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            jobLevelId: "jl1",
+            assigned: [],
+            catalog: [],
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            jobLevelId: "jl1",
+            assigned: [{ id: "c1", name: "Liderazgo", code: null, status: "ACTIVE" }],
+            catalog: [],
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        ),
+      );
+
+    await organizationApi.getJobLevelCompetencies("jl1");
+    await organizationApi.replaceJobLevelCompetencies("jl1", {
+      competencyIds: ["c1"],
+    });
+
+    expect(vi.mocked(fetch).mock.calls[0]?.[0]).toContain(
+      "/organization/job-levels/jl1/competencies",
+    );
+    expect(vi.mocked(fetch).mock.calls[1]?.[1]).toMatchObject({
+      method: "PUT",
+    });
+    expect(JSON.parse(String(vi.mocked(fetch).mock.calls[1]?.[1]?.body))).toEqual(
+      { competencyIds: ["c1"] },
+    );
+  });
 });

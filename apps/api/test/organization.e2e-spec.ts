@@ -1030,4 +1030,295 @@ describe('Organization core (e2e)', () => {
       ).toBe(true);
     });
   });
+
+  describe('job level competencies', () => {
+    type CompetencyRef = { id: string; name: string; code: string | null };
+    type Payload = {
+      jobLevelId: string;
+      assigned: CompetencyRef[];
+      catalog: CompetencyRef[];
+    };
+
+    let competencyTeamId = '';
+    let competencyLeadId = '';
+    let competencyCustomerId = '';
+    let competencyBId = '';
+    let levelLeaderId = '';
+    let companyDId = '';
+    let adminDToken = '';
+
+    const headersA = () => ({
+      Authorization: `Bearer ${adminAToken}`,
+      'X-Company-Id': companyAId,
+    });
+
+    beforeAll(async () => {
+      const team = await request(app.getHttpServer())
+        .post('/performance/competencies')
+        .set(headersA())
+        .send({ name: `Trabajo en equipo ${suffix}`, code: `TE-${suffix}` })
+        .expect(201);
+      competencyTeamId = (team.body as { id: string }).id;
+
+      const lead = await request(app.getHttpServer())
+        .post('/performance/competencies')
+        .set(headersA())
+        .send({ name: `Liderazgo ${suffix}`, code: `LD-${suffix}` })
+        .expect(201);
+      competencyLeadId = (lead.body as { id: string }).id;
+
+      const customer = await request(app.getHttpServer())
+        .post('/performance/competencies')
+        .set(headersA())
+        .send({ name: `Orientación al cliente ${suffix}` })
+        .expect(201);
+      competencyCustomerId = (customer.body as { id: string }).id;
+
+      const leadLevel = await request(app.getHttpServer())
+        .post('/organization/job-levels')
+        .set(headersA())
+        .send({ name: `Líder ${suffix}`, rank: 80 })
+        .expect(201);
+      levelLeaderId = (leadLevel.body as { id: string }).id;
+
+      const compB = await request(app.getHttpServer())
+        .post('/performance/competencies')
+        .set('Authorization', `Bearer ${adminBToken}`)
+        .set('X-Company-Id', companyBId)
+        .send({ name: `Competencia B ${suffix}` })
+        .expect(201);
+      competencyBId = (compB.body as { id: string }).id;
+
+      const companyD = await prisma.company.create({
+        data: {
+          name: `Org D ${suffix}`,
+          slug: `org-d-${suffix}`,
+          status: CompanyStatus.ACTIVE,
+        },
+      });
+      companyDId = companyD.id;
+      const password = `OrgPass-${suffix}!`;
+      const adminD = await prisma.user.create({
+        data: {
+          email: `orgd-admin-${suffix}@example.com`,
+          passwordHash: await hasher.hash(password),
+          firstName: 'Admin',
+          lastName: 'D',
+          status: UserStatus.ACTIVE,
+        },
+      });
+      const roleAdmin = await prisma.role.findUniqueOrThrow({
+        where: {
+          scope_code: { scope: RoleScope.COMPANY, code: 'CLIENT_ADMIN' },
+        },
+      });
+      const membership = await prisma.companyMembership.create({
+        data: {
+          userId: adminD.id,
+          companyId: companyD.id,
+          status: MembershipStatus.ACTIVE,
+        },
+      });
+      await prisma.membershipRole.create({
+        data: { membershipId: membership.id, roleId: roleAdmin.id },
+      });
+      const login = await request(app.getHttpServer())
+        .post('/auth/login')
+        .send({ email: `orgd-admin-${suffix}@example.com`, password })
+        .expect(201);
+      adminDToken = (login.body as LoginBody).accessToken;
+    });
+
+    it('starts a job level with no competencies', async () => {
+      const res = await request(app.getHttpServer())
+        .get(`/organization/job-levels/${jobLevelAId}/competencies`)
+        .set(headersA())
+        .expect(200);
+      const body = res.body as Payload;
+      expect(body.jobLevelId).toBe(jobLevelAId);
+      expect(body.assigned).toEqual([]);
+      expect(body.catalog.map((item) => item.id)).toEqual(
+        expect.arrayContaining([
+          competencyTeamId,
+          competencyLeadId,
+          competencyCustomerId,
+        ]),
+      );
+      expect(body.catalog.map((item) => item.id)).not.toContain(competencyBId);
+    });
+
+    it('assigns one competency then several', async () => {
+      const one = await request(app.getHttpServer())
+        .put(`/organization/job-levels/${jobLevelAId}/competencies`)
+        .set(headersA())
+        .send({ competencyIds: [competencyTeamId] })
+        .expect(200);
+      expect((one.body as Payload).assigned.map((item) => item.id)).toEqual([
+        competencyTeamId,
+      ]);
+
+      const many = await request(app.getHttpServer())
+        .put(`/organization/job-levels/${jobLevelAId}/competencies`)
+        .set(headersA())
+        .send({
+          competencyIds: [competencyTeamId, competencyCustomerId],
+        })
+        .expect(200);
+      expect(
+        (many.body as Payload).assigned.map((item) => item.id).sort(),
+      ).toEqual([competencyTeamId, competencyCustomerId].sort());
+    });
+
+    it('allows the same competency on multiple job levels', async () => {
+      await request(app.getHttpServer())
+        .put(`/organization/job-levels/${levelLeaderId}/competencies`)
+        .set(headersA())
+        .send({
+          competencyIds: [competencyTeamId, competencyLeadId],
+        })
+        .expect(200);
+
+      const operative = await request(app.getHttpServer())
+        .get(`/organization/job-levels/${jobLevelAId}/competencies`)
+        .set(headersA())
+        .expect(200);
+      const leader = await request(app.getHttpServer())
+        .get(`/organization/job-levels/${levelLeaderId}/competencies`)
+        .set(headersA())
+        .expect(200);
+      expect(
+        (operative.body as Payload).assigned.map((item) => item.id),
+      ).toContain(competencyTeamId);
+      expect((leader.body as Payload).assigned.map((item) => item.id)).toEqual(
+        expect.arrayContaining([competencyTeamId, competencyLeadId]),
+      );
+    });
+
+    it('replaces the selection and can clear all', async () => {
+      const replaced = await request(app.getHttpServer())
+        .put(`/organization/job-levels/${jobLevelAId}/competencies`)
+        .set(headersA())
+        .send({ competencyIds: [competencyLeadId] })
+        .expect(200);
+      expect(
+        (replaced.body as Payload).assigned.map((item) => item.id),
+      ).toEqual([competencyLeadId]);
+
+      const cleared = await request(app.getHttpServer())
+        .put(`/organization/job-levels/${jobLevelAId}/competencies`)
+        .set(headersA())
+        .send({ competencyIds: [] })
+        .expect(200);
+      expect((cleared.body as Payload).assigned).toEqual([]);
+    });
+
+    it('rejects duplicate competency ids in the payload', async () => {
+      await request(app.getHttpServer())
+        .put(`/organization/job-levels/${jobLevelAId}/competencies`)
+        .set(headersA())
+        .send({ competencyIds: [competencyTeamId, competencyTeamId] })
+        .expect(400);
+    });
+
+    it('rejects a competency from another tenant', async () => {
+      await request(app.getHttpServer())
+        .put(`/organization/job-levels/${jobLevelAId}/competencies`)
+        .set(headersA())
+        .send({ competencyIds: [competencyBId] })
+        .expect(404);
+    });
+
+    it('hides another company job level and its configuration', async () => {
+      const levelB = await request(app.getHttpServer())
+        .post('/organization/job-levels')
+        .set('Authorization', `Bearer ${adminBToken}`)
+        .set('X-Company-Id', companyBId)
+        .send({ name: `Level B comps ${suffix}`, rank: 50 })
+        .expect(201);
+      const levelBId = (levelB.body as { id: string }).id;
+
+      await request(app.getHttpServer())
+        .put(`/organization/job-levels/${levelBId}/competencies`)
+        .set('Authorization', `Bearer ${adminBToken}`)
+        .set('X-Company-Id', companyBId)
+        .send({ competencyIds: [competencyBId] })
+        .expect(200);
+
+      await request(app.getHttpServer())
+        .get(`/organization/job-levels/${levelBId}/competencies`)
+        .set(headersA())
+        .expect(404);
+
+      await request(app.getHttpServer())
+        .put(`/organization/job-levels/${levelBId}/competencies`)
+        .set(headersA())
+        .send({ competencyIds: [competencyTeamId] })
+        .expect(404);
+    });
+
+    it('enforces organization.read vs manage on competency assignment', async () => {
+      await request(app.getHttpServer())
+        .get(`/organization/job-levels/${jobLevelAId}/competencies`)
+        .set('Authorization', `Bearer ${readerToken}`)
+        .set('X-Company-Id', companyAId)
+        .expect(200);
+
+      await request(app.getHttpServer())
+        .put(`/organization/job-levels/${jobLevelAId}/competencies`)
+        .set('Authorization', `Bearer ${readerToken}`)
+        .set('X-Company-Id', companyAId)
+        .send({ competencyIds: [competencyTeamId] })
+        .expect(403);
+    });
+
+    it('does not create two rows for the same job level and competency', async () => {
+      await request(app.getHttpServer())
+        .put(`/organization/job-levels/${levelLeaderId}/competencies`)
+        .set(headersA())
+        .send({ competencyIds: [competencyTeamId] })
+        .expect(200);
+      await request(app.getHttpServer())
+        .put(`/organization/job-levels/${levelLeaderId}/competencies`)
+        .set(headersA())
+        .send({ competencyIds: [competencyTeamId] })
+        .expect(200);
+
+      const rows = await prisma.jobLevelCompetency.findMany({
+        where: { jobLevelId: levelLeaderId, competencyId: competencyTeamId },
+      });
+      expect(rows).toHaveLength(1);
+    });
+
+    it('configures competencies on a company with no business units', async () => {
+      const headersD = {
+        Authorization: `Bearer ${adminDToken}`,
+        'X-Company-Id': companyDId,
+      };
+      const units = await request(app.getHttpServer())
+        .get('/organization/business-units')
+        .set(headersD)
+        .expect(200);
+      expect(units.body).toEqual([]);
+
+      const level = await request(app.getHttpServer())
+        .post('/organization/job-levels')
+        .set(headersD)
+        .send({ name: `D Level ${suffix}`, rank: 1 })
+        .expect(201);
+      const competency = await request(app.getHttpServer())
+        .post('/performance/competencies')
+        .set(headersD)
+        .send({ name: `D Comp ${suffix}` })
+        .expect(201);
+
+      const saved = await request(app.getHttpServer())
+        .put(
+          `/organization/job-levels/${(level.body as { id: string }).id}/competencies`,
+        )
+        .set(headersD)
+        .send({ competencyIds: [(competency.body as { id: string }).id] })
+        .expect(200);
+      expect((saved.body as Payload).assigned).toHaveLength(1);
+    });
+  });
 });

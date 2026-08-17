@@ -10,6 +10,7 @@ import { BusinessUnitsController } from './business-units/business-units.control
 import { BusinessUnitsService } from './business-units/business-units.service';
 import { EmployeesController } from './employees/employees.controller';
 import { EmployeesService } from './employees/employees.service';
+import { JobLevelCompetenciesService } from './job-levels/job-level-competencies.service';
 import { JobLevelsController } from './job-levels/job-levels.controller';
 import { JobLevelsService } from './job-levels/job-levels.service';
 import { OrganizationIntegrityService } from './organization-integrity.service';
@@ -33,6 +34,7 @@ import { ReportingLinesService } from './reporting-lines/reporting-lines.service
     BusinessUnitsService,
     AreasService,
     JobLevelsService,
+    JobLevelCompetenciesService,
     PositionsService,
     EmployeesService,
     ReportingLinesService,

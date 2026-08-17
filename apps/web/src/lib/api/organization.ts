@@ -11,10 +11,12 @@ import type {
   CreateReportingLineInput,
   Employee,
   JobLevel,
+  JobLevelCompetencies,
   ListEmployeesParams,
   OrganizationProfile,
   PaginatedEmployees,
   Position,
+  ReplaceJobLevelCompetenciesInput,
   ReportingLine,
   UpdateAreaInput,
   UpdateBusinessUnitInput,
@@ -69,6 +71,20 @@ export const organizationApi = {
       method: "PATCH",
       body,
     }),
+
+  getJobLevelCompetencies: (id: string) =>
+    apiRequest<JobLevelCompetencies>(
+      `/organization/job-levels/${id}/competencies`,
+    ),
+
+  replaceJobLevelCompetencies: (
+    id: string,
+    body: ReplaceJobLevelCompetenciesInput,
+  ) =>
+    apiRequest<JobLevelCompetencies>(
+      `/organization/job-levels/${id}/competencies`,
+      { method: "PUT", body },
+    ),
 
   listPositions: () => apiRequest<Position[]>("/organization/positions"),
 
@@ -141,6 +157,8 @@ export const orgKeys = {
     [...orgKeys.all(companyId), "area-tree"] as const,
   jobLevels: (companyId: string) =>
     [...orgKeys.all(companyId), "job-levels"] as const,
+  jobLevelCompetencies: (companyId: string, id: string) =>
+    [...orgKeys.all(companyId), "job-level-competencies", id] as const,
   positions: (companyId: string) =>
     [...orgKeys.all(companyId), "positions"] as const,
   employees: (companyId: string, params: ListEmployeesParams) =>
