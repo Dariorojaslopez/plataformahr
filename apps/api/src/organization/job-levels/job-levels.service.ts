@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { OrganizationEntityStatus, type JobLevel } from '@prisma/client';
+import { withDuplicateCompanyCodeConflict } from '../../common/prisma/duplicate-company-code';
 import { AuditService } from '../../core/audit/audit.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ORG_AUDIT } from '../organization.constants';
@@ -25,15 +26,17 @@ export class JobLevelsService {
     userId: string,
     dto: CreateJobLevelDto,
   ): Promise<JobLevel> {
-    const created = await this.prisma.jobLevel.create({
-      data: {
-        companyId,
-        name: dto.name.trim(),
-        code: emptyToNull(dto.code) ?? null,
-        rank: dto.rank,
-        status: dto.status ?? OrganizationEntityStatus.ACTIVE,
-      },
-    });
+    const created = await withDuplicateCompanyCodeConflict(dto.code, () =>
+      this.prisma.jobLevel.create({
+        data: {
+          companyId,
+          name: dto.name.trim(),
+          code: emptyToNull(dto.code) ?? null,
+          rank: dto.rank,
+          status: dto.status ?? OrganizationEntityStatus.ACTIVE,
+        },
+      }),
+    );
 
     await this.audit.create({
       action: ORG_AUDIT.JOB_LEVEL_CREATED,
@@ -60,15 +63,17 @@ export class JobLevelsService {
       throw new NotFoundException('Job level not found');
     }
 
-    const updated = await this.prisma.jobLevel.update({
-      where: { id },
-      data: {
-        ...(dto.name !== undefined ? { name: dto.name.trim() } : {}),
-        ...(dto.code !== undefined ? { code: emptyToNull(dto.code) } : {}),
-        ...(dto.rank !== undefined ? { rank: dto.rank } : {}),
-        ...(dto.status !== undefined ? { status: dto.status } : {}),
-      },
-    });
+    const updated = await withDuplicateCompanyCodeConflict(dto.code, () =>
+      this.prisma.jobLevel.update({
+        where: { id },
+        data: {
+          ...(dto.name !== undefined ? { name: dto.name.trim() } : {}),
+          ...(dto.code !== undefined ? { code: emptyToNull(dto.code) } : {}),
+          ...(dto.rank !== undefined ? { rank: dto.rank } : {}),
+          ...(dto.status !== undefined ? { status: dto.status } : {}),
+        },
+      }),
+    );
 
     await this.audit.create({
       action: ORG_AUDIT.JOB_LEVEL_UPDATED,

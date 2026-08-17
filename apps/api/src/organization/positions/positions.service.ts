@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { OrganizationEntityStatus, type Position } from '@prisma/client';
+import { withDuplicateCompanyCodeConflict } from '../../common/prisma/duplicate-company-code';
 import { AuditService } from '../../core/audit/audit.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ORG_AUDIT } from '../organization.constants';
@@ -36,21 +37,23 @@ export class PositionsService {
       await this.integrity.requireJobLevel(companyId, dto.jobLevelId);
     }
 
-    const created = await this.prisma.position.create({
-      data: {
-        companyId,
-        areaId: dto.areaId,
-        jobLevelId: dto.jobLevelId ?? null,
-        name: dto.name.trim(),
-        code: emptyToNull(dto.code) ?? null,
-        mission: emptyToNull(dto.mission) ?? null,
-        responsibilities: emptyToNull(dto.responsibilities) ?? null,
-        requiredExperience: emptyToNull(dto.requiredExperience) ?? null,
-        requiredEducation: emptyToNull(dto.requiredEducation) ?? null,
-        headcount: dto.headcount ?? 1,
-        status: dto.status ?? OrganizationEntityStatus.ACTIVE,
-      },
-    });
+    const created = await withDuplicateCompanyCodeConflict(dto.code, () =>
+      this.prisma.position.create({
+        data: {
+          companyId,
+          areaId: dto.areaId,
+          jobLevelId: dto.jobLevelId ?? null,
+          name: dto.name.trim(),
+          code: emptyToNull(dto.code) ?? null,
+          mission: emptyToNull(dto.mission) ?? null,
+          responsibilities: emptyToNull(dto.responsibilities) ?? null,
+          requiredExperience: emptyToNull(dto.requiredExperience) ?? null,
+          requiredEducation: emptyToNull(dto.requiredEducation) ?? null,
+          headcount: dto.headcount ?? 1,
+          status: dto.status ?? OrganizationEntityStatus.ACTIVE,
+        },
+      }),
+    );
 
     await this.audit.create({
       action: ORG_AUDIT.POSITION_CREATED,
@@ -79,29 +82,33 @@ export class PositionsService {
       await this.integrity.requireJobLevel(companyId, dto.jobLevelId);
     }
 
-    const updated = await this.prisma.position.update({
-      where: { id },
-      data: {
-        ...(dto.name !== undefined ? { name: dto.name.trim() } : {}),
-        ...(dto.areaId !== undefined ? { areaId: dto.areaId } : {}),
-        ...(dto.jobLevelId !== undefined ? { jobLevelId: dto.jobLevelId } : {}),
-        ...(dto.code !== undefined ? { code: emptyToNull(dto.code) } : {}),
-        ...(dto.mission !== undefined
-          ? { mission: emptyToNull(dto.mission) }
-          : {}),
-        ...(dto.responsibilities !== undefined
-          ? { responsibilities: emptyToNull(dto.responsibilities) }
-          : {}),
-        ...(dto.requiredExperience !== undefined
-          ? { requiredExperience: emptyToNull(dto.requiredExperience) }
-          : {}),
-        ...(dto.requiredEducation !== undefined
-          ? { requiredEducation: emptyToNull(dto.requiredEducation) }
-          : {}),
-        ...(dto.headcount !== undefined ? { headcount: dto.headcount } : {}),
-        ...(dto.status !== undefined ? { status: dto.status } : {}),
-      },
-    });
+    const updated = await withDuplicateCompanyCodeConflict(dto.code, () =>
+      this.prisma.position.update({
+        where: { id },
+        data: {
+          ...(dto.name !== undefined ? { name: dto.name.trim() } : {}),
+          ...(dto.areaId !== undefined ? { areaId: dto.areaId } : {}),
+          ...(dto.jobLevelId !== undefined
+            ? { jobLevelId: dto.jobLevelId }
+            : {}),
+          ...(dto.code !== undefined ? { code: emptyToNull(dto.code) } : {}),
+          ...(dto.mission !== undefined
+            ? { mission: emptyToNull(dto.mission) }
+            : {}),
+          ...(dto.responsibilities !== undefined
+            ? { responsibilities: emptyToNull(dto.responsibilities) }
+            : {}),
+          ...(dto.requiredExperience !== undefined
+            ? { requiredExperience: emptyToNull(dto.requiredExperience) }
+            : {}),
+          ...(dto.requiredEducation !== undefined
+            ? { requiredEducation: emptyToNull(dto.requiredEducation) }
+            : {}),
+          ...(dto.headcount !== undefined ? { headcount: dto.headcount } : {}),
+          ...(dto.status !== undefined ? { status: dto.status } : {}),
+        },
+      }),
+    );
 
     await this.audit.create({
       action: ORG_AUDIT.POSITION_UPDATED,

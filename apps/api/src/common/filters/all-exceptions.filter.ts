@@ -9,6 +9,10 @@ import { HttpAdapterHost } from '@nestjs/core';
 import { Prisma } from '@prisma/client';
 import type { Request } from 'express';
 import { writeStructuredLog } from '../../observability/structured-logger';
+import {
+  attemptedCodeFromRequestBody,
+  duplicateCompanyCodeMessage,
+} from '../prisma/duplicate-company-code';
 
 type RequestWithId = Request & { requestId?: string };
 
@@ -43,7 +47,11 @@ export class AllExceptionsFilter implements ExceptionFilter {
     } else if (exception instanceof Prisma.PrismaClientKnownRequestError) {
       if (exception.code === 'P2002') {
         status = HttpStatus.CONFLICT;
-        message = 'Resource conflict';
+        message =
+          duplicateCompanyCodeMessage(
+            exception,
+            attemptedCodeFromRequestBody(request.body),
+          ) ?? 'Resource conflict';
       } else if (exception.code === 'P2025') {
         status = HttpStatus.NOT_FOUND;
         message = 'Record not found';

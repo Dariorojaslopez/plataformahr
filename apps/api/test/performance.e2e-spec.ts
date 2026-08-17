@@ -312,6 +312,54 @@ describe('Performance core (e2e)', () => {
     expect(itemsA.every((i) => i.companyId === companyAId)).toBe(true);
   });
 
+  it('rejects duplicate competency codes with a clear Spanish message', async () => {
+    await request(app.getHttpServer())
+      .post('/performance/competencies')
+      .set(auth(adminToken))
+      .send({ name: `Comp code ${suffix}`, code: `DUP-CO-${suffix}` })
+      .expect(201);
+
+    const dup = await request(app.getHttpServer())
+      .post('/performance/competencies')
+      .set(auth(adminToken))
+      .send({ name: `Comp code other ${suffix}`, code: `DUP-CO-${suffix}` })
+      .expect(409);
+    expect((dup.body as { message: string }).message).toBe(
+      `Ya existe una competencia con el código DUP-CO-${suffix}.`,
+    );
+
+    await request(app.getHttpServer())
+      .post('/performance/competencies')
+      .set(auth(adminBToken, companyBId))
+      .send({ name: `Comp code B ${suffix}`, code: `DUP-CO-${suffix}` })
+      .expect(201);
+
+    const keep = await request(app.getHttpServer())
+      .post('/performance/competencies')
+      .set(auth(adminToken))
+      .send({ name: `Comp keep ${suffix}`, code: `KEEP-CO-${suffix}` })
+      .expect(201);
+    await request(app.getHttpServer())
+      .patch(`/performance/competencies/${(keep.body as { id: string }).id}`)
+      .set(auth(adminToken))
+      .send({ code: `KEEP-CO-${suffix}` })
+      .expect(200);
+
+    const steal = await request(app.getHttpServer())
+      .post('/performance/competencies')
+      .set(auth(adminToken))
+      .send({ name: `Comp steal ${suffix}`, code: `STEAL-CO-${suffix}` })
+      .expect(201);
+    const stealUpdate = await request(app.getHttpServer())
+      .patch(`/performance/competencies/${(steal.body as { id: string }).id}`)
+      .set(auth(adminToken))
+      .send({ code: `KEEP-CO-${suffix}` })
+      .expect(409);
+    expect((stealUpdate.body as { message: string }).message).toBe(
+      `Ya existe una competencia con el código KEEP-CO-${suffix}.`,
+    );
+  });
+
   it('creates scales, levels, and rejects duplicates', async () => {
     const scaleId = await createScaleWithLevels(
       adminToken,

@@ -1,4 +1,5 @@
 import { INestApplication, ValidationPipe } from '@nestjs/common';
+import { HttpAdapterHost } from '@nestjs/core';
 import { Test, TestingModule } from '@nestjs/testing';
 import { ThrottlerGuard } from '@nestjs/throttler';
 import {
@@ -15,6 +16,8 @@ import request from 'supertest';
 import { App } from 'supertest/types';
 import { AppModule } from '../src/app.module';
 import { PasswordHashingService } from '../src/auth/password-hashing.service';
+import { AllExceptionsFilter } from '../src/common/filters/all-exceptions.filter';
+import { formatDuplicateCompanyCodeMessage } from '../src/common/prisma/duplicate-company-code';
 
 loadOptionalEnvFile(join(__dirname, '../.env'));
 
@@ -64,6 +67,9 @@ describe('Organization core (e2e)', () => {
         forbidNonWhitelisted: true,
         transform: true,
       }),
+    );
+    app.useGlobalFilters(
+      new AllExceptionsFilter(app.get(HttpAdapterHost), false),
     );
     await app.init();
 
@@ -640,5 +646,140 @@ describe('Organization core (e2e)', () => {
       jobLevel: { id: jobLevelAId },
       directManager: { id: managerAId },
     });
+  });
+
+  it('returns clear 409 messages for duplicate codes in the same company', async () => {
+    const headers = {
+      Authorization: `Bearer ${adminAToken}`,
+      'X-Company-Id': companyAId,
+    };
+    const headersB = {
+      Authorization: `Bearer ${adminBToken}`,
+      'X-Company-Id': companyBId,
+    };
+
+    await request(app.getHttpServer())
+      .post('/organization/business-units')
+      .set(headers)
+      .send({ name: `BU code ${suffix}`, code: `DUP-BU-${suffix}` })
+      .expect(201);
+    const dupBu = await request(app.getHttpServer())
+      .post('/organization/business-units')
+      .set(headers)
+      .send({ name: `BU code other ${suffix}`, code: `DUP-BU-${suffix}` })
+      .expect(409);
+    expect((dupBu.body as { message: string }).message).toBe(
+      formatDuplicateCompanyCodeMessage('BusinessUnit', `DUP-BU-${suffix}`),
+    );
+    expect((dupBu.body as { message: string }).message).not.toContain(
+      companyAId,
+    );
+
+    await request(app.getHttpServer())
+      .post('/organization/areas')
+      .set(headers)
+      .send({ name: `Area code ${suffix}`, code: `DUP-AR-${suffix}` })
+      .expect(201);
+    const dupArea = await request(app.getHttpServer())
+      .post('/organization/areas')
+      .set(headers)
+      .send({ name: `Area code other ${suffix}`, code: `DUP-AR-${suffix}` })
+      .expect(409);
+    expect((dupArea.body as { message: string }).message).toBe(
+      formatDuplicateCompanyCodeMessage('Area', `DUP-AR-${suffix}`),
+    );
+
+    await request(app.getHttpServer())
+      .post('/organization/job-levels')
+      .set(headers)
+      .send({
+        name: `Level code ${suffix}`,
+        code: `DUP-JL-${suffix}`,
+        rank: 910,
+      })
+      .expect(201);
+    const dupLevel = await request(app.getHttpServer())
+      .post('/organization/job-levels')
+      .set(headers)
+      .send({
+        name: `Level code other ${suffix}`,
+        code: `DUP-JL-${suffix}`,
+        rank: 911,
+      })
+      .expect(409);
+    expect((dupLevel.body as { message: string }).message).toBe(
+      formatDuplicateCompanyCodeMessage('JobLevel', `DUP-JL-${suffix}`),
+    );
+
+    await request(app.getHttpServer())
+      .post('/organization/positions')
+      .set(headers)
+      .send({
+        name: `Position code ${suffix}`,
+        code: `DUP-PO-${suffix}`,
+        areaId: areaAId,
+        headcount: 1,
+      })
+      .expect(201);
+    const dupPos = await request(app.getHttpServer())
+      .post('/organization/positions')
+      .set(headers)
+      .send({
+        name: `Position code other ${suffix}`,
+        code: `DUP-PO-${suffix}`,
+        areaId: areaAId,
+        headcount: 1,
+      })
+      .expect(409);
+    expect((dupPos.body as { message: string }).message).toBe(
+      formatDuplicateCompanyCodeMessage('Position', `DUP-PO-${suffix}`),
+    );
+
+    await request(app.getHttpServer())
+      .post('/organization/business-units')
+      .set(headersB)
+      .send({ name: `BU B code ${suffix}`, code: `DUP-BU-${suffix}` })
+      .expect(201);
+
+    const keepOwn = await request(app.getHttpServer())
+      .post('/organization/areas')
+      .set(headers)
+      .send({ name: `Area keep ${suffix}`, code: `KEEP-AR-${suffix}` })
+      .expect(201);
+    const keepId = (keepOwn.body as { id: string }).id;
+    await request(app.getHttpServer())
+      .patch(`/organization/areas/${keepId}`)
+      .set(headers)
+      .send({ code: `KEEP-AR-${suffix}`, name: `Area keep updated ${suffix}` })
+      .expect(200);
+
+    const steal = await request(app.getHttpServer())
+      .post('/organization/areas')
+      .set(headers)
+      .send({ name: `Area steal ${suffix}`, code: `STEAL-AR-${suffix}` })
+      .expect(201);
+    const stealUpdate = await request(app.getHttpServer())
+      .patch(`/organization/areas/${(steal.body as { id: string }).id}`)
+      .set(headers)
+      .send({ code: `KEEP-AR-${suffix}` })
+      .expect(409);
+    expect((stealUpdate.body as { message: string }).message).toBe(
+      formatDuplicateCompanyCodeMessage('Area', `KEEP-AR-${suffix}`),
+    );
+
+    const nameClash = await request(app.getHttpServer())
+      .post('/organization/areas')
+      .set(headers)
+      .send({
+        name: `Area keep updated ${suffix}`,
+        code: `NAME-CLASH-${suffix}`,
+      })
+      .expect(409);
+    expect((nameClash.body as { message: string }).message).toBe(
+      'Resource conflict',
+    );
+    expect((nameClash.body as { message: string }).message).not.toMatch(
+      /código/i,
+    );
   });
 });

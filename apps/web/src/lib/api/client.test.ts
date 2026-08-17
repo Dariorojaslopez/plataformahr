@@ -104,4 +104,25 @@ describe("api client", () => {
     );
     expect(getAccessToken()).toBeNull();
   });
+
+  it("preserves the API conflict message for duplicate codes", async () => {
+    setAccessToken("token-abc");
+    setActiveCompanyId("company-xyz");
+    vi.mocked(fetch).mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          statusCode: 409,
+          message: "Ya existe un área con el código FIN.",
+        }),
+        { status: 409, headers: { "Content-Type": "application/json" } },
+      ),
+    );
+
+    await expect(
+      apiRequest("/organization/areas", { method: "POST", body: {} }),
+    ).rejects.toMatchObject({
+      status: 409,
+      message: "Ya existe un área con el código FIN.",
+    });
+  });
 });

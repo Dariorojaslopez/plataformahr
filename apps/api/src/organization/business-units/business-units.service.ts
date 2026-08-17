@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { OrganizationEntityStatus, type BusinessUnit } from '@prisma/client';
+import { withDuplicateCompanyCodeConflict } from '../../common/prisma/duplicate-company-code';
 import { AuditService } from '../../core/audit/audit.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ORG_AUDIT } from '../organization.constants';
@@ -28,15 +29,17 @@ export class BusinessUnitsService {
     userId: string,
     dto: CreateBusinessUnitDto,
   ): Promise<BusinessUnit> {
-    const created = await this.prisma.businessUnit.create({
-      data: {
-        companyId,
-        name: dto.name.trim(),
-        code: emptyToNull(dto.code) ?? null,
-        description: emptyToNull(dto.description) ?? null,
-        status: dto.status ?? OrganizationEntityStatus.ACTIVE,
-      },
-    });
+    const created = await withDuplicateCompanyCodeConflict(dto.code, () =>
+      this.prisma.businessUnit.create({
+        data: {
+          companyId,
+          name: dto.name.trim(),
+          code: emptyToNull(dto.code) ?? null,
+          description: emptyToNull(dto.description) ?? null,
+          status: dto.status ?? OrganizationEntityStatus.ACTIVE,
+        },
+      }),
+    );
 
     await this.audit.create({
       action: ORG_AUDIT.BUSINESS_UNIT_CREATED,
@@ -58,17 +61,19 @@ export class BusinessUnitsService {
   ): Promise<BusinessUnit> {
     await this.requireInCompany(companyId, id);
 
-    const updated = await this.prisma.businessUnit.update({
-      where: { id },
-      data: {
-        ...(dto.name !== undefined ? { name: dto.name.trim() } : {}),
-        ...(dto.code !== undefined ? { code: emptyToNull(dto.code) } : {}),
-        ...(dto.description !== undefined
-          ? { description: emptyToNull(dto.description) }
-          : {}),
-        ...(dto.status !== undefined ? { status: dto.status } : {}),
-      },
-    });
+    const updated = await withDuplicateCompanyCodeConflict(dto.code, () =>
+      this.prisma.businessUnit.update({
+        where: { id },
+        data: {
+          ...(dto.name !== undefined ? { name: dto.name.trim() } : {}),
+          ...(dto.code !== undefined ? { code: emptyToNull(dto.code) } : {}),
+          ...(dto.description !== undefined
+            ? { description: emptyToNull(dto.description) }
+            : {}),
+          ...(dto.status !== undefined ? { status: dto.status } : {}),
+        },
+      }),
+    );
 
     await this.audit.create({
       action: ORG_AUDIT.BUSINESS_UNIT_UPDATED,

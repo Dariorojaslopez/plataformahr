@@ -8,6 +8,7 @@ import {
   Prisma,
   type Competency,
 } from '@prisma/client';
+import { duplicateCompanyCodeMessage } from '../../common/prisma/duplicate-company-code';
 import { AuditService } from '../../core/audit/audit.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import {
@@ -117,7 +118,7 @@ export class CompetenciesService {
 
       return created;
     } catch (error) {
-      this.rethrowUnique(error);
+      this.rethrowUnique(error, dto.code);
     }
   }
 
@@ -161,7 +162,7 @@ export class CompetenciesService {
 
       return updated;
     } catch (error) {
-      this.rethrowUnique(error);
+      this.rethrowUnique(error, dto.code);
     }
   }
 
@@ -188,7 +189,11 @@ export class CompetenciesService {
     return row;
   }
 
-  private rethrowUnique(error: unknown): never {
+  private rethrowUnique(error: unknown, attemptedCode?: string | null): never {
+    const codeMessage = duplicateCompanyCodeMessage(error, attemptedCode);
+    if (codeMessage) {
+      throw new ConflictException(codeMessage);
+    }
     if (
       error instanceof Prisma.PrismaClientKnownRequestError &&
       error.code === 'P2002'
