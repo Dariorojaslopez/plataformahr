@@ -10,7 +10,13 @@ import {
   useSyncExternalStore,
   type ReactNode,
 } from "react";
-import { loginRequest, logoutRequest, meRequest, platformCompaniesRequest } from "@/lib/api/auth";
+import {
+  changePasswordRequest,
+  loginRequest,
+  logoutRequest,
+  meRequest,
+  platformCompaniesRequest,
+} from "@/lib/api/auth";
 import { refreshAccessToken } from "@/lib/api/client";
 import { getErrorMessage } from "@/lib/api/errors";
 import {
@@ -44,6 +50,10 @@ type SessionContextValue = {
     companies: PublicCompany[];
   }>;
   logout: () => Promise<void>;
+  changePassword: (
+    currentPassword: string,
+    newPassword: string,
+  ) => Promise<PublicUser>;
   selectCompany: (companyId: string) => void;
   clearActiveCompany: () => void;
   /** Platform Owner: populate selectable companies from GET /platform/companies */
@@ -145,6 +155,16 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  const changePassword = useCallback(
+    async (currentPassword: string, newPassword: string) => {
+      const result = await changePasswordRequest(currentPassword, newPassword);
+      setAccessToken(result.accessToken);
+      setSessionIdentity(result.user, getSessionCompanies());
+      return result.user;
+    },
+    [],
+  );
+
   const selectCompany = useCallback((companyId: string) => {
     const list = getSessionCompanies();
     if (!list.some((company) => company.id === companyId)) {
@@ -177,6 +197,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       activeCompany,
       login,
       logout,
+      changePassword,
       selectCompany,
       clearActiveCompany,
       setPlatformCompanies,
@@ -189,6 +210,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       activeCompany,
       login,
       logout,
+      changePassword,
       selectCompany,
       clearActiveCompany,
       setPlatformCompanies,

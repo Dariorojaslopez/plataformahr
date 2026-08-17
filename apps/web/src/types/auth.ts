@@ -4,6 +4,7 @@ export type PublicUser = {
   firstName: string;
   lastName: string;
   isPlatformOwner: boolean;
+  mustChangePassword?: boolean;
 };
 
 export type PublicCompany = {
@@ -33,6 +34,37 @@ export type PlatformMeResponse = {
   firstName: string;
   lastName: string;
   isPlatformOwner: boolean;
+};
+
+export type ManagedCompany = {
+  id: string;
+  name: string;
+  legalName: string | null;
+  slug: string;
+  status: "ACTIVE" | "INACTIVE" | "SUSPENDED";
+  createdAt: string;
+  membershipCount: number;
+  initialAdmin: {
+    id: string;
+    email: string;
+    firstName: string;
+    lastName: string;
+  } | null;
+};
+
+export type CreateManagedCompanyInput = {
+  name: string;
+  legalName?: string;
+  slug: string;
+  adminFirstName: string;
+  adminLastName: string;
+  adminEmail: string;
+};
+
+export type CreateManagedCompanyResponse = {
+  company: Pick<ManagedCompany, "id" | "name" | "legalName" | "slug" | "status">;
+  initialAdmin: NonNullable<ManagedCompany["initialAdmin"]>;
+  temporaryPassword: string;
 };
 
 export type CurrentCompanyResponse = {

@@ -30,6 +30,7 @@ export class AccessTokenStrategy extends PassportStrategy(
     return {
       userId: payload.sub,
       sessionId: payload.sid,
+      mustChangePassword: payload.mustChangePassword === true,
     };
   }
 }

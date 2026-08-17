@@ -27,6 +27,11 @@ export function AuthGuard({
       return;
     }
 
+    if (user.mustChangePassword) {
+      router.replace("/change-password");
+      return;
+    }
+
     if (requirePlatformOwner && !user.isPlatformOwner) {
       router.replace("/dashboard");
       return;
@@ -59,7 +64,7 @@ export function AuthGuard({
     );
   }
 
-  if (!user) return null;
+  if (!user || user.mustChangePassword) return null;
 
   if (requirePlatformOwner && !user.isPlatformOwner) return null;
 

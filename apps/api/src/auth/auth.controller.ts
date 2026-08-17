@@ -19,6 +19,7 @@ import { SECURITY_CONFIG } from '../config/security.constants';
 import type { SecurityRuntimeConfig } from '../config/security.config';
 import { CurrentUser } from './decorators/current-user.decorator';
 import { LoginDto } from './dto/login.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { AuthService } from './auth.service';
 import type { AuthenticatedUser } from './auth.types';
@@ -99,6 +100,23 @@ export class AuthController {
     clearRefreshCookie(res, this.security);
     res.setHeader('Cache-Control', 'no-store');
     return { success: true };
+  }
+
+  @Post('change-password')
+  @UseGuards(JwtAuthGuard, ThrottlerGuard)
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  changePassword(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() body: ChangePasswordDto,
+    @Req() req: Request,
+  ) {
+    return this.authService.changePassword(
+      user.userId,
+      user.sessionId,
+      body.currentPassword,
+      body.newPassword,
+      requestMeta(req),
+    );
   }
 
   @Get('me')

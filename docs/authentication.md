@@ -27,8 +27,23 @@ Passwords and refresh tokens are never stored in plaintext. `passwordHash` and r
 | `DELETE` | `/companies/current/branding/logo` | Bearer + `X-Company-Id` + `company.manage` | Remove logo |
 | `GET` | `/platform/me` | Bearer + Platform Owner | Platform identity |
 | `GET` | `/platform/companies` | Bearer + Platform Owner | ACTIVE companies catalog for tenant entry |
+| `GET/POST` | `/platform/admin/companies` | Bearer + Platform Owner | List/provision companies and initial admin |
+| `PATCH` | `/platform/admin/companies/:id/status` | Bearer + Platform Owner | Activate/suspend a company |
+| `POST` | `/platform/admin/companies/:id/access` | Bearer + Platform Owner | Create/activate a real CLIENT_ADMIN membership |
+| `POST` | `/auth/change-password` | Bearer | Replace a temporary password |
 
 Platform Owner may call tenant routes with `X-Company-Id` for any **ACTIVE** company without a membership. Regular users still require an ACTIVE membership for that company.
+
+The Platform administration console provisions a company and its first
+`CLIENT_ADMIN` atomically. The API generates a high-entropy temporary password,
+returns it once, stores only its Argon2id hash, and marks the user with
+`mustChangePassword`. Until it is replaced, the JWT guard only allows
+`/auth/me`, `/auth/logout`, and `/auth/change-password`.
+
+When a Platform Owner chooses **Entrar como administrador**, the API creates or
+reactivates a real membership with role `CLIENT_ADMIN`. Tenant requests then
+resolve through that membership (`viaPlatformOwner = false`), preserving the
+actor's identity without impersonating another user.
 
 ## Tokens
 

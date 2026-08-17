@@ -4,6 +4,10 @@ import type {
   AuthTokensResponse,
   PlatformMeResponse,
   PublicCompany,
+  ManagedCompany,
+  CreateManagedCompanyInput,
+  CreateManagedCompanyResponse,
+  PublicUser,
 } from "@/types/auth";
 
 export async function loginRequest(
@@ -39,6 +43,53 @@ export async function platformMeRequest(): Promise<PlatformMeResponse> {
 
 export async function platformCompaniesRequest(): Promise<PublicCompany[]> {
   return apiRequest<PublicCompany[]>("/platform/companies", {
+    companyId: null,
+  });
+}
+
+export function managedCompaniesRequest(): Promise<ManagedCompany[]> {
+  return apiRequest<ManagedCompany[]>("/platform/admin/companies", {
+    companyId: null,
+  });
+}
+
+export function createManagedCompanyRequest(
+  body: CreateManagedCompanyInput,
+): Promise<CreateManagedCompanyResponse> {
+  return apiRequest<CreateManagedCompanyResponse>("/platform/admin/companies", {
+    method: "POST",
+    body,
+    companyId: null,
+  });
+}
+
+export function updateManagedCompanyStatusRequest(
+  id: string,
+  status: ManagedCompany["status"],
+): Promise<ManagedCompany> {
+  return apiRequest<ManagedCompany>(`/platform/admin/companies/${id}/status`, {
+    method: "PATCH",
+    body: { status },
+    companyId: null,
+  });
+}
+
+export function grantPlatformTenantAccessRequest(
+  id: string,
+): Promise<PublicCompany> {
+  return apiRequest<PublicCompany>(`/platform/admin/companies/${id}/access`, {
+    method: "POST",
+    companyId: null,
+  });
+}
+
+export function changePasswordRequest(
+  currentPassword: string,
+  newPassword: string,
+): Promise<{ accessToken: string; user: PublicUser }> {
+  return apiRequest("/auth/change-password", {
+    method: "POST",
+    body: { currentPassword, newPassword },
     companyId: null,
   });
 }

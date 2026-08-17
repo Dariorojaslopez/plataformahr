@@ -35,6 +35,10 @@ export function LoginForm() {
     setLoading(true);
     try {
       const result = await login(trimmedEmail, password);
+      if (result.user.mustChangePassword) {
+        router.replace("/change-password");
+        return;
+      }
       if (result.user.isPlatformOwner) {
         router.replace("/platform");
         return;

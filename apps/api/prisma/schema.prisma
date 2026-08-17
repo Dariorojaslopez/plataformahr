@@ -54,16 +54,17 @@ enum PlatformModule {
 
 /// Global identity. Platform owners do not require a company membership.
 model User {
-  id              String     @id @default(uuid()) @db.Uuid
-  email           String     @unique
-  passwordHash    String?
-  firstName       String
-  lastName        String
-  status          UserStatus @default(INVITED)
-  isPlatformOwner Boolean    @default(false)
-  createdAt       DateTime   @default(now())
-  updatedAt       DateTime   @updatedAt
-  deletedAt       DateTime?
+  id                 String     @id @default(uuid()) @db.Uuid
+  email              String     @unique
+  passwordHash       String?
+  firstName          String
+  lastName           String
+  status             UserStatus @default(INVITED)
+  isPlatformOwner    Boolean    @default(false)
+  mustChangePassword Boolean    @default(false)
+  createdAt          DateTime   @default(now())
+  updatedAt          DateTime   @updatedAt
+  deletedAt          DateTime?
 
   memberships                     CompanyMembership[]
   sessions                        UserSession[]

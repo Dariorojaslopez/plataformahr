@@ -2,6 +2,7 @@ export type AccessTokenPayload = {
   sub: string;
   sid: string;
   type: 'access';
+  mustChangePassword?: boolean;
 };
 
 export type RefreshTokenPayload = {
@@ -14,6 +15,7 @@ export type RefreshTokenPayload = {
 export type AuthenticatedUser = {
   userId: string;
   sessionId: string;
+  mustChangePassword: boolean;
 };
 
 /**
@@ -36,4 +38,5 @@ export const AUTH_AUDIT = {
   LOGIN_SUCCESS: 'AUTH_LOGIN_SUCCESS',
   LOGOUT: 'AUTH_LOGOUT',
   REFRESH: 'AUTH_REFRESH',
+  PASSWORD_CHANGED: 'AUTH_PASSWORD_CHANGED',
 } as const;

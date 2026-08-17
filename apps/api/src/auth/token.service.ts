@@ -11,11 +11,16 @@ export class TokenService {
     private readonly config: ConfigService,
   ) {}
 
-  signAccessToken(userId: string, sessionId: string): string {
+  signAccessToken(
+    userId: string,
+    sessionId: string,
+    mustChangePassword = false,
+  ): string {
     const payload: AccessTokenPayload = {
       sub: userId,
       sid: sessionId,
       type: 'access',
+      mustChangePassword,
     };
     return this.jwt.sign(payload, {
       secret: this.accessSecret,

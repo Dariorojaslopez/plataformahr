@@ -1,4 +1,8 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common';
 import {
   CompanyStatus,
   MembershipStatus,
@@ -19,6 +23,7 @@ export type PublicUser = {
   firstName: string;
   lastName: string;
   isPlatformOwner: boolean;
+  mustChangePassword: boolean;
 };
 
 export type PublicCompany = {
@@ -77,7 +82,11 @@ export class AuthService {
     }
 
     const sessionId = randomUUID();
-    const accessToken = this.tokens.signAccessToken(user.id, sessionId);
+    const accessToken = this.tokens.signAccessToken(
+      user.id,
+      sessionId,
+      user.mustChangePassword,
+    );
     const refreshToken = this.tokens.signRefreshToken(user.id, sessionId);
     const refreshTokenHash = await this.passwordHashing.hash(refreshToken);
 
@@ -163,7 +172,11 @@ export class AuthService {
       throw new UnauthorizedException('Invalid refresh token');
     }
 
-    const newAccessToken = this.tokens.signAccessToken(user.id, session.id);
+    const newAccessToken = this.tokens.signAccessToken(
+      user.id,
+      session.id,
+      user.mustChangePassword,
+    );
     const newRefreshToken = this.tokens.signRefreshToken(user.id, session.id);
     const refreshTokenHash = await this.passwordHashing.hash(newRefreshToken);
 
@@ -225,12 +238,68 @@ export class AuthService {
     });
   }
 
+  async changePassword(
+    userId: string,
+    sessionId: string,
+    currentPassword: string,
+    newPassword: string,
+    meta?: { ipAddress?: string; userAgent?: string },
+  ): Promise<{ accessToken: string; user: PublicUser }> {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (
+      !user ||
+      user.deletedAt !== null ||
+      user.status !== UserStatus.ACTIVE ||
+      !user.passwordHash
+    ) {
+      throw new UnauthorizedException();
+    }
+    if (
+      !(await this.passwordHashing.verify(user.passwordHash, currentPassword))
+    ) {
+      throw new UnauthorizedException('Current password is incorrect');
+    }
+    if (currentPassword === newPassword) {
+      throw new BadRequestException(
+        'New password must be different from current password',
+      );
+    }
+
+    const passwordHash = await this.passwordHashing.hash(newPassword);
+    const updated = await this.prisma.user.update({
+      where: { id: userId },
+      data: { passwordHash, mustChangePassword: false },
+    });
+    await this.prisma.userSession.updateMany({
+      where: {
+        userId,
+        id: { not: sessionId },
+        revokedAt: null,
+      },
+      data: { revokedAt: new Date() },
+    });
+    await this.audit.create({
+      action: AUTH_AUDIT.PASSWORD_CHANGED,
+      entity: 'User',
+      entityId: userId,
+      user: { connect: { id: userId } },
+      ipAddress: meta?.ipAddress,
+      userAgent: meta?.userAgent,
+      metadata: { otherSessionsRevoked: true },
+    });
+    return {
+      accessToken: this.tokens.signAccessToken(userId, sessionId, false),
+      user: this.toPublicUser(updated),
+    };
+  }
+
   async getMe(userId: string): Promise<{
     id: string;
     email: string;
     firstName: string;
     lastName: string;
     isPlatformOwner: boolean;
+    mustChangePassword: boolean;
     companies: PublicCompany[];
   }> {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
@@ -277,6 +346,7 @@ export class AuthService {
       firstName: user.firstName,
       lastName: user.lastName,
       isPlatformOwner: user.isPlatformOwner,
+      mustChangePassword: user.mustChangePassword,
     };
   }
 
