@@ -60,6 +60,21 @@ describe("vacancy request form payloads", () => {
     expect(payload.requestedAreaId).toBe("area-1");
     expect(payload.requestedByEmployeeId).toBe("emp-1");
   });
+
+  it("includes requestedByEmployeeId when a collaborator was selected", () => {
+    const payload = toCreateVacancyRequestPayload({
+      type: "EXISTING_POSITION",
+      requestedByEmployeeId: "emp-selected",
+      existingPositionId: "pos-1",
+      requestedPositionName: "",
+      requestedAreaId: "",
+      requestedJobLevelId: "",
+      requestedHeadcount: "1",
+      justification: "Coverage",
+      generalManagerApprovalRequired: false,
+    });
+    expect(payload.requestedByEmployeeId).toBe("emp-selected");
+  });
 });
 
 describe("candidate form payloads", () => {

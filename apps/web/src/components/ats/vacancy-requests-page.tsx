@@ -13,6 +13,7 @@ import {
   vacancyRequestToForm,
   type VacancyRequestFormValues,
 } from "@/components/ats/vacancy-request-form";
+import { useSession } from "@/components/auth/session-provider";
 import { EntityEditorShell } from "@/components/organization/entity-editor-shell";
 import { FormSelect } from "@/components/organization/form-select";
 import { PaginationControls } from "@/components/organization/pagination-controls";
@@ -42,6 +43,12 @@ import {
   VACANCY_REQUEST_TYPE_LABELS,
   vacancyRequestStatusVariant,
 } from "@/lib/ats/labels";
+import {
+  describeVacancyRequesterField,
+  findLinkedEmployeeId,
+  validateRequesterSelection,
+  vacancyRequestSaveError,
+} from "@/lib/ats/vacancy-requester";
 import type {
   ListVacancyRequestsParams,
   VacancyRequest,
@@ -91,6 +98,7 @@ function useRequestFilters() {
 
 export function VacancyRequestsPageClient() {
   const companyId = useCompanyId();
+  const { user } = useSession();
   const queryClient = useQueryClient();
   const { params, setParams } = useRequestFilters();
   const [searchInput, setSearchInput] = useState(params.search ?? "");
@@ -146,6 +154,18 @@ export function VacancyRequestsPageClient() {
       })),
     [employeesQuery.data],
   );
+  const linkedEmployeeId = findLinkedEmployeeId(
+    employeesQuery.data?.items ?? [],
+    user?.id,
+  );
+  const linkedEmployeeExists = Boolean(linkedEmployeeId);
+  // This screen lists collaborators for on-behalf requests. The API does not
+  // expose membership roles; PROXY_REQUESTER_ROLE_CODES remain backend-only.
+  const canProxyRequester = true;
+  const requesterField = describeVacancyRequesterField({
+    linkedEmployeeExists,
+    canProxyRequester,
+  });
 
   const saveMutation = useMutation({
     mutationFn: async (values: VacancyRequestFormValues) => {
@@ -167,9 +187,22 @@ export function VacancyRequestsPageClient() {
       setFormError(null);
     },
     onError: (error) => {
-      setFormError(getErrorMessage(error, "No se pudo guardar la solicitud."));
+      setFormError(vacancyRequestSaveError(error));
     },
   });
+
+  function submitForm() {
+    const requesterError = validateRequesterSelection(
+      form.requestedByEmployeeId,
+      requesterField,
+    );
+    if (requesterError) {
+      setFormError(requesterError);
+      return;
+    }
+    setFormError(null);
+    saveMutation.mutate(form);
+  }
 
   function openCreate() {
     setEditing(null);
@@ -424,13 +457,15 @@ export function VacancyRequestsPageClient() {
           values={form}
           onChange={setForm}
           onCancel={() => setOpen(false)}
-          onSubmit={() => saveMutation.mutate(form)}
+          onSubmit={submitForm}
           submitting={saveMutation.isPending}
           error={formError}
           positions={positionOptions}
           areas={areaOptions}
           jobLevels={levelOptions}
           employees={employeeOptions}
+          linkedEmployeeExists={linkedEmployeeExists}
+          canProxyRequester={canProxyRequester}
           submitLabel={editing ? "Guardar cambios" : "Crear solicitud"}
         />
       </EntityEditorShell>

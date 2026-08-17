@@ -28,6 +28,7 @@ import {
   MAX_LIMIT,
   PROXY_REQUESTER_ROLE_CODES,
   TEMP_APPROVER_ROLE_CODE,
+  VACANCY_REQUESTER_ERRORS,
 } from '../ats.constants';
 import type {
   ApprovalDecisionDto,
@@ -693,9 +694,7 @@ export class VacancyRequestsService {
           },
         });
         if (!own) {
-          throw new ForbiddenException(
-            'Cannot create vacancy requests on behalf of another employee',
-          );
+          throw new ForbiddenException(VACANCY_REQUESTER_ERRORS.CANNOT_PROXY);
         }
       }
       return requestedByEmployeeId;
@@ -710,7 +709,9 @@ export class VacancyRequestsService {
     });
     if (!ownEmployee) {
       throw new BadRequestException(
-        'requestedByEmployeeId is required when the user has no linked employee',
+        canProxy
+          ? VACANCY_REQUESTER_ERRORS.SELECT_REQUESTER
+          : VACANCY_REQUESTER_ERRORS.NO_LINKED_EMPLOYEE,
       );
     }
     return ownEmployee.id;

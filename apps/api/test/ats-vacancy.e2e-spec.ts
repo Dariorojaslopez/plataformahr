@@ -16,6 +16,7 @@ import { loadOptionalEnvFile } from './load-env';
 import request from 'supertest';
 import { App } from 'supertest/types';
 import { AppModule } from '../src/app.module';
+import { VACANCY_REQUESTER_ERRORS } from '../src/ats/ats.constants';
 import { PasswordHashingService } from '../src/auth/password-hashing.service';
 
 loadOptionalEnvFile(join(__dirname, '../.env'));
@@ -42,6 +43,10 @@ describe('ATS vacancy core (e2e)', () => {
   let otherLeaderToken = '';
   let collaboratorToken = '';
   let adminBToken = '';
+  let unlinkedAdminToken = '';
+  let recruiterToken = '';
+  let unlinkedLeaderToken = '';
+  let companyBEmployeeId = '';
 
   beforeAll(async () => {
     prisma = new PrismaClient();
@@ -166,6 +171,48 @@ describe('ATS vacancy core (e2e)', () => {
       'CLIENT_ADMIN',
       companyBId,
     );
+    await createUser(
+      `ats-admin-unlinked-${suffix}@example.com`,
+      'CLIENT_ADMIN',
+      companyAId,
+    );
+    await createUser(
+      `ats-leader-unlinked-${suffix}@example.com`,
+      'LEADER',
+      companyAId,
+    );
+    const recruiter = await createUser(
+      `ats-recruiter-${suffix}@example.com`,
+      'RECRUITER',
+      companyAId,
+    );
+    await prisma.employee.create({
+      data: {
+        companyId: companyAId,
+        firstName: 'Recruiter',
+        lastName: 'Linked',
+        email: `recruiter-emp-${suffix}@example.com`,
+        areaId: areaAId,
+        positionId: positionAId,
+        userId: recruiter.id,
+      },
+    });
+
+    const companyBEmployee = await prisma.employee.create({
+      data: {
+        companyId: companyBId,
+        firstName: 'Other',
+        lastName: 'Tenant',
+        email: `b-emp-${suffix}@example.com`,
+        areaId: areaBId,
+        positionId: (
+          await prisma.position.findFirstOrThrow({
+            where: { companyId: companyBId },
+          })
+        ).id,
+      },
+    });
+    companyBEmployeeId = companyBEmployee.id;
 
     const requesterEmp = await prisma.employee.create({
       data: {
@@ -241,6 +288,13 @@ describe('ATS vacancy core (e2e)', () => {
     otherLeaderToken = await login(`ats-other-${suffix}@example.com`);
     collaboratorToken = await login(`ats-collab-${suffix}@example.com`);
     adminBToken = await login(`ats-admin-b-${suffix}@example.com`);
+    unlinkedAdminToken = await login(
+      `ats-admin-unlinked-${suffix}@example.com`,
+    );
+    recruiterToken = await login(`ats-recruiter-${suffix}@example.com`);
+    unlinkedLeaderToken = await login(
+      `ats-leader-unlinked-${suffix}@example.com`,
+    );
   });
 
   afterAll(async () => {
@@ -251,6 +305,138 @@ describe('ATS vacancy core (e2e)', () => {
   const auth = (token: string, companyId = companyAId) => ({
     Authorization: `Bearer ${token}`,
     'X-Company-Id': companyId,
+  });
+
+  it('resolves omitted requester from the linked employee and rejects proxy abuse', async () => {
+    const asSelf = await request(app.getHttpServer())
+      .post('/ats/vacancy-requests')
+      .set(auth(collaboratorToken))
+      .send({
+        type: VacancyRequestType.EXISTING_POSITION,
+        existingPositionId: positionAId,
+        requestedHeadcount: 1,
+        justification: 'Linked collaborator omits requester id',
+      })
+      .expect(201);
+    expect(
+      (asSelf.body as { requestedByEmployeeId: string }).requestedByEmployeeId,
+    ).toBe(requesterEmployeeId);
+
+    const omittedByUnlinkedAdmin = await request(app.getHttpServer())
+      .post('/ats/vacancy-requests')
+      .set(auth(unlinkedAdminToken))
+      .send({
+        type: VacancyRequestType.EXISTING_POSITION,
+        existingPositionId: positionAId,
+        requestedHeadcount: 1,
+        justification: 'Admin without employee',
+      })
+      .expect(400);
+    expect((omittedByUnlinkedAdmin.body as { message: string }).message).toBe(
+      VACANCY_REQUESTER_ERRORS.SELECT_REQUESTER,
+    );
+
+    const proxied = await request(app.getHttpServer())
+      .post('/ats/vacancy-requests')
+      .set(auth(unlinkedAdminToken))
+      .send({
+        type: VacancyRequestType.EXISTING_POSITION,
+        requestedByEmployeeId: requesterEmployeeId,
+        existingPositionId: positionAId,
+        requestedHeadcount: 1,
+        justification: 'Admin selected a collaborator',
+      })
+      .expect(201);
+    expect(
+      (proxied.body as { requestedByEmployeeId: string }).requestedByEmployeeId,
+    ).toBe(requesterEmployeeId);
+
+    const recruiterProxied = await request(app.getHttpServer())
+      .post('/ats/vacancy-requests')
+      .set(auth(recruiterToken))
+      .send({
+        type: VacancyRequestType.EXISTING_POSITION,
+        requestedByEmployeeId: requesterEmployeeId,
+        existingPositionId: positionAId,
+        requestedHeadcount: 1,
+        justification: 'Recruiter proxy',
+      })
+      .expect(201);
+    expect(
+      (recruiterProxied.body as { requestedByEmployeeId: string })
+        .requestedByEmployeeId,
+    ).toBe(requesterEmployeeId);
+
+    const impersonate = await request(app.getHttpServer())
+      .post('/ats/vacancy-requests')
+      .set(auth(collaboratorToken))
+      .send({
+        type: VacancyRequestType.EXISTING_POSITION,
+        requestedByEmployeeId: managerEmployeeId,
+        existingPositionId: positionAId,
+        requestedHeadcount: 1,
+        justification: 'Collaborator cannot proxy',
+      })
+      .expect(403);
+    expect((impersonate.body as { message: string }).message).toBe(
+      VACANCY_REQUESTER_ERRORS.CANNOT_PROXY,
+    );
+
+    await request(app.getHttpServer())
+      .post('/ats/vacancy-requests')
+      .set(auth(unlinkedAdminToken))
+      .send({
+        type: VacancyRequestType.EXISTING_POSITION,
+        requestedByEmployeeId: companyBEmployeeId,
+        existingPositionId: positionAId,
+        requestedHeadcount: 1,
+        justification: 'Other tenant employee',
+      })
+      .expect(404);
+
+    const noLinkedLeader = await request(app.getHttpServer())
+      .post('/ats/vacancy-requests')
+      .set(auth(unlinkedLeaderToken))
+      .send({
+        type: VacancyRequestType.EXISTING_POSITION,
+        existingPositionId: positionAId,
+        requestedHeadcount: 1,
+        justification: 'Leader without employee cannot omit requester',
+      })
+      .expect(400);
+    expect((noLinkedLeader.body as { message: string }).message).toBe(
+      VACANCY_REQUESTER_ERRORS.NO_LINKED_EMPLOYEE,
+    );
+
+    const leaderImpersonate = await request(app.getHttpServer())
+      .post('/ats/vacancy-requests')
+      .set(auth(unlinkedLeaderToken))
+      .send({
+        type: VacancyRequestType.EXISTING_POSITION,
+        requestedByEmployeeId: requesterEmployeeId,
+        existingPositionId: positionAId,
+        requestedHeadcount: 1,
+        justification: 'Leader without proxy cannot impersonate',
+      })
+      .expect(403);
+    expect((leaderImpersonate.body as { message: string }).message).toBe(
+      VACANCY_REQUESTER_ERRORS.CANNOT_PROXY,
+    );
+
+    const leaderSelf = await request(app.getHttpServer())
+      .post('/ats/vacancy-requests')
+      .set(auth(otherLeaderToken))
+      .send({
+        type: VacancyRequestType.EXISTING_POSITION,
+        existingPositionId: positionAId,
+        requestedHeadcount: 1,
+        justification: 'Leader has linked employee so omit is ok',
+      })
+      .expect(201);
+    expect(
+      (leaderSelf.body as { requestedByEmployeeId: string })
+        .requestedByEmployeeId,
+    ).toBe(otherLeaderEmployeeId);
   });
 
   it('creates and edits DRAFT, rejects edit when pending', async () => {
@@ -626,6 +812,5 @@ describe('ATS vacancy core (e2e)', () => {
   });
 
   // silence unused vars in strict builds
-  void otherLeaderEmployeeId;
   void positionHeadcountStart;
 });

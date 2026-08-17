@@ -6,6 +6,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { describeVacancyRequesterField } from "@/lib/ats/vacancy-requester";
 import type {
   CreateVacancyRequestInput,
   UpdateVacancyRequestInput,
@@ -111,7 +112,8 @@ type VacancyRequestFormProps = {
   areas: Option[];
   jobLevels: Option[];
   employees: Option[];
-  showRequesterSelector?: boolean;
+  linkedEmployeeExists: boolean;
+  canProxyRequester: boolean;
   submitLabel?: string;
 };
 
@@ -126,9 +128,15 @@ export function VacancyRequestForm({
   areas,
   jobLevels,
   employees,
-  showRequesterSelector = true,
+  linkedEmployeeExists,
+  canProxyRequester,
   submitLabel = "Guardar",
 }: VacancyRequestFormProps) {
+  const requesterField = describeVacancyRequesterField({
+    linkedEmployeeExists,
+    canProxyRequester,
+  });
+
   function setType(type: VacancyRequestType) {
     if (type === "EXISTING_POSITION") {
       onChange({
@@ -167,7 +175,13 @@ export function VacancyRequestForm({
         ]}
       />
 
-      {showRequesterSelector ? (
+      {requesterField.blocked ? (
+        <p className="text-sm text-destructive" role="alert">
+          {requesterField.blockedMessage}
+        </p>
+      ) : null}
+
+      {requesterField.showSelector ? (
         <FormSelect
           id="vr-requester"
           label="Solicitante"
@@ -176,9 +190,10 @@ export function VacancyRequestForm({
             onChange({ ...values, requestedByEmployeeId })
           }
           options={employees}
-          allowEmpty
-          emptyLabel="Yo (colaborador vinculado)"
-          hint="CLIENT_ADMIN/RECRUITER pueden solicitar en nombre de otro colaborador."
+          required={requesterField.requesterRequired}
+          allowEmpty={requesterField.allowSelfOption}
+          emptyLabel={requesterField.emptyLabel ?? undefined}
+          hint={requesterField.hint ?? undefined}
         />
       ) : null}
 
@@ -289,7 +304,7 @@ export function VacancyRequestForm({
         <Button type="button" variant="outline" onClick={onCancel}>
           Cancelar
         </Button>
-        <Button type="submit" disabled={submitting}>
+        <Button type="submit" disabled={submitting || requesterField.blocked}>
           {submitting ? "Guardando…" : submitLabel}
         </Button>
       </div>

@@ -10,6 +10,7 @@ import {
   VacancyRequestForm,
   vacancyRequestToForm,
 } from "@/components/ats/vacancy-request-form";
+import { useSession } from "@/components/auth/session-provider";
 import { EntityEditorShell } from "@/components/organization/entity-editor-shell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -39,10 +40,17 @@ import {
   VACANCY_REQUEST_TYPE_LABELS,
   vacancyRequestStatusVariant,
 } from "@/lib/ats/labels";
+import {
+  describeVacancyRequesterField,
+  findLinkedEmployeeId,
+  validateRequesterSelection,
+  vacancyRequestSaveError,
+} from "@/lib/ats/vacancy-requester";
 import { notifyError, notifySuccess } from "@/lib/ui/notify";
 
 export function VacancyRequestDetailPageClient() {
   const companyId = useCompanyId();
+  const { user } = useSession();
   const queryClient = useQueryClient();
   const params = useParams<{ id: string }>();
   const id = params.id;
@@ -97,6 +105,15 @@ export function VacancyRequestDetailPageClient() {
     return map;
   }, [employeesQuery.data]);
 
+  const linkedEmployeeExists = Boolean(
+    findLinkedEmployeeId(employeesQuery.data?.items ?? [], user?.id),
+  );
+  const canProxyRequester = true;
+  const requesterField = describeVacancyRequesterField({
+    linkedEmployeeExists,
+    canProxyRequester,
+  });
+
   const request = detailQuery.data;
   const approvals = useMemo(
     () =>
@@ -118,7 +135,7 @@ export function VacancyRequestDetailPageClient() {
       notifySuccess("Solicitud actualizada");
     },
     onError: (error) => {
-      setFormError(getErrorMessage(error, "No se pudo actualizar."));
+      setFormError(vacancyRequestSaveError(error));
       notifyError(error, "No se pudo actualizar.");
     },
   });
@@ -364,7 +381,17 @@ export function VacancyRequestDetailPageClient() {
           values={form}
           onChange={setForm}
           onCancel={() => setEditOpen(false)}
-          onSubmit={() => updateMutation.mutate()}
+          onSubmit={() => {
+            const requesterError = validateRequesterSelection(
+              form.requestedByEmployeeId,
+              requesterField,
+            );
+            if (requesterError) {
+              setFormError(requesterError);
+              return;
+            }
+            updateMutation.mutate();
+          }}
           submitting={updateMutation.isPending}
           error={formError}
           positions={(positionsQuery.data ?? []).map((p) => ({
@@ -383,6 +410,8 @@ export function VacancyRequestDetailPageClient() {
             value: e.id,
             label: `${e.firstName} ${e.lastName}`,
           }))}
+          linkedEmployeeExists={linkedEmployeeExists}
+          canProxyRequester={canProxyRequester}
           submitLabel="Guardar cambios"
         />
       </EntityEditorShell>

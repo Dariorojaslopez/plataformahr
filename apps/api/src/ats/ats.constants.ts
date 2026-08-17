@@ -44,6 +44,14 @@ export const PROXY_REQUESTER_ROLE_CODES = [
   'RECRUITER',
 ] as const;
 
+/** User-facing requester errors (Spanish). Do not include tenant or employee ids. */
+export const VACANCY_REQUESTER_ERRORS = {
+  SELECT_REQUESTER: 'Selecciona el colaborador que realiza la solicitud.',
+  NO_LINKED_EMPLOYEE:
+    'Tu usuario no tiene un colaborador asociado. Contacta al administrador de la compañía.',
+  CANNOT_PROXY: 'No puedes crear solicitudes en nombre de otro colaborador.',
+} as const;
+
 export const PIPELINE_STAGES = [
   'PENDING_REVIEW',
   'CONTACTED',
