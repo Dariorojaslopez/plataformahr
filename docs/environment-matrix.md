@@ -51,7 +51,7 @@ In **production** (and real staging treated as production-hardened):
 | `CORS_ORIGINS` | Yes in production | Comma-separated exact origins |
 | `COOKIE_SAMESITE` | Recommended | `none`\|`lax`\|`strict` |
 | `COOKIE_SECURE` | Recommended | Forced when SameSite=none or production |
-| `COOKIE_PATH` | Recommended behind `/api` | Default `/auth`; public proxy prefix e.g. `/api/auth` |
+| `COOKIE_PATH` | Recommended behind `/api` | App default `/auth`; prod compose default `/api/auth` |
 | `TRUST_PROXY` | If behind proxy | e.g. `1` |
 | `PORT` | No | Default `3001` |
 | `NODE_ENV` | Yes | `production` for staging/prod runtime |

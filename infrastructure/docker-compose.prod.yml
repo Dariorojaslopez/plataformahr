@@ -70,7 +70,8 @@ services:
       CORS_ORIGINS: ${CORS_ORIGINS:?set CORS_ORIGINS}
       COOKIE_SAMESITE: ${COOKIE_SAMESITE:-none}
       COOKIE_SECURE: ${COOKIE_SECURE:-true}
-      COOKIE_PATH: ${COOKIE_PATH:-/auth}
+      # Browser-visible path. Same-origin proxy /api → /api/auth (Nest still serves /auth).
+      COOKIE_PATH: ${COOKIE_PATH:-/api/auth}
       TRUST_PROXY: ${TRUST_PROXY:-1}
       JSON_BODY_LIMIT: ${JSON_BODY_LIMIT:-1mb}
     networks:
