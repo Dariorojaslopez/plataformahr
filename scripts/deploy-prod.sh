@@ -126,7 +126,9 @@ if ! images_exist "$SHA"; then
 fi
 
 echo "Running Prisma migrate deploy (service migrate). Aborting on failure."
-if ! compose run --rm --no-build --no-deps migrate; then
+# `compose run` does not build unless --build is passed. Do not pass --no-build:
+# that flag exists on `up` but not on `run` in Compose plugins older than 2.33.
+if ! compose run --rm --no-deps migrate; then
   echo "ERROR: migrate deploy failed; leaving API/Web on previous revision" >&2
   print_forward_only_warning
   exit 1

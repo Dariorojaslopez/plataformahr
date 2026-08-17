@@ -13,7 +13,7 @@ Directory: `/opt/plataforma-hr`. Runtime secrets: `infrastructure/.env.prod` (ne
 2. Ensure postgres is up (volume talento_prod_pgdata kept)
 3. Backup via postgres container → backups/talento-<UTC>-<sha12>.dump
 4. IMAGE_TAG=$SHA docker compose build api web
-5. docker compose run --rm --no-build migrate
+5. docker compose run --rm --no-deps migrate
    if fail → stop; do not roll out new API/Web
 6. up -d --no-deps --no-build api, then web
 7. curl API /health, API /ready, Web /
@@ -38,7 +38,7 @@ pnpm infra:prod:migrate
 
 # Equivalent
 docker compose -f infrastructure/docker-compose.prod.yml \
-  --env-file infrastructure/.env.prod run --rm --no-build migrate
+  --env-file infrastructure/.env.prod run --rm --no-deps migrate
 ```
 
 Never use `prisma migrate dev`, `prisma db push`, or `migrate reset` against production.
