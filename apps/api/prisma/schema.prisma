@@ -129,6 +129,9 @@ model Company {
   jobLevels                         JobLevel[]
   jobLevelCompetencies              JobLevelCompetency[]
   positions                         Position[]
+  positionCustomFieldDefinitions    PositionCustomFieldDefinition[]
+  positionCustomFieldOptions        PositionCustomFieldOption[]
+  positionCustomFieldValues         PositionCustomFieldValue[]
   employees                         Employee[]
   reportingLines                    EmployeeReportingLine[]
   vacancyRequests                   VacancyRequest[]
@@ -310,6 +313,14 @@ enum ReportingLineType {
   INDIRECT
 }
 
+enum PositionCustomFieldType {
+  TEXT
+  NUMBER
+  BOOLEAN
+  DATE
+  SELECT
+}
+
 model BusinessUnit {
   id          String                   @id @default(uuid()) @db.Uuid
   companyId   String                   @db.Uuid
@@ -429,6 +440,7 @@ model Position {
   employees       Employee[]
   vacancyRequests VacancyRequest[]
   vacancies       Vacancy[]
+  customFieldValues PositionCustomFieldValue[]
 
   @@unique([companyId, name])
   @@unique([companyId, code])
@@ -436,6 +448,74 @@ model Position {
   @@index([areaId])
   @@index([jobLevelId])
   @@map("positions")
+}
+
+/// Company-scoped field definition for Position. Not hardcoded catalog fields.
+model PositionCustomFieldDefinition {
+  id        String                   @id @default(uuid()) @db.Uuid
+  companyId String                   @db.Uuid
+  key       String
+  label     String
+  type      PositionCustomFieldType
+  required  Boolean                  @default(false)
+  active    Boolean                  @default(true)
+  sortOrder Int                      @default(0)
+  createdAt DateTime                 @default(now())
+  updatedAt DateTime                 @updatedAt
+
+  company Company                       @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  options PositionCustomFieldOption[]
+  values  PositionCustomFieldValue[]
+
+  @@unique([companyId, key])
+  @@index([companyId])
+  @@index([companyId, active, sortOrder])
+  @@map("position_custom_field_definitions")
+}
+
+model PositionCustomFieldOption {
+  id           String   @id @default(uuid()) @db.Uuid
+  companyId    String   @db.Uuid
+  definitionId String   @db.Uuid
+  label        String
+  sortOrder    Int      @default(0)
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  company    Company                        @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  definition PositionCustomFieldDefinition  @relation(fields: [definitionId], references: [id], onDelete: Restrict)
+  values     PositionCustomFieldValue[]
+
+  @@index([companyId])
+  @@index([definitionId, sortOrder])
+  @@map("position_custom_field_options")
+}
+
+/// Typed values per Position + definition. Avoids Position.metadata blobs.
+model PositionCustomFieldValue {
+  id           String    @id @default(uuid()) @db.Uuid
+  companyId    String    @db.Uuid
+  positionId   String    @db.Uuid
+  definitionId String    @db.Uuid
+  optionId     String?   @db.Uuid
+  textValue    String?
+  numberValue  Decimal?  @db.Decimal(18, 4)
+  booleanValue Boolean?
+  dateValue    DateTime? @db.Date
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  company    Company                       @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  position   Position                      @relation(fields: [positionId], references: [id], onDelete: Restrict)
+  definition PositionCustomFieldDefinition @relation(fields: [definitionId], references: [id], onDelete: Restrict)
+  option     PositionCustomFieldOption?    @relation(fields: [optionId], references: [id], onDelete: Restrict)
+
+  @@unique([positionId, definitionId])
+  @@index([companyId])
+  @@index([definitionId])
+  @@index([optionId])
+  @@map("position_custom_field_values")
 }
 
 model Employee {

@@ -50,6 +50,80 @@ export type JobLevel = {
   deletedAt: string | null;
 };
 
+export type PositionCustomFieldType =
+  | "TEXT"
+  | "NUMBER"
+  | "BOOLEAN"
+  | "DATE"
+  | "SELECT";
+
+export type PositionCustomFieldOption = {
+  id: string;
+  companyId: string;
+  definitionId: string;
+  label: string;
+  sortOrder: number;
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type PositionCustomFieldDefinition = {
+  id: string;
+  companyId: string;
+  key: string;
+  label: string;
+  type: PositionCustomFieldType;
+  required: boolean;
+  active: boolean;
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
+  options: PositionCustomFieldOption[];
+  _count?: { values: number };
+};
+
+export type PositionCustomFieldValue = {
+  definitionId: string;
+  key: string;
+  label: string;
+  type: PositionCustomFieldType;
+  required: boolean;
+  active: boolean;
+  value: string | number | boolean | null;
+  optionId: string | null;
+  optionLabel: string | null;
+};
+
+export type PositionCustomFieldInput = {
+  definitionId: string;
+  value: string | number | boolean | null;
+};
+
+export type CreatePositionCustomFieldDefinitionInput = {
+  key: string;
+  label: string;
+  type: PositionCustomFieldType;
+  required?: boolean;
+  active?: boolean;
+  sortOrder?: number;
+  options?: Array<{ label: string; sortOrder?: number }>;
+};
+
+export type UpdatePositionCustomFieldDefinitionInput = {
+  label?: string;
+  type?: PositionCustomFieldType;
+  required?: boolean;
+  active?: boolean;
+  sortOrder?: number;
+  options?: Array<{
+    id?: string;
+    label: string;
+    sortOrder?: number;
+    active?: boolean;
+  }>;
+};
+
 export type Position = {
   id: string;
   companyId: string;
@@ -66,6 +140,7 @@ export type Position = {
   createdAt: string;
   updatedAt: string;
   deletedAt: string | null;
+  customFields?: PositionCustomFieldValue[];
 };
 
 export type Employee = {
@@ -218,6 +293,7 @@ export type CreatePositionInput = {
   requiredEducation?: string;
   headcount?: number;
   status?: OrganizationEntityStatus;
+  customFields?: PositionCustomFieldInput[];
 };
 
 export type UpdatePositionInput = {
@@ -231,6 +307,7 @@ export type UpdatePositionInput = {
   requiredEducation?: string;
   headcount?: number;
   status?: OrganizationEntityStatus;
+  customFields?: PositionCustomFieldInput[];
 };
 
 export type CreateEmployeeInput = {

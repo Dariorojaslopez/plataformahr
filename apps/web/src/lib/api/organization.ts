@@ -7,6 +7,7 @@ import type {
   CreateBusinessUnitInput,
   CreateEmployeeInput,
   CreateJobLevelInput,
+  CreatePositionCustomFieldDefinitionInput,
   CreatePositionInput,
   CreateReportingLineInput,
   Employee,
@@ -16,12 +17,14 @@ import type {
   OrganizationProfile,
   PaginatedEmployees,
   Position,
+  PositionCustomFieldDefinition,
   ReplaceJobLevelCompetenciesInput,
   ReportingLine,
   UpdateAreaInput,
   UpdateBusinessUnitInput,
   UpdateEmployeeInput,
   UpdateJobLevelInput,
+  UpdatePositionCustomFieldDefinitionInput,
   UpdatePositionInput,
 } from "@/types/organization";
 
@@ -100,6 +103,26 @@ export const organizationApi = {
       body,
     }),
 
+  listPositionCustomFields: () =>
+    apiRequest<PositionCustomFieldDefinition[]>(
+      "/organization/position-custom-fields",
+    ),
+
+  createPositionCustomField: (body: CreatePositionCustomFieldDefinitionInput) =>
+    apiRequest<PositionCustomFieldDefinition>(
+      "/organization/position-custom-fields",
+      { method: "POST", body },
+    ),
+
+  updatePositionCustomField: (
+    id: string,
+    body: UpdatePositionCustomFieldDefinitionInput,
+  ) =>
+    apiRequest<PositionCustomFieldDefinition>(
+      `/organization/position-custom-fields/${id}`,
+      { method: "PATCH", body },
+    ),
+
   listEmployees: (params: ListEmployeesParams = {}) =>
     apiRequest<PaginatedEmployees>(
       `/organization/employees${toQuery({
@@ -161,6 +184,8 @@ export const orgKeys = {
     [...orgKeys.all(companyId), "job-level-competencies", id] as const,
   positions: (companyId: string) =>
     [...orgKeys.all(companyId), "positions"] as const,
+  positionCustomFields: (companyId: string) =>
+    [...orgKeys.all(companyId), "position-custom-fields"] as const,
   employees: (companyId: string, params: ListEmployeesParams) =>
     [...orgKeys.all(companyId), "employees", params] as const,
   employee: (companyId: string, id: string) =>

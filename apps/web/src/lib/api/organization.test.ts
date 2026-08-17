@@ -153,4 +153,40 @@ describe("organizationApi", () => {
       { competencyIds: ["c1"] },
     );
   });
+
+  it("manages position custom field definitions", async () => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify([]), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ id: "f1", key: "codigo_sap", type: "TEXT" }), {
+          status: 201,
+          headers: { "Content-Type": "application/json" },
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ id: "f1", active: false }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      );
+
+    await organizationApi.listPositionCustomFields();
+    await organizationApi.createPositionCustomField({
+      key: "codigo_sap",
+      label: "Código SAP",
+      type: "TEXT",
+    });
+    await organizationApi.updatePositionCustomField("f1", { active: false });
+
+    expect(vi.mocked(fetch).mock.calls[0]?.[0]).toContain(
+      "/organization/position-custom-fields",
+    );
+    expect(vi.mocked(fetch).mock.calls[1]?.[1]).toMatchObject({ method: "POST" });
+    expect(vi.mocked(fetch).mock.calls[2]?.[1]).toMatchObject({ method: "PATCH" });
+  });
 });

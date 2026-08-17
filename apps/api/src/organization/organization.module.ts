@@ -16,6 +16,8 @@ import { JobLevelsService } from './job-levels/job-levels.service';
 import { OrganizationIntegrityService } from './organization-integrity.service';
 import { PositionsController } from './positions/positions.controller';
 import { PositionsService } from './positions/positions.service';
+import { PositionCustomFieldsController } from './position-custom-fields/position-custom-fields.controller';
+import { PositionCustomFieldsService } from './position-custom-fields/position-custom-fields.service';
 import { ReportingLinesService } from './reporting-lines/reporting-lines.service';
 
 @Module({
@@ -25,6 +27,7 @@ import { ReportingLinesService } from './reporting-lines/reporting-lines.service
     AreasController,
     JobLevelsController,
     PositionsController,
+    PositionCustomFieldsController,
     EmployeesController,
   ],
   providers: [
@@ -36,6 +39,7 @@ import { ReportingLinesService } from './reporting-lines/reporting-lines.service
     JobLevelsService,
     JobLevelCompetenciesService,
     PositionsService,
+    PositionCustomFieldsService,
     EmployeesService,
     ReportingLinesService,
   ],

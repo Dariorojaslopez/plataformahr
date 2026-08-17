@@ -9,6 +9,7 @@ import {
   GitBranch,
   LayoutDashboard,
   Layers3,
+  ListChecks,
   Medal,
   Network,
   SlidersHorizontal,
@@ -61,6 +62,11 @@ export const APP_NAV: NavSection[] = [
         label: "Cargos",
         href: "/organization/positions",
         icon: BriefcaseBusiness,
+      },
+      {
+        label: "Campos personalizados de cargos",
+        href: "/organization/position-fields",
+        icon: ListChecks,
       },
       {
         label: "Niveles",

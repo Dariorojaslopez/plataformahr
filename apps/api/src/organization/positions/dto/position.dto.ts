@@ -1,4 +1,6 @@
 import {
+  ArrayMaxSize,
+  IsArray,
   IsEnum,
   IsInt,
   IsOptional,
@@ -7,9 +9,12 @@ import {
   MaxLength,
   Min,
   MinLength,
+  ValidateNested,
 } from 'class-validator';
 import { OrganizationEntityStatus } from '@prisma/client';
 import { Type } from 'class-transformer';
+import { PositionCustomFieldValueInputDto } from '../../position-custom-fields/dto/position-custom-field.dto';
+import { MAX_CUSTOM_FIELDS } from '../../position-custom-fields/position-custom-fields.validation';
 
 export class CreatePositionDto {
   @IsString()
@@ -58,6 +63,13 @@ export class CreatePositionDto {
   @IsOptional()
   @IsEnum(OrganizationEntityStatus)
   status?: OrganizationEntityStatus;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(MAX_CUSTOM_FIELDS)
+  @ValidateNested({ each: true })
+  @Type(() => PositionCustomFieldValueInputDto)
+  customFields?: PositionCustomFieldValueInputDto[];
 }
 
 export class UpdatePositionDto {
@@ -109,4 +121,11 @@ export class UpdatePositionDto {
   @IsOptional()
   @IsEnum(OrganizationEntityStatus)
   status?: OrganizationEntityStatus;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(MAX_CUSTOM_FIELDS)
+  @ValidateNested({ each: true })
+  @Type(() => PositionCustomFieldValueInputDto)
+  customFields?: PositionCustomFieldValueInputDto[];
 }

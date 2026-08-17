@@ -1,11 +1,13 @@
 import { Injectable } from '@nestjs/common';
-import { OrganizationEntityStatus, type Position } from '@prisma/client';
+import { OrganizationEntityStatus } from '@prisma/client';
 import { withDuplicateCompanyCodeConflict } from '../../common/prisma/duplicate-company-code';
 import { AuditService } from '../../core/audit/audit.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ORG_AUDIT } from '../organization.constants';
 import { emptyToNull } from '../organization.helpers';
 import { OrganizationIntegrityService } from '../organization-integrity.service';
+import { PositionCustomFieldsService } from '../position-custom-fields/position-custom-fields.service';
+import type { SerializedPosition } from '../position-custom-fields/position-custom-fields.serialize';
 import type { CreatePositionDto, UpdatePositionDto } from './dto/position.dto';
 
 @Injectable()
@@ -14,44 +16,52 @@ export class PositionsService {
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
     private readonly integrity: OrganizationIntegrityService,
+    private readonly customFields: PositionCustomFieldsService,
   ) {}
 
-  list(companyId: string): Promise<Position[]> {
-    return this.prisma.position.findMany({
-      where: { companyId, deletedAt: null },
-      orderBy: { name: 'asc' },
-    });
+  list(companyId: string): Promise<SerializedPosition[]> {
+    return this.customFields.listSerializedPositions(companyId);
   }
 
-  getById(companyId: string, id: string): Promise<Position> {
-    return this.integrity.requirePosition(companyId, id);
+  getById(companyId: string, id: string): Promise<SerializedPosition> {
+    return this.customFields.getSerializedPosition(companyId, id);
   }
 
   async create(
     companyId: string,
     userId: string,
     dto: CreatePositionDto,
-  ): Promise<Position> {
+  ): Promise<SerializedPosition> {
     await this.integrity.requireArea(companyId, dto.areaId);
     if (dto.jobLevelId) {
       await this.integrity.requireJobLevel(companyId, dto.jobLevelId);
     }
 
     const created = await withDuplicateCompanyCodeConflict(dto.code, () =>
-      this.prisma.position.create({
-        data: {
+      this.prisma.$transaction(async (tx) => {
+        const position = await tx.position.create({
+          data: {
+            companyId,
+            areaId: dto.areaId,
+            jobLevelId: dto.jobLevelId ?? null,
+            name: dto.name.trim(),
+            code: emptyToNull(dto.code) ?? null,
+            mission: emptyToNull(dto.mission) ?? null,
+            responsibilities: emptyToNull(dto.responsibilities) ?? null,
+            requiredExperience: emptyToNull(dto.requiredExperience) ?? null,
+            requiredEducation: emptyToNull(dto.requiredEducation) ?? null,
+            headcount: dto.headcount ?? 1,
+            status: dto.status ?? OrganizationEntityStatus.ACTIVE,
+          },
+        });
+        await this.customFields.writePositionValues(
+          tx,
           companyId,
-          areaId: dto.areaId,
-          jobLevelId: dto.jobLevelId ?? null,
-          name: dto.name.trim(),
-          code: emptyToNull(dto.code) ?? null,
-          mission: emptyToNull(dto.mission) ?? null,
-          responsibilities: emptyToNull(dto.responsibilities) ?? null,
-          requiredExperience: emptyToNull(dto.requiredExperience) ?? null,
-          requiredEducation: emptyToNull(dto.requiredEducation) ?? null,
-          headcount: dto.headcount ?? 1,
-          status: dto.status ?? OrganizationEntityStatus.ACTIVE,
-        },
+          position.id,
+          dto.customFields,
+          'create',
+        );
+        return position;
       }),
     );
 
@@ -61,10 +71,15 @@ export class PositionsService {
       entityId: created.id,
       company: { connect: { id: companyId } },
       user: { connect: { id: userId } },
-      metadata: { id: created.id },
+      metadata: {
+        id: created.id,
+        customFieldDefinitionIds: (dto.customFields ?? []).map(
+          (field) => field.definitionId,
+        ),
+      },
     });
 
-    return created;
+    return this.customFields.getSerializedPosition(companyId, created.id);
   }
 
   async update(
@@ -72,7 +87,7 @@ export class PositionsService {
     userId: string,
     id: string,
     dto: UpdatePositionDto,
-  ): Promise<Position> {
+  ): Promise<SerializedPosition> {
     await this.integrity.requirePosition(companyId, id);
 
     if (dto.areaId) {
@@ -82,43 +97,72 @@ export class PositionsService {
       await this.integrity.requireJobLevel(companyId, dto.jobLevelId);
     }
 
-    const updated = await withDuplicateCompanyCodeConflict(dto.code, () =>
-      this.prisma.position.update({
-        where: { id },
-        data: {
-          ...(dto.name !== undefined ? { name: dto.name.trim() } : {}),
-          ...(dto.areaId !== undefined ? { areaId: dto.areaId } : {}),
-          ...(dto.jobLevelId !== undefined
-            ? { jobLevelId: dto.jobLevelId }
-            : {}),
-          ...(dto.code !== undefined ? { code: emptyToNull(dto.code) } : {}),
-          ...(dto.mission !== undefined
-            ? { mission: emptyToNull(dto.mission) }
-            : {}),
-          ...(dto.responsibilities !== undefined
-            ? { responsibilities: emptyToNull(dto.responsibilities) }
-            : {}),
-          ...(dto.requiredExperience !== undefined
-            ? { requiredExperience: emptyToNull(dto.requiredExperience) }
-            : {}),
-          ...(dto.requiredEducation !== undefined
-            ? { requiredEducation: emptyToNull(dto.requiredEducation) }
-            : {}),
-          ...(dto.headcount !== undefined ? { headcount: dto.headcount } : {}),
-          ...(dto.status !== undefined ? { status: dto.status } : {}),
-        },
+    await withDuplicateCompanyCodeConflict(dto.code, () =>
+      this.prisma.$transaction(async (tx) => {
+        await tx.position.update({
+          where: { id },
+          data: {
+            ...(dto.name !== undefined ? { name: dto.name.trim() } : {}),
+            ...(dto.areaId !== undefined ? { areaId: dto.areaId } : {}),
+            ...(dto.jobLevelId !== undefined
+              ? { jobLevelId: dto.jobLevelId }
+              : {}),
+            ...(dto.code !== undefined ? { code: emptyToNull(dto.code) } : {}),
+            ...(dto.mission !== undefined
+              ? { mission: emptyToNull(dto.mission) }
+              : {}),
+            ...(dto.responsibilities !== undefined
+              ? { responsibilities: emptyToNull(dto.responsibilities) }
+              : {}),
+            ...(dto.requiredExperience !== undefined
+              ? { requiredExperience: emptyToNull(dto.requiredExperience) }
+              : {}),
+            ...(dto.requiredEducation !== undefined
+              ? { requiredEducation: emptyToNull(dto.requiredEducation) }
+              : {}),
+            ...(dto.headcount !== undefined
+              ? { headcount: dto.headcount }
+              : {}),
+            ...(dto.status !== undefined ? { status: dto.status } : {}),
+          },
+        });
+        const customFieldsChanged = await this.customFields.writePositionValues(
+          tx,
+          companyId,
+          id,
+          dto.customFields,
+          'update',
+        );
+        return customFieldsChanged;
       }),
     );
 
     await this.audit.create({
       action: ORG_AUDIT.POSITION_UPDATED,
       entity: 'Position',
-      entityId: updated.id,
+      entityId: id,
       company: { connect: { id: companyId } },
       user: { connect: { id: userId } },
-      metadata: { id: updated.id },
+      metadata: {
+        id,
+        customFieldsUpdated: dto.customFields !== undefined,
+      },
     });
 
-    return updated;
+    if (dto.customFields !== undefined) {
+      await this.audit.create({
+        action: ORG_AUDIT.POSITION_CUSTOM_FIELDS_UPDATED,
+        entity: 'Position',
+        entityId: id,
+        company: { connect: { id: companyId } },
+        user: { connect: { id: userId } },
+        metadata: {
+          id,
+          definitionIds: dto.customFields.map((field) => field.definitionId),
+        },
+      });
+    }
+
+    return this.customFields.getSerializedPosition(companyId, id);
   }
 }

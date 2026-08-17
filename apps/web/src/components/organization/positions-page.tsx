@@ -5,6 +5,14 @@ import { Info, Pencil, Plus } from "lucide-react";
 import { useMemo, useState } from "react";
 import { EntityEditorShell } from "@/components/organization/entity-editor-shell";
 import { FormSelect } from "@/components/organization/form-select";
+import { PositionCustomFieldsForm } from "@/components/organization/position-custom-fields-form";
+import {
+  activeDefinitions,
+  customFieldValuesFromPosition,
+  emptyCustomFieldValues,
+  toCustomFieldsPayload,
+  type CustomFieldFormValues,
+} from "@/components/organization/position-custom-fields";
 import { OrgStatusBadge } from "@/components/organization/status-badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -67,6 +75,7 @@ export function PositionsPageClient() {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Position | null>(null);
   const [form, setForm] = useState<FormState>(emptyForm);
+  const [customValues, setCustomValues] = useState<CustomFieldFormValues>({});
   const [formError, setFormError] = useState<string | null>(null);
 
   const positionsQuery = useQuery({
@@ -81,6 +90,11 @@ export function PositionsPageClient() {
     queryKey: orgKeys.jobLevels(companyId),
     queryFn: () => organizationApi.listJobLevels(),
   });
+  const fieldsQuery = useQuery({
+    queryKey: orgKeys.positionCustomFields(companyId),
+    queryFn: () => organizationApi.listPositionCustomFields(),
+  });
+  const activeFields = activeDefinitions(fieldsQuery.data ?? []);
 
   const areaMap = useMemo(() => {
     const map = new Map<string, string>();
@@ -116,11 +130,13 @@ export function PositionsPageClient() {
         return organizationApi.updatePosition(editing.id, {
           ...base,
           jobLevelId: form.jobLevelId || null,
+          customFields: toCustomFieldsPayload(activeFields, customValues),
         });
       }
       return organizationApi.createPosition({
         ...base,
         jobLevelId: form.jobLevelId || undefined,
+        customFields: toCustomFieldsPayload(activeFields, customValues),
       });
     },
     onSuccess: async () => {
@@ -130,6 +146,7 @@ export function PositionsPageClient() {
       setOpen(false);
       setEditing(null);
       setForm(emptyForm);
+      setCustomValues({});
       setFormError(null);
     },
     onError: (error) => {
@@ -140,6 +157,7 @@ export function PositionsPageClient() {
   function openCreate() {
     setEditing(null);
     setForm(emptyForm);
+    setCustomValues(emptyCustomFieldValues(fieldsQuery.data ?? []));
     setFormError(null);
     setOpen(true);
   }
@@ -158,6 +176,9 @@ export function PositionsPageClient() {
       headcount: String(position.headcount),
       status: position.status,
     });
+    setCustomValues(
+      customFieldValuesFromPosition(fieldsQuery.data ?? [], position),
+    );
     setFormError(null);
     setOpen(true);
   }
@@ -387,6 +408,12 @@ export function PositionsPageClient() {
               { value: "INACTIVE", label: "Inactivo" },
             ]}
           />
+          <PositionCustomFieldsForm
+            definitions={activeFields}
+            values={customValues}
+            onChange={setCustomValues}
+            position={editing}
+          />
           {formError ? (
             <p className="text-sm text-destructive" role="alert">
               {formError}
@@ -396,7 +423,7 @@ export function PositionsPageClient() {
             <Button type="button" variant="outline" onClick={() => setOpen(false)}>
               Cancelar
             </Button>
-            <Button type="submit" disabled={saveMutation.isPending}>
+            <Button type="submit" disabled={saveMutation.isPending || fieldsQuery.isLoading}>
               {saveMutation.isPending ? "Guardando…" : "Guardar"}
             </Button>
           </div>

@@ -1321,4 +1321,329 @@ describe('Organization core (e2e)', () => {
       expect((saved.body as Payload).assigned).toHaveLength(1);
     });
   });
+
+  describe('position custom fields', () => {
+    const headersA = () => ({
+      Authorization: `Bearer ${adminAToken}`,
+      'X-Company-Id': companyAId,
+    });
+    const headersB = () => ({
+      Authorization: `Bearer ${adminBToken}`,
+      'X-Company-Id': companyBId,
+    });
+
+    type FieldBody = {
+      id: string;
+      key: string;
+      label: string;
+      type: string;
+      required: boolean;
+      active: boolean;
+      options: Array<{ id: string; label: string; active: boolean }>;
+    };
+    type PositionBody = {
+      id: string;
+      name: string;
+      customFields: Array<{
+        definitionId: string;
+        label: string;
+        value: string | number | boolean | null;
+        optionId: string | null;
+        optionLabel: string | null;
+      }>;
+    };
+
+    let textId = '';
+    let numberId = '';
+    let booleanId = '';
+    let dateId = '';
+    let selectId = '';
+    let optionId = '';
+    let optionBId = '';
+    let customPositionId = '';
+
+    it('creates TEXT NUMBER BOOLEAN DATE and SELECT definitions', async () => {
+      const text = await request(app.getHttpServer())
+        .post('/organization/position-custom-fields')
+        .set(headersA())
+        .send({ key: 'codigo_sap', label: 'Código SAP', type: 'TEXT' })
+        .expect(201);
+      textId = (text.body as FieldBody).id;
+
+      const number = await request(app.getHttpServer())
+        .post('/organization/position-custom-fields')
+        .set(headersA())
+        .send({ key: 'centro_costo', label: 'Centro de costo', type: 'NUMBER' })
+        .expect(201);
+      numberId = (number.body as FieldBody).id;
+
+      const bool = await request(app.getHttpServer())
+        .post('/organization/position-custom-fields')
+        .set(headersA())
+        .send({
+          key: 'requiere_licencia',
+          label: 'Requiere licencia',
+          type: 'BOOLEAN',
+        })
+        .expect(201);
+      booleanId = (bool.body as FieldBody).id;
+
+      const date = await request(app.getHttpServer())
+        .post('/organization/position-custom-fields')
+        .set(headersA())
+        .send({ key: 'vigencia', label: 'Vigencia', type: 'DATE' })
+        .expect(201);
+      dateId = (date.body as FieldBody).id;
+
+      const select = await request(app.getHttpServer())
+        .post('/organization/position-custom-fields')
+        .set(headersA())
+        .send({
+          key: 'familia_cargo',
+          label: 'Familia de cargo',
+          type: 'SELECT',
+          options: [{ label: 'Operaciones' }, { label: 'Staff' }],
+        })
+        .expect(201);
+      const selectBody = select.body as FieldBody;
+      selectId = selectBody.id;
+      optionId = selectBody.options[0].id;
+
+      const listed = await request(app.getHttpServer())
+        .get('/organization/position-custom-fields')
+        .set(headersA())
+        .expect(200);
+      expect((listed.body as FieldBody[]).map((item) => item.key)).toEqual(
+        expect.arrayContaining([
+          'codigo_sap',
+          'centro_costo',
+          'requiere_licencia',
+          'vigencia',
+          'familia_cargo',
+        ]),
+      );
+    });
+
+    it('rejects a duplicate key in the same company and allows it in another', async () => {
+      await request(app.getHttpServer())
+        .post('/organization/position-custom-fields')
+        .set(headersA())
+        .send({ key: 'codigo_sap', label: 'Otro', type: 'TEXT' })
+        .expect(409);
+
+      const other = await request(app.getHttpServer())
+        .post('/organization/position-custom-fields')
+        .set(headersB())
+        .send({
+          key: 'codigo_sap',
+          label: 'Código SAP B',
+          type: 'SELECT',
+          options: [{ label: 'B1' }],
+        })
+        .expect(201);
+      optionBId = (other.body as FieldBody).options[0].id;
+    });
+
+    it('creates a position with valid custom values', async () => {
+      const created = await request(app.getHttpServer())
+        .post('/organization/positions')
+        .set(headersA())
+        .send({
+          name: `Custom Position ${suffix}`,
+          areaId: areaAId,
+          customFields: [
+            { definitionId: textId, value: 'SAP-100' },
+            { definitionId: numberId, value: 2100 },
+            { definitionId: booleanId, value: true },
+            { definitionId: dateId, value: '2026-08-17' },
+            { definitionId: selectId, value: optionId },
+          ],
+        })
+        .expect(201);
+      const body = created.body as PositionBody;
+      customPositionId = body.id;
+      expect(body.customFields).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ definitionId: textId, value: 'SAP-100' }),
+          expect.objectContaining({ definitionId: numberId, value: 2100 }),
+          expect.objectContaining({ definitionId: booleanId, value: true }),
+          expect.objectContaining({
+            definitionId: dateId,
+            value: '2026-08-17',
+          }),
+          expect.objectContaining({
+            definitionId: selectId,
+            value: optionId,
+            optionLabel: 'Operaciones',
+          }),
+        ]),
+      );
+    });
+
+    it('rejects missing required values, invalid types and invalid SELECT options', async () => {
+      const required = await request(app.getHttpServer())
+        .post('/organization/position-custom-fields')
+        .set(headersA())
+        .send({
+          key: 'observaciones_int',
+          label: 'Observaciones internas',
+          type: 'TEXT',
+          required: true,
+        })
+        .expect(201);
+      const requiredId = (required.body as FieldBody).id;
+
+      await request(app.getHttpServer())
+        .post('/organization/positions')
+        .set(headersA())
+        .send({
+          name: `Missing required ${suffix}`,
+          areaId: areaAId,
+          customFields: [{ definitionId: textId, value: 'x' }],
+        })
+        .expect(400);
+
+      await request(app.getHttpServer())
+        .post('/organization/positions')
+        .send({
+          name: `Bad number ${suffix}`,
+          areaId: areaAId,
+          customFields: [
+            { definitionId: requiredId, value: 'ok' },
+            { definitionId: numberId, value: 'nope' },
+          ],
+        })
+        .set(headersA())
+        .expect(400);
+
+      await request(app.getHttpServer())
+        .post('/organization/positions')
+        .set(headersA())
+        .send({
+          name: `Bad select ${suffix}`,
+          areaId: areaAId,
+          customFields: [
+            { definitionId: requiredId, value: 'ok' },
+            { definitionId: selectId, value: optionBId },
+          ],
+        })
+        .expect(400);
+
+      await request(app.getHttpServer())
+        .patch(`/organization/position-custom-fields/${requiredId}`)
+        .set(headersA())
+        .send({ active: false })
+        .expect(200);
+    });
+
+    it('edits position custom values', async () => {
+      const updated = await request(app.getHttpServer())
+        .patch(`/organization/positions/${customPositionId}`)
+        .set(headersA())
+        .send({
+          customFields: [
+            { definitionId: textId, value: 'SAP-200' },
+            { definitionId: numberId, value: 2100 },
+            { definitionId: booleanId, value: false },
+            { definitionId: dateId, value: '2026-08-17' },
+            { definitionId: selectId, value: optionId },
+          ],
+        })
+        .expect(200);
+      expect(
+        (updated.body as PositionBody).customFields.find(
+          (field) => field.definitionId === textId,
+        )?.value,
+      ).toBe('SAP-200');
+    });
+
+    it('keeps values after deactivating or renaming a definition', async () => {
+      await request(app.getHttpServer())
+        .patch(`/organization/position-custom-fields/${textId}`)
+        .set(headersA())
+        .send({ label: 'Código SAP interno', active: false })
+        .expect(200);
+
+      const detail = await request(app.getHttpServer())
+        .get(`/organization/positions/${customPositionId}`)
+        .set(headersA())
+        .expect(200);
+      const field = (detail.body as PositionBody).customFields.find(
+        (item) => item.definitionId === textId,
+      );
+      expect(field?.value).toBe('SAP-200');
+      expect(field?.label).toBe('Código SAP interno');
+    });
+
+    it('rejects an unsafe type change when values exist', async () => {
+      await request(app.getHttpServer())
+        .patch(`/organization/position-custom-fields/${numberId}`)
+        .set(headersA())
+        .send({ type: 'TEXT' })
+        .expect(409);
+    });
+
+    it('rejects cross-tenant definition and option ids without leaking data', async () => {
+      const createdB = await request(app.getHttpServer())
+        .post('/organization/position-custom-fields')
+        .set(headersB())
+        .send({ key: 'solo_b', label: 'Solo B', type: 'TEXT' })
+        .expect(201);
+      const definitionBId = (createdB.body as FieldBody).id;
+
+      await request(app.getHttpServer())
+        .patch(`/organization/position-custom-fields/${definitionBId}`)
+        .set(headersA())
+        .send({ label: 'Hacked' })
+        .expect(404);
+
+      await request(app.getHttpServer())
+        .post('/organization/positions')
+        .set(headersA())
+        .send({
+          name: `Cross tenant field ${suffix}`,
+          areaId: areaAId,
+          customFields: [{ definitionId: definitionBId, value: 'nope' }],
+        })
+        .expect(404);
+
+      const listed = await request(app.getHttpServer())
+        .get('/organization/position-custom-fields')
+        .set(headersA())
+        .expect(200);
+      expect((listed.body as FieldBody[]).map((item) => item.id)).not.toContain(
+        definitionBId,
+      );
+    });
+
+    it('enforces organization.read vs manage and keeps historic positions working', async () => {
+      await request(app.getHttpServer())
+        .get('/organization/position-custom-fields')
+        .set('Authorization', `Bearer ${readerToken}`)
+        .set('X-Company-Id', companyAId)
+        .expect(200);
+
+      await request(app.getHttpServer())
+        .post('/organization/position-custom-fields')
+        .set('Authorization', `Bearer ${readerToken}`)
+        .set('X-Company-Id', companyAId)
+        .send({ key: 'forbidden', label: 'Forbidden', type: 'TEXT' })
+        .expect(403);
+
+      const historic = await request(app.getHttpServer())
+        .get(`/organization/positions/${positionAId}`)
+        .set(headersA())
+        .expect(200);
+      expect((historic.body as PositionBody).id).toBe(positionAId);
+      expect(Array.isArray((historic.body as PositionBody).customFields)).toBe(
+        true,
+      );
+
+      await request(app.getHttpServer())
+        .patch(`/organization/positions/${positionAId}`)
+        .set(headersA())
+        .send({ name: `Position A ${suffix}` })
+        .expect(200);
+    });
+  });
 });
