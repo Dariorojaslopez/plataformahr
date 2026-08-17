@@ -6,6 +6,11 @@ import type { NextConfig } from "next";
  * API owns CORS/cookies; CSP here is for the browser document origin only.
  * `unsafe-inline` / `unsafe-eval` kept minimal for Next.js runtime needs.
  */
+const isDev = process.env.NODE_ENV !== "production";
+const connectSrc = isDev
+  ? "connect-src 'self' http://localhost:3001 https:"
+  : "connect-src 'self' https:";
+
 const securityHeaders = [
   { key: "X-Content-Type-Options", value: "nosniff" },
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
@@ -22,7 +27,7 @@ const securityHeaders = [
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data: blob:",
       "font-src 'self' data:",
-      "connect-src 'self' http://localhost:3001 https:",
+      connectSrc,
       "frame-ancestors 'none'",
       "base-uri 'self'",
       "form-action 'self'",

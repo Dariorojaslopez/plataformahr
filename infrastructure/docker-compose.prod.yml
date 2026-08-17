@@ -81,7 +81,8 @@ services:
       migrate:
         condition: service_completed_successfully
     ports:
-      - '${API_HOST_PORT:-3001}:3001'
+      # Loopback only — public traffic terminates at the reverse proxy.
+      - '127.0.0.1:${API_HOST_PORT:-3001}:3001'
     healthcheck:
       test: ['CMD', 'wget', '-qO-', 'http://127.0.0.1:3001/ready']
       interval: 15s
@@ -110,7 +111,8 @@ services:
       api:
         condition: service_healthy
     ports:
-      - '${WEB_HOST_PORT:-3000}:3000'
+      # Loopback only — public traffic terminates at the reverse proxy.
+      - '127.0.0.1:${WEB_HOST_PORT:-3000}:3000'
     healthcheck:
       test: ['CMD', 'wget', '-qO-', 'http://127.0.0.1:3000/']
       interval: 15s
