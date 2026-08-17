@@ -5,6 +5,7 @@ import { Pencil, Plus, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useMemo, useState } from "react";
+import { NO_BUSINESS_UNIT_LABEL } from "@/components/organization/area-form";
 import {
   EmployeeForm,
   toUpdatePayload,
@@ -253,10 +254,14 @@ export function EmployeeProfilePageClient() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
-            <InfoRow
-              label="Unidad de negocio"
-              value={profile.businessUnit?.name}
-            />
+            {(buQuery.data?.length ?? 0) > 0 || profile.businessUnit ? (
+              <InfoRow
+                label="Unidad de negocio"
+                value={
+                  profile.businessUnit?.name ?? NO_BUSINESS_UNIT_LABEL
+                }
+              />
+            ) : null}
             <InfoRow label="Área" value={profile.area.name} />
             <InfoRow label="Cargo" value={profile.position.name} />
             <InfoRow label="Nivel" value={profile.jobLevel?.name} />

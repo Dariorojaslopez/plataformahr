@@ -5,6 +5,7 @@ import { Eye, Pencil, Plus, Search } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useMemo, useState } from "react";
+import { NO_BUSINESS_UNIT_LABEL } from "@/components/organization/area-form";
 import {
   EmployeeForm,
   toCreatePayload,
@@ -110,6 +111,7 @@ export function EmployeesPageClient() {
     for (const bu of buQuery.data ?? []) map.set(bu.id, bu.name);
     return map;
   }, [buQuery.data]);
+  const hasBusinessUnits = (buQuery.data?.length ?? 0) > 0;
 
   const saveMutation = useMutation({
     mutationFn: async (values: EmployeeFormValues) => {
@@ -207,20 +209,22 @@ export function EmployeesPageClient() {
             label: area.name,
           }))}
         />
-        <FormSelect
-          id="filter-bu"
-          label="Unidad"
-          value={params.businessUnitId ?? ""}
-          onChange={(value) =>
-            setParams({ businessUnitId: value || undefined, page: 1 })
-          }
-          allowEmpty
-          emptyLabel="Todas"
-          options={(buQuery.data ?? []).map((bu) => ({
-            value: bu.id,
-            label: bu.name,
-          }))}
-        />
+        {hasBusinessUnits ? (
+          <FormSelect
+            id="filter-bu"
+            label="Unidad"
+            value={params.businessUnitId ?? ""}
+            onChange={(value) =>
+              setParams({ businessUnitId: value || undefined, page: 1 })
+            }
+            allowEmpty
+            emptyLabel="Todas"
+            options={(buQuery.data ?? []).map((bu) => ({
+              value: bu.id,
+              label: bu.name,
+            }))}
+          />
+        ) : null}
       </div>
       <div className="mb-6 max-w-sm">
         <FormSelect
@@ -269,7 +273,7 @@ export function EmployeesPageClient() {
                   <TableHead>Email</TableHead>
                   <TableHead>Área</TableHead>
                   <TableHead>Cargo</TableHead>
-                  <TableHead>Unidad</TableHead>
+                  {hasBusinessUnits ? <TableHead>Unidad</TableHead> : null}
                   <TableHead>Estado</TableHead>
                   <TableHead className="text-right">Acciones</TableHead>
                 </TableRow>
@@ -298,11 +302,14 @@ export function EmployeesPageClient() {
                     <TableCell>
                       {positionMap.get(employee.positionId) ?? "—"}
                     </TableCell>
-                    <TableCell>
-                      {employee.businessUnitId
-                        ? (buMap.get(employee.businessUnitId) ?? "—")
-                        : "—"}
-                    </TableCell>
+                    {hasBusinessUnits ? (
+                      <TableCell>
+                        {employee.businessUnitId
+                          ? (buMap.get(employee.businessUnitId) ??
+                            NO_BUSINESS_UNIT_LABEL)
+                          : NO_BUSINESS_UNIT_LABEL}
+                      </TableCell>
+                    ) : null}
                     <TableCell>
                       <OrgStatusBadge status={employee.status} />
                     </TableCell>

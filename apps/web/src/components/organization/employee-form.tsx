@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { NO_BUSINESS_UNIT_LABEL } from "@/components/organization/area-form";
 import { FormSelect } from "@/components/organization/form-select";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -290,18 +291,21 @@ export function EmployeeForm({
       <section className="space-y-3">
         <h3 className="text-sm font-semibold">Información organizacional</h3>
         <div className="grid gap-3 sm:grid-cols-2">
-          <FormSelect
-            id="emp-bu"
-            label="Unidad de negocio"
-            value={values.businessUnitId}
-            onChange={(value) => setField("businessUnitId", value)}
-            allowEmpty
-            emptyLabel="Sin unidad"
-            options={businessUnits.map((bu) => ({
-              value: bu.id,
-              label: bu.name,
-            }))}
-          />
+          {businessUnits.length > 0 ? (
+            <FormSelect
+              id="emp-bu"
+              label="Unidad de negocio"
+              value={values.businessUnitId}
+              onChange={(value) => setField("businessUnitId", value)}
+              allowEmpty
+              emptyLabel={NO_BUSINESS_UNIT_LABEL}
+              hint="Opcional. El colaborador puede pertenecer solo a un área."
+              options={businessUnits.map((bu) => ({
+                value: bu.id,
+                label: bu.name,
+              }))}
+            />
+          ) : null}
           <FormSelect
             id="emp-area"
             label="Área"

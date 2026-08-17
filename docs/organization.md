@@ -17,12 +17,14 @@ An `Employee` always belongs to one `Company`. `userId` is optional. When set, t
 
 | Entity | Role |
 |--------|------|
-| `BusinessUnit` | Top-level organizational grouping |
-| `Area` | Hierarchical unit (`parentAreaId`), optionally linked to a business unit |
+| `BusinessUnit` | Optional grouping. Companies may have zero business units. |
+| `Area` | Hierarchical unit (`parentAreaId`). `businessUnitId` is optional (`null` is valid). |
 | `JobLevel` | Ranked career/organizational level for positions |
 | `Position` | Job/role definition (not the occupant) |
-| `Employee` | Occupant of a position in an area |
+| `Employee` | Occupant of a position in an area. `businessUnitId` is optional. |
 | `EmployeeReportingLine` | Leadership links (`DIRECT` / `INDIRECT`) |
+
+Minimum valid structure: Company → Area → JobLevel → Position → Employee. Business units may sit between Company and Area when the company uses them. Existing business units are unchanged; the module remains available.
 
 ## Reporting lines
 

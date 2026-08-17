@@ -782,4 +782,252 @@ describe('Organization core (e2e)', () => {
       /código/i,
     );
   });
+
+  describe('optional business units', () => {
+    let companyCId = '';
+    let adminCToken = '';
+    let areaWithoutBuId = '';
+
+    const headersA = () => ({
+      Authorization: `Bearer ${adminAToken}`,
+      'X-Company-Id': companyAId,
+    });
+    const headersC = () => ({
+      Authorization: `Bearer ${adminCToken}`,
+      'X-Company-Id': companyCId,
+    });
+
+    beforeAll(async () => {
+      const companyC = await prisma.company.create({
+        data: {
+          name: `Org C ${suffix}`,
+          slug: `org-c-${suffix}`,
+          status: CompanyStatus.ACTIVE,
+        },
+      });
+      companyCId = companyC.id;
+
+      const password = `OrgPass-${suffix}!`;
+      const adminC = await prisma.user.create({
+        data: {
+          email: `orgc-admin-${suffix}@example.com`,
+          passwordHash: await hasher.hash(password),
+          firstName: 'Admin',
+          lastName: 'C',
+          status: UserStatus.ACTIVE,
+        },
+      });
+      const roleAdmin = await prisma.role.findUniqueOrThrow({
+        where: {
+          scope_code: { scope: RoleScope.COMPANY, code: 'CLIENT_ADMIN' },
+        },
+      });
+      const membership = await prisma.companyMembership.create({
+        data: {
+          userId: adminC.id,
+          companyId: companyC.id,
+          status: MembershipStatus.ACTIVE,
+        },
+      });
+      await prisma.membershipRole.create({
+        data: { membershipId: membership.id, roleId: roleAdmin.id },
+      });
+
+      const login = await request(app.getHttpServer())
+        .post('/auth/login')
+        .send({ email: `orgc-admin-${suffix}@example.com`, password })
+        .expect(201);
+      adminCToken = (login.body as LoginBody).accessToken;
+    });
+
+    it('creates an area without a business unit', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/organization/areas')
+        .set(headersA())
+        .send({ name: `Area no BU ${suffix}` })
+        .expect(201);
+      expect(
+        (res.body as { businessUnitId: string | null }).businessUnitId,
+      ).toBeNull();
+      areaWithoutBuId = (res.body as { id: string }).id;
+    });
+
+    it('creates an area with a business unit', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/organization/areas')
+        .set(headersA())
+        .send({
+          name: `Area with BU ${suffix}`,
+          businessUnitId: businessUnitAId,
+        })
+        .expect(201);
+      expect((res.body as { businessUnitId: string }).businessUnitId).toBe(
+        businessUnitAId,
+      );
+    });
+
+    it('assigns a business unit to an area that had none', async () => {
+      const res = await request(app.getHttpServer())
+        .patch(`/organization/areas/${areaWithoutBuId}`)
+        .set(headersA())
+        .send({ businessUnitId: businessUnitAId })
+        .expect(200);
+      expect((res.body as { businessUnitId: string }).businessUnitId).toBe(
+        businessUnitAId,
+      );
+      expect((res.body as { id: string }).id).toBe(areaWithoutBuId);
+    });
+
+    it('clears the business unit from an area without recreating it', async () => {
+      const res = await request(app.getHttpServer())
+        .patch(`/organization/areas/${areaWithoutBuId}`)
+        .set(headersA())
+        .send({ businessUnitId: null })
+        .expect(200);
+      expect(
+        (res.body as { businessUnitId: string | null }).businessUnitId,
+      ).toBeNull();
+      expect((res.body as { id: string }).id).toBe(areaWithoutBuId);
+    });
+
+    it('rejects a business unit from another tenant on an area', async () => {
+      const buB = await request(app.getHttpServer())
+        .post('/organization/business-units')
+        .set('Authorization', `Bearer ${adminBToken}`)
+        .set('X-Company-Id', companyBId)
+        .send({ name: `BU B area-cross ${suffix}` })
+        .expect(201);
+
+      await request(app.getHttpServer())
+        .post('/organization/areas')
+        .set(headersA())
+        .send({
+          name: `Cross BU area ${suffix}`,
+          businessUnitId: (buB.body as { id: string }).id,
+        })
+        .expect(404);
+
+      await request(app.getHttpServer())
+        .patch(`/organization/areas/${areaAId}`)
+        .set(headersA())
+        .send({ businessUnitId: (buB.body as { id: string }).id })
+        .expect(404);
+    });
+
+    it('rejects fictitious businessUnitId values from the client', async () => {
+      await request(app.getHttpServer())
+        .post('/organization/areas')
+        .set(headersA())
+        .send({ name: `Fake none ${suffix}`, businessUnitId: 'none' })
+        .expect(400);
+
+      await request(app.getHttpServer())
+        .post('/organization/areas')
+        .set(headersA())
+        .send({ name: `Fake none2 ${suffix}`, businessUnitId: '__none__' })
+        .expect(400);
+    });
+
+    it('lets a company with zero business units use areas, positions and employees', async () => {
+      const units = await request(app.getHttpServer())
+        .get('/organization/business-units')
+        .set(headersC())
+        .expect(200);
+      expect(units.body).toEqual([]);
+
+      const area1 = await request(app.getHttpServer())
+        .post('/organization/areas')
+        .set(headersC())
+        .send({ name: `C Area 1 ${suffix}` })
+        .expect(201);
+      const area2 = await request(app.getHttpServer())
+        .post('/organization/areas')
+        .set(headersC())
+        .send({ name: `C Area 2 ${suffix}` })
+        .expect(201);
+      expect(
+        (area1.body as { businessUnitId: string | null }).businessUnitId,
+      ).toBeNull();
+      expect(
+        (area2.body as { businessUnitId: string | null }).businessUnitId,
+      ).toBeNull();
+
+      const listed = await request(app.getHttpServer())
+        .get('/organization/areas')
+        .set(headersC())
+        .expect(200);
+      const areaIds = (listed.body as Array<{ id: string }>).map(
+        (area) => area.id,
+      );
+      expect(areaIds).toEqual(
+        expect.arrayContaining([
+          (area1.body as { id: string }).id,
+          (area2.body as { id: string }).id,
+        ]),
+      );
+
+      const tree = await request(app.getHttpServer())
+        .get('/organization/areas/tree')
+        .set(headersC())
+        .expect(200);
+      expect(
+        (tree.body as Array<{ businessUnitId: string | null }>).every(
+          (node) => node.businessUnitId === null,
+        ),
+      ).toBe(true);
+
+      const level = await request(app.getHttpServer())
+        .post('/organization/job-levels')
+        .set(headersC())
+        .send({ name: `C Level ${suffix}`, rank: 1 })
+        .expect(201);
+
+      const position = await request(app.getHttpServer())
+        .post('/organization/positions')
+        .set(headersC())
+        .send({
+          name: `C Position ${suffix}`,
+          areaId: (area1.body as { id: string }).id,
+          jobLevelId: (level.body as { id: string }).id,
+          headcount: 1,
+        })
+        .expect(201);
+
+      const employee = await request(app.getHttpServer())
+        .post('/organization/employees')
+        .set(headersC())
+        .send({
+          firstName: 'No',
+          lastName: 'Unit',
+          email: `c-emp-${suffix}@example.com`,
+          areaId: (area1.body as { id: string }).id,
+          positionId: (position.body as { id: string }).id,
+        })
+        .expect(201);
+      expect(
+        (employee.body as { businessUnitId: string | null }).businessUnitId,
+      ).toBeNull();
+    });
+
+    it('keeps companies that already use business units working', async () => {
+      const units = await request(app.getHttpServer())
+        .get('/organization/business-units')
+        .set(headersA())
+        .expect(200);
+      expect((units.body as unknown[]).length).toBeGreaterThan(0);
+
+      const areas = await request(app.getHttpServer())
+        .get('/organization/areas')
+        .set(headersA())
+        .expect(200);
+      expect(
+        (
+          areas.body as Array<{ id: string; businessUnitId: string | null }>
+        ).some(
+          (area) =>
+            area.id === areaAId && area.businessUnitId === businessUnitAId,
+        ),
+      ).toBe(true);
+    });
+  });
 });

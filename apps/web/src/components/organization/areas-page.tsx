@@ -4,13 +4,20 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ChevronDown, ChevronRight, List, Network, Pencil, Plus } from "lucide-react";
 import { useMemo, useState } from "react";
 import { EntityEditorShell } from "@/components/organization/entity-editor-shell";
-import { FormSelect } from "@/components/organization/form-select";
+import {
+  AreaForm,
+  NO_BUSINESS_UNIT_LABEL,
+  areaToForm,
+  businessUnitDisplayName,
+  emptyAreaForm,
+  toCreateAreaPayload,
+  toUpdateAreaPayload,
+  type AreaFormValues,
+} from "@/components/organization/area-form";
 import { OrgStatusBadge } from "@/components/organization/status-badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { PageHeader } from "@/components/ui/page-header";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -22,34 +29,11 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Textarea } from "@/components/ui/textarea";
 import { useCompanyId } from "@/hooks/use-company-id";
 import { getErrorMessage } from "@/lib/api/errors";
 import { organizationApi, orgKeys } from "@/lib/api/organization";
 import { cn } from "@/lib/utils";
-import type {
-  Area,
-  AreaTreeNode,
-  OrganizationEntityStatus,
-} from "@/types/organization";
-
-type FormState = {
-  name: string;
-  code: string;
-  description: string;
-  businessUnitId: string;
-  parentAreaId: string;
-  status: OrganizationEntityStatus;
-};
-
-const emptyForm: FormState = {
-  name: "",
-  code: "",
-  description: "",
-  businessUnitId: "",
-  parentAreaId: "",
-  status: "ACTIVE",
-};
+import type { Area, AreaTreeNode } from "@/types/organization";
 
 function AreaTreeItem({
   node,
@@ -88,8 +72,7 @@ function AreaTreeItem({
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-medium">{node.name}</p>
           <p className="truncate text-xs text-muted-foreground">
-            {buName(node.businessUnitId)}
-            {node.code ? ` · ${node.code}` : ""}
+            {[buName(node.businessUnitId), node.code].filter(Boolean).join(" · ")}
           </p>
         </div>
         <OrgStatusBadge status={node.status} />
@@ -115,7 +98,7 @@ export function AreasPageClient() {
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Area | null>(null);
-  const [form, setForm] = useState<FormState>(emptyForm);
+  const [form, setForm] = useState<AreaFormValues>(() => emptyAreaForm());
   const [formError, setFormError] = useState<string | null>(null);
 
   const areasQuery = useQuery({
@@ -137,6 +120,8 @@ export function AreasPageClient() {
     return map;
   }, [buQuery.data]);
 
+  const hasBusinessUnits = (buQuery.data?.length ?? 0) > 0;
+
   const parentOptions = useMemo(() => {
     return (areasQuery.data ?? [])
       .filter((area) => !editing || area.id !== editing.id)
@@ -145,22 +130,10 @@ export function AreasPageClient() {
 
   const saveMutation = useMutation({
     mutationFn: async () => {
-      const payload = {
-        name: form.name.trim(),
-        code: form.code.trim() || undefined,
-        description: form.description.trim() || undefined,
-        businessUnitId: form.businessUnitId || undefined,
-        parentAreaId: form.parentAreaId || undefined,
-        status: form.status,
-      };
       if (editing) {
-        return organizationApi.updateArea(editing.id, {
-          ...payload,
-          businessUnitId: form.businessUnitId || null,
-          parentAreaId: form.parentAreaId || null,
-        });
+        return organizationApi.updateArea(editing.id, toUpdateAreaPayload(form));
       }
-      return organizationApi.createArea(payload);
+      return organizationApi.createArea(toCreateAreaPayload(form));
     },
     onSuccess: async () => {
       await Promise.all([
@@ -169,7 +142,7 @@ export function AreasPageClient() {
       ]);
       setOpen(false);
       setEditing(null);
-      setForm(emptyForm);
+      setForm(emptyAreaForm());
       setFormError(null);
     },
     onError: (error) => {
@@ -179,21 +152,14 @@ export function AreasPageClient() {
 
   function openCreate() {
     setEditing(null);
-    setForm(emptyForm);
+    setForm(emptyAreaForm());
     setFormError(null);
     setOpen(true);
   }
 
   function openEdit(area: Area) {
     setEditing(area);
-    setForm({
-      name: area.name,
-      code: area.code ?? "",
-      description: area.description ?? "",
-      businessUnitId: area.businessUnitId ?? "",
-      parentAreaId: area.parentAreaId ?? "",
-      status: area.status,
-    });
+    setForm(areaToForm(area));
     setFormError(null);
     setOpen(true);
   }
@@ -256,7 +222,7 @@ export function AreasPageClient() {
                   <TableRow>
                     <TableHead>Nombre</TableHead>
                     <TableHead>Código</TableHead>
-                    <TableHead>Unidad</TableHead>
+                    {hasBusinessUnits ? <TableHead>Unidad</TableHead> : null}
                     <TableHead>Estado</TableHead>
                     <TableHead className="text-right">Acciones</TableHead>
                   </TableRow>
@@ -268,11 +234,12 @@ export function AreasPageClient() {
                       <TableCell className="text-muted-foreground">
                         {area.code ?? "—"}
                       </TableCell>
-                      <TableCell>
-                        {area.businessUnitId
-                          ? (buMap.get(area.businessUnitId) ?? "—")
-                          : "—"}
-                      </TableCell>
+                      {hasBusinessUnits ? (
+                        <TableCell>
+                          {businessUnitDisplayName(area.businessUnitId, buMap) ??
+                            NO_BUSINESS_UNIT_LABEL}
+                        </TableCell>
+                      ) : null}
                       <TableCell>
                         <OrgStatusBadge status={area.status} />
                       </TableCell>
@@ -301,7 +268,10 @@ export function AreasPageClient() {
                 <AreaTreeItem
                   key={node.id}
                   node={node}
-                  buName={(id) => (id ? (buMap.get(id) ?? "—") : "Sin unidad")}
+                  buName={(id) =>
+                    businessUnitDisplayName(id, buMap) ??
+                    (hasBusinessUnits ? NO_BUSINESS_UNIT_LABEL : "")
+                  }
                 />
               ))}
             </div>
@@ -325,72 +295,11 @@ export function AreasPageClient() {
             saveMutation.mutate();
           }}
         >
-          <div className="space-y-2">
-            <Label htmlFor="area-name">Nombre *</Label>
-            <Input
-              id="area-name"
-              value={form.name}
-              onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-              required
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="area-code">Código</Label>
-            <Input
-              id="area-code"
-              value={form.code}
-              onChange={(e) => setForm((f) => ({ ...f, code: e.target.value }))}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="area-desc">Descripción</Label>
-            <Textarea
-              id="area-desc"
-              value={form.description}
-              onChange={(e) =>
-                setForm((f) => ({ ...f, description: e.target.value }))
-              }
-            />
-          </div>
-          <FormSelect
-            id="area-bu"
-            label="Unidad de negocio"
-            value={form.businessUnitId}
-            onChange={(value) =>
-              setForm((f) => ({ ...f, businessUnitId: value }))
-            }
-            allowEmpty
-            emptyLabel="Sin unidad"
-            options={(buQuery.data ?? []).map((bu) => ({
-              value: bu.id,
-              label: bu.name,
-            }))}
-          />
-          <FormSelect
-            id="area-parent"
-            label="Área padre"
-            value={form.parentAreaId}
-            onChange={(value) =>
-              setForm((f) => ({ ...f, parentAreaId: value }))
-            }
-            allowEmpty
-            emptyLabel="Sin padre (raíz)"
-            options={parentOptions}
-          />
-          <FormSelect
-            id="area-status"
-            label="Estado"
-            value={form.status}
-            onChange={(value) =>
-              setForm((f) => ({
-                ...f,
-                status: value as OrganizationEntityStatus,
-              }))
-            }
-            options={[
-              { value: "ACTIVE", label: "Activo" },
-              { value: "INACTIVE", label: "Inactivo" },
-            ]}
+          <AreaForm
+            values={form}
+            onChange={setForm}
+            businessUnits={buQuery.data ?? []}
+            parentOptions={parentOptions}
           />
           {formError ? (
             <p className="text-sm text-destructive" role="alert">
