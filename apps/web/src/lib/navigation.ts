@@ -171,6 +171,39 @@ export const APP_NAV: NavSection[] = [
   },
 ];
 
+export function flattenNavItems(sections: NavSection[] = APP_NAV): NavItem[] {
+  return sections.flatMap((section) => section.items);
+}
+
+/** Exact href or a nested path under that href (`href/` + remainder). */
+export function navHrefMatchesPath(href: string, pathname: string): boolean {
+  return pathname === href || pathname.startsWith(`${href}/`);
+}
+
+/**
+ * Among every nav item whose href matches the pathname, keep the longest
+ * (most specific) href so a parent like `/goals` is not active together with
+ * `/goals/cycles`, `/goals/team`, or `/goals/reviews`.
+ */
+export function resolveActiveNavHref(
+  pathname: string,
+  items: Array<Pick<NavItem, "href" | "disabled">> = flattenNavItems(),
+): string | null {
+  let best: string | null = null;
+  for (const item of items) {
+    if (item.disabled) continue;
+    if (!navHrefMatchesPath(item.href, pathname)) continue;
+    if (best === null || item.href.length > best.length) {
+      best = item.href;
+    }
+  }
+  return best;
+}
+
+export function isNavItemActive(pathname: string, href: string): boolean {
+  return resolveActiveNavHref(pathname) === href;
+}
+
 export function resolvePageTitle(pathname: string): string {
   for (const section of APP_NAV) {
     for (const item of section.items) {

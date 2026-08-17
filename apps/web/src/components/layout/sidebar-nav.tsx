@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
-import { APP_NAV } from "@/lib/navigation";
+import { APP_NAV, resolveActiveNavHref } from "@/lib/navigation";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 
@@ -21,6 +21,7 @@ export function SidebarNav({
   showCollapseToggle = false,
 }: SidebarNavProps) {
   const pathname = usePathname();
+  const activeHref = resolveActiveNavHref(pathname);
 
   return (
     <div className="flex h-full flex-col bg-sidebar text-sidebar-foreground">
@@ -66,10 +67,7 @@ export function SidebarNav({
             ) : null}
             {section.items.map((item) => {
               const Icon = item.icon;
-              const active =
-                pathname === item.href ||
-                (item.href !== "/dashboard" &&
-                  pathname.startsWith(`${item.href}/`));
+              const active = activeHref === item.href;
 
               if (item.disabled) {
                 return (
