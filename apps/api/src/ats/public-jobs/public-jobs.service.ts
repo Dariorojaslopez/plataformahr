@@ -9,6 +9,7 @@ import {
   CandidateStatus,
   CompanyStatus,
   Prisma,
+  PlatformModule,
   VacancyStatus,
 } from '@prisma/client';
 import { BrandingService } from '../../core/companies/branding/branding.service';
@@ -61,7 +62,18 @@ export class PublicJobsService {
         const vacancy = await tx.vacancy.findFirst({
           where: {
             id: vacancyId,
-            company: { status: CompanyStatus.ACTIVE, deletedAt: null },
+            company: {
+              status: CompanyStatus.ACTIVE,
+              deletedAt: null,
+              OR: [
+                { modules: { none: {} } },
+                {
+                  modules: {
+                    some: { module: PlatformModule.ATS, enabled: true },
+                  },
+                },
+              ],
+            },
           },
           select: { id: true, companyId: true, publicId: true },
         });
@@ -198,7 +210,18 @@ export class PublicJobsService {
         publishedAt: { not: null },
         status: VacancyStatus.OPEN,
         deletedAt: null,
-        company: { status: CompanyStatus.ACTIVE, deletedAt: null },
+        company: {
+          status: CompanyStatus.ACTIVE,
+          deletedAt: null,
+          OR: [
+            { modules: { none: {} } },
+            {
+              modules: {
+                some: { module: PlatformModule.ATS, enabled: true },
+              },
+            },
+          ],
+        },
       },
       select: {
         companyId: true,

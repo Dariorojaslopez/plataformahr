@@ -1,6 +1,19 @@
 "use client";
 
-import { Building2, Copy, LogIn, Plus } from "lucide-react";
+import {
+  Building2,
+  Copy,
+  LogIn,
+  Plus,
+  Settings2,
+  ShieldCheck,
+} from "lucide-react";
+import {
+  COMPANY_ACCESS_CATALOG,
+  type CompanyFeatureCode,
+  type CompanyModuleCode,
+} from "@talento/shared";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { AuthGuard } from "@/components/auth/auth-guard";
@@ -33,6 +46,7 @@ import {
   managedCompaniesRequest,
   platformCompaniesRequest,
   updateManagedCompanyStatusRequest,
+  updateManagedCompanyFeaturesRequest,
 } from "@/lib/api/auth";
 import { getErrorMessage } from "@/lib/api/errors";
 import { notifyError, notifySuccess } from "@/lib/ui/notify";
@@ -49,6 +63,8 @@ const emptyForm: CreateManagedCompanyInput = {
   adminFirstName: "",
   adminLastName: "",
   adminEmail: "",
+  enabledModules: [],
+  enabledFeatures: [],
 };
 
 export default function PlatformPage() {
@@ -177,13 +193,20 @@ function PlatformAdministration() {
           title="Administración global"
           description="Crea compañías, entrega el acceso inicial y entra con una membresía CLIENT_ADMIN real."
           actions={
-            <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-              <DialogTrigger asChild>
-                <Button>
-                  <Plus className="size-4" />
-                  Nueva compañía
-                </Button>
-              </DialogTrigger>
+            <div className="flex flex-wrap gap-2">
+              <Button variant="outline" asChild>
+                <Link href="/platform/superadmins">
+                  <ShieldCheck className="size-4" />
+                  Superadministradores
+                </Link>
+              </Button>
+              <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button>
+                    <Plus className="size-4" />
+                    Nueva compañía
+                  </Button>
+                </DialogTrigger>
               <DialogContent>
                 <form onSubmit={createCompany}>
                   <DialogHeader>
@@ -246,14 +269,28 @@ function PlatformAdministration() {
                       }
                     />
                   </div>
+                  <div className="mt-5">
+                    <AccessSelector
+                      enabledModules={form.enabledModules}
+                      enabledFeatures={form.enabledFeatures}
+                      onChange={(enabledModules, enabledFeatures) =>
+                        setForm((value) => ({
+                          ...value,
+                          enabledModules,
+                          enabledFeatures,
+                        }))
+                      }
+                    />
+                  </div>
                   <DialogFooter>
                     <Button type="submit" disabled={pending}>
                       {pending ? "Creando…" : "Crear compañía"}
                     </Button>
                   </DialogFooter>
                 </form>
-              </DialogContent>
-            </Dialog>
+                </DialogContent>
+              </Dialog>
+            </div>
           }
         />
 
@@ -345,6 +382,9 @@ function PlatformAdministration() {
                   <p className="text-xs text-muted-foreground">
                     {company.membershipCount} membresías
                   </p>
+                  <p className="text-xs text-muted-foreground">
+                    {company.enabledModules.length} módulos activos
+                  </p>
                   <div className="flex flex-wrap gap-2">
                     <Button
                       size="sm"
@@ -354,6 +394,10 @@ function PlatformAdministration() {
                       <LogIn className="size-4" />
                       Entrar como administrador
                     </Button>
+                    <CompanyAccessDialog
+                      company={company}
+                      onSaved={refreshCompanies}
+                    />
                     <Button
                       size="sm"
                       variant="outline"
@@ -368,6 +412,156 @@ function PlatformAdministration() {
           </div>
         )}
       </main>
+    </div>
+  );
+}
+
+function CompanyAccessDialog({
+  company,
+  onSaved,
+}: {
+  company: ManagedCompany;
+  onSaved: () => Promise<void>;
+}) {
+  const [open, setOpen] = useState(false);
+  const [modules, setModules] = useState(company.enabledModules);
+  const [features, setFeatures] = useState(company.enabledFeatures);
+  const [saving, setSaving] = useState(false);
+
+  async function save() {
+    setSaving(true);
+    try {
+      await updateManagedCompanyFeaturesRequest(company.id, {
+        enabledModules: modules,
+        enabledFeatures: features,
+      });
+      await onSaved();
+      setOpen(false);
+      notifySuccess("Accesos actualizados");
+    } catch (err) {
+      notifyError(err, "No se pudieron actualizar los accesos.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next);
+        if (next) {
+          setModules(company.enabledModules);
+          setFeatures(company.enabledFeatures);
+        }
+      }}
+    >
+      <DialogTrigger asChild>
+        <Button size="sm" variant="outline">
+          <Settings2 className="size-4" />
+          Configurar accesos
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Accesos de {company.name}</DialogTitle>
+          <p className="text-sm text-muted-foreground">
+            Los cambios afectan el menú y la autorización de la API.
+          </p>
+        </DialogHeader>
+        <AccessSelector
+          enabledModules={modules}
+          enabledFeatures={features}
+          onChange={(nextModules, nextFeatures) => {
+            setModules(nextModules);
+            setFeatures(nextFeatures);
+          }}
+        />
+        <DialogFooter>
+          <Button disabled={saving} onClick={() => void save()}>
+            {saving ? "Guardando…" : "Guardar accesos"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function AccessSelector({
+  enabledModules,
+  enabledFeatures,
+  onChange,
+}: {
+  enabledModules: CompanyModuleCode[];
+  enabledFeatures: CompanyFeatureCode[];
+  onChange: (
+    modules: CompanyModuleCode[],
+    features: CompanyFeatureCode[],
+  ) => void;
+}) {
+  const modules = new Set(enabledModules);
+  const features = new Set(enabledFeatures);
+
+  return (
+    <div className="space-y-3">
+      <div>
+        <p className="text-sm font-medium">Módulos y opciones</p>
+        <p className="text-xs text-muted-foreground">
+          Dashboard permanece disponible como función básica.
+        </p>
+      </div>
+      {COMPANY_ACCESS_CATALOG.map((module) => {
+        const moduleEnabled = modules.has(module.code);
+        return (
+          <div key={module.code} className="rounded-md border p-3">
+            <label className="flex cursor-pointer items-center gap-2 font-medium">
+              <input
+                type="checkbox"
+                checked={moduleEnabled}
+                onChange={(event) => {
+                  const nextModules = new Set(modules);
+                  const nextFeatures = new Set(features);
+                  if (event.target.checked) {
+                    nextModules.add(module.code);
+                    module.features.forEach(({ code }) =>
+                      nextFeatures.add(code),
+                    );
+                  } else {
+                    nextModules.delete(module.code);
+                    module.features.forEach(({ code }) =>
+                      nextFeatures.delete(code),
+                    );
+                  }
+                  onChange([...nextModules], [...nextFeatures]);
+                }}
+              />
+              {module.label}
+            </label>
+            {moduleEnabled ? (
+              <div className="mt-3 grid gap-2 pl-6 sm:grid-cols-2">
+                {module.features.map((feature) => (
+                  <label
+                    key={feature.code}
+                    className="flex cursor-pointer items-center gap-2 text-sm"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={features.has(feature.code)}
+                      onChange={(event) => {
+                        const next = new Set(features);
+                        if (event.target.checked) next.add(feature.code);
+                        else next.delete(feature.code);
+                        onChange([...modules], [...next]);
+                      }}
+                    />
+                    {feature.label}
+                  </label>
+                ))}
+              </div>
+            ) : null}
+          </div>
+        );
+      })}
     </div>
   );
 }

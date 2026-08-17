@@ -8,6 +8,10 @@ import type {
   CreateManagedCompanyInput,
   CreateManagedCompanyResponse,
   PublicUser,
+  ManagedPlatformOwner,
+  CreatePlatformOwnerInput,
+  UpdatePlatformOwnerInput,
+  CompanyAccess,
 } from "@/types/auth";
 
 export async function loginRequest(
@@ -83,6 +87,24 @@ export function grantPlatformTenantAccessRequest(
   });
 }
 
+export function currentCompanyAccessRequest(): Promise<CompanyAccess> {
+  return apiRequest<CompanyAccess>("/companies/current/features");
+}
+
+export function updateManagedCompanyFeaturesRequest(
+  id: string,
+  body: CompanyAccess,
+): Promise<CompanyAccess> {
+  return apiRequest<CompanyAccess>(
+    `/platform/admin/companies/${id}/features`,
+    {
+      method: "PUT",
+      body,
+      companyId: null,
+    },
+  );
+}
+
 export function changePasswordRequest(
   currentPassword: string,
   newPassword: string,
@@ -90,6 +112,45 @@ export function changePasswordRequest(
   return apiRequest("/auth/change-password", {
     method: "POST",
     body: { currentPassword, newPassword },
+    companyId: null,
+  });
+}
+
+export function platformOwnersRequest(): Promise<ManagedPlatformOwner[]> {
+  return apiRequest<ManagedPlatformOwner[]>("/platform/admin/owners", {
+    companyId: null,
+  });
+}
+
+export function createPlatformOwnerRequest(
+  body: CreatePlatformOwnerInput,
+): Promise<{
+  owner: ManagedPlatformOwner;
+  temporaryPassword: string;
+}> {
+  return apiRequest("/platform/admin/owners", {
+    method: "POST",
+    body,
+    companyId: null,
+  });
+}
+
+export function updatePlatformOwnerRequest(
+  id: string,
+  body: UpdatePlatformOwnerInput,
+): Promise<ManagedPlatformOwner> {
+  return apiRequest<ManagedPlatformOwner>(`/platform/admin/owners/${id}`, {
+    method: "PATCH",
+    body,
+    companyId: null,
+  });
+}
+
+export function resetPlatformOwnerPasswordRequest(
+  id: string,
+): Promise<{ temporaryPassword: string }> {
+  return apiRequest(`/platform/admin/owners/${id}/reset-password`, {
+    method: "POST",
     companyId: null,
   });
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useSyncExternalStore, type ReactNode } from "react";
+import { usePathname } from "next/navigation";
 import { AuthGuard } from "@/components/auth/auth-guard";
 import { useSession } from "@/components/auth/session-provider";
 import { CompanyBrandingProvider } from "@/components/company/company-branding-provider";
@@ -12,9 +13,12 @@ import {
   subscribeSidebar,
 } from "@/lib/auth/session-store";
 import { cn } from "@/lib/utils";
+import { resolveCompanyAccessForPath } from "@/lib/navigation";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export function AppShell({ children }: { children: ReactNode }) {
-  const { activeCompanyId } = useSession();
+  const { activeCompanyId, companyAccess } = useSession();
+  const pathname = usePathname();
   const collapsed = useSyncExternalStore(
     subscribeSidebar,
     getSidebarCollapsed,
@@ -24,10 +28,30 @@ export function AppShell({ children }: { children: ReactNode }) {
   const toggle = useCallback(() => {
     setSidebarCollapsed(!getSidebarCollapsed());
   }, []);
+  const requiredAccess = resolveCompanyAccessForPath(pathname);
+  const hasAccess =
+    !requiredAccess ||
+    (companyAccess?.enabledModules.includes(requiredAccess.module) &&
+      companyAccess.enabledFeatures.includes(requiredAccess.feature));
 
   return (
     <AuthGuard requireCompany>
       <CompanyBrandingProvider key={activeCompanyId ?? "none"}>
+        {!companyAccess ? (
+          <div className="mx-auto max-w-7xl space-y-4 px-4 py-8">
+            <Skeleton className="h-12 w-64" />
+            <Skeleton className="h-72 w-full" />
+          </div>
+        ) : !hasAccess ? (
+          <div className="flex min-h-screen items-center justify-center p-6 text-center">
+            <div>
+              <h1 className="text-xl font-semibold">Función no habilitada</h1>
+              <p className="mt-2 text-sm text-muted-foreground">
+                Esta opción no está activa para la compañía seleccionada.
+              </p>
+            </div>
+          </div>
+        ) : (
         <div className="min-h-screen bg-background">
           <aside
             className={cn(
@@ -53,6 +77,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             </main>
           </div>
         </div>
+        )}
       </CompanyBrandingProvider>
     </AuthGuard>
   );

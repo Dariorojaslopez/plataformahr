@@ -3,8 +3,13 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useCompanyBranding } from "@/components/company/company-branding-provider";
+import { useSession } from "@/components/auth/session-provider";
 import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
-import { APP_NAV, resolveActiveNavHref } from "@/lib/navigation";
+import {
+  APP_NAV,
+  filterNavigation,
+  resolveActiveNavHref,
+} from "@/lib/navigation";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 
@@ -22,7 +27,14 @@ export function SidebarNav({
   showCollapseToggle = false,
 }: SidebarNavProps) {
   const pathname = usePathname();
-  const activeHref = resolveActiveNavHref(pathname);
+  const { companyAccess } = useSession();
+  const navigation = companyAccess
+    ? filterNavigation(APP_NAV, companyAccess)
+    : APP_NAV.slice(0, 1);
+  const activeHref = resolveActiveNavHref(
+    pathname,
+    navigation.flatMap(({ items }) => items),
+  );
   const branding = useCompanyBranding();
 
   return (
@@ -81,7 +93,7 @@ export function SidebarNav({
       </div>
 
       <nav className="flex-1 space-y-6 overflow-y-auto p-3" aria-label="Principal">
-        {APP_NAV.map((section) => (
+        {navigation.map((section) => (
           <div key={section.title ?? "main"} className="space-y-1">
             {section.title && !collapsed ? (
               <p className="px-2 pb-1 text-[11px] font-medium uppercase tracking-wide text-sidebar-foreground/50">

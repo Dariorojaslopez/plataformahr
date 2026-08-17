@@ -1,14 +1,23 @@
 import { Transform } from 'class-transformer';
 import {
+  ArrayUnique,
+  IsArray,
   IsEmail,
   IsEnum,
   IsOptional,
   IsString,
+  IsIn,
   Matches,
   MaxLength,
   MinLength,
 } from 'class-validator';
 import { CompanyStatus } from '@prisma/client';
+import {
+  COMPANY_FEATURE_CODES,
+  COMPANY_MODULE_CODES,
+  type CompanyFeatureCode,
+  type CompanyModuleCode,
+} from '@talento/shared';
 
 const trim = ({ value }: { value: unknown }) =>
   typeof value === 'string' ? value.trim() : value;
@@ -53,9 +62,31 @@ export class CreatePlatformCompanyDto {
   @IsEmail()
   @MaxLength(255)
   adminEmail!: string;
+
+  @IsArray()
+  @ArrayUnique()
+  @IsIn(COMPANY_MODULE_CODES, { each: true })
+  enabledModules!: CompanyModuleCode[];
+
+  @IsArray()
+  @ArrayUnique()
+  @IsIn(COMPANY_FEATURE_CODES, { each: true })
+  enabledFeatures!: CompanyFeatureCode[];
 }
 
 export class UpdatePlatformCompanyStatusDto {
   @IsEnum(CompanyStatus)
   status!: CompanyStatus;
+}
+
+export class UpdatePlatformCompanyFeaturesDto {
+  @IsArray()
+  @ArrayUnique()
+  @IsIn(COMPANY_MODULE_CODES, { each: true })
+  enabledModules!: CompanyModuleCode[];
+
+  @IsArray()
+  @ArrayUnique()
+  @IsIn(COMPANY_FEATURE_CODES, { each: true })
+  enabledFeatures!: CompanyFeatureCode[];
 }

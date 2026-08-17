@@ -12,6 +12,7 @@ import {
 } from "react";
 import {
   changePasswordRequest,
+  currentCompanyAccessRequest,
   loginRequest,
   logoutRequest,
   meRequest,
@@ -32,7 +33,7 @@ import {
   subscribeSession,
   type SessionSnapshot,
 } from "@/lib/auth/session-store";
-import type { PublicCompany, PublicUser } from "@/types/auth";
+import type { CompanyAccess, PublicCompany, PublicUser } from "@/types/auth";
 
 export type AuthStatus = "loading" | "authenticated" | "anonymous";
 
@@ -42,6 +43,8 @@ type SessionContextValue = {
   companies: PublicCompany[];
   activeCompanyId: string | null;
   activeCompany: PublicCompany | null;
+  companyAccess: CompanyAccess | null;
+  companyAccessLoading: boolean;
   login: (
     email: string,
     password: string,
@@ -58,6 +61,7 @@ type SessionContextValue = {
   clearActiveCompany: () => void;
   /** Platform Owner: populate selectable companies from GET /platform/companies */
   setPlatformCompanies: (companies: PublicCompany[]) => void;
+  refreshCompanyAccess: () => Promise<void>;
 };
 
 const SessionContext = createContext<SessionContextValue | null>(null);
@@ -80,6 +84,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     getServerSnapshot,
   );
   const [status, setStatus] = useState<AuthStatus>("loading");
+  const [companyAccess, setCompanyAccess] = useState<CompanyAccess | null>(null);
+  const [companyAccessLoading, setCompanyAccessLoading] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -134,6 +140,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     setAccessToken(result.accessToken);
     setSessionIdentity(result.user, result.companies);
     if (result.companies.length === 1) {
+      setCompanyAccess(null);
+      setCompanyAccessLoading(true);
       setActiveCompanyId(result.companies[0].id);
     } else {
       setActiveCompanyId(null);
@@ -170,10 +178,14 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     if (!list.some((company) => company.id === companyId)) {
       throw new Error("Company not available for this user");
     }
+    setCompanyAccess(null);
+    setCompanyAccessLoading(true);
     setActiveCompanyId(companyId);
   }, []);
 
   const clearActiveCompany = useCallback(() => {
+    setCompanyAccess(null);
+    setCompanyAccessLoading(false);
     setActiveCompanyId(null);
   }, []);
 
@@ -188,6 +200,39 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       (company) => company.id === snapshot.activeCompanyId,
     ) ?? null;
 
+  const refreshCompanyAccess = useCallback(async () => {
+    if (!getActiveCompanyId()) {
+      setCompanyAccess(null);
+      return;
+    }
+    setCompanyAccessLoading(true);
+    try {
+      setCompanyAccess(await currentCompanyAccessRequest());
+    } finally {
+      setCompanyAccessLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!snapshot.activeCompanyId || status !== "authenticated") {
+      return;
+    }
+    void currentCompanyAccessRequest()
+      .then((access) => {
+        if (!cancelled) setCompanyAccess(access);
+      })
+      .catch(() => {
+        if (!cancelled) setCompanyAccess(null);
+      })
+      .finally(() => {
+        if (!cancelled) setCompanyAccessLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [snapshot.activeCompanyId, status]);
+
   const value = useMemo<SessionContextValue>(
     () => ({
       status,
@@ -195,12 +240,15 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       companies: snapshot.companies,
       activeCompanyId: snapshot.activeCompanyId,
       activeCompany,
+      companyAccess,
+      companyAccessLoading,
       login,
       logout,
       changePassword,
       selectCompany,
       clearActiveCompany,
       setPlatformCompanies,
+      refreshCompanyAccess,
     }),
     [
       status,
@@ -208,12 +256,15 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       snapshot.companies,
       snapshot.activeCompanyId,
       activeCompany,
+      companyAccess,
+      companyAccessLoading,
       login,
       logout,
       changePassword,
       selectCompany,
       clearActiveCompany,
       setPlatformCompanies,
+      refreshCompanyAccess,
     ],
   );
 

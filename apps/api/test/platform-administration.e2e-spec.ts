@@ -22,6 +22,7 @@ describe('Platform company administration (e2e)', () => {
   const normalPassword = `Normal-${suffix}!`;
   let ownerToken = '';
   let normalToken = '';
+  let ownerId = '';
 
   beforeAll(async () => {
     prisma = new PrismaClient();
@@ -56,6 +57,7 @@ describe('Platform company administration (e2e)', () => {
       return (response.body as { accessToken: string }).accessToken;
     };
     ownerToken = await login(owner.email, ownerPassword);
+    ownerId = owner.id;
     normalToken = await login(normal.email, normalPassword);
   });
 
@@ -71,6 +73,114 @@ describe('Platform company administration (e2e)', () => {
       .get('/platform/admin/companies')
       .set(bearer(normalToken))
       .expect(403);
+    await request(app.getHttpServer())
+      .get('/platform/admin/owners')
+      .set(bearer(normalToken))
+      .expect(403);
+  });
+
+  it('manages platform owners and temporary password resets safely', async () => {
+    const created = await request(app.getHttpServer())
+      .post('/platform/admin/owners')
+      .set(bearer(ownerToken))
+      .send({
+        firstName: 'Second',
+        lastName: 'Owner',
+        email: `second-owner-${suffix}@example.com`,
+      })
+      .expect(201);
+    const body = created.body as {
+      owner: {
+        id: string;
+        email: string;
+        mustChangePassword: boolean;
+      };
+      temporaryPassword: string;
+    };
+    expect(body.owner.mustChangePassword).toBe(true);
+    expect(body.temporaryPassword).toHaveLength(24);
+
+    const listed = await request(app.getHttpServer())
+      .get('/platform/admin/owners')
+      .set(bearer(ownerToken))
+      .expect(200);
+    expect(
+      (listed.body as Array<{ id: string }>).some(
+        ({ id }) => id === body.owner.id,
+      ),
+    ).toBe(true);
+
+    const updatedEmail = `updated-owner-${suffix}@example.com`;
+    await request(app.getHttpServer())
+      .patch(`/platform/admin/owners/${body.owner.id}`)
+      .set(bearer(ownerToken))
+      .send({
+        firstName: 'Updated',
+        email: updatedEmail,
+      })
+      .expect(200);
+
+    const reset = await request(app.getHttpServer())
+      .post(`/platform/admin/owners/${body.owner.id}/reset-password`)
+      .set(bearer(ownerToken))
+      .expect(201);
+    const resetPassword = (reset.body as { temporaryPassword: string })
+      .temporaryPassword;
+    expect(resetPassword).toHaveLength(24);
+    await request(app.getHttpServer())
+      .post('/auth/login')
+      .send({ email: updatedEmail, password: body.temporaryPassword })
+      .expect(401);
+    const resetLogin = await request(app.getHttpServer())
+      .post('/auth/login')
+      .send({ email: updatedEmail, password: resetPassword })
+      .expect(201);
+    expect(
+      (resetLogin.body as { user: { mustChangePassword: boolean } }).user
+        .mustChangePassword,
+    ).toBe(true);
+
+    await request(app.getHttpServer())
+      .patch(`/platform/admin/owners/${ownerId}`)
+      .set(bearer(ownerToken))
+      .send({ status: UserStatus.BLOCKED })
+      .expect(400);
+    await request(app.getHttpServer())
+      .post(`/platform/admin/owners/${ownerId}/reset-password`)
+      .set(bearer(ownerToken))
+      .expect(400);
+
+    await request(app.getHttpServer())
+      .patch(`/platform/admin/owners/${body.owner.id}`)
+      .set(bearer(ownerToken))
+      .send({ status: UserStatus.BLOCKED })
+      .expect(200);
+    await request(app.getHttpServer())
+      .patch(`/platform/admin/owners/${body.owner.id}`)
+      .set(bearer(ownerToken))
+      .send({ status: UserStatus.ACTIVE, isPlatformOwner: false })
+      .expect(200);
+    expect(
+      await prisma.user.count({
+        where: { id: body.owner.id, isPlatformOwner: true },
+      }),
+    ).toBe(0);
+
+    const logs = await prisma.auditLog.findMany({
+      where: {
+        entityId: body.owner.id,
+        action: { startsWith: 'PLATFORM_OWNER_' },
+      },
+    });
+    expect(logs.map(({ action }) => action)).toEqual(
+      expect.arrayContaining([
+        'PLATFORM_OWNER_CREATED',
+        'PLATFORM_OWNER_UPDATED',
+        'PLATFORM_OWNER_PASSWORD_RESET',
+      ]),
+    );
+    expect(JSON.stringify(logs)).not.toContain(body.temporaryPassword);
+    expect(JSON.stringify(logs)).not.toContain(resetPassword);
   });
 
   it('creates a company, initial admin and one-time temporary password', async () => {
@@ -84,6 +194,8 @@ describe('Platform company administration (e2e)', () => {
         adminFirstName: 'Tenant',
         adminLastName: 'Administrator',
         adminEmail: `tenant-admin-${suffix}@example.com`,
+        enabledModules: ['ORGANIZATION'],
+        enabledFeatures: ['organization.employees'],
       })
       .expect(201);
 
@@ -155,6 +267,39 @@ describe('Platform company administration (e2e)', () => {
       })
       .expect(200);
 
+    await request(app.getHttpServer())
+      .get('/ats/vacancies')
+      .set({
+        ...bearer(changedToken),
+        'X-Company-Id': body.company.id,
+      })
+      .expect(403);
+    await request(app.getHttpServer())
+      .put(`/platform/admin/companies/${body.company.id}/features`)
+      .set(bearer(ownerToken))
+      .send({
+        enabledModules: ['ORGANIZATION', 'ATS'],
+        enabledFeatures: ['organization.employees', 'ats.vacancies'],
+      })
+      .expect(200);
+    const access = await request(app.getHttpServer())
+      .get('/companies/current/features')
+      .set({
+        ...bearer(changedToken),
+        'X-Company-Id': body.company.id,
+      })
+      .expect(200);
+    expect(
+      (access.body as { enabledModules: string[] }).enabledModules,
+    ).toEqual(expect.arrayContaining(['ORGANIZATION', 'ATS']));
+    await request(app.getHttpServer())
+      .get('/ats/vacancies')
+      .set({
+        ...bearer(changedToken),
+        'X-Company-Id': body.company.id,
+      })
+      .expect(200);
+
     const ownerAccess = await request(app.getHttpServer())
       .post(`/platform/admin/companies/${body.company.id}/access`)
       .set(bearer(ownerToken))
@@ -190,6 +335,7 @@ describe('Platform company administration (e2e)', () => {
     expect(logs.map(({ action }) => action)).toEqual(
       expect.arrayContaining([
         'PLATFORM_COMPANY_CREATED',
+        'PLATFORM_COMPANY_FEATURES_UPDATED',
         'PLATFORM_TENANT_ADMIN_ACCESS_GRANTED',
       ]),
     );
@@ -237,6 +383,8 @@ describe('Platform company administration (e2e)', () => {
         adminFirstName: 'Other',
         adminLastName: 'Admin',
         adminEmail: `other-${suffix}@example.com`,
+        enabledModules: ['ATS'],
+        enabledFeatures: ['ats.vacancies'],
       })
       .expect(409);
 

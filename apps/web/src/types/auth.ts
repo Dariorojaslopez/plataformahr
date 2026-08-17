@@ -1,3 +1,8 @@
+import type {
+  CompanyFeatureCode,
+  CompanyModuleCode,
+} from "@talento/shared";
+
 export type PublicUser = {
   id: string;
   email: string;
@@ -44,6 +49,8 @@ export type ManagedCompany = {
   status: "ACTIVE" | "INACTIVE" | "SUSPENDED";
   createdAt: string;
   membershipCount: number;
+  enabledModules: CompanyModuleCode[];
+  enabledFeatures: CompanyFeatureCode[];
   initialAdmin: {
     id: string;
     email: string;
@@ -59,6 +66,13 @@ export type CreateManagedCompanyInput = {
   adminFirstName: string;
   adminLastName: string;
   adminEmail: string;
+  enabledModules: CompanyModuleCode[];
+  enabledFeatures: CompanyFeatureCode[];
+};
+
+export type CompanyAccess = {
+  enabledModules: CompanyModuleCode[];
+  enabledFeatures: CompanyFeatureCode[];
 };
 
 export type CreateManagedCompanyResponse = {
@@ -66,6 +80,31 @@ export type CreateManagedCompanyResponse = {
   initialAdmin: NonNullable<ManagedCompany["initialAdmin"]>;
   temporaryPassword: string;
 };
+
+export type ManagedPlatformOwner = {
+  id: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  status: "ACTIVE" | "INACTIVE" | "INVITED" | "BLOCKED";
+  isPlatformOwner: boolean;
+  mustChangePassword: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type CreatePlatformOwnerInput = {
+  firstName: string;
+  lastName: string;
+  email: string;
+};
+
+export type UpdatePlatformOwnerInput = Partial<
+  Pick<
+    ManagedPlatformOwner,
+    "firstName" | "lastName" | "email" | "status" | "isPlatformOwner"
+  >
+>;
 
 export type CurrentCompanyResponse = {
   id: string;

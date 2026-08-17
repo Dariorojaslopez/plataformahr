@@ -21,6 +21,12 @@ import {
   Users,
   type LucideIcon,
 } from "lucide-react";
+import {
+  moduleForCompanyFeature,
+  type CompanyFeatureCode,
+  type CompanyModuleCode,
+} from "@talento/shared";
+import type { CompanyAccess } from "@/types/auth";
 
 export type NavItem = {
   label: string;
@@ -205,6 +211,90 @@ export const APP_NAV: NavSection[] = [
     ],
   },
 ];
+
+const NAV_FEATURE_BY_HREF: Record<string, CompanyFeatureCode> = {
+  "/organization/employees": "organization.employees",
+  "/organization/org-chart": "organization.org-chart",
+  "/organization/import": "organization.import",
+  "/organization/business-units": "organization.business-units",
+  "/organization/areas": "organization.areas",
+  "/organization/positions": "organization.positions",
+  "/organization/position-fields": "organization.position-fields",
+  "/organization/job-levels": "organization.job-levels",
+  "/ats/vacancy-requests": "ats.vacancy-requests",
+  "/ats/vacancies": "ats.vacancies",
+  "/ats/candidates": "ats.candidates",
+  "/ats/pipeline": "ats.pipeline",
+  "/ats/interviews": "ats.interviews",
+  "/ats/interview-templates": "ats.interview-templates",
+  "/ats/settings/approvals": "ats.approvals",
+  "/performance/cycles": "performance.cycles",
+  "/performance/my-evaluations": "performance.my-evaluations",
+  "/performance/my-results": "performance.my-results",
+  "/performance/results": "performance.results",
+  "/performance/competencies": "performance.competencies",
+  "/performance/scales": "performance.scales",
+  "/goals/cycles": "goals.cycles",
+  "/goals": "goals.goals",
+  "/my-goals": "goals.mine",
+  "/goals/team": "goals.team",
+  "/goals/reviews": "goals.reviews",
+  "/settings/branding": "settings.branding",
+};
+
+export function resolveCompanyAccessForPath(pathname: string): {
+  module: CompanyModuleCode;
+  feature: CompanyFeatureCode;
+} | null {
+  const detailRoutes: Array<{
+    prefix: string;
+    module: CompanyModuleCode;
+    feature: CompanyFeatureCode;
+  }> = [
+    {
+      prefix: "/ats/applications",
+      module: "ATS",
+      feature: "ats.pipeline",
+    },
+    { prefix: "/ats/offers", module: "ATS", feature: "ats.pipeline" },
+    {
+      prefix: "/performance/evaluations",
+      module: "PERFORMANCE",
+      feature: "performance.my-evaluations",
+    },
+  ];
+  const detail = detailRoutes.find(
+    ({ prefix }) => pathname === prefix || pathname.startsWith(`${prefix}/`),
+  );
+  if (detail) return { module: detail.module, feature: detail.feature };
+  const href = Object.keys(NAV_FEATURE_BY_HREF)
+    .filter((candidate) => navHrefMatchesPath(candidate, pathname))
+    .sort((a, b) => b.length - a.length)[0];
+  if (!href) return null;
+  const feature = NAV_FEATURE_BY_HREF[href];
+  const moduleCode = moduleForCompanyFeature(feature);
+  return moduleCode ? { module: moduleCode, feature } : null;
+}
+
+export function filterNavigation(
+  sections: NavSection[],
+  access: CompanyAccess,
+): NavSection[] {
+  const modules = new Set(access.enabledModules);
+  const features = new Set(access.enabledFeatures);
+  return sections
+    .map((section) => ({
+      ...section,
+      items: section.items.filter((item) => {
+        const required = resolveCompanyAccessForPath(item.href);
+        return (
+          !required ||
+          (modules.has(required.module) && features.has(required.feature))
+        );
+      }),
+    }))
+    .filter((section) => section.items.length > 0);
+}
 
 export function flattenNavItems(sections: NavSection[] = APP_NAV): NavItem[] {
   return sections.flatMap((section) => section.items);

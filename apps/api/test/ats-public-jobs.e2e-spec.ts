@@ -2,6 +2,7 @@ import { type INestApplication } from '@nestjs/common';
 import {
   CompanyStatus,
   MembershipStatus,
+  PlatformModule,
   PrismaClient,
   RoleScope,
   UserStatus,
@@ -309,5 +310,52 @@ describe('ATS public jobs (e2e)', () => {
         },
       }),
     ).toBeGreaterThanOrEqual(3);
+  });
+
+  it('temporarily disables public jobs when the company ATS module is off', async () => {
+    const vacancy = await prisma.vacancy.findUniqueOrThrow({
+      where: { id: vacancyAId },
+    });
+    const applicationsBefore = await prisma.application.count({
+      where: { vacancyId: vacancyAId },
+    });
+    await prisma.companyModule.upsert({
+      where: {
+        companyId_module: {
+          companyId: companyAId,
+          module: PlatformModule.ATS,
+        },
+      },
+      create: {
+        companyId: companyAId,
+        module: PlatformModule.ATS,
+        enabled: false,
+      },
+      update: { enabled: false },
+    });
+
+    await request(app.getHttpServer())
+      .get(`/public/jobs/${vacancy.publicId}`)
+      .expect(404);
+    await request(app.getHttpServer())
+      .post(`/public/jobs/${vacancy.publicId}/apply`)
+      .send(applicant(`module-off-${suffix}@example.com`))
+      .expect(404);
+    expect(
+      await prisma.application.count({ where: { vacancyId: vacancyAId } }),
+    ).toBe(applicationsBefore);
+
+    await prisma.companyModule.update({
+      where: {
+        companyId_module: {
+          companyId: companyAId,
+          module: PlatformModule.ATS,
+        },
+      },
+      data: { enabled: true },
+    });
+    await request(app.getHttpServer())
+      .get(`/public/jobs/${vacancy.publicId}`)
+      .expect(200);
   });
 });

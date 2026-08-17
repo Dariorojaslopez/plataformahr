@@ -17,4 +17,21 @@ export class CompaniesService {
   create(data: Prisma.CompanyCreateInput): Promise<Company> {
     return this.prisma.company.create({ data });
   }
+
+  async getEnabledAccess(companyId: string) {
+    const [modules, features] = await Promise.all([
+      this.prisma.companyModule.findMany({
+        where: { companyId, enabled: true },
+        select: { module: true },
+      }),
+      this.prisma.companyFeature.findMany({
+        where: { companyId, enabled: true },
+        select: { feature: true },
+      }),
+    ]);
+    return {
+      enabledModules: modules.map(({ module }) => module),
+      enabledFeatures: features.map(({ feature }) => feature),
+    };
+  }
 }

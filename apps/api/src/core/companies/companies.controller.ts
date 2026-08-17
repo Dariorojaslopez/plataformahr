@@ -28,4 +28,11 @@ export class CompaniesController {
       defaultLanguage: company.defaultLanguage,
     };
   }
+
+  @Get('current/features')
+  @UseGuards(JwtAuthGuard, CompanyContextGuard, PermissionGuard)
+  @RequirePermissions('company.read')
+  getCurrentFeatures(@CurrentTenant() tenant: TenantContext) {
+    return this.companiesService.getEnabledAccess(tenant.companyId);
+  }
 }

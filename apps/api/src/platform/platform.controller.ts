@@ -6,6 +6,7 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Put,
   UseGuards,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -18,7 +19,12 @@ import { PlatformService } from './platform.service';
 import {
   CreatePlatformCompanyDto,
   UpdatePlatformCompanyStatusDto,
+  UpdatePlatformCompanyFeaturesDto,
 } from './dto/platform-company.dto';
+import {
+  CreatePlatformOwnerDto,
+  UpdatePlatformOwnerDto,
+} from './dto/platform-owner.dto';
 
 @Controller('platform')
 export class PlatformController {
@@ -70,6 +76,24 @@ export class PlatformController {
     return this.platformService.createCompany(user.userId, dto);
   }
 
+  @Get('admin/companies/:id/features')
+  @UseGuards(JwtAuthGuard, PlatformOwnerGuard)
+  @PlatformOwnerOnly()
+  getCompanyFeatures(@Param('id', ParseUUIDPipe) id: string) {
+    return this.platformService.getCompanyFeatures(id);
+  }
+
+  @Put('admin/companies/:id/features')
+  @UseGuards(JwtAuthGuard, PlatformOwnerGuard)
+  @PlatformOwnerOnly()
+  updateCompanyFeatures(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdatePlatformCompanyFeaturesDto,
+  ) {
+    return this.platformService.updateCompanyFeatures(user.userId, id, dto);
+  }
+
   @Patch('admin/companies/:id/status')
   @UseGuards(JwtAuthGuard, PlatformOwnerGuard)
   @PlatformOwnerOnly()
@@ -89,5 +113,43 @@ export class PlatformController {
     @Param('id', ParseUUIDPipe) id: string,
   ) {
     return this.platformService.grantTenantAdminAccess(user.userId, id);
+  }
+
+  @Get('admin/owners')
+  @UseGuards(JwtAuthGuard, PlatformOwnerGuard)
+  @PlatformOwnerOnly()
+  listPlatformOwners() {
+    return this.platformService.listPlatformOwners();
+  }
+
+  @Post('admin/owners')
+  @UseGuards(JwtAuthGuard, PlatformOwnerGuard)
+  @PlatformOwnerOnly()
+  createPlatformOwner(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: CreatePlatformOwnerDto,
+  ) {
+    return this.platformService.createPlatformOwner(user.userId, dto);
+  }
+
+  @Patch('admin/owners/:id')
+  @UseGuards(JwtAuthGuard, PlatformOwnerGuard)
+  @PlatformOwnerOnly()
+  updatePlatformOwner(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdatePlatformOwnerDto,
+  ) {
+    return this.platformService.updatePlatformOwner(user.userId, id, dto);
+  }
+
+  @Post('admin/owners/:id/reset-password')
+  @UseGuards(JwtAuthGuard, PlatformOwnerGuard)
+  @PlatformOwnerOnly()
+  resetPlatformOwnerPassword(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.platformService.resetPlatformOwnerPassword(user.userId, id);
   }
 }

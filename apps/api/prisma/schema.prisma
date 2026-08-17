@@ -42,8 +42,11 @@ enum RoleScope {
 }
 
 enum PlatformModule {
+  ORGANIZATION
   ATS
   PERFORMANCE
+  GOALS
+  SETTINGS
   DEVELOPMENT
   TRAINING
 }
@@ -128,6 +131,7 @@ model Company {
 
   memberships                       CompanyMembership[]
   modules                           CompanyModule[]
+  features                          CompanyFeature[]
   auditLogs                         AuditLog[]
   businessUnits                     BusinessUnit[]
   areas                             Area[]
@@ -271,6 +275,21 @@ model CompanyModule {
 
   @@unique([companyId, module])
   @@map("company_modules")
+}
+
+model CompanyFeature {
+  id        String   @id @default(uuid()) @db.Uuid
+  companyId String   @db.Uuid
+  feature   String
+  enabled   Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, feature])
+  @@index([companyId])
+  @@map("company_features")
 }
 
 // ---------------------------------------------------------------------------
