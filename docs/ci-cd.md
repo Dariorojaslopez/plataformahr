@@ -23,7 +23,7 @@ Workflows:
 
 ## Jobs
 
-1. **Quality** — Prisma validate + format gate (`git diff` after format) + generate + lint
+1. **Quality** — Prisma validate + format gate (`git diff` after format) + generate + lint (`@talento/shared` is built first so type-aware ESLint can resolve `dist/`)
 2. **Unit** — `pnpm test` (no PostgreSQL; excludes `*.persistence.spec.ts`)
 3. **Persistence** — PostgreSQL 17 service → `migrate deploy` → `db:seed` (RBAC only) → `pnpm test:integration`
 4. **E2E** — PostgreSQL 17 service → `migrate deploy` → `db:seed` (RBAC only) → `pnpm test:e2e` (`maxWorkers: 1`)
