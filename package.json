@@ -7,7 +7,7 @@
     "dev:web": "pnpm --filter web dev",
     "build": "pnpm --filter @talento/shared build && pnpm --filter api build && pnpm --filter web build",
     "build:api": "pnpm --filter @talento/shared build && pnpm --filter api build",
-    "build:web": "pnpm --filter web build",
+    "build:web": "pnpm --filter @talento/shared build && pnpm --filter web build",
     "lint": "pnpm --filter @talento/shared build && pnpm -r --if-present lint",
     "test": "pnpm -r --if-present test",
     "test:integration": "pnpm --filter api test:integration",

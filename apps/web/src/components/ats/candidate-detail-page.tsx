@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useMemo, useState } from "react";
+import { candidateDocumentTypeLabel } from "@talento/shared";
 import {
   CandidateForm,
   candidateToForm,
@@ -201,7 +202,7 @@ export function CandidateDetailPageClient() {
         </Field>
         <Field label="Teléfono">{candidate.phone ?? "—"}</Field>
         <Field label="Documento">
-          {[candidate.documentType, candidate.documentNumber]
+          {[candidateDocumentTypeLabel(candidate.documentType), candidate.documentNumber]
             .filter(Boolean)
             .join(" ") || "—"}
         </Field>

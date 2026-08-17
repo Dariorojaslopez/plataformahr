@@ -340,6 +340,81 @@ describe('ATS candidates & applications (e2e)', () => {
       );
     });
 
+    it('accepts catalog document types and leaves historical values intact', async () => {
+      for (const code of ['TI', 'CC', 'CE', 'PASSPORT'] as const) {
+        const res = await request(app.getHttpServer())
+          .post('/ats/candidates')
+          .set(auth(recruiterToken))
+          .send({
+            firstName: 'Doc',
+            lastName: code,
+            email: `doc-${code}-${suffix}@example.com`,
+            documentType: code,
+          })
+          .expect(201);
+        expect((res.body as { documentType: string }).documentType).toBe(code);
+      }
+
+      await request(app.getHttpServer())
+        .post('/ats/candidates')
+        .set(auth(recruiterToken))
+        .send({
+          firstName: 'Doc',
+          lastName: 'Bad',
+          email: `doc-bad-${suffix}@example.com`,
+          documentType: 'DNI',
+        })
+        .expect(400);
+
+      const created = await request(app.getHttpServer())
+        .post('/ats/candidates')
+        .set(auth(recruiterToken))
+        .send({
+          firstName: 'Doc',
+          lastName: 'Update',
+          email: `doc-upd-${suffix}@example.com`,
+          documentType: 'TI',
+        })
+        .expect(201);
+      const id = (created.body as { id: string }).id;
+
+      const updated = await request(app.getHttpServer())
+        .patch(`/ats/candidates/${id}`)
+        .set(auth(recruiterToken))
+        .send({ documentType: 'CC' })
+        .expect(200);
+      expect((updated.body as { documentType: string }).documentType).toBe(
+        'CC',
+      );
+
+      await request(app.getHttpServer())
+        .patch(`/ats/candidates/${id}`)
+        .set(auth(recruiterToken))
+        .send({ documentType: 'DNI' })
+        .expect(400);
+
+      const historical = await prisma.candidate.create({
+        data: {
+          companyId: companyAId,
+          firstName: 'Hist',
+          lastName: 'Doc',
+          email: `doc-hist-${suffix}@example.com`,
+          documentType: 'Cedula',
+        },
+      });
+      const patched = await request(app.getHttpServer())
+        .patch(`/ats/candidates/${historical.id}`)
+        .set(auth(recruiterToken))
+        .send({ firstName: 'Historia' })
+        .expect(200);
+      expect((patched.body as { firstName: string }).firstName).toBe(
+        'Historia',
+      );
+      expect((patched.body as { documentType: string }).documentType).toBe(
+        'Cedula',
+      );
+    });
+
     it('rejects duplicate email in same company', async () => {
       const email = `dup-email-${suffix}@example.com`;
       await request(app.getHttpServer())

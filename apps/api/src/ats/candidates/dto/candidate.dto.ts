@@ -1,6 +1,7 @@
 import {
   IsEmail,
   IsEnum,
+  IsIn,
   IsInt,
   IsOptional,
   IsString,
@@ -11,7 +12,17 @@ import {
 } from 'class-validator';
 import { Transform, Type } from 'class-transformer';
 import { CandidateStatus } from '@prisma/client';
+import { CANDIDATE_DOCUMENT_TYPE_CODES } from '@talento/shared';
 import { DEFAULT_LIMIT, DEFAULT_PAGE, MAX_LIMIT } from '../../ats.constants';
+
+function blankToUndefined({ value }: { value: unknown }) {
+  if (value === null || value === undefined) return undefined;
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    return trimmed === '' ? undefined : trimmed;
+  }
+  return value;
+}
 
 export class CreateCandidateDto {
   @IsString()
@@ -37,8 +48,8 @@ export class CreateCandidateDto {
   phone?: string;
 
   @IsOptional()
-  @IsString()
-  @MaxLength(50)
+  @Transform(blankToUndefined)
+  @IsIn(CANDIDATE_DOCUMENT_TYPE_CODES)
   documentType?: string;
 
   @IsOptional()
@@ -94,8 +105,8 @@ export class UpdateCandidateDto {
   phone?: string;
 
   @IsOptional()
-  @IsString()
-  @MaxLength(50)
+  @Transform(blankToUndefined)
+  @IsIn(CANDIDATE_DOCUMENT_TYPE_CODES)
   documentType?: string;
 
   @IsOptional()

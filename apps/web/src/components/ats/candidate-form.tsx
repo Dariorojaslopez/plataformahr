@@ -1,9 +1,13 @@
 "use client";
 
+import {
+  CANDIDATE_DOCUMENT_TYPES,
+  isCandidateDocumentType,
+} from "@talento/shared";
+import { FormSelect } from "@/components/organization/form-select";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { FormSelect } from "@/components/organization/form-select";
 import type {
   Candidate,
   CandidateStatus,
@@ -82,6 +86,12 @@ export function toUpdateCandidatePayload(
 ): UpdateCandidateInput {
   const base = toCreateCandidatePayload(values);
   const payload: UpdateCandidateInput = { ...base };
+  if (
+    values.documentType &&
+    !isCandidateDocumentType(values.documentType)
+  ) {
+    delete payload.documentType;
+  }
   if (values.status === "ACTIVE" || values.status === "INACTIVE") {
     payload.status = values.status;
   }
@@ -148,11 +158,14 @@ export function CandidateForm({
         onChange={(phone) => onChange({ ...values, phone })}
       />
       <div className="grid gap-4 sm:grid-cols-2">
-        <Field
+        <FormSelect
           id="c-doc-type"
           label="Tipo documento"
           value={values.documentType}
           onChange={(documentType) => onChange({ ...values, documentType })}
+          allowEmpty
+          emptyLabel="Ninguno"
+          options={documentTypeOptions(values.documentType)}
         />
         <Field
           id="c-doc-num"
@@ -220,6 +233,20 @@ export function CandidateForm({
       </div>
     </form>
   );
+}
+
+function documentTypeOptions(current: string): Array<{ value: string; label: string }> {
+  const catalog = CANDIDATE_DOCUMENT_TYPES.map((item) => ({
+    value: item.code,
+    label: item.label,
+  }));
+  if (current && !isCandidateDocumentType(current)) {
+    return [
+      { value: current, label: `${current} (valor anterior)` },
+      ...catalog,
+    ];
+  }
+  return catalog;
 }
 
 function Field({

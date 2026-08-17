@@ -37,6 +37,7 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   output: "standalone",
+  transpilePackages: ["@talento/shared"],
   // Monorepo: include files outside apps/web for standalone tracing.
   outputFileTracingRoot: path.join(__dirname, "../.."),
   poweredByHeader: false,

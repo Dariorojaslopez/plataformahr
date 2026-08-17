@@ -13,6 +13,10 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
+      "@talento/shared": path.resolve(
+        __dirname,
+        "../../packages/shared/src/index.ts",
+      ),
     },
   },
 });

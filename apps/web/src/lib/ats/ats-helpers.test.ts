@@ -118,6 +118,43 @@ describe("candidate form payloads", () => {
     });
     expect(payload.status).toBeUndefined();
   });
+
+  it("sends a stable catalog code when a document type is selected", () => {
+    const payload = toCreateCandidatePayload({
+      firstName: "Ana",
+      lastName: "Ruiz",
+      email: "ana@example.com",
+      phone: "",
+      documentType: "CC",
+      documentNumber: "123",
+      country: "",
+      state: "",
+      city: "",
+      source: "",
+      status: "",
+    });
+    expect(payload.documentType).toBe("CC");
+    expect(payload.documentNumber).toBe("123");
+  });
+
+  it("omits a historical unknown documentType on update so other fields can save", () => {
+    const payload = toUpdateCandidatePayload({
+      firstName: "Ana",
+      lastName: "Ruiz",
+      email: "ana@example.com",
+      phone: "",
+      documentType: "Cedula",
+      documentNumber: "123",
+      country: "",
+      state: "",
+      city: "",
+      source: "",
+      status: "ACTIVE",
+    });
+    expect(payload).not.toHaveProperty("documentType");
+    expect(payload.firstName).toBe("Ana");
+    expect(payload.status).toBe("ACTIVE");
+  });
 });
 
 describe("stage transitions", () => {
