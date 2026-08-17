@@ -18,27 +18,14 @@ import {
   VacancyRequestType,
   VacancyStatus,
 } from '@prisma/client';
-import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { loadOptionalEnvFile } from './load-env';
 import request from 'supertest';
 import { App } from 'supertest/types';
 import { AppModule } from '../src/app.module';
 import { PasswordHashingService } from '../src/auth/password-hashing.service';
 
-function loadEnvFile(filePath: string): void {
-  const content = readFileSync(filePath, 'utf8');
-  for (const line of content.split('\n')) {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith('#')) continue;
-    const separatorIndex = trimmed.indexOf('=');
-    if (separatorIndex <= 0) continue;
-    const key = trimmed.slice(0, separatorIndex);
-    const value = trimmed.slice(separatorIndex + 1);
-    if (process.env[key] === undefined) process.env[key] = value;
-  }
-}
-
-loadEnvFile(join(__dirname, '../.env'));
+loadOptionalEnvFile(join(__dirname, '../.env'));
 
 describe('ATS job offers (e2e)', () => {
   let app: INestApplication<App>;
