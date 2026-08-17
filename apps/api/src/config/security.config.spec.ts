@@ -7,6 +7,7 @@ describe('validateSecurityEnv', () => {
     JWT_REFRESH_SECRET: 'b'.repeat(40),
     CORS_ORIGINS: 'https://app.example.com',
     JWT_REFRESH_TTL: '7d',
+    COMPANY_UPLOADS_DIR: '/data/company-uploads',
   };
 
   it('accepts strong distinct secrets and CORS in production', () => {
@@ -113,5 +114,15 @@ describe('validateSecurityEnv', () => {
       CORS_ORIGINS: '',
     });
     expect(cfg.corsOrigins).toContain('http://localhost:3000');
+  });
+
+  it('requires COMPANY_UPLOADS_DIR in production', () => {
+    expect(() =>
+      validateSecurityEnv({
+        ...base,
+        NODE_ENV: 'production',
+        COMPANY_UPLOADS_DIR: '',
+      }),
+    ).toThrow(/COMPANY_UPLOADS_DIR/);
   });
 });

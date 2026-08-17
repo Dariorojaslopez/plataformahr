@@ -45,6 +45,8 @@ The refresh cookie Path must match that public prefix (e.g. `/api/auth` if the A
 2. Clear memory session + tenant UI state even if logout API fails
 3. Redirect to `/login`
 
+Tenant branding is loaded only inside the authenticated company shell and is keyed by `activeCompanyId`. Global `/login` always uses Plataforma HR colors. See [company-branding.md](./company-branding.md).
+
 ## Cross-origin note
 
 Local web (`:3000`) and API (`:3001`) are different origins. Cookie uses `SameSite=None; Secure` so the browser sends it on credentialed refresh. See [security.md](./security.md).

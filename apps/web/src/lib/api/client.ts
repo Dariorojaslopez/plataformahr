@@ -11,6 +11,7 @@ export type ApiRequestOptions = {
   method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
   body?: unknown;
   rawBody?: string;
+  formData?: FormData;
   headers?: Record<string, string>;
   auth?: boolean;
   companyId?: string | null;
@@ -78,6 +79,7 @@ async function executeFetch(
     method = "GET",
     body,
     rawBody,
+    formData,
     headers = {},
     auth = true,
     companyId,
@@ -90,7 +92,9 @@ async function executeFetch(
     ...headers,
   };
 
-  if (rawBody !== undefined) {
+  if (formData !== undefined) {
+    // Browser sets multipart boundary; do not force Content-Type.
+  } else if (rawBody !== undefined) {
     requestHeaders["Content-Type"] =
       requestHeaders["Content-Type"] ?? "text/csv; charset=utf-8";
   } else if (body !== undefined) {
@@ -115,11 +119,13 @@ async function executeFetch(
       method,
       headers: requestHeaders,
       body:
-        rawBody !== undefined
-          ? rawBody
-          : body === undefined
-            ? undefined
-            : JSON.stringify(body),
+        formData !== undefined
+          ? formData
+          : rawBody !== undefined
+            ? rawBody
+            : body === undefined
+              ? undefined
+              : JSON.stringify(body),
       signal,
       credentials,
     });

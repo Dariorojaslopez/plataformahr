@@ -57,6 +57,7 @@ In **production** (and real staging treated as production-hardened):
 | `NODE_ENV` | Yes | `production` for staging/prod runtime |
 | `THROTTLE_TTL_MS` / `THROTTLE_LIMIT` | No | Defaults apply |
 | `JSON_BODY_LIMIT` | No | Default `1mb` |
+| `COMPANY_UPLOADS_DIR` | Yes in production | Absolute directory for tenant logos. Compose sets `/data/company-uploads` on volume `talento_prod_company_uploads`. |
 | `LOG_LEVEL` / `LOG_FORMAT` | Recommended | JSON in prod |
 | `SLOW_REQUEST_MS` | No | Default `1000` |
 | `METRICS_ENABLED` | No | Default `true` |

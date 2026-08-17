@@ -10,8 +10,9 @@ Directory: `/opt/plataforma-hr`. Runtime secrets: `infrastructure/.env.prod` (ne
 
 ```text
 1. Refuse dirty working tree; git fetch; checkout --detach $SHA
-2. Ensure postgres is up (volume talento_prod_pgdata kept)
+2. Ensure postgres is up (volume talento_prod_pgdata kept; logos volume talento_prod_company_uploads also kept)
 3. Backup via postgres container → backups/talento-<UTC>-<sha12>.dump
+   (does **not** include company logos)
 4. IMAGE_TAG=$SHA docker compose build api web
 5. docker compose run --rm --no-deps migrate
    if fail → stop; do not roll out new API/Web

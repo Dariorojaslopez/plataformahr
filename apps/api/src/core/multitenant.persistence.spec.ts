@@ -250,6 +250,9 @@ describe('Core multi-tenant persistence', () => {
 
     expect(userMemberships).toHaveLength(2);
     expect(companyAMemberships).toHaveLength(2);
+    expect(companyA.brandPrimaryColor).toBeNull();
+    expect(companyA.logoFileName).toBeNull();
+    expect(companyB.brandPrimaryColor).toBeNull();
   });
 
   it('allows multiple roles per membership and rejects duplicate memberships', async () => {

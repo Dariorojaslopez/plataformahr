@@ -1,7 +1,8 @@
 # Production-like reference stack (portable; not a cloud deployment).
 #
 # Production CD (VPS /opt/plataforma-hr) uses scripts/deploy-prod.sh with IMAGE_TAG=<git-sha>.
-# Never run `docker compose down` or `docker compose down -v` (volume talento_prod_pgdata).
+# Never run `docker compose down` or `docker compose down -v`
+# (volumes talento_prod_pgdata and talento_prod_company_uploads).
 #
 # Manual lab bring-up from repository root:
 #   cp infrastructure/.env.prod.example infrastructure/.env.prod
@@ -74,6 +75,11 @@ services:
       COOKIE_PATH: ${COOKIE_PATH:-/api/auth}
       TRUST_PROXY: ${TRUST_PROXY:-1}
       JSON_BODY_LIMIT: ${JSON_BODY_LIMIT:-1mb}
+      COMPANY_UPLOADS_DIR: /data/company-uploads
+    volumes:
+      # Named volume: survives rebuild, redeploy, container recreate, and
+      # image rollback. Never `docker compose down -v`.
+      - talento_prod_company_uploads:/data/company-uploads
     networks:
       - internal
       - edge
@@ -134,3 +140,4 @@ networks:
 
 volumes:
   talento_prod_pgdata:
+  talento_prod_company_uploads:

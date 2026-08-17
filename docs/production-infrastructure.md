@@ -122,6 +122,7 @@ Never bake owner passwords into images or compose files.
 - Restore: `scripts/restore-postgres.sh --yes <file.dump>` (requires `--yes`).
 - Store dumps **off-host**, encrypt at rest via platform, verify restores periodically.
 - Gitignore: `backups/`, `*.dump`.
+- **Gap:** tenant logos on `talento_prod_company_uploads` are **not** in the PostgreSQL dump. Schedule a volume snapshot later; see [company-branding.md](./company-branding.md).
 
 ### RPO / RTO (initial operational targets — not contractual SLA)
 
@@ -140,6 +141,7 @@ Never bake owner passwords into images or compose files.
 ## Volumes & networks
 
 - Volume `talento_prod_pgdata` persists PostgreSQL data across container recreate.
+- Volume `talento_prod_company_uploads` persists tenant logos at `/data/company-uploads` on the API container. Survives rebuild, SHA deploy, and image rollback. **Not** covered by PostgreSQL backups — see [company-branding.md](./company-branding.md).
 - Network `internal` (internal=true): DB + migrate + API.
 - Network `edge`: published Web/API ports for lab access.
 
@@ -151,7 +153,7 @@ Never bake owner passwords into images or compose files.
 | api | 256–512MB | Nest + Prisma |
 | web | 256–512MB | Next standalone |
 
-Set real cgroup limits after measurement. Read-only root FS: possible for API with care; Next may need tmp — not forced here. No server-side uploads / audio persistence.
+Set real cgroup limits after measurement. Read-only root FS: possible for API with care (keep `/data/company-uploads` writable). Next may need tmp — not forced here. Tenant logos persist on `talento_prod_company_uploads`, not in the image layer.
 
 ## Logging / timezone
 

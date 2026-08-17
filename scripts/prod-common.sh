@@ -169,7 +169,7 @@ run_healthchecks() {
 }
 
 ensure_postgres_up() {
-  echo "Ensuring PostgreSQL is up (will not remove volume talento_prod_pgdata)"
+  echo "Ensuring PostgreSQL is up (will not remove volumes talento_prod_pgdata or talento_prod_company_uploads)"
   compose up -d postgres
   wait_for_postgres
 }

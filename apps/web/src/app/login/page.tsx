@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { LoginForm } from "@/components/auth/login-form";
+import { PLATFORM_BRAND_PRIMARY } from "@/lib/company/brand-tokens";
 
 export const metadata: Metadata = {
   title: "Iniciar sesión",
@@ -8,7 +9,10 @@ export const metadata: Metadata = {
 export default function LoginPage() {
   return (
     <div className="grid min-h-screen lg:grid-cols-2">
-      <section className="relative hidden overflow-hidden bg-[#0f5c5a] text-white lg:flex lg:flex-col lg:justify-between lg:p-12">
+      <section
+        className="relative hidden overflow-hidden text-white lg:flex lg:flex-col lg:justify-between lg:p-12"
+        style={{ backgroundColor: PLATFORM_BRAND_PRIMARY }}
+      >
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(255,255,255,0.12),transparent_45%),radial-gradient(circle_at_80%_0%,rgba(255,255,255,0.08),transparent_35%)]" />
         <div className="relative">
           <p className="text-sm font-medium tracking-wide text-white/80">

@@ -12,6 +12,7 @@ import {
   ListChecks,
   Medal,
   Network,
+  Palette,
   Share2,
   SlidersHorizontal,
   Target,
@@ -187,6 +188,16 @@ export const APP_NAV: NavSection[] = [
       },
     ],
   },
+  {
+    title: "Configuración",
+    items: [
+      {
+        label: "Apariencia",
+        href: "/settings/branding",
+        icon: Palette,
+      },
+    ],
+  },
 ];
 
 export function flattenNavItems(sections: NavSection[] = APP_NAV): NavItem[] {
@@ -254,5 +265,6 @@ export function resolvePageTitle(pathname: string): string {
   if (pathname === "/my-goals") return "Mis objetivos";
   if (pathname === "/select-company") return "Seleccionar compañía";
   if (pathname === "/platform") return "Platform";
+  if (pathname === "/settings/branding") return "Apariencia";
   return "Talento";
 }

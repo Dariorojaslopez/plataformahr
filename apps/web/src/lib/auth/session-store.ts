@@ -117,6 +117,16 @@ export function setSessionIdentity(
   emit();
 }
 
+export function updateSessionCompany(
+  companyId: string,
+  patch: Partial<Pick<PublicCompany, "name" | "slug">>,
+): void {
+  companiesMemory = companiesMemory.map((company) =>
+    company.id === companyId ? { ...company, ...patch } : company,
+  );
+  emit();
+}
+
 export function setActiveCompanyId(companyId: string | null): void {
   activeCompanyIdMemory = companyId;
   if (canUseSessionStorage()) {

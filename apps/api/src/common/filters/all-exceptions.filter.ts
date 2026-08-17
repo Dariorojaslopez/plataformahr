@@ -16,6 +16,21 @@ import {
 
 type RequestWithId = Request & { requestId?: string };
 
+function isMulterError(exception: unknown): boolean {
+  return Boolean(
+    exception &&
+    typeof exception === 'object' &&
+    (exception as { name?: string }).name === 'MulterError',
+  );
+}
+
+function isMulterFileTooLarge(exception: unknown): boolean {
+  return (
+    isMulterError(exception) &&
+    (exception as { code?: string }).code === 'LIMIT_FILE_SIZE'
+  );
+}
+
 @Catch()
 export class AllExceptionsFilter implements ExceptionFilter {
   constructor(
@@ -66,6 +81,12 @@ export class AllExceptionsFilter implements ExceptionFilter {
         errorName: exception.code,
         context: AllExceptionsFilter.name,
       });
+    } else if (isMulterFileTooLarge(exception)) {
+      status = HttpStatus.PAYLOAD_TOO_LARGE;
+      message = 'El archivo supera el tamaño máximo permitido.';
+    } else if (isMulterError(exception)) {
+      status = HttpStatus.BAD_REQUEST;
+      message = 'Invalid multipart upload.';
     } else if (
       exception &&
       typeof exception === 'object' &&

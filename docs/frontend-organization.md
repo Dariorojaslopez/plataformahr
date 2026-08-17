@@ -38,3 +38,7 @@ Zoom/pan live in the viewport (no diagram library). PNG/PDF export uses an in-br
 
 **Importación masiva** (`/organization/import`) downloads a CSV template, validates it (preview), then applies only if there are no blocking errors. The apply button stays disabled while the preview has errors. Results are summarized per entity (created / updated). Row errors are shown as `Fila N · campo: mensaje`.
 
+## Apariencia de compañía
+
+**Apariencia** (`/settings/branding`) is under Configuración. Admins with `company.manage` set commercial name, primary color (`#RRGGBB`), and logo. The authenticated shell applies `--primary` / `--ring` / `--sidebar-accent` for the active company only. Login stays on Plataforma HR branding. Details: [company-branding.md](./company-branding.md).
+

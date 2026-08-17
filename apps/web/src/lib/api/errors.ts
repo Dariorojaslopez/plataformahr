@@ -43,6 +43,10 @@ function statusToCode(status: number): string {
       return "NOT_FOUND";
     case 409:
       return "CONFLICT";
+    case 413:
+      return "PAYLOAD_TOO_LARGE";
+    case 415:
+      return "UNSUPPORTED_MEDIA_TYPE";
     case 422:
       return "UNPROCESSABLE";
     default:
@@ -65,6 +69,12 @@ export function getErrorMessage(error: unknown, fallback: string): string {
     }
     if (error.status === 400 || error.status === 422) {
       return error.message || "Solicitud inválida.";
+    }
+    if (error.status === 413) {
+      return error.message || "El archivo supera el tamaño máximo permitido.";
+    }
+    if (error.status === 415) {
+      return error.message || "El tipo de archivo no está permitido.";
     }
     if (error.status >= 500) {
       const ref = error.requestId

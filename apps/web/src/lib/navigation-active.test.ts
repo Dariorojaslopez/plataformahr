@@ -131,6 +131,7 @@ describe("resolveActiveNavHref", () => {
       "ATS",
       "Performance",
       "Objetivos",
+      "Configuración",
     ]);
   });
 });

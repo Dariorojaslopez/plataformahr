@@ -111,15 +111,19 @@ model UserSession {
 
 /// Tenant root. Business entities must scope by companyId.
 model Company {
-  id              String        @id @default(uuid()) @db.Uuid
-  name            String
-  legalName       String?
-  slug            String        @unique
-  status          CompanyStatus @default(ACTIVE)
-  defaultLanguage Language      @default(ES)
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
-  deletedAt       DateTime?
+  id                String        @id @default(uuid()) @db.Uuid
+  name              String
+  legalName         String?
+  slug              String        @unique
+  status            CompanyStatus @default(ACTIVE)
+  defaultLanguage   Language      @default(ES)
+  brandPrimaryColor String?
+  logoFileName      String?
+  logoMimeType      String?
+  logoUpdatedAt     DateTime?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+  deletedAt         DateTime?
 
   memberships                       CompanyMembership[]
   modules                           CompanyModule[]

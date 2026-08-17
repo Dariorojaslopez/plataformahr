@@ -20,6 +20,11 @@ Passwords and refresh tokens are never stored in plaintext. `passwordHash` and r
 | `POST` | `/auth/logout` | Bearer access token | Revokes session; clears cookie |
 | `GET` | `/auth/me` | Bearer access token | Identity + active companies; `Cache-Control: no-store` |
 | `GET` | `/companies/current` | Bearer + `X-Company-Id` + `company.read` | Tenant-aware sample |
+| `GET` | `/companies/current/branding` | Bearer + `X-Company-Id` + `company.read` | Name, color, hasLogo |
+| `PATCH` | `/companies/current/branding` | Bearer + `X-Company-Id` + `company.manage` | Name / `#RRGGBB` color |
+| `GET` | `/companies/current/branding/logo` | Bearer + `X-Company-Id` + `company.read` | Logo bytes |
+| `POST` | `/companies/current/branding/logo` | Bearer + `X-Company-Id` + `company.manage` | Multipart `file` |
+| `DELETE` | `/companies/current/branding/logo` | Bearer + `X-Company-Id` + `company.manage` | Remove logo |
 | `GET` | `/platform/me` | Bearer + Platform Owner | Platform identity |
 | `GET` | `/platform/companies` | Bearer + Platform Owner | ACTIVE companies catalog for tenant entry |
 

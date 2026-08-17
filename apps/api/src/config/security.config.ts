@@ -171,6 +171,10 @@ export function validateSecurityEnv(
   const maxAgeMs = parseTtlMs(env.JWT_REFRESH_TTL, '7d');
   const cookiePath = parseRefreshCookiePath(env.COOKIE_PATH);
 
+  if (isProduction && !env.COMPANY_UPLOADS_DIR?.trim()) {
+    throw new Error('COMPANY_UPLOADS_DIR is required in production');
+  }
+
   return {
     isProduction,
     corsOrigins,

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useCompanyBranding } from "@/components/company/company-branding-provider";
 import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { APP_NAV, resolveActiveNavHref } from "@/lib/navigation";
 import { cn } from "@/lib/utils";
@@ -22,6 +23,7 @@ export function SidebarNav({
 }: SidebarNavProps) {
   const pathname = usePathname();
   const activeHref = resolveActiveNavHref(pathname);
+  const branding = useCompanyBranding();
 
   return (
     <div className="flex h-full flex-col bg-sidebar text-sidebar-foreground">
@@ -32,12 +34,33 @@ export function SidebarNav({
         )}
       >
         {!collapsed ? (
-          <div>
-            <p className="text-sm font-semibold tracking-tight">Talento</p>
-            <p className="text-[11px] text-sidebar-foreground/60">Gestión de talento</p>
+          <div className="flex min-w-0 items-center gap-2">
+            {branding.logoSrc ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={branding.logoSrc}
+                alt=""
+                className="h-8 w-8 shrink-0 rounded object-contain bg-white"
+              />
+            ) : null}
+            <div className="min-w-0">
+              <p className="truncate text-sm font-semibold tracking-tight">
+                {branding.name}
+              </p>
+              <p className="truncate text-[11px] text-sidebar-foreground/60">
+                Gestión de talento
+              </p>
+            </div>
           </div>
+        ) : branding.logoSrc ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={branding.logoSrc}
+            alt=""
+            className="h-8 w-8 rounded object-contain bg-white"
+          />
         ) : (
-          <span className="text-sm font-semibold">TS</span>
+          <span className="text-sm font-semibold">{branding.initials}</span>
         )}
         {showCollapseToggle && onToggleCollapse ? (
           <Button

@@ -56,6 +56,9 @@ RUN apt-get update \
 
 COPY --from=build --chown=nestjs:nodejs /out/api /app
 
+RUN mkdir -p /data/company-uploads \
+  && chown nestjs:nodejs /data/company-uploads
+
 USER nestjs
 EXPOSE 3001
 

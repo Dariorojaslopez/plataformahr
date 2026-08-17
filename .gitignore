@@ -37,5 +37,8 @@ backups/
 *.sql.gz
 *.backup
 
+# Tenant logo uploads (local API). Production uses a named Docker volume.
+apps/api/var/
+
 # VPS deploy state (current IMAGE_TAG SHA)
 .deploy-sha
