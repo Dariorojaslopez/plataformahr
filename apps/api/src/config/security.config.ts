@@ -12,6 +12,9 @@ const WEAK_SECRETS = new Set([
 
 export const REFRESH_COOKIE_NAME = 'tsc_refresh';
 
+/** Browser-visible Path for tsc_refresh. Nest routes remain /auth after proxy strip. */
+export const DEFAULT_REFRESH_COOKIE_PATH = '/auth';
+
 export type SameSiteMode = 'lax' | 'strict' | 'none';
 
 export type SecurityRuntimeConfig = {
@@ -62,6 +65,44 @@ function isWeakSecret(value: string): boolean {
   if (WEAK_SECRETS.has(normalized)) return true;
   if (normalized.length < 32) return true;
   return false;
+}
+
+/**
+ * Cookie Path is matched by the browser against the request URL it sees.
+ * Direct API: /auth. Same-origin reverse proxy /api → Nest: /api/auth.
+ * Rejects "/" so the refresh cookie is not sent on every site path.
+ */
+export function parseRefreshCookiePath(raw: string | undefined): string {
+  const trimmed = (raw ?? '').trim();
+  const value = trimmed.length > 0 ? trimmed : DEFAULT_REFRESH_COOKIE_PATH;
+  const normalized = value.length > 1 ? value.replace(/\/+$/, '') : value;
+
+  if (!normalized.startsWith('/')) {
+    throw new Error('COOKIE_PATH must start with /');
+  }
+  if (normalized === '/') {
+    throw new Error(
+      'COOKIE_PATH must not be / (cookie would be sent site-wide)',
+    );
+  }
+  if (
+    normalized.includes('//') ||
+    normalized.includes('\\') ||
+    normalized.includes('..') ||
+    normalized.includes('?') ||
+    normalized.includes('#') ||
+    normalized.includes(';') ||
+    normalized.includes(' ')
+  ) {
+    throw new Error('COOKIE_PATH is not a valid URL path');
+  }
+  if (!/^\/[A-Za-z0-9](?:[A-Za-z0-9/_-]*[A-Za-z0-9])?$/.test(normalized)) {
+    throw new Error('COOKIE_PATH contains invalid characters');
+  }
+  if (normalized.length > 64) {
+    throw new Error('COOKIE_PATH is too long');
+  }
+  return normalized;
 }
 
 /**
@@ -128,6 +169,7 @@ export function validateSecurityEnv(
   }
 
   const maxAgeMs = parseTtlMs(env.JWT_REFRESH_TTL, '7d');
+  const cookiePath = parseRefreshCookiePath(env.COOKIE_PATH);
 
   return {
     isProduction,
@@ -137,7 +179,7 @@ export function validateSecurityEnv(
       httpOnly: true,
       secure,
       sameSite,
-      path: '/auth',
+      path: cookiePath,
       maxAgeMs,
     },
     jsonBodyLimit: env.JSON_BODY_LIMIT?.trim() || '1mb',

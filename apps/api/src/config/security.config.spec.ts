@@ -18,6 +18,52 @@ describe('validateSecurityEnv', () => {
     expect(cfg.refreshCookie.httpOnly).toBe(true);
     expect(cfg.refreshCookie.secure).toBe(true);
     expect(cfg.refreshCookie.path).toBe('/auth');
+    expect(cfg.refreshCookie.sameSite).toBe('none');
+  });
+
+  it('defaults cookie path to /auth when COOKIE_PATH is unset', () => {
+    const cfg = validateSecurityEnv({
+      ...base,
+      NODE_ENV: 'development',
+    });
+    expect(cfg.refreshCookie.path).toBe('/auth');
+  });
+
+  it('uses COOKIE_PATH=/api/auth for same-origin reverse proxy', () => {
+    const cfg = validateSecurityEnv({
+      ...base,
+      NODE_ENV: 'production',
+      COOKIE_SAMESITE: 'lax',
+      COOKIE_SECURE: 'true',
+      COOKIE_PATH: '/api/auth',
+    });
+    expect(cfg.refreshCookie.path).toBe('/api/auth');
+    expect(cfg.refreshCookie.httpOnly).toBe(true);
+    expect(cfg.refreshCookie.secure).toBe(true);
+    expect(cfg.refreshCookie.sameSite).toBe('lax');
+  });
+
+  it('trims a trailing slash on COOKIE_PATH', () => {
+    const cfg = validateSecurityEnv({
+      ...base,
+      COOKIE_PATH: '/api/auth/',
+    });
+    expect(cfg.refreshCookie.path).toBe('/api/auth');
+  });
+
+  it('rejects overly broad or invalid COOKIE_PATH values', () => {
+    expect(() => validateSecurityEnv({ ...base, COOKIE_PATH: '/' })).toThrow(
+      /must not be \//,
+    );
+    expect(() => validateSecurityEnv({ ...base, COOKIE_PATH: 'auth' })).toThrow(
+      /must start with \//,
+    );
+    expect(() =>
+      validateSecurityEnv({ ...base, COOKIE_PATH: '/api/auth/../x' }),
+    ).toThrow(/not a valid URL path/);
+    expect(() =>
+      validateSecurityEnv({ ...base, COOKIE_PATH: '/auth?x=1' }),
+    ).toThrow(/not a valid URL path/);
   });
 
   it('rejects equal access/refresh secrets', () => {

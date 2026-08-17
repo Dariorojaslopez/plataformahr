@@ -27,7 +27,7 @@ PostgreSQL 17 (volume-backed, not published publicly)
 **Current code (Fase 10)** is cross-origin friendly:
 
 - `web.example.com` + `api.example.com`
-- Refresh cookie: `HttpOnly` + `Secure` + `SameSite=None` + `Path=/auth`
+- Refresh cookie: `HttpOnly` + `Secure` + `SameSite=None` + `Path=/auth` (`COOKIE_PATH`)
 - CORS allowlist + Origin checks on auth mutations
 
 **Preferred long-term simplification (not implemented here):** same-origin reverse proxy
@@ -37,7 +37,9 @@ https://app.example.com/     → Next.js
 https://app.example.com/api/ → NestJS
 ```
 
-Benefits: `SameSite=Lax`, simpler CSRF/CORS. Requires aligning `NEXT_PUBLIC_API_URL` and optionally an API global prefix — deferred.
+When the browser calls `https://app.example.com/api/auth/*`, set `COOKIE_PATH=/api/auth` so `tsc_refresh` is sent on refresh. Nest still serves `/auth` after the proxy strips `/api`.
+
+Benefits: `SameSite=Lax`, simpler CSRF/CORS. Requires aligning `NEXT_PUBLIC_API_URL` and `COOKIE_PATH`.
 
 ## Containers
 

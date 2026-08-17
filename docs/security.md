@@ -50,7 +50,7 @@ Browser (Next.js)  →  NestJS API  →  PostgreSQL
 | HttpOnly | `true` |
 | Secure | `true` in production; also when `SameSite=None` (incl. local cross-origin) |
 | SameSite | Default `none` (SPA `localhost:3000` → API `3001`). Override with `COOKIE_SAMESITE` |
-| Path | `/auth` |
+| Path | `COOKIE_PATH` (default `/auth`). Use `/api/auth` when the browser calls `/api/auth/*` behind a reverse proxy. Login, refresh and logout share this path. |
 | Max-Age | From `JWT_REFRESH_TTL` |
 
 JSON login/refresh responses **do not** include `refreshToken`.

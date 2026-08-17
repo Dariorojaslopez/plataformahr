@@ -180,6 +180,33 @@ describe('Auth + tenant + RBAC (e2e)', () => {
     expect(flags.secure).toBe(false);
   });
 
+  it('recovers /auth/me from refresh cookie after the access token is gone', async () => {
+    const agent = request.agent(app.getHttpServer());
+    const loginRes = await agent
+      .post('/auth/login')
+      .send({ email: adminEmail, password: adminPassword })
+      .expect(201);
+    const previousAccess = (loginRes.body as LoginBody).accessToken;
+    expect(previousAccess).toBeDefined();
+
+    const refreshed = await agent.post('/auth/refresh').expect(201);
+    const body = refreshed.body as {
+      accessToken: string;
+      refreshToken?: string;
+    };
+    expect(body.accessToken).toBeDefined();
+    expect(body.refreshToken).toBeUndefined();
+    expect(
+      cookieFlags(refreshed.headers['set-cookie'], REFRESH_COOKIE_NAME).path,
+    ).toBe('/auth');
+
+    const me = await request(app.getHttpServer())
+      .get('/auth/me')
+      .set('Authorization', `Bearer ${body.accessToken}`)
+      .expect(200);
+    expect((me.body as { email: string }).email).toBe(adminEmail);
+  });
+
   it('rejects invalid credentials with a generic error', async () => {
     await request(app.getHttpServer())
       .post('/auth/login')

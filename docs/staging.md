@@ -48,7 +48,7 @@ Local lab equivalent: `infrastructure/docker-compose.prod.yml` + `infrastructure
 | **Reverse proxy** | TLS at edge; `TRUST_PROXY=1` on API when a single trusted hop exists. |
 | **HTTPS/TLS** | Required for real staging hosts. Local lab may use HTTP + `COOKIE_SECURE` caveats. |
 | **CORS** | Exact staging web origin(s) in `CORS_ORIGINS`. No `*`. |
-| **Cookies** | Refresh `tsc_refresh` HttpOnly; Path=`/auth`; SameSite per topology (`none`+Secure if cross-origin). |
+| **Cookies** | Refresh `tsc_refresh` HttpOnly; Path=`COOKIE_PATH` (default `/auth`; `/api/auth` if the browser hits `/api/auth/*`); SameSite per topology (`none`+Secure if cross-origin). |
 | **Trusted proxy** | Set only behind a real reverse proxy. |
 | **Rate limiting** | `THROTTLE_*` enabled (defaults apply). |
 | **Backups** | Daily (or better) logical dumps; retain ≥7 days staging. See [backup section in release.md](./release.md#backup--restore). |

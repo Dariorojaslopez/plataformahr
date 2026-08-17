@@ -16,7 +16,7 @@ The browser **cannot** read the refresh token via JavaScript.
 | Data | Storage | Notes |
 |------|---------|-------|
 | `accessToken` | **Memory only** | Lost on full reload; restored via cookie refresh bootstrap |
-| `refreshToken` | **HttpOnly cookie** (`Path=/auth`) | Never in `sessionStorage` / `localStorage` |
+| `refreshToken` | **HttpOnly cookie** (`COOKIE_PATH`, default `/auth`) | Never in `sessionStorage` / `localStorage`. Behind `/api` proxy set `COOKIE_PATH=/api/auth`. |
 | `activeCompanyId` | `sessionStorage` | UI tenant selection; API still enforces `X-Company-Id` |
 | Sidebar collapsed | `localStorage` | Non-sensitive UI preference |
 
@@ -37,6 +37,7 @@ Legacy key `tsc.refreshToken` is cleared on `clearSession` if present.
 4. If refresh fails → clear session → logged out
 
 Fetch uses `credentials: 'include'` only against `NEXT_PUBLIC_API_URL` (configured API).
+The refresh cookie Path must match that public prefix (e.g. `/api/auth` if the API URL ends with `/api`).
 
 ## Logout
 
