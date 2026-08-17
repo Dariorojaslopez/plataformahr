@@ -384,7 +384,7 @@ model JobLevel {
   updatedAt DateTime                 @updatedAt
   deletedAt DateTime?
 
-  company         Company               @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  company         Company              @relation(fields: [companyId], references: [id], onDelete: Restrict)
   positions       Position[]
   vacancyRequests VacancyRequest[]
   competencies    JobLevelCompetency[]
@@ -399,12 +399,12 @@ model JobLevel {
 /// Tenant-scoped assignment of catalog competencies to a job level.
 /// Live configuration only — Performance evaluations snapshot cycle competencies separately.
 model JobLevelCompetency {
-  id            String   @id @default(uuid()) @db.Uuid
-  companyId     String   @db.Uuid
-  jobLevelId    String   @db.Uuid
-  competencyId  String   @db.Uuid
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id           String   @id @default(uuid()) @db.Uuid
+  companyId    String   @db.Uuid
+  jobLevelId   String   @db.Uuid
+  competencyId String   @db.Uuid
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   company    Company    @relation(fields: [companyId], references: [id], onDelete: Restrict)
   jobLevel   JobLevel   @relation(fields: [jobLevelId], references: [id], onDelete: Restrict)
@@ -434,12 +434,12 @@ model Position {
   updatedAt          DateTime                 @updatedAt
   deletedAt          DateTime?
 
-  company         Company          @relation(fields: [companyId], references: [id], onDelete: Restrict)
-  area            Area             @relation(fields: [areaId], references: [id], onDelete: Restrict)
-  jobLevel        JobLevel?        @relation(fields: [jobLevelId], references: [id], onDelete: Restrict)
-  employees       Employee[]
-  vacancyRequests VacancyRequest[]
-  vacancies       Vacancy[]
+  company           Company                    @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  area              Area                       @relation(fields: [areaId], references: [id], onDelete: Restrict)
+  jobLevel          JobLevel?                  @relation(fields: [jobLevelId], references: [id], onDelete: Restrict)
+  employees         Employee[]
+  vacancyRequests   VacancyRequest[]
+  vacancies         Vacancy[]
   customFieldValues PositionCustomFieldValue[]
 
   @@unique([companyId, name])
@@ -452,18 +452,18 @@ model Position {
 
 /// Company-scoped field definition for Position. Not hardcoded catalog fields.
 model PositionCustomFieldDefinition {
-  id        String                   @id @default(uuid()) @db.Uuid
-  companyId String                   @db.Uuid
+  id        String                  @id @default(uuid()) @db.Uuid
+  companyId String                  @db.Uuid
   key       String
   label     String
   type      PositionCustomFieldType
-  required  Boolean                  @default(false)
-  active    Boolean                  @default(true)
-  sortOrder Int                      @default(0)
-  createdAt DateTime                 @default(now())
-  updatedAt DateTime                 @updatedAt
+  required  Boolean                 @default(false)
+  active    Boolean                 @default(true)
+  sortOrder Int                     @default(0)
+  createdAt DateTime                @default(now())
+  updatedAt DateTime                @updatedAt
 
-  company Company                       @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  company Company                     @relation(fields: [companyId], references: [id], onDelete: Restrict)
   options PositionCustomFieldOption[]
   values  PositionCustomFieldValue[]
 
@@ -483,8 +483,8 @@ model PositionCustomFieldOption {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  company    Company                        @relation(fields: [companyId], references: [id], onDelete: Restrict)
-  definition PositionCustomFieldDefinition  @relation(fields: [definitionId], references: [id], onDelete: Restrict)
+  company    Company                       @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  definition PositionCustomFieldDefinition @relation(fields: [definitionId], references: [id], onDelete: Restrict)
   values     PositionCustomFieldValue[]
 
   @@index([companyId])
