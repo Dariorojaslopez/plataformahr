@@ -184,6 +184,7 @@ describe('Platform company administration (e2e)', () => {
   });
 
   it('creates a company, initial admin and one-time temporary password', async () => {
+    const selectedInitialPassword = `Initial-${suffix}-Password!`;
     const created = await request(app.getHttpServer())
       .post('/platform/admin/companies')
       .set(bearer(ownerToken))
@@ -194,6 +195,7 @@ describe('Platform company administration (e2e)', () => {
         adminFirstName: 'Tenant',
         adminLastName: 'Administrator',
         adminEmail: `tenant-admin-${suffix}@example.com`,
+        initialPassword: selectedInitialPassword,
         enabledModules: ['ORGANIZATION'],
         enabledFeatures: ['organization.employees'],
       })
@@ -205,7 +207,7 @@ describe('Platform company administration (e2e)', () => {
       temporaryPassword: string;
     };
     expect(body.company.status).toBe(CompanyStatus.ACTIVE);
-    expect(body.temporaryPassword).toHaveLength(24);
+    expect(body.temporaryPassword).toBe(selectedInitialPassword);
 
     const admin = await prisma.user.findUniqueOrThrow({
       where: { id: body.initialAdmin.id },
@@ -329,6 +331,37 @@ describe('Platform company administration (e2e)', () => {
       'CLIENT_ADMIN',
     );
 
+    const resetPassword = `Reset-${suffix}-Password!`;
+    await request(app.getHttpServer())
+      .post(
+        `/platform/admin/companies/${body.company.id}/initial-admin/reset-password`,
+      )
+      .set(bearer(ownerToken))
+      .send({ newPassword: 'short' })
+      .expect(400);
+    await request(app.getHttpServer())
+      .post(
+        `/platform/admin/companies/${body.company.id}/initial-admin/reset-password`,
+      )
+      .set(bearer(ownerToken))
+      .send({ newPassword: resetPassword })
+      .expect(201, { ok: true });
+    await request(app.getHttpServer())
+      .post('/auth/login')
+      .send({
+        email: body.initialAdmin.email,
+        password: `Changed-${suffix}-Password!`,
+      })
+      .expect(401);
+    const resetLogin = await request(app.getHttpServer())
+      .post('/auth/login')
+      .send({ email: body.initialAdmin.email, password: resetPassword })
+      .expect(201);
+    expect(
+      (resetLogin.body as { user: { mustChangePassword: boolean } }).user
+        .mustChangePassword,
+    ).toBe(true);
+
     const logs = await prisma.auditLog.findMany({
       where: { companyId: body.company.id },
     });
@@ -336,10 +369,12 @@ describe('Platform company administration (e2e)', () => {
       expect.arrayContaining([
         'PLATFORM_COMPANY_CREATED',
         'PLATFORM_COMPANY_FEATURES_UPDATED',
+        'PLATFORM_COMPANY_ADMIN_PASSWORD_RESET',
         'PLATFORM_TENANT_ADMIN_ACCESS_GRANTED',
       ]),
     );
     expect(JSON.stringify(logs)).not.toContain(body.temporaryPassword);
+    expect(JSON.stringify(logs)).not.toContain(resetPassword);
     expect(
       await prisma.auditLog.count({
         where: {

@@ -3,6 +3,9 @@
 import {
   Building2,
   Copy,
+  Eye,
+  EyeOff,
+  KeyRound,
   LogIn,
   Plus,
   Settings2,
@@ -47,6 +50,7 @@ import {
   platformCompaniesRequest,
   updateManagedCompanyStatusRequest,
   updateManagedCompanyFeaturesRequest,
+  resetManagedCompanyAdminPasswordRequest,
 } from "@/lib/api/auth";
 import { getErrorMessage } from "@/lib/api/errors";
 import { notifyError, notifySuccess } from "@/lib/ui/notify";
@@ -63,6 +67,7 @@ const emptyForm: CreateManagedCompanyInput = {
   adminFirstName: "",
   adminLastName: "",
   adminEmail: "",
+  initialPassword: "",
   enabledModules: [],
   enabledFeatures: [],
 };
@@ -126,6 +131,7 @@ function PlatformAdministration() {
       const created = await createManagedCompanyRequest({
         ...form,
         legalName: form.legalName?.trim() || undefined,
+        initialPassword: form.initialPassword?.trim() || undefined,
       });
       setCredentials(created);
       setForm(emptyForm);
@@ -269,6 +275,20 @@ function PlatformAdministration() {
                       }
                     />
                   </div>
+                  <div className="mt-4">
+                    <PasswordControl
+                      id="initial-password"
+                      label="Contraseña inicial"
+                      value={form.initialPassword ?? ""}
+                      onChange={(initialPassword) =>
+                        setForm((value) => ({
+                          ...value,
+                          initialPassword,
+                        }))
+                      }
+                      help="Puedes escribirla o generar una segura. Si queda vacía, el servidor generará una."
+                    />
+                  </div>
                   <div className="mt-5">
                     <AccessSelector
                       enabledModules={form.enabledModules}
@@ -398,6 +418,7 @@ function PlatformAdministration() {
                       company={company}
                       onSaved={refreshCompanies}
                     />
+                    <ResetAdminPasswordDialog company={company} />
                     <Button
                       size="sm"
                       variant="outline"
@@ -413,6 +434,96 @@ function PlatformAdministration() {
         )}
       </main>
     </div>
+  );
+}
+
+function ResetAdminPasswordDialog({ company }: { company: ManagedCompany }) {
+  const [open, setOpen] = useState(false);
+  const [password, setPassword] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [changed, setChanged] = useState(false);
+
+  async function save() {
+    setSaving(true);
+    try {
+      await resetManagedCompanyAdminPasswordRequest(company.id, password);
+      setChanged(true);
+      notifySuccess("Contraseña restablecida y sesiones revocadas");
+    } catch (err) {
+      notifyError(err, "No se pudo restablecer la contraseña.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next);
+        if (next) {
+          setPassword("");
+          setChanged(false);
+        }
+      }}
+    >
+      <DialogTrigger asChild>
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={!company.initialAdmin}
+        >
+          <KeyRound className="size-4" />
+          Cambiar contraseña
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Contraseña del administrador inicial</DialogTitle>
+          <p className="text-sm text-muted-foreground">
+            {company.initialAdmin?.email}. La contraseña anterior no puede
+            consultarse; esta nueva credencial se mostrará únicamente aquí.
+          </p>
+        </DialogHeader>
+        <PasswordControl
+          id={`reset-password-${company.id}`}
+          label="Nueva contraseña temporal"
+          value={password}
+          onChange={(value) => {
+            setPassword(value);
+            setChanged(false);
+          }}
+          help="Al guardar se revocarán las sesiones y deberá cambiarla al ingresar."
+        />
+        {changed ? (
+          <div className="rounded-md border border-success/40 p-3 text-sm">
+            <p className="font-medium">Contraseña actualizada</p>
+            <p className="mt-1 break-all font-mono">{password}</p>
+            <Button
+              className="mt-3"
+              size="sm"
+              variant="outline"
+              onClick={() =>
+                void navigator.clipboard
+                  .writeText(password)
+                  .then(() => notifySuccess("Contraseña copiada"))
+              }
+            >
+              <Copy className="size-4" />
+              Copiar
+            </Button>
+          </div>
+        ) : null}
+        <DialogFooter>
+          <Button
+            disabled={saving || password.length < 12 || changed}
+            onClick={() => void save()}
+          >
+            {saving ? "Guardando…" : "Restablecer contraseña"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -485,6 +596,72 @@ function CompanyAccessDialog({
       </DialogContent>
     </Dialog>
   );
+}
+
+function PasswordControl({
+  id,
+  label,
+  value,
+  onChange,
+  help,
+}: {
+  id: string;
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  help: string;
+}) {
+  const [visible, setVisible] = useState(false);
+  return (
+    <div className="space-y-2">
+      <Label htmlFor={id}>{label}</Label>
+      <div className="flex gap-2">
+        <div className="relative flex-1">
+          <Input
+            id={id}
+            type={visible ? "text" : "password"}
+            minLength={12}
+            maxLength={256}
+            value={value}
+            onChange={(event) => onChange(event.target.value)}
+            className="pr-10"
+          />
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="absolute right-0 top-0"
+            onClick={() => setVisible((current) => !current)}
+            aria-label={visible ? "Ocultar contraseña" : "Ver contraseña"}
+          >
+            {visible ? (
+              <EyeOff className="size-4" />
+            ) : (
+              <Eye className="size-4" />
+            )}
+          </Button>
+        </div>
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => {
+            onChange(generateTemporaryPassword());
+            setVisible(true);
+          }}
+        >
+          Generar
+        </Button>
+      </div>
+      <p className="text-xs text-muted-foreground">{help}</p>
+    </div>
+  );
+}
+
+function generateTemporaryPassword(): string {
+  const alphabet =
+    "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%";
+  const bytes = crypto.getRandomValues(new Uint8Array(20));
+  return Array.from(bytes, (byte) => alphabet[byte % alphabet.length]).join("");
 }
 
 function AccessSelector({

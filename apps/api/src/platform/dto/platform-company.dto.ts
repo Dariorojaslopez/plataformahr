@@ -63,6 +63,12 @@ export class CreatePlatformCompanyDto {
   @MaxLength(255)
   adminEmail!: string;
 
+  @IsOptional()
+  @IsString()
+  @MinLength(12)
+  @MaxLength(256)
+  initialPassword?: string;
+
   @IsArray()
   @ArrayUnique()
   @IsIn(COMPANY_MODULE_CODES, { each: true })
@@ -89,4 +95,11 @@ export class UpdatePlatformCompanyFeaturesDto {
   @ArrayUnique()
   @IsIn(COMPANY_FEATURE_CODES, { each: true })
   enabledFeatures!: CompanyFeatureCode[];
+}
+
+export class ResetPlatformCompanyAdminPasswordDto {
+  @IsString()
+  @MinLength(12)
+  @MaxLength(256)
+  newPassword!: string;
 }

@@ -105,6 +105,20 @@ export function updateManagedCompanyFeaturesRequest(
   );
 }
 
+export function resetManagedCompanyAdminPasswordRequest(
+  id: string,
+  newPassword: string,
+): Promise<{ ok: true }> {
+  return apiRequest<{ ok: true }>(
+    `/platform/admin/companies/${id}/initial-admin/reset-password`,
+    {
+      method: "POST",
+      body: { newPassword },
+      companyId: null,
+    },
+  );
+}
+
 export function changePasswordRequest(
   currentPassword: string,
   newPassword: string,

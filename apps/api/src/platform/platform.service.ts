@@ -22,6 +22,7 @@ import { AuditService } from '../core/audit/audit.service';
 import { PrismaService } from '../prisma/prisma.service';
 import type {
   CreatePlatformCompanyDto,
+  ResetPlatformCompanyAdminPasswordDto,
   UpdatePlatformCompanyStatusDto,
   UpdatePlatformCompanyFeaturesDto,
 } from './dto/platform-company.dto';
@@ -44,6 +45,7 @@ export const PLATFORM_AUDIT = {
   OWNER_UPDATED: 'PLATFORM_OWNER_UPDATED',
   OWNER_PASSWORD_RESET: 'PLATFORM_OWNER_PASSWORD_RESET',
   COMPANY_FEATURES_UPDATED: 'PLATFORM_COMPANY_FEATURES_UPDATED',
+  COMPANY_ADMIN_PASSWORD_RESET: 'PLATFORM_COMPANY_ADMIN_PASSWORD_RESET',
 } as const;
 
 @Injectable()
@@ -126,7 +128,8 @@ export class PlatformService {
 
   async createCompany(actorUserId: string, dto: CreatePlatformCompanyDto) {
     this.validateFeatureConfiguration(dto.enabledModules, dto.enabledFeatures);
-    const temporaryPassword = randomBytes(18).toString('base64url');
+    const temporaryPassword =
+      dto.initialPassword ?? randomBytes(18).toString('base64url');
     const passwordHash = await this.passwords.hash(temporaryPassword);
     const role = await this.prisma.role.findUnique({
       where: {
@@ -351,6 +354,55 @@ export class PlatformService {
       metadata: { from: existing.status, to: updated.status },
     });
     return updated;
+  }
+
+  async resetCompanyAdminPassword(
+    actorUserId: string,
+    companyId: string,
+    dto: ResetPlatformCompanyAdminPasswordDto,
+  ) {
+    const membership = await this.prisma.companyMembership.findFirst({
+      where: {
+        companyId,
+        company: { deletedAt: null },
+        user: { isPlatformOwner: false, deletedAt: null },
+        roles: {
+          some: {
+            role: { scope: RoleScope.COMPANY, code: 'CLIENT_ADMIN' },
+          },
+        },
+      },
+      orderBy: { createdAt: 'asc' },
+      select: { userId: true },
+    });
+    if (!membership) {
+      throw new NotFoundException('Company administrator not found');
+    }
+
+    const passwordHash = await this.passwords.hash(dto.newPassword);
+    await this.prisma.$transaction([
+      this.prisma.user.update({
+        where: { id: membership.userId },
+        data: { passwordHash, mustChangePassword: true },
+      }),
+      this.prisma.userSession.updateMany({
+        where: { userId: membership.userId, revokedAt: null },
+        data: { revokedAt: new Date() },
+      }),
+    ]);
+    await this.audit.create({
+      action: PLATFORM_AUDIT.COMPANY_ADMIN_PASSWORD_RESET,
+      entity: 'User',
+      entityId: membership.userId,
+      company: { connect: { id: companyId } },
+      user: { connect: { id: actorUserId } },
+      metadata: {
+        companyId,
+        adminUserId: membership.userId,
+        sessionsRevoked: true,
+      },
+    });
+    return { ok: true };
   }
 
   async grantTenantAdminAccess(actorUserId: string, companyId: string) {

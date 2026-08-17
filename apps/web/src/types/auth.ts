@@ -66,6 +66,7 @@ export type CreateManagedCompanyInput = {
   adminFirstName: string;
   adminLastName: string;
   adminEmail: string;
+  initialPassword?: string;
   enabledModules: CompanyModuleCode[];
   enabledFeatures: CompanyFeatureCode[];
 };

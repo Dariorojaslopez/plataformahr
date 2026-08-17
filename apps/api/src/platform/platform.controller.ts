@@ -18,6 +18,7 @@ import { PlatformOwnerGuard } from './guards/platform-owner.guard';
 import { PlatformService } from './platform.service';
 import {
   CreatePlatformCompanyDto,
+  ResetPlatformCompanyAdminPasswordDto,
   UpdatePlatformCompanyStatusDto,
   UpdatePlatformCompanyFeaturesDto,
 } from './dto/platform-company.dto';
@@ -103,6 +104,17 @@ export class PlatformController {
     @Body() dto: UpdatePlatformCompanyStatusDto,
   ) {
     return this.platformService.updateStatus(user.userId, id, dto);
+  }
+
+  @Post('admin/companies/:id/initial-admin/reset-password')
+  @UseGuards(JwtAuthGuard, PlatformOwnerGuard)
+  @PlatformOwnerOnly()
+  resetCompanyAdminPassword(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: ResetPlatformCompanyAdminPasswordDto,
+  ) {
+    return this.platformService.resetCompanyAdminPassword(user.userId, id, dto);
   }
 
   @Post('admin/companies/:id/access')
