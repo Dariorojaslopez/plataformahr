@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { CargoOccupantListEditor } from "@/components/ats/cargo-occupant-list";
 import { FormSelect } from "@/components/organization/form-select";
 import { Button } from "@/components/ui/button";
@@ -97,6 +97,7 @@ export function ActiveProcessesPageClient() {
       </div>
       {processId ? (
         <ActiveProcessEditor
+          key={`${processId}-${kind}`}
           companyId={companyId}
           processId={processId}
           kind={kind}
@@ -159,9 +160,6 @@ function ActiveProcessEditor({
   }, [approvalsQuery.data, evaluatorsQuery.data, kind]);
 
   const [draft, setDraft] = useState<CargoOccupantRow[] | null>(null);
-  useEffect(() => {
-    setDraft(null);
-  }, [processId, kind]);
   const visibleRows = draft ?? rows;
   const canEditApprovals =
     kind !== "approvals" || approvalsQuery.data?.status === "PENDING_APPROVAL";

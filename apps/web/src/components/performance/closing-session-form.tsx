@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -9,6 +9,10 @@ import { useCompanyId } from "@/hooks/use-company-id";
 import { getErrorMessage } from "@/lib/api/errors";
 import { performanceApi, performanceKeys } from "@/lib/api/performance";
 import { notifyError, notifySuccess } from "@/lib/ui/notify";
+
+type ClosingSessionData = Awaited<
+  ReturnType<typeof performanceApi.getClosingSession>
+>;
 
 export function ClosingSessionForm({
   cycleId,
@@ -20,36 +24,63 @@ export function ClosingSessionForm({
   forceReadOnly?: boolean;
 }) {
   const companyId = useCompanyId();
-  const queryClient = useQueryClient();
-  const [collaborator, setCollaborator] = useState("");
-  const [leader, setLeader] = useState("");
-  const [progressNotes, setProgressNotes] = useState("");
-  const [strengths, setStrengths] = useState("");
-  const [improvements, setImprovements] = useState("");
-  const [progressPercent, setProgressPercent] = useState(0);
-
   const query = useQuery({
     queryKey: performanceKeys.closing(companyId, cycleId, employeeId),
     queryFn: () => performanceApi.getClosingSession(cycleId, employeeId),
   });
 
-  useEffect(() => {
-    if (!query.data) return;
-    setCollaborator(query.data.collaboratorObservations ?? "");
-    setLeader(query.data.leaderObservations ?? "");
-    setProgressNotes(query.data.pdi?.progressNotes ?? "");
-    setStrengths(query.data.pdi?.strengths ?? "");
-    setImprovements(query.data.pdi?.improvements ?? "");
-    setProgressPercent(query.data.pdi?.progressPercent ?? 0);
-  }, [query.data]);
+  if (query.isError) {
+    return (
+      <p className="text-sm text-muted-foreground">
+        {getErrorMessage(query.error, "No se pudo cargar la sesión de cierre.")}
+      </p>
+    );
+  }
+  if (!query.data) return null;
+
+  return (
+    <ClosingSessionFormBody
+      key={`${cycleId}-${employeeId ?? "self"}`}
+      cycleId={cycleId}
+      employeeId={employeeId}
+      forceReadOnly={forceReadOnly}
+      data={query.data}
+    />
+  );
+}
+
+function ClosingSessionFormBody({
+  cycleId,
+  employeeId,
+  forceReadOnly,
+  data,
+}: {
+  cycleId: string;
+  employeeId?: string;
+  forceReadOnly?: boolean;
+  data: ClosingSessionData;
+}) {
+  const companyId = useCompanyId();
+  const queryClient = useQueryClient();
+  const [collaborator, setCollaborator] = useState(
+    data.collaboratorObservations ?? "",
+  );
+  const [leader, setLeader] = useState(data.leaderObservations ?? "");
+  const [progressNotes, setProgressNotes] = useState(
+    data.pdi?.progressNotes ?? "",
+  );
+  const [strengths, setStrengths] = useState(data.pdi?.strengths ?? "");
+  const [improvements, setImprovements] = useState(
+    data.pdi?.improvements ?? "",
+  );
 
   const saveMutation = useMutation({
     mutationFn: () =>
       performanceApi.saveClosingSession(cycleId, {
         employeeId,
-        collaboratorObservations: query.data?.isSubject ? collaborator : undefined,
-        leaderObservations: query.data?.isSubject ? undefined : leader,
-        pdiProgressPercent: progressPercent,
+        collaboratorObservations: data.isSubject ? collaborator : undefined,
+        leaderObservations: data.isSubject ? undefined : leader,
+        pdiProgressPercent: data.pdi?.progressPercent ?? 0,
         pdiProgressNotes: progressNotes,
         pdiStrengths: strengths,
         pdiImprovements: improvements,
@@ -74,16 +105,6 @@ export function ClosingSessionForm({
     onError: (error) => notifyError(error, "No se pudo aceptar el cierre."),
   });
 
-  if (query.isError) {
-    return (
-      <p className="text-sm text-muted-foreground">
-        {getErrorMessage(query.error, "No se pudo cargar la sesión de cierre.")}
-      </p>
-    );
-  }
-  if (!query.data) return null;
-
-  const data = query.data;
   const readOnly = forceReadOnly || Boolean(data.acceptedAt);
 
   return (

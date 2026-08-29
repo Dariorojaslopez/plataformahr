@@ -3,7 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Copy, ExternalLink } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import { useSession } from "@/components/auth/session-provider";
 import { FormSelect } from "@/components/organization/form-select";
@@ -161,7 +161,10 @@ export function VacancyDetailPageClient() {
         <Field label="Cargo">{vacancy.position?.name ?? "—"}</Field>
         <Field label="Área">{vacancy.area?.name ?? "—"}</Field>
         <RecruiterAssignmentField vacancy={vacancy} />
-        <SalaryPublicationField vacancy={vacancy} />
+        <SalaryPublicationField
+          key={`${vacancy.id}-${vacancy.salaryAmount ?? ""}`}
+          vacancy={vacancy}
+        />
         <Field label="Plazas">
           {vacancy.filledCount} / {vacancy.headcount}
           <p className="mt-1 text-xs text-muted-foreground">
@@ -251,9 +254,6 @@ function SalaryPublicationField({ vacancy }: { vacancy: Vacancy }) {
     "CLIENT_ADMIN",
   );
   const [amount, setAmount] = useState(vacancy.salaryAmount ?? "");
-  useEffect(() => {
-    setAmount(vacancy.salaryAmount ?? "");
-  }, [vacancy.salaryAmount]);
 
   const saveMutation = useMutation({
     mutationFn: (payload: {

@@ -2,7 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus, Trash2 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { FormSelect } from "@/components/organization/form-select";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -78,6 +78,32 @@ function fromApiGoal(
   };
 }
 
+function draftsFromWorkspace(data: GoalDefinitionWorkspace) {
+  return {
+    individual: data.individualGoals.map((goal) => fromApiGoal(goal)),
+    cascaded: data.cascadedGoals.map((goal) =>
+      fromApiGoal(goal, {
+        parentGoalId: goal.parentGoalId ?? "",
+        assigneeEmployeeId: goal.assignee?.id ?? "",
+      }),
+    ),
+    pdi: data.pdi
+      ? {
+          name: data.pdi.name,
+          competencyId: data.pdi.competencyId ?? "",
+          actions70: data.pdi.actions70 ?? "",
+          actions20: data.pdi.actions20 ?? "",
+          actions10: data.pdi.actions10 ?? "",
+          observations: data.pdi.observations ?? "",
+          progressNotes: data.pdi.progressNotes ?? "",
+          strengths: data.pdi.strengths ?? "",
+          improvements: data.pdi.improvements ?? "",
+          progressPercent: data.pdi.progressPercent,
+        }
+      : emptyPdi(),
+  };
+}
+
 function emptyPdi(): DraftPdi {
   return {
     name: "",
@@ -103,48 +129,59 @@ export function GoalDefinitionForm({
   forceReadOnly?: boolean;
 }) {
   const companyId = useCompanyId();
-  const queryClient = useQueryClient();
-  const [individual, setIndividual] = useState<DraftGoal[]>([]);
-  const [cascaded, setCascaded] = useState<DraftGoal[]>([]);
-  const [pdi, setPdi] = useState<DraftPdi>(emptyPdi());
-  const [hydrated, setHydrated] = useState(false);
-
   const query = useQuery({
     queryKey: performanceKeys.goalDefinition(companyId, cycleId),
     queryFn: () => performanceApi.getGoalDefinition(cycleId),
   });
 
-  useEffect(() => {
-    if (!query.data) return;
-    setIndividual(query.data.individualGoals.map((goal) => fromApiGoal(goal)));
-    setCascaded(
-      query.data.cascadedGoals.map((goal) =>
-        fromApiGoal(goal, {
-          parentGoalId: goal.parentGoalId ?? "",
-          assigneeEmployeeId: goal.assignee?.id ?? "",
-        }),
-      ),
+  if (query.isLoading) {
+    return <Skeleton className="h-40 w-full" />;
+  }
+  if (query.isError || !query.data) {
+    return (
+      <ErrorState
+        title="No se pudo cargar la definición de objetivos"
+        description={getErrorMessage(query.error, "Error al cargar.")}
+        onRetry={() => void query.refetch()}
+      />
     );
-    setPdi(
-      query.data.pdi
-        ? {
-            name: query.data.pdi.name,
-            competencyId: query.data.pdi.competencyId ?? "",
-            actions70: query.data.pdi.actions70 ?? "",
-            actions20: query.data.pdi.actions20 ?? "",
-            actions10: query.data.pdi.actions10 ?? "",
-            observations: query.data.pdi.observations ?? "",
-            progressNotes: query.data.pdi.progressNotes ?? "",
-            strengths: query.data.pdi.strengths ?? "",
-            improvements: query.data.pdi.improvements ?? "",
-            progressPercent: query.data.pdi.progressPercent,
-          }
-        : emptyPdi(),
+  }
+  if (!query.data.cycle.goalCycleId) {
+    return (
+      <p className="text-sm text-muted-foreground">
+        Este ciclo no tiene un periodo de objetivos vinculado.
+      </p>
     );
-    setHydrated(true);
-  }, [query.data]);
+  }
 
-  const data = query.data;
+  return (
+    <GoalDefinitionFormBody
+      key={cycleId}
+      cycleId={cycleId}
+      followUpMode={followUpMode}
+      forceReadOnly={forceReadOnly}
+      data={query.data}
+    />
+  );
+}
+
+function GoalDefinitionFormBody({
+  cycleId,
+  followUpMode = false,
+  forceReadOnly = false,
+  data,
+}: {
+  cycleId: string;
+  followUpMode?: boolean;
+  forceReadOnly?: boolean;
+  data: GoalDefinitionWorkspace;
+}) {
+  const companyId = useCompanyId();
+  const queryClient = useQueryClient();
+  const initial = draftsFromWorkspace(data);
+  const [individual, setIndividual] = useState(initial.individual);
+  const [cascaded, setCascaded] = useState(initial.cascaded);
+  const [pdi, setPdi] = useState(initial.pdi);
   const structureEditable =
     Boolean(data?.editable) && !forceReadOnly;
   const progressEditable =
@@ -196,26 +233,6 @@ export function GoalDefinitionForm({
     onError: (error) =>
       notifyError(error, "No se pudo solicitar la edición."),
   });
-
-  if (query.isLoading) {
-    return <Skeleton className="h-40 w-full" />;
-  }
-  if (query.isError || !data) {
-    return (
-      <ErrorState
-        title="No se pudo cargar la definición de objetivos"
-        description={getErrorMessage(query.error, "Error al cargar.")}
-        onRetry={() => void query.refetch()}
-      />
-    );
-  }
-  if (!data.cycle.goalCycleId) {
-    return (
-      <p className="text-sm text-muted-foreground">
-        Este ciclo no tiene un periodo de objetivos vinculado.
-      </p>
-    );
-  }
 
   const scaleOptions = data.scales.map((scale) => ({
     value: scale.id,
@@ -357,7 +374,7 @@ export function GoalDefinitionForm({
       <GoalDraftList
         title="Objetivos individuales"
         description="Crea los objetivos propios de este ciclo."
-        rows={hydrated ? individual : []}
+        rows={individual}
         onChange={setIndividual}
         structureEditable={structureEditable}
         progressEditable={progressEditable}
@@ -372,7 +389,7 @@ export function GoalDefinitionForm({
         <GoalDraftList
           title="Cascadeo a colaboradores"
           description="Asigna una acción de un objetivo organizacional a un reporte directo. Para esa persona aparecerá como objetivo asignado."
-          rows={hydrated ? cascaded : []}
+          rows={cascaded}
           onChange={setCascaded}
           structureEditable={structureEditable}
           progressEditable={progressEditable}

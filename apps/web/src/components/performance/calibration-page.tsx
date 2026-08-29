@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useSession } from "@/components/auth/session-provider";
 import { NineBoxGrid, nineBoxPeopleKey } from "@/components/performance/nine-box-grid";
 import { FormSelect } from "@/components/organization/form-select";
@@ -28,7 +28,7 @@ import { organizationApi, orgKeys } from "@/lib/api/organization";
 import { performanceApi, performanceKeys } from "@/lib/api/performance";
 import { DEFAULT_NINE_BOX_CELLS } from "@/lib/performance/nine-box";
 import { notifyError, notifySuccess } from "@/lib/ui/notify";
-import type { NineBoxCell } from "@/types/calibration";
+import type { CalibrationSession, NineBoxCell } from "@/types/calibration";
 
 function employeeLabel(row: { firstName: string; lastName: string }) {
   return `${row.firstName} ${row.lastName}`.trim();
@@ -56,79 +56,24 @@ export function CalibrationPageClient() {
     "CLIENT_ADMIN",
   );
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [name, setName] = useState("Calibración");
-  const [opensAt, setOpensAt] = useState("");
-  const [closesAt, setClosesAt] = useState("");
-  const [cells, setCells] = useState<NineBoxCell[]>(DEFAULT_NINE_BOX_CELLS);
-  const [inviteeIds, setInviteeIds] = useState<string[]>([]);
-  const [leaderIds, setLeaderIds] = useState<string[]>([]);
-  const [employeeSearch, setEmployeeSearch] = useState("");
-  const [employeePage, setEmployeePage] = useState(1);
-  const [pendingMove, setPendingMove] = useState<{
-    employeeId: string;
-    label: string;
-    row: number;
-    col: number;
-  } | null>(null);
-  const [justification, setJustification] = useState("");
 
   const sessionsQuery = useQuery({
     queryKey: performanceKeys.calibrationSessions(companyId),
     queryFn: () => performanceApi.listCalibrationSessions(),
   });
 
-  const selected =
-    sessionsQuery.data?.items.find((item) => item.id === selectedId) ??
-    sessionsQuery.data?.items[0] ??
-    null;
+  const activeId =
+    selectedId ?? sessionsQuery.data?.items[0]?.id ?? null;
 
   const sessionQuery = useQuery({
-    queryKey: performanceKeys.calibrationSession(companyId, selected?.id ?? ""),
-    queryFn: () => performanceApi.getCalibrationSession(selected!.id),
-    enabled: !!selected?.id,
-  });
-
-  const session = sessionQuery.data ?? selected;
-
-  useEffect(() => {
-    if (!session) return;
-    setSelectedId(session.id);
-    setName(session.name);
-    setOpensAt(toDatetimeLocal(session.opensAt));
-    setClosesAt(toDatetimeLocal(session.closesAt));
-    setCells(session.cells.length === 9 ? session.cells : DEFAULT_NINE_BOX_CELLS);
-    setInviteeIds(session.invitees.map((row) => row.id));
-    setLeaderIds(session.leaders.map((row) => row.id));
-  }, [session?.id]);
-
-  const placementsQuery = useQuery({
-    queryKey: performanceKeys.calibrationPlacements(
-      companyId,
-      session?.id ?? "",
-    ),
-    queryFn: () => performanceApi.listCalibrationPlacements(session!.id),
-    enabled: !!session?.id,
-  });
-
-  const employeesQuery = useQuery({
-    queryKey: orgKeys.employees(companyId, {
-      status: "ACTIVE",
-      search: employeeSearch || undefined,
-      page: employeePage,
-      limit: 20,
-    }),
-    queryFn: () =>
-      organizationApi.listEmployees({
-        status: "ACTIVE",
-        search: employeeSearch || undefined,
-        page: employeePage,
-        limit: 20,
-      }),
+    queryKey: performanceKeys.calibrationSession(companyId, activeId ?? ""),
+    queryFn: () => performanceApi.getCalibrationSession(activeId!),
+    enabled: !!activeId,
   });
 
   const createMutation = useMutation({
     mutationFn: () =>
-      performanceApi.createCalibrationSession({ name: name.trim() || "Calibración" }),
+      performanceApi.createCalibrationSession({ name: "Calibración" }),
     onSuccess: async (created) => {
       await queryClient.invalidateQueries({
         queryKey: performanceKeys.calibrationSessions(companyId),
@@ -138,68 +83,6 @@ export function CalibrationPageClient() {
     },
     onError: (error) => notifyError(error, "No se pudo crear la sesión."),
   });
-
-  const saveMutation = useMutation({
-    mutationFn: () =>
-      performanceApi.updateCalibrationSession(session!.id, {
-        name: name.trim(),
-        opensAt: fromDatetimeLocal(opensAt),
-        closesAt: fromDatetimeLocal(closesAt),
-        cells,
-        inviteeEmployeeIds: inviteeIds,
-        leaderEmployeeIds: leaderIds,
-      }),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({
-        queryKey: performanceKeys.all(companyId),
-      });
-      notifySuccess("Calibración guardada");
-    },
-    onError: (error) => notifyError(error, "No se pudo guardar."),
-  });
-
-  const peopleByCell = useMemo(() => {
-    const map = new Map<string, Array<{ id: string; label: string }>>();
-    for (const item of placementsQuery.data?.items ?? []) {
-      if (item.row == null || item.col == null) continue;
-      const key = nineBoxPeopleKey(item.row, item.col);
-      const list = map.get(key) ?? [];
-      list.push({
-        id: item.employee.id,
-        label: employeeLabel(item.employee),
-      });
-      map.set(key, list);
-    }
-    return map;
-  }, [placementsQuery.data]);
-
-  const unplaced = (placementsQuery.data?.items ?? []).filter(
-    (item) => item.row == null || item.col == null,
-  );
-
-  const placeMutation = useMutation({
-    mutationFn: () =>
-      performanceApi.saveCalibrationPlacement(session!.id, {
-        employeeId: pendingMove!.employeeId,
-        row: pendingMove!.row,
-        col: pendingMove!.col,
-        justification,
-      }),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({
-        queryKey: performanceKeys.calibrationPlacements(
-          companyId,
-          session?.id ?? "",
-        ),
-      });
-      setPendingMove(null);
-      setJustification("");
-      notifySuccess("Posición actualizada");
-    },
-    onError: (error) => notifyError(error, "No se pudo guardar el movimiento."),
-  });
-
-  const employees = employeesQuery.data?.items ?? [];
 
   if (sessionsQuery.isLoading) {
     return (
@@ -242,7 +125,7 @@ export function CalibrationPageClient() {
         <FormSelect
           id="cal-session"
           label="Sesión"
-          value={session?.id ?? ""}
+          value={activeId ?? ""}
           onChange={(id) => {
             setSelectedId(id);
           }}
@@ -253,7 +136,7 @@ export function CalibrationPageClient() {
         />
       ) : null}
 
-      {!session ? (
+      {!activeId ? (
         <EmptyState
           title="Sin sesión de calibración"
           description={
@@ -262,8 +145,140 @@ export function CalibrationPageClient() {
               : "El administrador aún no configuró una sesión."
           }
         />
+      ) : sessionQuery.isError ? (
+        <ErrorState
+          title="No se pudo cargar la sesión"
+          description={getErrorMessage(sessionQuery.error, "Error")}
+          onRetry={() => void sessionQuery.refetch()}
+        />
+      ) : !sessionQuery.data ? (
+        <Skeleton className="h-64 w-full" />
       ) : (
-        <>
+        <CalibrationSessionEditor
+          key={sessionQuery.data.id}
+          companyId={companyId}
+          isAdmin={isAdmin}
+          session={sessionQuery.data}
+        />
+      )}
+    </div>
+  );
+}
+
+function CalibrationSessionEditor({
+  companyId,
+  isAdmin,
+  session,
+}: {
+  companyId: string;
+  isAdmin: boolean;
+  session: CalibrationSession;
+}) {
+  const queryClient = useQueryClient();
+  const [name, setName] = useState(session.name);
+  const [opensAt, setOpensAt] = useState(toDatetimeLocal(session.opensAt));
+  const [closesAt, setClosesAt] = useState(toDatetimeLocal(session.closesAt));
+  const [cells, setCells] = useState<NineBoxCell[]>(
+    session.cells.length === 9 ? session.cells : DEFAULT_NINE_BOX_CELLS,
+  );
+  const [inviteeIds, setInviteeIds] = useState(
+    session.invitees.map((row) => row.id),
+  );
+  const [leaderIds, setLeaderIds] = useState(
+    session.leaders.map((row) => row.id),
+  );
+  const [employeeSearch, setEmployeeSearch] = useState("");
+  const [employeePage, setEmployeePage] = useState(1);
+  const [pendingMove, setPendingMove] = useState<{
+    employeeId: string;
+    label: string;
+    row: number;
+    col: number;
+  } | null>(null);
+  const [justification, setJustification] = useState("");
+
+  const placementsQuery = useQuery({
+    queryKey: performanceKeys.calibrationPlacements(companyId, session.id),
+    queryFn: () => performanceApi.listCalibrationPlacements(session.id),
+  });
+
+  const employeesQuery = useQuery({
+    queryKey: orgKeys.employees(companyId, {
+      status: "ACTIVE",
+      search: employeeSearch || undefined,
+      page: employeePage,
+      limit: 20,
+    }),
+    queryFn: () =>
+      organizationApi.listEmployees({
+        status: "ACTIVE",
+        search: employeeSearch || undefined,
+        page: employeePage,
+        limit: 20,
+      }),
+  });
+
+  const saveMutation = useMutation({
+    mutationFn: () =>
+      performanceApi.updateCalibrationSession(session.id, {
+        name: name.trim(),
+        opensAt: fromDatetimeLocal(opensAt),
+        closesAt: fromDatetimeLocal(closesAt),
+        cells,
+        inviteeEmployeeIds: inviteeIds,
+        leaderEmployeeIds: leaderIds,
+      }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: performanceKeys.all(companyId),
+      });
+      notifySuccess("Calibración guardada");
+    },
+    onError: (error) => notifyError(error, "No se pudo guardar."),
+  });
+
+  const peopleByCell = useMemo(() => {
+    const map = new Map<string, Array<{ id: string; label: string }>>();
+    for (const item of placementsQuery.data?.items ?? []) {
+      if (item.row == null || item.col == null) continue;
+      const key = nineBoxPeopleKey(item.row, item.col);
+      const list = map.get(key) ?? [];
+      list.push({
+        id: item.employee.id,
+        label: employeeLabel(item.employee),
+      });
+      map.set(key, list);
+    }
+    return map;
+  }, [placementsQuery.data]);
+
+  const unplaced = (placementsQuery.data?.items ?? []).filter(
+    (item) => item.row == null || item.col == null,
+  );
+
+  const placeMutation = useMutation({
+    mutationFn: () =>
+      performanceApi.saveCalibrationPlacement(session.id, {
+        employeeId: pendingMove!.employeeId,
+        row: pendingMove!.row,
+        col: pendingMove!.col,
+        justification,
+      }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: performanceKeys.calibrationPlacements(companyId, session.id),
+      });
+      setPendingMove(null);
+      setJustification("");
+      notifySuccess("Posición actualizada");
+    },
+    onError: (error) => notifyError(error, "No se pudo guardar el movimiento."),
+  });
+
+  const employees = employeesQuery.data?.items ?? [];
+
+  return (
+    <>
           <section className="grid gap-4 rounded-lg border border-border bg-card p-4 sm:grid-cols-3">
             <div className="space-y-2 sm:col-span-3">
               <Label htmlFor="cal-name">Nombre</Label>
@@ -447,8 +462,6 @@ export function CalibrationPageClient() {
             </>
             )}
           </section>
-        </>
-      )}
 
       <Dialog
         open={Boolean(pendingMove)}
@@ -494,7 +507,7 @@ export function CalibrationPageClient() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </>
   );
 }
 

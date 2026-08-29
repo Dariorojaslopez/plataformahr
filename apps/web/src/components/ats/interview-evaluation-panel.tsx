@@ -124,7 +124,7 @@ function InterviewPhaseDecisionField({
     },
   });
 
-  const options = interviewPhaseDecisionOptions(stage);
+  const options = interviewPhaseDecisionOptions();
 
   return (
     <div className="space-y-2 rounded-lg border border-border p-3">

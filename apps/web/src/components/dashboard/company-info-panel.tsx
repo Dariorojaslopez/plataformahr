@@ -71,6 +71,7 @@ export function CompanyInfoPanel({ canManage }: CompanyInfoPanelProps) {
 
   return (
     <CompanyInfoPanelBody
+      key={`${companyId}-${query.dataUpdatedAt}`}
       companyId={companyId}
       info={info}
       canManage={canManage}
@@ -97,16 +98,6 @@ function CompanyInfoPanelBody({
   const [unpublishedAt, setUnpublishedAt] = useState(
     toDatetimeLocalValue(info.unpublishedAt),
   );
-
-  useEffect(() => {
-    setTitle(info.title);
-    setDescription(info.description);
-    setPublishedAt(
-      toDatetimeLocalValue(info.publishedAt) ||
-        toDatetimeLocalValue(new Date().toISOString()),
-    );
-    setUnpublishedAt(toDatetimeLocalValue(info.unpublishedAt));
-  }, [info]);
 
   const showMedia = info.hasMedia && (canManage || info.isLive);
   const mediaQuery = useQuery({

@@ -42,12 +42,7 @@ describe("pipeline kanban", () => {
   it("advances interview decisions to the next pipeline stage", () => {
     expect(nextStageForInterviewAdvance("INTERVIEW")).toBe("OFFER");
     expect(nextStageForInterviewAdvance("OFFER")).toBeNull();
-    expect(interviewPhaseDecisionOptions("INTERVIEW")).toEqual([
-      "DISCARDED",
-      "STANDBY",
-      "ADVANCE",
-    ]);
-    expect(interviewPhaseDecisionOptions("OFFER")).toEqual([
+    expect(interviewPhaseDecisionOptions()).toEqual([
       "DISCARDED",
       "STANDBY",
       "ADVANCE",

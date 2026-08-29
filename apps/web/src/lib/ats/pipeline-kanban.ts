@@ -105,9 +105,7 @@ export function nextStageForInterviewAdvance(
   return null;
 }
 
-export function interviewPhaseDecisionOptions(
-  _stage?: ApplicationStage,
-): InterviewPhaseDecision[] {
+export function interviewPhaseDecisionOptions(): InterviewPhaseDecision[] {
   return ["DISCARDED", "STANDBY", "ADVANCE"];
 }
 

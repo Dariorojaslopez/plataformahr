@@ -5,7 +5,6 @@ import {
   formatResultCompositionWeightLabel,
   parseResultCompositionWeightInput,
   resultCompositionWeightsAreValid,
-  sumResultCompositionWeights,
 } from "@/lib/performance/result-composition-weights";
 
 describe("result composition weights", () => {

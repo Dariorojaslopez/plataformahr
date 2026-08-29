@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Eye } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { InterviewEvaluationPanel } from "@/components/ats/interview-evaluation-panel";
 import { useSession } from "@/components/auth/session-provider";
 import { EntityEditorShell } from "@/components/organization/entity-editor-shell";
@@ -38,7 +38,7 @@ export function InterviewsPageClient() {
   const searchParams = useSearchParams();
   const applicationId = searchParams.get("applicationId") ?? "";
 
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null | "auto">("auto");
 
   const pendingQuery = useQuery({
     queryKey: interviewKeys.pending(companyId),
@@ -50,24 +50,23 @@ export function InterviewsPageClient() {
     queryFn: () => interviewsApi.listTemplates(),
   });
 
+  const matchedFromQuery = applicationId
+    ? (pendingQuery.data?.find(
+        (item) => item.applicationId === applicationId,
+      )?.id ?? null)
+    : null;
+  const activeId = selectedId === "auto" ? matchedFromQuery : selectedId;
+
   const detailQuery = useQuery({
-    queryKey: interviewKeys.detail(companyId, selectedId ?? ""),
-    queryFn: () => interviewsApi.getInterview(selectedId!),
-    enabled: Boolean(selectedId),
+    queryKey: interviewKeys.detail(companyId, activeId ?? ""),
+    queryFn: () => interviewsApi.getInterview(activeId!),
+    enabled: Boolean(activeId),
   });
 
   const groups = useMemo(
     () => groupPendingInterviewsByVacancy(pendingQuery.data ?? []),
     [pendingQuery.data],
   );
-
-  useEffect(() => {
-    if (!applicationId || !pendingQuery.data || selectedId) return;
-    const match = pendingQuery.data.find(
-      (item) => item.applicationId === applicationId,
-    );
-    if (match) setSelectedId(match.id);
-  }, [applicationId, pendingQuery.data, selectedId]);
 
   const templateOptions = useMemo(
     () =>
@@ -101,7 +100,7 @@ export function InterviewsPageClient() {
   });
 
   const selectedPending = (pendingQuery.data ?? []).find(
-    (item) => item.id === selectedId,
+    (item) => item.id === activeId,
   );
   const selectedTitle = selectedPending
     ? pendingCandidateName(selectedPending)
@@ -187,7 +186,7 @@ export function InterviewsPageClient() {
       ))}
 
       <EntityEditorShell
-        open={Boolean(selectedId)}
+        open={Boolean(activeId)}
         onOpenChange={(open) => {
           if (!open) setSelectedId(null);
         }}
