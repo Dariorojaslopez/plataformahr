@@ -186,16 +186,13 @@ describe('HomeService', () => {
   it('does not write locked identity fields on profile update', async () => {
     const { service, prisma, audit } = build();
     await service.updateProfile(tenant, { phone: '3009990000' });
-    expect(prisma.employee.update).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.not.objectContaining({
-          firstName: expect.anything(),
-          lastName: expect.anything(),
-          documentNumber: expect.anything(),
-          birthDate: expect.anything(),
-        }),
-      }),
-    );
+    const [updateArg] = prisma.employee.update.mock.calls[0] as [
+      { data: Record<string, unknown> },
+    ];
+    expect(updateArg.data).not.toHaveProperty('firstName');
+    expect(updateArg.data).not.toHaveProperty('lastName');
+    expect(updateArg.data).not.toHaveProperty('documentNumber');
+    expect(updateArg.data).not.toHaveProperty('birthDate');
     expect(audit.create).toHaveBeenCalled();
   });
 

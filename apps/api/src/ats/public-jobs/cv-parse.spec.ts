@@ -1,4 +1,3 @@
-import { describe, expect, it } from '@jest/globals';
 import { parseCandidateFromCvText } from './cv-parse';
 
 const SAMPLE = `

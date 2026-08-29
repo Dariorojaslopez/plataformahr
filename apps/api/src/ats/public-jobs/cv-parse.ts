@@ -10,8 +10,7 @@ export type ParsedCvFields = {
 };
 
 const EMAIL_RE = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i;
-const MOBILE_RE =
-  /(?:\+57[\s.-]*)?3\d{2}[\s.-]?\d{3}[\s.-]?\d{4}/;
+const MOBILE_RE = /(?:\+57[\s.-]*)?3\d{2}[\s.-]?\d{3}[\s.-]?\d{4}/;
 const LABELED_PHONE_RE =
   /(?:tel[eé]fono|celular|m[oó]vil|whatsapp)\s*[:.\s#-]*([+\d][\d\s().-]{6,20})/i;
 const NAME_CHARS = 'A-ZÁÉÍÓÚÜÑa-záéíóúüñ ';
@@ -19,7 +18,7 @@ const SKIP_LINE =
   /^(curriculum|currículum|vitae|hoja de vida|cv|resume|perfil profesional|contacto|experiencia|educaci[oó]n|formaci[oó]n|habilidades|referencias)\b/i;
 
 export function parseCandidateFromCvText(raw: string): ParsedCvFields {
-  const text = raw.replace(/\u0000/g, ' ').replace(/\r/g, '');
+  const text = raw.replaceAll('\0', ' ').replaceAll('\r', '');
   const email = firstMatch(text, EMAIL_RE)?.toLowerCase() ?? null;
   const phone =
     normalizePhone(firstMatch(text, MOBILE_RE)) ??
@@ -37,10 +36,9 @@ export function parseCandidateFromCvText(raw: string): ParsedCvFields {
   };
 }
 
-function parseDocument(text: string): Pick<
-  ParsedCvFields,
-  'documentType' | 'documentNumber'
-> {
+function parseDocument(
+  text: string,
+): Pick<ParsedCvFields, 'documentType' | 'documentNumber'> {
   const labeled: Array<{ type: CandidateDocumentType; re: RegExp }> = [
     {
       type: 'CC',
@@ -66,9 +64,10 @@ function parseDocument(text: string): Pick<
       return { documentType: item.type, documentNumber };
     }
   }
-  const generic = /(?:documento(?:\s+de\s+identidad)?|n[uú]mero\s+de\s+documento)\s*[:.\s#-]*([0-9][0-9.\s-]{4,18})/i.exec(
-    text,
-  );
+  const generic =
+    /(?:documento(?:\s+de\s+identidad)?|n[uú]mero\s+de\s+documento)\s*[:.\s#-]*([0-9][0-9.\s-]{4,18})/i.exec(
+      text,
+    );
   const documentNumber = normalizeDocument(generic?.[1]);
   if (!documentNumber) {
     return { documentType: null, documentNumber: null };
@@ -76,7 +75,9 @@ function parseDocument(text: string): Pick<
   return { documentType: 'CC', documentNumber };
 }
 
-function parseName(text: string): Pick<ParsedCvFields, 'firstName' | 'lastName'> {
+function parseName(
+  text: string,
+): Pick<ParsedCvFields, 'firstName' | 'lastName'> {
   const firstLabel = labeledValue(
     text,
     new RegExp(`nombres?\\s*[:\\-]\\s*([${NAME_CHARS}]{2,80})`, 'i'),
@@ -113,10 +114,13 @@ function parseName(text: string): Pick<ParsedCvFields, 'firstName' | 'lastName'>
   return { firstName: null, lastName: null };
 }
 
-function splitName(full: string): Pick<ParsedCvFields, 'firstName' | 'lastName'> {
+function splitName(
+  full: string,
+): Pick<ParsedCvFields, 'firstName' | 'lastName'> {
   const words = full.trim().split(/\s+/).filter(Boolean);
   if (words.length === 0) return { firstName: null, lastName: null };
-  if (words.length === 1) return { firstName: words[0] ?? null, lastName: null };
+  if (words.length === 1)
+    return { firstName: words[0] ?? null, lastName: null };
   if (words.length === 2) {
     return { firstName: words[0] ?? null, lastName: words[1] ?? null };
   }

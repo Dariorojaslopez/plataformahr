@@ -24,20 +24,22 @@ describe('VacanciesService', () => {
     const prisma = {
       vacancy: {
         findFirst: jest.fn().mockResolvedValue(existing),
-        update: jest.fn().mockImplementation(({ data }) =>
-          Promise.resolve({
-            ...existing,
-            ...data,
-            assignedRecruiter: data.assignedRecruiterEmployeeId
-              ? {
-                  id: 'emp-rec',
-                  firstName: 'Marta',
-                  lastName: 'Gil',
-                  email: 'marta@acme.test',
-                }
-              : null,
-          }),
-        ),
+        update: jest
+          .fn()
+          .mockImplementation((args: { data: Partial<typeof existing> }) =>
+            Promise.resolve({
+              ...existing,
+              ...args.data,
+              assignedRecruiter: args.data.assignedRecruiterEmployeeId
+                ? {
+                    id: 'emp-rec',
+                    firstName: 'Marta',
+                    lastName: 'Gil',
+                    email: 'marta@acme.test',
+                  }
+                : null,
+            }),
+          ),
       },
       employee: {
         findFirst: jest.fn().mockResolvedValue({
@@ -58,7 +60,11 @@ describe('VacanciesService', () => {
         .mockResolvedValue(new Set(['CLIENT_ADMIN'])),
     };
     return {
-      service: new VacanciesService(prisma as never, audit as never, rbac as never),
+      service: new VacanciesService(
+        prisma as never,
+        audit as never,
+        rbac as never,
+      ),
       prisma,
       audit,
       rbac,
@@ -68,17 +74,13 @@ describe('VacanciesService', () => {
   it('assigns a recruiter with RECRUITER role', async () => {
     const { service, prisma, audit } = build('RECRUITER');
     const updated = await service.update(tenant, 'user-1', 'vac-1', {
-        assignedRecruiterEmployeeId: 'emp-rec',
-      },
-    );
+      assignedRecruiterEmployeeId: 'emp-rec',
+    });
     expect(updated.assignedRecruiterEmployeeId).toBe('emp-rec');
-    expect(prisma.vacancy.update).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({
-          assignedRecruiterEmployeeId: 'emp-rec',
-        }),
-      }),
-    );
+    const [updateArg] = prisma.vacancy.update.mock.calls[0] as [
+      { data: { assignedRecruiterEmployeeId?: string } },
+    ];
+    expect(updateArg.data.assignedRecruiterEmployeeId).toBe('emp-rec');
     expect(audit.create).toHaveBeenCalled();
   });
 
@@ -93,9 +95,9 @@ describe('VacanciesService', () => {
 
   it('lists employees that hold the RECRUITER role', async () => {
     const { service, prisma } = build();
-    prisma.companyMembership.findMany = jest.fn().mockResolvedValue([
-      { userId: 'user-rec' },
-    ]);
+    prisma.companyMembership.findMany = jest
+      .fn()
+      .mockResolvedValue([{ userId: 'user-rec' }]);
     prisma.employee.findMany = jest.fn().mockResolvedValue([
       {
         id: 'emp-rec',
@@ -126,18 +128,18 @@ describe('VacanciesService', () => {
   it('lists only vacancies assigned to the recruiter', async () => {
     const { service, prisma, rbac } = build('RECRUITER');
     rbac.getRoleCodesForMembership.mockResolvedValue(new Set(['RECRUITER']));
-    prisma.vacancy.findMany = jest.fn().mockResolvedValue([]);
+    const findMany = jest.fn().mockResolvedValue([]);
+    prisma.vacancy.findMany = findMany;
     prisma.vacancy.count = jest.fn().mockResolvedValue(0);
-    prisma.$transaction = jest.fn((ops: Promise<unknown>[]) => Promise.all(ops));
+    prisma.$transaction = jest.fn((ops: Promise<unknown>[]) =>
+      Promise.all(ops),
+    );
 
     await service.list(tenant, { page: 1, limit: 20 });
 
-    expect(prisma.vacancy.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: expect.objectContaining({
-          assignedRecruiterEmployeeId: 'emp-rec',
-        }),
-      }),
-    );
+    const [listArg] = findMany.mock.calls[0] as [
+      { where: { assignedRecruiterEmployeeId?: string } },
+    ];
+    expect(listArg.where.assignedRecruiterEmployeeId).toBe('emp-rec');
   });
 });

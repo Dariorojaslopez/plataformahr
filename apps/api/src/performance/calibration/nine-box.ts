@@ -36,9 +36,12 @@ export function scoreToNineBoxBand(
 }
 
 export function parseScore(value: unknown): number | null {
-  if (value == null) return null;
-  const n = typeof value === 'number' ? value : Number(String(value));
-  return Number.isFinite(n) ? n : null;
+  if (typeof value === 'number') return Number.isFinite(value) ? value : null;
+  if (typeof value === 'string' || typeof value === 'boolean') {
+    const n = Number(value);
+    return Number.isFinite(n) ? n : null;
+  }
+  return null;
 }
 
 /**
@@ -50,9 +53,7 @@ export function scoresToNineBoxCell(params: {
   competencyScore: number | null;
 }): { row: NineBoxBand; col: NineBoxBand } | null {
   const col = scoreToNineBoxBand(params.overallScore);
-  const row = scoreToNineBoxBand(
-    params.competencyScore ?? params.overallScore,
-  );
+  const row = scoreToNineBoxBand(params.competencyScore ?? params.overallScore);
   if (col == null || row == null) return null;
   return { row, col };
 }

@@ -1,4 +1,3 @@
-import { describe, expect, it } from '@jest/globals';
 import { CV_MIME } from './cv.constants';
 import {
   buildStoredZip,

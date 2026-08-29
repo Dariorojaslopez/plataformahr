@@ -157,7 +157,7 @@ export class UpdateHomeCompanyInfoDto {
   publishedAt!: string;
 
   @IsOptional()
-  @Transform(({ value }) =>
+  @Transform(({ value }: { value: unknown }) =>
     typeof value === 'string' && value.trim() === '' ? null : value,
   )
   @ValidateIf((_, value) => value !== null && value !== undefined)

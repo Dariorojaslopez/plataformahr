@@ -174,9 +174,9 @@ Cédula de ciudadanía: 1.234.567.890
       mission: `Misión Public A ${suffix}`,
       responsibilities: `Responsabilidades Public A ${suffix}`,
       requiredExperience: `Experiencia Public A ${suffix}`,
+      publishedAt: null,
+      salaryAmount: null,
     });
-    expect(unpublishedPreview.body.publishedAt).toBeNull();
-    expect(unpublishedPreview.body.salaryAmount).toBeNull();
 
     const published = await request(app.getHttpServer())
       .post(`/ats/vacancies/${vacancyAId}/publish`)

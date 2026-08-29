@@ -61,22 +61,24 @@ describe('HomeInfoService', () => {
     const prisma = {
       companyHomeInfo: {
         findUnique: jest.fn().mockResolvedValue(row),
-        create: jest.fn().mockImplementation(({ data }) =>
-          Promise.resolve({
-            ...liveRow,
-            ...data,
-            id: 'info-new',
-            unpublishedAt: data.unpublishedAt ?? null,
-            mediaKind: data.mediaKind ?? null,
-            fileName: data.fileName ?? null,
-            mimeType: data.mimeType ?? null,
-            mediaUpdatedAt: data.mediaUpdatedAt ?? null,
-          }),
-        ),
+        create: jest
+          .fn()
+          .mockImplementation((args: { data: Partial<typeof liveRow> }) =>
+            Promise.resolve({
+              ...liveRow,
+              ...args.data,
+              id: 'info-new',
+              unpublishedAt: args.data.unpublishedAt ?? null,
+              mediaKind: args.data.mediaKind ?? null,
+              fileName: args.data.fileName ?? null,
+              mimeType: args.data.mimeType ?? null,
+              mediaUpdatedAt: args.data.mediaUpdatedAt ?? null,
+            }),
+          ),
         update: jest
           .fn()
-          .mockImplementation(({ data }) =>
-            Promise.resolve({ ...liveRow, ...data }),
+          .mockImplementation((args: { data: Partial<typeof liveRow> }) =>
+            Promise.resolve({ ...liveRow, ...args.data }),
           ),
       },
     };
