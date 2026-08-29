@@ -117,23 +117,23 @@ model UserSession {
 
 /// Tenant root. Business entities must scope by companyId.
 model Company {
-  id                String        @id @default(uuid()) @db.Uuid
-  name              String
-  legalName         String?
-  slug              String        @unique
-  status            CompanyStatus @default(ACTIVE)
-  defaultLanguage   Language      @default(ES)
-  brandPrimaryColor String?
-  logoFileName             String?
-  logoMimeType             String?
-  logoUpdatedAt            DateTime?
+  id                     String        @id @default(uuid()) @db.Uuid
+  name                   String
+  legalName              String?
+  slug                   String        @unique
+  status                 CompanyStatus @default(ACTIVE)
+  defaultLanguage        Language      @default(ES)
+  brandPrimaryColor      String?
+  logoFileName           String?
+  logoMimeType           String?
+  logoUpdatedAt          DateTime?
   /// When false, COMPANY goals stay at company level and do not apply to every employee.
-  goalsCascadeEnabled      Boolean   @default(false)
+  goalsCascadeEnabled    Boolean       @default(false)
   /// When false, collaborators do not see the 9Box on Mis resultados.
-  showNineBoxOnMyResults   Boolean   @default(true)
-  createdAt                DateTime  @default(now())
-  updatedAt                DateTime  @updatedAt
-  deletedAt                DateTime?
+  showNineBoxOnMyResults Boolean       @default(true)
+  createdAt              DateTime      @default(now())
+  updatedAt              DateTime      @updatedAt
+  deletedAt              DateTime?
 
   memberships                       CompanyMembership[]
   modules                           CompanyModule[]
@@ -232,14 +232,14 @@ model CompanyHomeInfo {
 
 /// Platform billing inputs per company. Charged amount and net profit are calculated.
 model CompanyBilling {
-  id                   String   @id @default(uuid()) @db.Uuid
-  companyId            String   @unique @db.Uuid
-  taxAmount            Decimal  @default(0) @db.Decimal(14, 2)
-  licenseAmount        Decimal  @default(0) @db.Decimal(14, 2)
-  subscriptionAmount   Decimal  @default(0) @db.Decimal(14, 2)
-  marginPercent        Decimal  @default(0) @db.Decimal(5, 2)
-  createdAt            DateTime @default(now())
-  updatedAt            DateTime @updatedAt
+  id                 String   @id @default(uuid()) @db.Uuid
+  companyId          String   @unique @db.Uuid
+  taxAmount          Decimal  @default(0) @db.Decimal(14, 2)
+  licenseAmount      Decimal  @default(0) @db.Decimal(14, 2)
+  subscriptionAmount Decimal  @default(0) @db.Decimal(14, 2)
+  marginPercent      Decimal  @default(0) @db.Decimal(5, 2)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 
   company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
 
@@ -527,18 +527,18 @@ model Position {
   updatedAt          DateTime                 @updatedAt
   deletedAt          DateTime?
 
-  company           Company                    @relation(fields: [companyId], references: [id], onDelete: Restrict)
-  area              Area                       @relation(fields: [areaId], references: [id], onDelete: Restrict)
-  jobLevel          JobLevel?                  @relation(fields: [jobLevelId], references: [id], onDelete: Restrict)
-  employees                    Employee[]
-  vacancyRequests              VacancyRequest[]
-  vacancyApprovalWorkflowSteps VacancyApprovalWorkflowStep[]
-  vacancyApprovals             VacancyApproval[]
-  vacancyEvaluatorDefaults     VacancyEvaluatorDefault[]
-  vacancyRequestEvaluators     VacancyRequestEvaluator[]
+  company                         Company                          @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  area                            Area                             @relation(fields: [areaId], references: [id], onDelete: Restrict)
+  jobLevel                        JobLevel?                        @relation(fields: [jobLevelId], references: [id], onDelete: Restrict)
+  employees                       Employee[]
+  vacancyRequests                 VacancyRequest[]
+  vacancyApprovalWorkflowSteps    VacancyApprovalWorkflowStep[]
+  vacancyApprovals                VacancyApproval[]
+  vacancyEvaluatorDefaults        VacancyEvaluatorDefault[]
+  vacancyRequestEvaluators        VacancyRequestEvaluator[]
   vacancyRequestApprovalPlanSteps VacancyRequestApprovalPlanStep[]
-  vacancies                    Vacancy[]
-  customFieldValues PositionCustomFieldValue[]
+  vacancies                       Vacancy[]
+  customFieldValues               PositionCustomFieldValue[]
 
   @@unique([companyId, name])
   @@unique([companyId, code])
@@ -562,10 +562,10 @@ model PositionCustomFieldDefinition {
   createdAt DateTime                @default(now())
   updatedAt DateTime                @updatedAt
 
-  company         Company                     @relation(fields: [companyId], references: [id], onDelete: Restrict)
-  options         PositionCustomFieldOption[]
-  values          PositionCustomFieldValue[]
-  employeeValues  EmployeeCustomFieldValue[]
+  company        Company                     @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  options        PositionCustomFieldOption[]
+  values         PositionCustomFieldValue[]
+  employeeValues EmployeeCustomFieldValue[]
 
   @@unique([companyId, appliesTo, key], map: "pcf_defs_company_applies_key_key")
   @@index([companyId])
@@ -583,10 +583,10 @@ model PositionCustomFieldOption {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  company         Company                       @relation(fields: [companyId], references: [id], onDelete: Restrict)
-  definition      PositionCustomFieldDefinition @relation(fields: [definitionId], references: [id], onDelete: Restrict)
-  values          PositionCustomFieldValue[]
-  employeeValues  EmployeeCustomFieldValue[]
+  company        Company                       @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  definition     PositionCustomFieldDefinition @relation(fields: [definitionId], references: [id], onDelete: Restrict)
+  values         PositionCustomFieldValue[]
+  employeeValues EmployeeCustomFieldValue[]
 
   @@index([companyId])
   @@index([definitionId, sortOrder])
@@ -674,32 +674,32 @@ model Employee {
   updatedAt             DateTime       @updatedAt
   deletedAt             DateTime?
 
-  company      Company       @relation(fields: [companyId], references: [id], onDelete: Restrict)
-  user         User?         @relation(fields: [userId], references: [id], onDelete: Restrict)
-  businessUnit BusinessUnit? @relation(fields: [businessUnitId], references: [id], onDelete: Restrict)
-  area         Area          @relation(fields: [areaId], references: [id], onDelete: Restrict)
-  position     Position      @relation(fields: [positionId], references: [id], onDelete: Restrict)
+  company           Company                    @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  user              User?                      @relation(fields: [userId], references: [id], onDelete: Restrict)
+  businessUnit      BusinessUnit?              @relation(fields: [businessUnitId], references: [id], onDelete: Restrict)
+  area              Area                       @relation(fields: [areaId], references: [id], onDelete: Restrict)
+  position          Position                   @relation(fields: [positionId], references: [id], onDelete: Restrict)
   customFieldValues EmployeeCustomFieldValue[]
 
-  reportingTo                       EmployeeReportingLine[]        @relation("EmployeeReports")
-  managedReports                    EmployeeReportingLine[]        @relation("ManagerReports")
-  vacancyRequestsRequested          VacancyRequest[]               @relation("VacancyRequestedBy")
-  vacancyApprovals                  VacancyApproval[]              @relation("VacancyApprover")
-  vacancyApprovalWorkflowSteps      VacancyApprovalWorkflowStep[]  @relation("WorkflowStepApprover")
-  vacancyEvaluatorDefaults          VacancyEvaluatorDefault[]      @relation("EvaluatorDefaultEmployee")
-  vacancyRequestEvaluators          VacancyRequestEvaluator[]      @relation("RequestEvaluatorEmployee")
-  vacancyRequestApprovalPlanSteps   VacancyRequestApprovalPlanStep[] @relation("PlanStepApprover")
+  reportingTo                       EmployeeReportingLine[]                @relation("EmployeeReports")
+  managedReports                    EmployeeReportingLine[]                @relation("ManagerReports")
+  vacancyRequestsRequested          VacancyRequest[]                       @relation("VacancyRequestedBy")
+  vacancyApprovals                  VacancyApproval[]                      @relation("VacancyApprover")
+  vacancyApprovalWorkflowSteps      VacancyApprovalWorkflowStep[]          @relation("WorkflowStepApprover")
+  vacancyEvaluatorDefaults          VacancyEvaluatorDefault[]              @relation("EvaluatorDefaultEmployee")
+  vacancyRequestEvaluators          VacancyRequestEvaluator[]              @relation("RequestEvaluatorEmployee")
+  vacancyRequestApprovalPlanSteps   VacancyRequestApprovalPlanStep[]       @relation("PlanStepApprover")
   interviewAssignments              InterviewInterviewer[]
   hiring                            Hiring?
   performanceParticipations         PerformanceCycleParticipant[]
-  performanceEvaluationsAsSubject   PerformanceEvaluation[]        @relation("EvaluationSubject")
-  performanceEvaluationsAsEvaluator PerformanceEvaluation[]        @relation("EvaluationEvaluator")
+  performanceEvaluationsAsSubject   PerformanceEvaluation[]                @relation("EvaluationSubject")
+  performanceEvaluationsAsEvaluator PerformanceEvaluation[]                @relation("EvaluationEvaluator")
   performanceResults                PerformanceResult[]
   performanceGoalDefinitions        PerformanceGoalDefinition[]
-  goalDefinitionsReviewed           PerformanceGoalDefinition[] @relation("GoalDefinitionReviewer")
+  goalDefinitionsReviewed           PerformanceGoalDefinition[]            @relation("GoalDefinitionReviewer")
   individualDevelopmentPlans        PerformanceIndividualDevelopmentPlan[]
   goalModificationRequests          PerformanceGoalModificationRequest[]
-  goalModificationsReviewed         PerformanceGoalModificationRequest[] @relation("GoalModificationReviewer")
+  goalModificationsReviewed         PerformanceGoalModificationRequest[]   @relation("GoalModificationReviewer")
   performanceNotifications          PerformanceNotification[]
   closingSessions                   PerformanceClosingSession[]
   calibrationPlacements             CalibrationPlacement[]
@@ -707,7 +707,7 @@ model Employee {
   goalCheckIns                      GoalCheckIn[]
   goalCompletionRequests            GoalCompletionRequest[]
   goalResultApplicableEmployees     GoalResultApplicableEmployee[]
-  assignedVacancies                 Vacancy[]                      @relation("VacancyAssignedRecruiter")
+  assignedVacancies                 Vacancy[]                              @relation("VacancyAssignedRecruiter")
   calibrationSessionInvitees        CalibrationSessionInvitee[]
   calibrationSessionLeaders         CalibrationSessionLeader[]
 
@@ -814,11 +814,11 @@ model VacancyRequest {
   updatedAt                      DateTime             @updatedAt
   deletedAt                      DateTime?
 
-  company             Company           @relation(fields: [companyId], references: [id], onDelete: Restrict)
-  requestedByEmployee Employee          @relation("VacancyRequestedBy", fields: [requestedByEmployeeId], references: [id], onDelete: Restrict)
-  existingPosition    Position?         @relation(fields: [existingPositionId], references: [id], onDelete: Restrict)
-  requestedArea       Area?             @relation(fields: [requestedAreaId], references: [id], onDelete: Restrict)
-  requestedJobLevel   JobLevel?         @relation(fields: [requestedJobLevelId], references: [id], onDelete: Restrict)
+  company             Company                          @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  requestedByEmployee Employee                         @relation("VacancyRequestedBy", fields: [requestedByEmployeeId], references: [id], onDelete: Restrict)
+  existingPosition    Position?                        @relation(fields: [existingPositionId], references: [id], onDelete: Restrict)
+  requestedArea       Area?                            @relation(fields: [requestedAreaId], references: [id], onDelete: Restrict)
+  requestedJobLevel   JobLevel?                        @relation(fields: [requestedJobLevelId], references: [id], onDelete: Restrict)
   approvals           VacancyApproval[]
   evaluators          VacancyRequestEvaluator[]
   approvalPlanSteps   VacancyRequestApprovalPlanStep[]
@@ -906,18 +906,18 @@ model VacancyApprovalWorkflowStep {
 
 /// Per-request approval plan: frozen global defaults plus extra levels added on the form.
 model VacancyRequestApprovalPlanStep {
-  id                 String                     @id @default(uuid()) @db.Uuid
-  companyId          String                     @db.Uuid
-  vacancyRequestId   String                     @db.Uuid
+  id                 String                    @id @default(uuid()) @db.Uuid
+  companyId          String                    @db.Uuid
+  vacancyRequestId   String                    @db.Uuid
   sequence           Int
   origin             VacancyApprovalPlanOrigin
   approverType       VacancyApproverType
   label              String?
-  positionId         String?                    @db.Uuid
-  specificEmployeeId String?                    @db.Uuid
+  positionId         String?                   @db.Uuid
+  specificEmployeeId String?                   @db.Uuid
   requiredRoleCode   String?
-  createdAt          DateTime                   @default(now())
-  updatedAt          DateTime                   @updatedAt
+  createdAt          DateTime                  @default(now())
+  updatedAt          DateTime                  @updatedAt
 
   company          Company        @relation(fields: [companyId], references: [id], onDelete: Restrict)
   vacancyRequest   VacancyRequest @relation(fields: [vacancyRequestId], references: [id], onDelete: Restrict)
@@ -942,8 +942,8 @@ model VacancyEvaluatorDefault {
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
-  company  Company  @relation(fields: [companyId], references: [id], onDelete: Restrict)
-  position Position @relation(fields: [positionId], references: [id], onDelete: Restrict)
+  company  Company   @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  position Position  @relation(fields: [positionId], references: [id], onDelete: Restrict)
   employee Employee? @relation("EvaluatorDefaultEmployee", fields: [employeeId], references: [id], onDelete: Restrict)
 
   @@unique([companyId, sequence])
@@ -1001,14 +1001,14 @@ model Vacancy {
   updatedAt                   DateTime      @updatedAt
   deletedAt                   DateTime?
 
-  company            Company        @relation(fields: [companyId], references: [id], onDelete: Restrict)
-  vacancyRequest     VacancyRequest @relation(fields: [vacancyRequestId], references: [id], onDelete: Restrict)
-  position           Position       @relation(fields: [positionId], references: [id], onDelete: Restrict)
-  area               Area           @relation(fields: [areaId], references: [id], onDelete: Restrict)
-  assignedRecruiter  Employee?      @relation("VacancyAssignedRecruiter", fields: [assignedRecruiterEmployeeId], references: [id], onDelete: Restrict)
+  company               Company                @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  vacancyRequest        VacancyRequest         @relation(fields: [vacancyRequestId], references: [id], onDelete: Restrict)
+  position              Position               @relation(fields: [positionId], references: [id], onDelete: Restrict)
+  area                  Area                   @relation(fields: [areaId], references: [id], onDelete: Restrict)
+  assignedRecruiter     Employee?              @relation("VacancyAssignedRecruiter", fields: [assignedRecruiterEmployeeId], references: [id], onDelete: Restrict)
   interviewFormTemplate InterviewFormTemplate? @relation(fields: [interviewFormTemplateId], references: [id], onDelete: SetNull)
-  applications       Application[]
-  hirings            Hiring[]
+  applications          Application[]
+  hirings               Hiring[]
 
   @@index([companyId])
   @@index([positionId])
@@ -1478,55 +1478,55 @@ enum CompetencyScaleFormat {
 }
 
 model PerformanceCycle {
-  id                           String                     @id @default(uuid()) @db.Uuid
-  companyId                    String                     @db.Uuid
-  name                         String
-  description                  String?
-  startDate                    DateTime                   @db.Date
-  endDate                      DateTime                   @db.Date
+  id                         String                     @id @default(uuid()) @db.Uuid
+  companyId                  String                     @db.Uuid
+  name                       String
+  description                String?
+  startDate                  DateTime                   @db.Date
+  endDate                    DateTime                   @db.Date
   /// Self-evaluation window (UI: Fecha Autoevaluación).
-  evaluationStartDate          DateTime?                  @db.Date
-  evaluationEndDate            DateTime?                  @db.Date
-  goalDefinitionStartDate      DateTime?                  @db.Date
-  goalDefinitionEndDate        DateTime?                  @db.Date
+  evaluationStartDate        DateTime?                  @db.Date
+  evaluationEndDate          DateTime?                  @db.Date
+  goalDefinitionStartDate    DateTime?                  @db.Date
+  goalDefinitionEndDate      DateTime?                  @db.Date
   /// Leader / peer / report / client evaluation window (UI: Fecha Evaluación).
-  managerEvaluationStartDate   DateTime?                  @db.Date
-  managerEvaluationEndDate     DateTime?                  @db.Date
-  calibrationStartDate         DateTime?                  @db.Date
-  calibrationEndDate           DateTime?                  @db.Date
-  closingStartDate             DateTime?                  @db.Date
-  closingEndDate               DateTime?                  @db.Date
-  status                       PerformanceCycleStatus     @default(DRAFT)
-  evaluationModel              PerformanceEvaluationModel @default(DEGREE_90)
+  managerEvaluationStartDate DateTime?                  @db.Date
+  managerEvaluationEndDate   DateTime?                  @db.Date
+  calibrationStartDate       DateTime?                  @db.Date
+  calibrationEndDate         DateTime?                  @db.Date
+  closingStartDate           DateTime?                  @db.Date
+  closingEndDate             DateTime?                  @db.Date
+  status                     PerformanceCycleStatus     @default(DRAFT)
+  evaluationModel            PerformanceEvaluationModel @default(DEGREE_90)
   /// Configured evaluator weights (DRAFT-editable). Enabled groups must sum to 100.
-  selfEvaluationWeight         Decimal                    @default(30.00) @db.Decimal(5, 2)
-  managerEvaluationWeight      Decimal                    @default(70.00) @db.Decimal(5, 2)
-  peerEvaluationWeight         Decimal?                   @db.Decimal(5, 2)
-  reportEvaluationWeight       Decimal?                   @db.Decimal(5, 2)
-  clientEvaluationWeight       Decimal?                   @db.Decimal(5, 2)
+  selfEvaluationWeight       Decimal                    @default(30.00) @db.Decimal(5, 2)
+  managerEvaluationWeight    Decimal                    @default(70.00) @db.Decimal(5, 2)
+  peerEvaluationWeight       Decimal?                   @db.Decimal(5, 2)
+  reportEvaluationWeight     Decimal?                   @db.Decimal(5, 2)
+  clientEvaluationWeight     Decimal?                   @db.Decimal(5, 2)
   /// Optional GoalCycle link (09D). Null = competency-only (08D behavior).
-  goalCycleId                  String?                    @db.Uuid
-  includeCompetencies          Boolean                    @default(true)
+  goalCycleId                String?                    @db.Uuid
+  includeCompetencies        Boolean                    @default(true)
   /// Weight of competencyScore in overall (when goals are included).
-  competencyResultWeight       Decimal?                   @db.Decimal(5, 2)
+  competencyResultWeight     Decimal?                   @db.Decimal(5, 2)
   /// Weight of goalsAchievement in overall (org + individual; legacy scoring).
-  goalsResultWeight            Decimal?                   @db.Decimal(5, 2)
-  organizationalGoalsWeight    Decimal?                   @db.Decimal(5, 2)
-  individualGoalsWeight        Decimal?                   @db.Decimal(5, 2)
-  maxObjectives                Int?
+  goalsResultWeight          Decimal?                   @db.Decimal(5, 2)
+  organizationalGoalsWeight  Decimal?                   @db.Decimal(5, 2)
+  individualGoalsWeight      Decimal?                   @db.Decimal(5, 2)
+  maxObjectives              Int?
   /// Total evaluation range (100 or 120). Composition weights must not exceed it.
-  evaluationRange              Int                        @default(100)
-  createdByUserId              String                     @db.Uuid
-  createdAt                    DateTime                   @default(now())
-  updatedAt                    DateTime                   @updatedAt
+  evaluationRange            Int                        @default(100)
+  createdByUserId            String                     @db.Uuid
+  createdAt                  DateTime                   @default(now())
+  updatedAt                  DateTime                   @updatedAt
 
-  company      Company                       @relation(fields: [companyId], references: [id], onDelete: Restrict)
-  createdBy    User                          @relation(fields: [createdByUserId], references: [id], onDelete: Restrict)
-  goalCycle    GoalCycle?                    @relation(fields: [goalCycleId], references: [id], onDelete: Restrict)
-  competencies PerformanceCycleCompetency[]
-  participants PerformanceCycleParticipant[]
-  evaluations  PerformanceEvaluation[]
-  results      PerformanceResult[]
+  company                    Company                                @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  createdBy                  User                                   @relation(fields: [createdByUserId], references: [id], onDelete: Restrict)
+  goalCycle                  GoalCycle?                             @relation(fields: [goalCycleId], references: [id], onDelete: Restrict)
+  competencies               PerformanceCycleCompetency[]
+  participants               PerformanceCycleParticipant[]
+  evaluations                PerformanceEvaluation[]
+  results                    PerformanceResult[]
   followUps                  PerformanceCycleFollowUp[]
   goalDefinitions            PerformanceGoalDefinition[]
   individualDevelopmentPlans PerformanceIndividualDevelopmentPlan[]
@@ -1561,18 +1561,18 @@ model PerformanceCycleFollowUp {
 
 /// Locks a participant's goal-definition form after "Enviar a aprobación".
 model PerformanceGoalDefinition {
-  id                    String                       @id @default(uuid()) @db.Uuid
-  companyId             String                       @db.Uuid
-  cycleId               String                       @db.Uuid
-  employeeId            String                       @db.Uuid
-  submittedAt           DateTime?
-  reviewStatus          GoalDefinitionReviewStatus?
-  reviewComment         String?
-  reviewedAt            DateTime?
-  reviewedByEmployeeId  String?                      @db.Uuid
-  structureUnlocked     Boolean                      @default(false)
-  createdAt             DateTime                     @default(now())
-  updatedAt             DateTime                     @updatedAt
+  id                   String                      @id @default(uuid()) @db.Uuid
+  companyId            String                      @db.Uuid
+  cycleId              String                      @db.Uuid
+  employeeId           String                      @db.Uuid
+  submittedAt          DateTime?
+  reviewStatus         GoalDefinitionReviewStatus?
+  reviewComment        String?
+  reviewedAt           DateTime?
+  reviewedByEmployeeId String?                     @db.Uuid
+  structureUnlocked    Boolean                     @default(false)
+  createdAt            DateTime                    @default(now())
+  updatedAt            DateTime                    @updatedAt
 
   company    Company          @relation(fields: [companyId], references: [id], onDelete: Restrict)
   cycle      PerformanceCycle @relation(fields: [cycleId], references: [id], onDelete: Restrict)
@@ -1605,10 +1605,10 @@ model PerformanceIndividualDevelopmentPlan {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
-  company     Company          @relation(fields: [companyId], references: [id], onDelete: Restrict)
-  cycle       PerformanceCycle @relation(fields: [cycleId], references: [id], onDelete: Restrict)
-  employee    Employee         @relation(fields: [employeeId], references: [id], onDelete: Restrict)
-  competency  Competency?      @relation(fields: [competencyId], references: [id], onDelete: Restrict)
+  company    Company          @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  cycle      PerformanceCycle @relation(fields: [cycleId], references: [id], onDelete: Restrict)
+  employee   Employee         @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  competency Competency?      @relation(fields: [competencyId], references: [id], onDelete: Restrict)
 
   @@unique([cycleId, employeeId])
   @@index([companyId])
@@ -1618,17 +1618,17 @@ model PerformanceIndividualDevelopmentPlan {
 }
 
 model PerformanceGoalModificationRequest {
-  id                   String                         @id @default(uuid()) @db.Uuid
-  companyId            String                         @db.Uuid
-  cycleId              String                         @db.Uuid
-  employeeId           String                         @db.Uuid
+  id                   String                        @id @default(uuid()) @db.Uuid
+  companyId            String                        @db.Uuid
+  cycleId              String                        @db.Uuid
+  employeeId           String                        @db.Uuid
   comment              String?
-  status               GoalModificationRequestStatus  @default(PENDING)
+  status               GoalModificationRequestStatus @default(PENDING)
   reviewComment        String?
   reviewedAt           DateTime?
-  reviewedByEmployeeId String?                        @db.Uuid
-  createdAt            DateTime                       @default(now())
-  updatedAt            DateTime                       @updatedAt
+  reviewedByEmployeeId String?                       @db.Uuid
+  createdAt            DateTime                      @default(now())
+  updatedAt            DateTime                      @updatedAt
 
   company    Company          @relation(fields: [companyId], references: [id], onDelete: Restrict)
   cycle      PerformanceCycle @relation(fields: [cycleId], references: [id], onDelete: Restrict)
@@ -1642,15 +1642,15 @@ model PerformanceGoalModificationRequest {
 }
 
 model PerformanceNotification {
-  id         String                       @id @default(uuid()) @db.Uuid
-  companyId  String                       @db.Uuid
-  employeeId String                       @db.Uuid
-  cycleId    String?                      @db.Uuid
+  id         String                      @id @default(uuid()) @db.Uuid
+  companyId  String                      @db.Uuid
+  employeeId String                      @db.Uuid
+  cycleId    String?                     @db.Uuid
   type       PerformanceNotificationType
   title      String
   body       String
   readAt     DateTime?
-  createdAt  DateTime                     @default(now())
+  createdAt  DateTime                    @default(now())
 
   company  Company           @relation(fields: [companyId], references: [id], onDelete: Restrict)
   employee Employee          @relation(fields: [employeeId], references: [id], onDelete: Restrict)
@@ -1662,15 +1662,15 @@ model PerformanceNotification {
 }
 
 model PerformanceClosingSession {
-  id                         String    @id @default(uuid()) @db.Uuid
-  companyId                  String    @db.Uuid
-  cycleId                    String    @db.Uuid
-  employeeId                 String    @db.Uuid
-  collaboratorObservations   String?
-  leaderObservations         String?
-  acceptedAt                 DateTime?
-  createdAt                  DateTime  @default(now())
-  updatedAt                  DateTime  @updatedAt
+  id                       String    @id @default(uuid()) @db.Uuid
+  companyId                String    @db.Uuid
+  cycleId                  String    @db.Uuid
+  employeeId               String    @db.Uuid
+  collaboratorObservations String?
+  leaderObservations       String?
+  acceptedAt               DateTime?
+  createdAt                DateTime  @default(now())
+  updatedAt                DateTime  @updatedAt
 
   company  Company          @relation(fields: [companyId], references: [id], onDelete: Restrict)
   cycle    PerformanceCycle @relation(fields: [cycleId], references: [id], onDelete: Restrict)
@@ -1683,20 +1683,20 @@ model PerformanceClosingSession {
 }
 
 model PerformanceGoalRating {
-  id                    String   @id @default(uuid()) @db.Uuid
-  companyId             String   @db.Uuid
-  evaluationId          String   @db.Uuid
-  goalId                String   @db.Uuid
-  selectedScaleLevelId  String?  @db.Uuid
-  ratingValue           Int?
-  comment               String?
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
+  id                   String   @id @default(uuid()) @db.Uuid
+  companyId            String   @db.Uuid
+  evaluationId         String   @db.Uuid
+  goalId               String   @db.Uuid
+  selectedScaleLevelId String?  @db.Uuid
+  ratingValue          Int?
+  comment              String?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
 
-  company    Company                 @relation(fields: [companyId], references: [id], onDelete: Restrict)
-  evaluation PerformanceEvaluation   @relation(fields: [evaluationId], references: [id], onDelete: Restrict)
-  goal       Goal                    @relation(fields: [goalId], references: [id], onDelete: Restrict)
-  scaleLevel CompetencyScaleLevel?   @relation(fields: [selectedScaleLevelId], references: [id], onDelete: Restrict)
+  company    Company               @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  evaluation PerformanceEvaluation @relation(fields: [evaluationId], references: [id], onDelete: Restrict)
+  goal       Goal                  @relation(fields: [goalId], references: [id], onDelete: Restrict)
+  scaleLevel CompetencyScaleLevel? @relation(fields: [selectedScaleLevelId], references: [id], onDelete: Restrict)
 
   @@unique([evaluationId, goalId])
   @@index([companyId])
@@ -1706,24 +1706,24 @@ model PerformanceGoalRating {
 }
 
 model CalibrationPlacement {
-  id              String   @id @default(uuid()) @db.Uuid
-  companyId       String   @db.Uuid
-  sessionId       String   @db.Uuid
-  employeeId      String   @db.Uuid
-  cycleId         String?  @db.Uuid
-  row             Int
-  col             Int
-  calculatedRow   Int?
-  calculatedCol   Int?
-  justification   String
-  movedByUserId   String   @db.Uuid
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id            String   @id @default(uuid()) @db.Uuid
+  companyId     String   @db.Uuid
+  sessionId     String   @db.Uuid
+  employeeId    String   @db.Uuid
+  cycleId       String?  @db.Uuid
+  row           Int
+  col           Int
+  calculatedRow Int?
+  calculatedCol Int?
+  justification String
+  movedByUserId String   @db.Uuid
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
-  company   Company            @relation(fields: [companyId], references: [id], onDelete: Restrict)
-  session   CalibrationSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  employee  Employee           @relation(fields: [employeeId], references: [id], onDelete: Restrict)
-  movedBy   User               @relation(fields: [movedByUserId], references: [id], onDelete: Restrict)
+  company  Company            @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  session  CalibrationSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  employee Employee           @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  movedBy  User               @relation(fields: [movedByUserId], references: [id], onDelete: Restrict)
 
   @@unique([sessionId, employeeId])
   @@index([companyId])
@@ -1744,8 +1744,8 @@ model Competency {
   updatedAt      DateTime                 @updatedAt
   deletedAt      DateTime?
 
-  company             Company                      @relation(fields: [companyId], references: [id], onDelete: Restrict)
-  defaultScale        CompetencyScale?             @relation("CompetencyDefaultScale", fields: [defaultScaleId], references: [id], onDelete: Restrict)
+  company                    Company                                @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  defaultScale               CompetencyScale?                       @relation("CompetencyDefaultScale", fields: [defaultScaleId], references: [id], onDelete: Restrict)
   cycleAssignments           PerformanceCycleCompetency[]
   jobLevelAssignments        JobLevelCompetency[]
   individualDevelopmentPlans PerformanceIndividualDevelopmentPlan[]
@@ -1759,21 +1759,21 @@ model Competency {
 }
 
 model CompetencyScale {
-  id             String                   @id @default(uuid()) @db.Uuid
-  companyId      String                   @db.Uuid
-  name           String
-  description    String?
-  kind           CompetencyScaleKind      @default(QUALITATIVE)
-  format         CompetencyScaleFormat    @default(NUMERIC)
-  minValue       Decimal?                 @db.Decimal(12, 2)
-  maxValue       Decimal?                 @db.Decimal(12, 2)
-  likertIcon     String?
-  currencyCode   String?
-  decimalPlaces  Int?
-  status         OrganizationEntityStatus @default(ACTIVE)
-  createdAt      DateTime                 @default(now())
-  updatedAt      DateTime                 @updatedAt
-  deletedAt      DateTime?
+  id            String                   @id @default(uuid()) @db.Uuid
+  companyId     String                   @db.Uuid
+  name          String
+  description   String?
+  kind          CompetencyScaleKind      @default(QUALITATIVE)
+  format        CompetencyScaleFormat    @default(NUMERIC)
+  minValue      Decimal?                 @db.Decimal(12, 2)
+  maxValue      Decimal?                 @db.Decimal(12, 2)
+  likertIcon    String?
+  currencyCode  String?
+  decimalPlaces Int?
+  status        OrganizationEntityStatus @default(ACTIVE)
+  createdAt     DateTime                 @default(now())
+  updatedAt     DateTime                 @updatedAt
+  deletedAt     DateTime?
 
   company                Company                      @relation(fields: [companyId], references: [id], onDelete: Restrict)
   levels                 CompetencyScaleLevel[]
@@ -1798,8 +1798,8 @@ model CompetencyScaleLevel {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  company Company         @relation(fields: [companyId], references: [id], onDelete: Restrict)
-  scale   CompetencyScale @relation(fields: [scaleId], references: [id], onDelete: Restrict)
+  company     Company                 @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  scale       CompetencyScale         @relation(fields: [scaleId], references: [id], onDelete: Restrict)
   goalRatings PerformanceGoalRating[]
 
   @@unique([scaleId, value])
@@ -2069,7 +2069,7 @@ model CalibrationSession {
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 
-  company  Company                     @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  company    Company                     @relation(fields: [companyId], references: [id], onDelete: Restrict)
   cells      CalibrationNineBoxCell[]
   invitees   CalibrationSessionInvitee[]
   leaders    CalibrationSessionLeader[]
