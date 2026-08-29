@@ -23,9 +23,9 @@ En 08A solo se configura el marco de evaluación.
 
 ### Relación Competency ↔ Scale
 
-- `Competency.defaultScaleId` (nullable): escala por defecto sugerida.
-- `PerformanceCycleCompetency.scaleId`: escala efectiva en el ciclo (puede sobrescribir el default).
-- Una Company puede tener varias escalas; distintas competencias pueden usar distintas escalas.
+- Las competencias **no** eligen escala en el catálogo. La calificación usa la escala **cualitativa** definida en Escalas (`CompetencyScale.kind = QUALITATIVE`). Una escala cuantitativa no puede asignarse a un ciclo.
+- `Competency.defaultScaleId` (nullable) queda como dato legado; el formulario ya no lo muestra ni lo envía.
+- `PerformanceCycleCompetency.scaleId`: escala efectiva en el ciclo; debe ser cualitativa y ACTIVE.
 
 ## PerformanceCycle
 
@@ -59,7 +59,8 @@ No se permite ACTIVE → DRAFT. Transiciones vía endpoints explícitos (`activa
 
 ## Competency
 
-- Unicidad: `UNIQUE(companyId, name)`, `UNIQUE(companyId, code)` (NULL codes permitidos en PG).
+- Unicidad: `UNIQUE(companyId, name)`, `UNIQUE(companyId, code)` (NULL codes permitidos en PG). Create sin `code` asigna el siguiente numérico (`001`, `002`, …). El formulario no muestra el código.
+- `jobLevelId` opcional en create/update: asigna la competencia a un nivel (`JobLevelCompetency`). El formulario de catálogo exige un nivel.
 - Cross-company: mismo nombre válido.
 - Status: `OrganizationEntityStatus` ACTIVE/INACTIVE.
 - Sin delete físico.
@@ -67,6 +68,9 @@ No se permite ACTIVE → DRAFT. Transiciones vía endpoints explícitos (`activa
 ## CompetencyScale / Levels
 
 - Escala configurable; **no** hardcode 1–5.
+- `kind`: `QUALITATIVE` (calificación de competencias) o `QUANTITATIVE` (no usable en competencias).
+- `format`: cualitativa = `NUMERIC` (min–max, llevado a %), `DESCRIPTIVE` (hasta 5 textos, peso igual) o `LIKERT` (ícono + min–max). Cuantitativa = `PERCENTAGE` (min–max), `CURRENCY` o `NUMERIC` (máx. 2 decimales).
+- Create con formato genera los niveles discretos de las escalas cualitativas. Las cuantitativas no tienen niveles. Create legado (`{ name }` sin `format`/min/max) deja la escala vacía para agregar niveles a mano.
 - `UNIQUE(scaleId, value)`, `UNIQUE(scaleId, order)`.
 - CHECK: `value >= 0`, `order >= 0`.
 - DELETE de level permitido solo si la escala **no** está asociada a ciclos ACTIVE/CLOSED.
@@ -147,8 +151,8 @@ Metadata mínima: IDs (sin textos largos).
 Rutas admin:
 
 - `/performance/cycles` (+ detalle)
-- `/performance/competencies`
-- `/performance/scales` (+ detalle/niveles)
+- `/organization/competencies` (catálogo; `/performance/competencies` redirige aquí)
+- `/organization/scales` (+ detalle/niveles; `/performance/scales` redirige aquí)
 
 Query keys: `["performance", companyId, ...]`.
 

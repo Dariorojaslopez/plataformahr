@@ -89,9 +89,11 @@ export async function findIncompleteApplicableGoals(
     goalCycleId: string;
     employeeId: string;
     employeeAreaId: string | null;
+    cascadeEnabled?: boolean;
   },
 ): Promise<Array<{ id: string; title: string }>> {
-  const { companyId, goalCycleId, employeeId, employeeAreaId } = params;
+  const { companyId, goalCycleId, employeeId, employeeAreaId, cascadeEnabled } =
+    params;
 
   const goals = await tx.goal.findMany({
     where: {
@@ -99,7 +101,7 @@ export async function findIncompleteApplicableGoals(
       cycleId: goalCycleId,
       status: { in: [GoalStatus.ACTIVE, GoalStatus.COMPLETED] },
       OR: [
-        { type: GoalType.COMPANY },
+        ...(cascadeEnabled ? [{ type: GoalType.COMPANY }] : []),
         {
           type: GoalType.INDIVIDUAL,
           assignments: { some: { employeeId, companyId } },

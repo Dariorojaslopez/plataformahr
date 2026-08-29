@@ -709,7 +709,8 @@ describe('ATS candidates & applications (e2e)', () => {
             typeof a === 'object' &&
             a !== null &&
             'applicationId' in a &&
-            'candidateName' in a,
+            'candidateName' in a &&
+            'fitLevel' in a,
         ),
       ).toBe(true);
 

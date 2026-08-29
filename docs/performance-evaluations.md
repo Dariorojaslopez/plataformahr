@@ -233,7 +233,7 @@ Sin snapshot completo ni textos largos. Bulk audita por entidad creada.
 | `/performance/my-evaluations` | Autoevaluaciones + como líder |
 | `/performance/evaluations/[id]` | Detalle **read-only** desde snapshot |
 
-Nav: Ciclos · Mis evaluaciones · Competencias · Escalas.
+Nav: Ciclos · Mis evaluaciones · Mis resultados · Resultados. El catálogo de competencias y las escalas de calificación están en Organización (`/organization/competencies`, `/organization/scales`).
 
 Query keys siempre con `companyId`. Invalidación acotada a participants del ciclo tras assign/bulk/exclude.
 

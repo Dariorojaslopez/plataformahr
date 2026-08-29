@@ -21,6 +21,7 @@ import { ApplicationsService } from '../applications/applications.service';
 import { ATS_AUDIT, TEMP_APPROVER_ROLE_CODE } from '../ats.constants';
 import type {
   AddTemplateQuestionDto,
+  ApplyProcessInterviewTemplateDto,
   CreateInterviewDto,
   CreateInterviewFormTemplateDto,
   CreateTranscriptSegmentDto,
@@ -39,6 +40,7 @@ const TERMINAL_APPLICATION_STAGES = new Set<ApplicationStage>([
 const STARTABLE_APPLICATION_STAGES = new Set<ApplicationStage>([
   ApplicationStage.CONTACTED,
   ApplicationStage.INTERVIEW,
+  ApplicationStage.OFFER,
 ]);
 
 @Injectable()
@@ -49,6 +51,174 @@ export class InterviewsService {
     private readonly rbac: RbacService,
     private readonly applicationsService: ApplicationsService,
   ) {}
+
+  async listPending(companyId: string) {
+    return this.prisma.interview.findMany({
+      where: {
+        companyId,
+        deletedAt: null,
+        status: {
+          in: [
+            InterviewStatus.DRAFT,
+            InterviewStatus.SCHEDULED,
+            InterviewStatus.IN_PROGRESS,
+          ],
+        },
+        application: {
+          deletedAt: null,
+          stage: {
+            in: [ApplicationStage.INTERVIEW, ApplicationStage.OFFER],
+          },
+        },
+      },
+      include: {
+        interviewers: {
+          include: {
+            employee: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                email: true,
+                status: true,
+              },
+            },
+          },
+        },
+        application: {
+          select: {
+            id: true,
+            stage: true,
+            candidate: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                email: true,
+              },
+            },
+            vacancy: {
+              select: {
+                id: true,
+                title: true,
+                interviewFormTemplateId: true,
+              },
+            },
+          },
+        },
+        _count: {
+          select: { questions: true, transcripts: true },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  async applyProcessTemplate(
+    companyId: string,
+    userId: string,
+    dto: ApplyProcessInterviewTemplateDto,
+  ) {
+    const vacancy = await this.prisma.vacancy.findFirst({
+      where: { id: dto.vacancyId, companyId, deletedAt: null },
+      select: { id: true, title: true },
+    });
+    if (!vacancy) {
+      throw new NotFoundException('Vacancy not found');
+    }
+
+    const template = await this.prisma.interviewFormTemplate.findFirst({
+      where: {
+        id: dto.templateId,
+        companyId,
+        deletedAt: null,
+        status: InterviewFormStatus.ACTIVE,
+      },
+      include: { questions: { orderBy: { order: 'asc' } } },
+    });
+    if (!template) {
+      throw new NotFoundException('Interview form template not found');
+    }
+
+    const pending = await this.prisma.interview.findMany({
+      where: {
+        companyId,
+        deletedAt: null,
+        status: {
+          in: [
+            InterviewStatus.DRAFT,
+            InterviewStatus.SCHEDULED,
+            InterviewStatus.IN_PROGRESS,
+          ],
+        },
+        application: {
+          vacancyId: dto.vacancyId,
+          deletedAt: null,
+          stage: {
+            in: [ApplicationStage.INTERVIEW, ApplicationStage.OFFER],
+          },
+        },
+      },
+      select: {
+        id: true,
+        questions: {
+          select: {
+            id: true,
+            answers: { select: { id: true }, take: 1 },
+          },
+        },
+      },
+    });
+
+    const appliedTo = pending.filter((interview) =>
+      interview.questions.every((question) => question.answers.length === 0),
+    );
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.vacancy.update({
+        where: { id: dto.vacancyId },
+        data: { interviewFormTemplateId: dto.templateId },
+      });
+
+      for (const interview of appliedTo) {
+        await tx.interviewQuestion.deleteMany({
+          where: { interviewId: interview.id, companyId },
+        });
+        if (template.questions.length === 0) continue;
+        await tx.interviewQuestion.createMany({
+          data: template.questions.map((question) => ({
+            companyId,
+            interviewId: interview.id,
+            sourceTemplateQuestionId: question.id,
+            text: question.text,
+            type: question.type,
+            required: question.required,
+            weight: question.weight,
+            order: question.order,
+          })),
+        });
+      }
+    });
+
+    await this.audit.create({
+      action: ATS_AUDIT.INTERVIEW_TEMPLATE_UPDATED,
+      entity: 'Vacancy',
+      entityId: dto.vacancyId,
+      company: { connect: { id: companyId } },
+      user: { connect: { id: userId } },
+      metadata: {
+        vacancyId: dto.vacancyId,
+        templateId: dto.templateId,
+        interviewsUpdated: appliedTo.length,
+      },
+    });
+
+    return {
+      vacancyId: dto.vacancyId,
+      templateId: dto.templateId,
+      interviewsUpdated: appliedTo.length,
+    };
+  }
 
   async listByApplication(companyId: string, applicationId: string) {
     await this.requireApplication(companyId, applicationId);
@@ -76,7 +246,11 @@ export class InterviewsService {
     });
   }
 
-  async getById(companyId: string, id: string) {
+  async getById(
+    companyId: string,
+    id: string,
+    access?: { userId: string; membershipId: string },
+  ) {
     const interview = await this.prisma.interview.findFirst({
       where: { id, companyId, deletedAt: null },
       include: {
@@ -127,6 +301,14 @@ export class InterviewsService {
     });
     if (!interview) {
       throw new NotFoundException('Interview not found');
+    }
+    if (access) {
+      await this.assertCanReadInterview(
+        companyId,
+        access.userId,
+        access.membershipId,
+        interview.id,
+      );
     }
     return interview;
   }
@@ -922,6 +1104,23 @@ export class InterviewsService {
         'All interviewers must be ACTIVE employees in the current company',
       );
     }
+  }
+
+  private async assertCanReadInterview(
+    companyId: string,
+    userId: string,
+    membershipId: string,
+    interviewId: string,
+  ) {
+    const permissions =
+      await this.rbac.getPermissionCodesForMembership(membershipId);
+    if (permissions.has('ats.interview.read')) return;
+    await this.assertInterviewerOrAdmin(
+      companyId,
+      userId,
+      membershipId,
+      interviewId,
+    );
   }
 
   private async assertInterviewerOrAdmin(

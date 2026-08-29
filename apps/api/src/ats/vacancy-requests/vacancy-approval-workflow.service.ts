@@ -7,7 +7,6 @@ import {
   RoleScope,
   VacancyApprovalStep,
   VacancyApproverType,
-  type VacancyApprovalWorkflowStep,
 } from '@prisma/client';
 import type { TenantContext } from '../../auth/auth.types';
 import { AuditService } from '../../core/audit/audit.service';
@@ -24,10 +23,23 @@ import type {
   VacancyApprovalWorkflowStepInputDto,
 } from './dto/vacancy-approval-workflow.dto';
 import { snapshotStepFromApproverType } from './vacancy-approval.helpers';
+import { PositionOccupantsService } from '../position-occupants/position-occupants.service';
+
+type ResolvableStep = {
+  sequence: number;
+  approverType: VacancyApproverType;
+  label: string | null;
+  positionId: string | null;
+  specificEmployeeId: string | null;
+  requiredRoleCode: string | null;
+};
 
 const STEP_INCLUDE = {
   specificEmployee: {
     select: { id: true, firstName: true, lastName: true, email: true },
+  },
+  position: {
+    select: { id: true, name: true },
   },
 } as const;
 
@@ -37,6 +49,7 @@ export class VacancyApprovalWorkflowService {
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
     private readonly integrity: OrganizationIntegrityService,
+    private readonly occupants: PositionOccupantsService,
   ) {}
 
   async get(companyId: string) {
@@ -93,6 +106,7 @@ export class VacancyApprovalWorkflowService {
             sequence: index + 1,
             approverType: step.approverType,
             label: step.label,
+            positionId: step.positionId,
             specificEmployeeId: step.specificEmployeeId,
             requiredRoleCode: step.requiredRoleCode,
             updatedAt: new Date(),
@@ -203,13 +217,31 @@ export class VacancyApprovalWorkflowService {
     return rows;
   }
 
+  async snapshotFromSteps(
+    params: {
+      companyId: string;
+      vacancyRequestId: string;
+      requestedByEmployeeId: string;
+    },
+    steps: ResolvableStep[],
+  ) {
+    if (steps.length === 0) {
+      throw new BadRequestException(VACANCY_APPROVAL_ERRORS.EMPTY_WORKFLOW);
+    }
+    const rows: Prisma.VacancyApprovalCreateManyInput[] = [];
+    for (const step of steps) {
+      rows.push(await this.resolveConfiguredStep(params, step));
+    }
+    return rows;
+  }
+
   private async resolveConfiguredStep(
     params: {
       companyId: string;
       vacancyRequestId: string;
       requestedByEmployeeId: string;
     },
-    step: VacancyApprovalWorkflowStep,
+    step: ResolvableStep,
   ): Promise<Prisma.VacancyApprovalCreateManyInput> {
     const base = {
       companyId: params.companyId,
@@ -217,6 +249,7 @@ export class VacancyApprovalWorkflowService {
       step: snapshotStepFromApproverType(step.approverType),
       sequence: step.sequence,
       label: step.label,
+      positionId: step.positionId,
       status: ApprovalStatus.PENDING,
     };
 
@@ -242,6 +275,19 @@ export class VacancyApprovalWorkflowService {
       return { ...base, approverEmployeeId: employee.id };
     }
 
+    if (step.approverType === VacancyApproverType.POSITION) {
+      const occupant = await this.occupants.resolve(
+        params.companyId,
+        step.positionId,
+        step.specificEmployeeId,
+      );
+      return {
+        ...base,
+        positionId: step.positionId,
+        approverEmployeeId: occupant.id,
+      };
+    }
+
     if (!step.requiredRoleCode) {
       throw new BadRequestException(
         VACANCY_APPROVAL_ERRORS.INVALID_ROLE_FIELDS,
@@ -258,6 +304,7 @@ export class VacancyApprovalWorkflowService {
     const normalized: Array<{
       approverType: VacancyApproverType;
       label: string | null;
+      positionId: string | null;
       specificEmployeeId: string | null;
       requiredRoleCode: string | null;
     }> = [];
@@ -265,7 +312,7 @@ export class VacancyApprovalWorkflowService {
     for (const step of steps) {
       const label = step.label?.trim() ? step.label.trim() : null;
       if (step.approverType === VacancyApproverType.MANAGER_OF_REQUESTER) {
-        if (step.specificEmployeeId || step.requiredRoleCode) {
+        if (step.specificEmployeeId || step.requiredRoleCode || step.positionId) {
           throw new BadRequestException(
             VACANCY_APPROVAL_ERRORS.INVALID_MANAGER_FIELDS,
           );
@@ -273,6 +320,7 @@ export class VacancyApprovalWorkflowService {
         normalized.push({
           approverType: step.approverType,
           label,
+          positionId: null,
           specificEmployeeId: null,
           requiredRoleCode: null,
         });
@@ -293,13 +341,35 @@ export class VacancyApprovalWorkflowService {
         normalized.push({
           approverType: step.approverType,
           label,
+          positionId: step.positionId ?? null,
           specificEmployeeId: step.specificEmployeeId,
           requiredRoleCode: null,
         });
         continue;
       }
 
-      if (!step.requiredRoleCode?.trim() || step.specificEmployeeId) {
+      if (step.approverType === VacancyApproverType.POSITION) {
+        if (!step.positionId || step.requiredRoleCode) {
+          throw new BadRequestException(
+            VACANCY_APPROVAL_ERRORS.INVALID_POSITION_FIELDS,
+          );
+        }
+        const occupant = await this.occupants.resolve(
+          companyId,
+          step.positionId,
+          step.specificEmployeeId,
+        );
+        normalized.push({
+          approverType: step.approverType,
+          label,
+          positionId: step.positionId,
+          specificEmployeeId: occupant.id,
+          requiredRoleCode: null,
+        });
+        continue;
+      }
+
+      if (!step.requiredRoleCode?.trim() || step.specificEmployeeId || step.positionId) {
         throw new BadRequestException(
           VACANCY_APPROVAL_ERRORS.INVALID_ROLE_FIELDS,
         );
@@ -308,6 +378,7 @@ export class VacancyApprovalWorkflowService {
       normalized.push({
         approverType: step.approverType,
         label,
+        positionId: null,
         specificEmployeeId: null,
         requiredRoleCode: step.requiredRoleCode.trim(),
       });

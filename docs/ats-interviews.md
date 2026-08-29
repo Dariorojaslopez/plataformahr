@@ -95,8 +95,12 @@ Creating an interview does **not** move the Application.
 On **start** of an interview:
 
 - If Application is `CONTACTED` → call existing `ApplicationsService.move` to `INTERVIEW` (history + audit)
-- If already `INTERVIEW` → no stage change (no duplicate history)
+- If already `INTERVIEW` or `OFFER` → no stage change (no duplicate history)
 - Other stages → reject start
+
+`GET /ats/interviews/pending` lists DRAFT/SCHEDULED/IN_PROGRESS interviews whose application is in `INTERVIEW` or `OFFER`.
+
+`POST /ats/interviews/process-template` assigns an interview form template to a vacancy and copies its questions onto pending interviews without answers.
 
 ## Permissions
 

@@ -28,6 +28,10 @@ import {
   MAX_LIMIT,
 } from '../goals.constants';
 import { decimalToString, emptyToNull } from '../goals.helpers';
+import {
+  companyGoalWhereClause,
+  isGoalsCascadeEnabled,
+} from '../goals.cascade';
 import type {
   CreateCheckInDto,
   ListCheckInsQueryDto,
@@ -346,6 +350,12 @@ export class GoalProgressService {
 
     const areaIds = [...new Set(reports.map((r) => r.areaId))];
     const reportIds = reports.map((r) => r.id);
+    const cascade = isGoalsCascadeEnabled(
+      await this.prisma.company.findUnique({
+        where: { id: companyId },
+        select: { goalsCascadeEnabled: true },
+      }),
+    );
 
     const goals = await this.prisma.goal.findMany({
       where: {
@@ -357,7 +367,7 @@ export class GoalProgressService {
             assignments: { some: { employeeId: { in: reportIds } } },
           },
           { type: GoalType.AREA, areaId: { in: areaIds } },
-          { type: GoalType.COMPANY },
+          ...companyGoalWhereClause(cascade),
         ],
       },
       include: {
@@ -390,7 +400,7 @@ export class GoalProgressService {
 
     const employees = reports.map((employee) => {
       const applicable = goals.filter((g) =>
-        this.isApplicableToEmployee(g, employee),
+        this.isApplicableToEmployee(g, employee, cascade),
       );
       return {
         employee: {
@@ -518,7 +528,13 @@ export class GoalProgressService {
     if (granted.has('goals.goal.manage')) return true;
 
     const employee = await this.findEmployeeForUser(companyId, userId);
-    if (employee && this.isApplicableToEmployee(goal, employee)) {
+    const cascade = isGoalsCascadeEnabled(
+      await this.prisma.company.findUnique({
+        where: { id: companyId },
+        select: { goalsCascadeEnabled: true },
+      }),
+    );
+    if (employee && this.isApplicableToEmployee(goal, employee, cascade)) {
       return (
         goal.status === GoalStatus.ACTIVE ||
         goal.status === GoalStatus.COMPLETED
@@ -586,10 +602,17 @@ export class GoalProgressService {
       },
     });
 
+    const cascade = isGoalsCascadeEnabled(
+      await this.prisma.company.findUnique({
+        where: { id: companyId },
+        select: { goalsCascadeEnabled: true },
+      }),
+    );
+
     return reports.some(
       (r) =>
         r.employee.deletedAt == null &&
-        this.isApplicableToEmployee(goal, r.employee),
+        this.isApplicableToEmployee(goal, r.employee, cascade),
     );
   }
 
@@ -601,6 +624,7 @@ export class GoalProgressService {
       status?: GoalStatus;
     },
     employee: { id: string; areaId: string },
+    cascadeEnabled: boolean,
   ): boolean {
     if (
       goal.status != null &&
@@ -609,7 +633,10 @@ export class GoalProgressService {
     ) {
       return false;
     }
-    if (goal.type === GoalType.COMPANY) return true;
+    if (goal.type === GoalType.COMPANY) {
+      if (cascadeEnabled) return true;
+      return goal.assignments.some((a) => a.employeeId === employee.id);
+    }
     if (goal.type === GoalType.AREA) return goal.areaId === employee.areaId;
     return goal.assignments.some((a) => a.employeeId === employee.id);
   }

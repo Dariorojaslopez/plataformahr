@@ -50,7 +50,6 @@ function optional(value: string): string | undefined {
 export function toCreateAreaPayload(values: AreaFormValues): CreateAreaInput {
   return {
     name: values.name.trim(),
-    code: optional(values.code),
     description: optional(values.description),
     businessUnitId: values.businessUnitId || undefined,
     parentAreaId: values.parentAreaId || undefined,
@@ -97,14 +96,6 @@ export function AreaForm({
           value={values.name}
           onChange={(e) => onChange({ ...values, name: e.target.value })}
           required
-        />
-      </div>
-      <div className="space-y-2">
-        <Label htmlFor="area-code">Código</Label>
-        <Input
-          id="area-code"
-          value={values.code}
-          onChange={(e) => onChange({ ...values, code: e.target.value })}
         />
       </div>
       <div className="space-y-2">

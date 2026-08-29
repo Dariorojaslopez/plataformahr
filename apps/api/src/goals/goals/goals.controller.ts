@@ -30,6 +30,7 @@ import {
   ListCheckInsQueryDto,
 } from '../progress/dto/check-in.dto';
 import { GoalProgressService } from '../progress/progress.service';
+import { GoalType } from '@prisma/client';
 import {
   CreateAssignmentDto,
   CreateGoalDto,
@@ -115,6 +116,18 @@ export class GoalsController {
       requestId,
       dto,
     );
+  }
+
+  @Get('organizational')
+  @RequirePermissions('goals.goal.read')
+  listOrganizational(
+    @CurrentTenant() tenant: TenantContext,
+    @Query() query: ListGoalsQueryDto,
+  ) {
+    return this.goalsService.list(tenant.companyId, {
+      ...query,
+      type: GoalType.COMPANY,
+    });
   }
 
   @Get()

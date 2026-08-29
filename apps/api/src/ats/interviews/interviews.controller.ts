@@ -18,6 +18,7 @@ import { PermissionGuard } from '../../rbac/guards/permission.guard';
 import { CurrentTenant } from '../../tenant/decorators/current-tenant.decorator';
 import { CompanyContextGuard } from '../../tenant/guards/company-context.guard';
 import {
+  ApplyProcessInterviewTemplateDto,
   CreateTranscriptSegmentDto,
   UpdateInterviewDto,
   UpdateTranscriptSegmentDto,
@@ -30,13 +31,36 @@ import { InterviewsService } from './interviews.service';
 export class InterviewsController {
   constructor(private readonly interviewsService: InterviewsService) {}
 
-  @Get(':id')
+  @Get('pending')
   @RequirePermissions('ats.interview.read')
+  listPending(@CurrentTenant() tenant: TenantContext) {
+    return this.interviewsService.listPending(tenant.companyId);
+  }
+
+  @Post('process-template')
+  @RequirePermissions('ats.interview.manage')
+  applyProcessTemplate(
+    @CurrentTenant() tenant: TenantContext,
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: ApplyProcessInterviewTemplateDto,
+  ) {
+    return this.interviewsService.applyProcessTemplate(
+      tenant.companyId,
+      user.userId,
+      dto,
+    );
+  }
+
+  @Get(':id')
+  @RequirePermissions('company.read')
   getById(
     @CurrentTenant() tenant: TenantContext,
     @Param('id', ParseUUIDPipe) id: string,
   ) {
-    return this.interviewsService.getById(tenant.companyId, id);
+    return this.interviewsService.getById(tenant.companyId, id, {
+      userId: tenant.userId,
+      membershipId: tenant.membershipId,
+    });
   }
 
   @Patch(':id')
@@ -91,7 +115,7 @@ export class InterviewsController {
   }
 
   @Put(':id/questions/:questionId/answer')
-  @RequirePermissions('ats.interview.evaluate')
+  @RequirePermissions('company.read')
   upsertAnswer(
     @CurrentTenant() tenant: TenantContext,
     @CurrentUser() user: AuthenticatedUser,

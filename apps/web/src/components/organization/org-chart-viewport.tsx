@@ -31,7 +31,7 @@ export function OrgChartViewport({
 
   return (
     <div
-      className="h-[min(70vh,720px)] cursor-grab overflow-hidden rounded-lg border border-border bg-muted/30 active:cursor-grabbing"
+      className="h-[min(70vh,720px)] cursor-grab overflow-hidden rounded-xl border-2 border-border bg-background active:cursor-grabbing"
       onWheel={(event) => {
         event.preventDefault();
         const delta = event.deltaY > 0 ? -0.08 : 0.08;

@@ -21,11 +21,11 @@ function NodeCard({
 }) {
   const hasChildren = node.children.length > 0;
   return (
-    <article className="w-[220px] rounded-lg border border-border bg-card p-3 text-left shadow-sm">
+    <article className="w-[220px] rounded-lg border-2 border-border bg-card p-3 text-left text-card-foreground shadow-sm">
       <div className="flex items-start justify-between gap-2">
         <Link
           href={`/organization/employees/${node.employeeId}`}
-          className="font-medium leading-tight hover:underline"
+          className="font-medium leading-tight text-card-foreground hover:underline"
         >
           {displayEmployeeName(node)}
         </Link>
@@ -46,13 +46,13 @@ function NodeCard({
           </Button>
         ) : null}
       </div>
-      <p className="mt-1 text-sm text-muted-foreground">{node.position.name}</p>
-      <p className="text-xs text-muted-foreground">{node.area.name}</p>
+      <p className="mt-1 text-sm text-card-foreground">{node.position.name}</p>
+      <p className="text-xs text-foreground/80">{node.area.name}</p>
       {node.businessUnit ? (
-        <p className="text-xs text-muted-foreground">{node.businessUnit.name}</p>
+        <p className="text-xs text-foreground/80">{node.businessUnit.name}</p>
       ) : null}
       {node.jobLevel ? (
-        <p className="text-xs text-muted-foreground">{node.jobLevel.name}</p>
+        <p className="text-xs text-foreground/80">{node.jobLevel.name}</p>
       ) : null}
       {node.status !== "ACTIVE" ? (
         <div className="mt-2">
@@ -74,14 +74,14 @@ function Branch({
 }) {
   const collapsed = collapsedIds.has(node.employeeId);
   return (
-    <li className="flex flex-col items-center">
+    <li>
       <NodeCard
         node={node}
         collapsed={collapsed}
         onToggle={() => onToggle(node.employeeId)}
       />
       {!collapsed && node.children.length > 0 ? (
-        <ul className="mt-8 flex flex-row flex-wrap justify-center gap-x-8 gap-y-10">
+        <ul>
           {node.children.map((child) => (
             <Branch
               key={child.employeeId}
@@ -108,13 +108,18 @@ export function OrgChartTree({
   onToggle: (id: string) => void;
 }) {
   return (
-    <div className="inline-flex min-w-full flex-col items-center px-6 py-8">
-      <div className="rounded-lg border border-border bg-foreground px-4 py-3 text-center text-primary-foreground">
-        <p className="text-xs uppercase tracking-wide opacity-80">Compañía</p>
-        <p className="font-medium">{companyName}</p>
+    <div
+      data-testid="org-chart-tree"
+      className="org-chart-tree inline-flex min-w-full flex-col items-center px-6 py-8"
+    >
+      <div className="rounded-lg border-2 border-primary bg-primary px-4 py-3 text-center text-primary-foreground shadow-sm">
+        <p className="text-xs font-medium uppercase tracking-wide text-primary-foreground">
+          Compañía
+        </p>
+        <p className="font-semibold">{companyName}</p>
       </div>
       {roots.length > 0 ? (
-        <ul className="mt-8 flex flex-row flex-wrap justify-center gap-x-8 gap-y-10">
+        <ul>
           {roots.map((root) => (
             <Branch
               key={root.employeeId}

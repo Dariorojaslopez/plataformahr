@@ -5,7 +5,7 @@ import { Eye, Pencil, Plus, Search } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
-import { CycleCompositionFields } from "@/components/performance/cycle-composition-fields";
+import { CycleFormFields } from "@/components/performance/cycle-form-fields";
 import { EntityEditorShell } from "@/components/organization/entity-editor-shell";
 import { FormSelect } from "@/components/organization/form-select";
 import { PaginationControls } from "@/components/organization/pagination-controls";
@@ -14,7 +14,6 @@ import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { PageHeader } from "@/components/ui/page-header";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -25,7 +24,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Textarea } from "@/components/ui/textarea";
 import { useCompanyId } from "@/hooks/use-company-id";
 import { getErrorMessage } from "@/lib/api/errors";
 import { goalsApi, goalKeys } from "@/lib/api/goals";
@@ -34,6 +32,7 @@ import { canEditCycleMetadata } from "@/lib/performance/activation";
 import {
   buildCreateCyclePayload,
   buildUpdateCyclePayload,
+  cycleEvaluatorWeightsAreValid,
   cycleFormFromPerformanceCycle,
   cycleGoalsCompositionIsValid,
   emptyCycleForm,
@@ -43,7 +42,6 @@ import {
   CYCLE_STATUS_LABELS,
   cycleStatusVariant,
 } from "@/lib/performance/cycle-labels";
-import { evaluatorWeightsAreValid } from "@/lib/performance/evaluator-weights";
 import { notifyError, notifySuccess } from "@/lib/ui/notify";
 import type {
   ListPerformanceCyclesParams,
@@ -111,21 +109,16 @@ export function CyclesPageClient() {
         throw new Error("El nombre es obligatorio.");
       }
       if (!form.startDate || !form.endDate) {
-        throw new Error("Las fechas de inicio y fin son obligatorias.");
+        throw new Error("La apertura y el cierre del ciclo son obligatorios.");
       }
-      if (
-        !evaluatorWeightsAreValid(
-          form.selfEvaluationWeight,
-          form.managerEvaluationWeight,
-        )
-      ) {
+      if (!cycleEvaluatorWeightsAreValid(form)) {
         throw new Error(
           "La ponderación de evaluadores debe sumar exactamente 100%.",
         );
       }
       if (!cycleGoalsCompositionIsValid(form)) {
         throw new Error(
-          "La composición de objetivos requiere un ciclo y pesos que sumen 100%.",
+          "Revisa la composición: activa competencias o indica pesos de objetivos que no superen el rango.",
         );
       }
       if (editing) {
@@ -356,140 +349,18 @@ export function CyclesPageClient() {
             saveMutation.mutate();
           }}
         >
-          <div className="space-y-2">
-            <Label htmlFor="cycle-name">Nombre *</Label>
-            <Input
-              id="cycle-name"
-              value={form.name}
-              onChange={(e) =>
-                setForm((f) => ({ ...f, name: e.target.value }))
-              }
-              required
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="cycle-description">Descripción</Label>
-            <Textarea
-              id="cycle-description"
-              value={form.description}
-              onChange={(e) =>
-                setForm((f) => ({ ...f, description: e.target.value }))
-              }
-              rows={3}
-            />
-          </div>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="cycle-start">Fecha inicio *</Label>
-              <Input
-                id="cycle-start"
-                type="date"
-                value={form.startDate}
-                onChange={(e) =>
-                  setForm((f) => ({ ...f, startDate: e.target.value }))
-                }
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="cycle-end">Fecha fin *</Label>
-              <Input
-                id="cycle-end"
-                type="date"
-                value={form.endDate}
-                onChange={(e) =>
-                  setForm((f) => ({ ...f, endDate: e.target.value }))
-                }
-                required
-              />
-            </div>
-          </div>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="cycle-eval-start">Inicio evaluación</Label>
-              <Input
-                id="cycle-eval-start"
-                type="date"
-                value={form.evaluationStartDate}
-                onChange={(e) =>
-                  setForm((f) => ({
-                    ...f,
-                    evaluationStartDate: e.target.value,
-                  }))
-                }
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="cycle-eval-end">Fin evaluación</Label>
-              <Input
-                id="cycle-eval-end"
-                type="date"
-                value={form.evaluationEndDate}
-                onChange={(e) =>
-                  setForm((f) => ({
-                    ...f,
-                    evaluationEndDate: e.target.value,
-                  }))
-                }
-              />
-            </div>
-          </div>
-          <div className="space-y-3 rounded-md border border-border p-3">
-            <div>
-              <p className="text-sm font-medium">Ponderación de evaluadores</p>
-              <p className="text-xs text-muted-foreground">
-                Autoevaluación + líder deben sumar 100%.
-              </p>
-            </div>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="cycle-self-weight">Autoevaluación (%)</Label>
-                <Input
-                  id="cycle-self-weight"
-                  type="number"
-                  min={0}
-                  max={100}
-                  step="0.01"
-                  value={form.selfEvaluationWeight}
-                  onChange={(e) =>
-                    setForm((f) => ({
-                      ...f,
-                      selfEvaluationWeight: e.target.value,
-                    }))
-                  }
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="cycle-manager-weight">Líder (%)</Label>
-                <Input
-                  id="cycle-manager-weight"
-                  type="number"
-                  min={0}
-                  max={100}
-                  step="0.01"
-                  value={form.managerEvaluationWeight}
-                  onChange={(e) =>
-                    setForm((f) => ({
-                      ...f,
-                      managerEvaluationWeight: e.target.value,
-                    }))
-                  }
-                  required
-                />
-              </div>
-            </div>
-          </div>
-          <CycleCompositionFields
+          <CycleFormFields
             form={form}
             setForm={setForm}
             goalCycleOptions={goalCycleOptions}
             goalCyclesLoading={goalCyclesQuery.isLoading}
             idPrefix="cycles"
+            lockStartDate={editing != null}
           />
           <p className="text-xs text-muted-foreground">
-            Las fechas de evaluación son opcionales; si usas una, debes indicar
-            ambas y deben estar dentro del periodo del ciclo.
+            Las ventanas de fechas son opcionales; si usas una, debes indicar
+            inicio y fin y deben estar dentro del periodo del ciclo. La apertura
+            del ciclo no se puede modificar después de crearlo.
           </p>
           {formError ? (
             <p className="text-sm text-destructive" role="alert">

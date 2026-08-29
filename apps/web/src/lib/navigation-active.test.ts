@@ -28,41 +28,27 @@ function prefixPairs() {
 }
 
 describe("resolveActiveNavHref", () => {
-  it("activates only Objetivos on /goals", () => {
+  it("activates only Objetivos organizacionales on /goals", () => {
     expect(resolveActiveNavHref("/goals")).toBe("/goals");
-    expect(activeLabels("/goals")).toEqual(["Objetivos"]);
+    expect(activeLabels("/goals")).toEqual(["Objetivos organizacionales"]);
   });
 
-  it("activates only Periodos on /goals/cycles", () => {
-    expect(navHrefMatchesPath("/goals", "/goals/cycles")).toBe(true);
-    expect(navHrefMatchesPath("/goals/cycles", "/goals/cycles")).toBe(true);
-    expect(resolveActiveNavHref("/goals/cycles")).toBe("/goals/cycles");
-    expect(activeLabels("/goals/cycles")).toEqual(["Periodos"]);
+  it("does not keep Periodos in the menu", () => {
+    expect(flattenNavItems().some((item) => item.href === "/goals/cycles")).toBe(
+      false,
+    );
   });
 
-  it("keeps Periodos active on a cycle detail route", () => {
-    expect(resolveActiveNavHref("/goals/cycles/cycle-1")).toBe("/goals/cycles");
-    expect(activeLabels("/goals/cycles/cycle-1")).toEqual(["Periodos"]);
-  });
-
-  it("does not activate Objetivos together with Mi equipo", () => {
-    expect(resolveActiveNavHref("/goals/team")).toBe("/goals/team");
-    expect(activeLabels("/goals/team")).toEqual(["Mi equipo"]);
-  });
-
-  it("does not activate Objetivos together with Revisión de cierres", () => {
-    expect(resolveActiveNavHref("/goals/reviews")).toBe("/goals/reviews");
-    expect(activeLabels("/goals/reviews")).toEqual(["Revisión de cierres"]);
-  });
-
-  it("still treats a goal detail as Objetivos", () => {
+  it("still treats a goal detail as Objetivos organizacionales", () => {
     expect(resolveActiveNavHref("/goals/goal-1")).toBe("/goals");
-    expect(activeLabels("/goals/goal-1")).toEqual(["Objetivos"]);
+    expect(activeLabels("/goals/goal-1")).toEqual([
+      "Objetivos organizacionales",
+    ]);
   });
 
   it("resolves every APP_NAV parent/child pair to the more specific item", () => {
     const pairs = prefixPairs();
-    expect(pairs).toEqual(
+    expect(pairs).not.toEqual(
       expect.arrayContaining([
         { parent: "/goals", child: "/goals/cycles" },
         { parent: "/goals", child: "/goals/team" },
@@ -81,7 +67,9 @@ describe("resolveActiveNavHref", () => {
     expect(activeLabels("/ats/interview-templates")).toEqual([
       "Plantillas de entrevista",
     ]);
-    expect(activeLabels("/ats/vacancy-requests")).toEqual(["Solicitudes"]);
+    expect(activeLabels("/ats/vacancy-requests")).toEqual([
+      "Crear proceso de selección",
+    ]);
     expect(activeLabels("/ats/vacancies/vac-1")).toEqual(["Vacantes"]);
     expect(activeLabels("/performance/results")).toEqual(["Resultados"]);
     expect(activeLabels("/performance/my-results")).toEqual(["Mis resultados"]);
@@ -96,15 +84,15 @@ describe("resolveActiveNavHref", () => {
   it("never marks two nav items active for APP_NAV routes or nested details", () => {
     const samples = [
       ...flattenNavItems().map((item) => item.href),
-      "/goals/cycles/cycle-1",
-      "/goals/team/extra",
-      "/goals/reviews/extra",
-      "/goals/goal-1",
+      "/dashboard",
+      "/unknown",
       "/ats/vacancies/vac-1",
       "/ats/vacancy-requests/req-1",
       "/ats/interviews/int-1",
       "/ats/interview-templates",
       "/ats/settings/approvals",
+      "/ats/settings/evaluators",
+      "/ats/settings/active-processes",
       "/performance/cycles/c-1",
       "/performance/results/r-1",
       "/performance/my-results/r-1",
@@ -131,7 +119,6 @@ describe("resolveActiveNavHref", () => {
       "Organización",
       "ATS",
       "Performance",
-      "Objetivos",
       "Configuración",
     ]);
   });

@@ -12,7 +12,7 @@ This phase covers:
 - Tenant-scoped filters/search
 - Duplicate prevention
 
-Not included: CV upload/parsing, AI, interviews, offer, contract, hiring, `Employee` creation, automatic `filledCount` / `Candidate.status = HIRED`.
+Not included: AI, interviews, offer, contract, hiring, `Employee` creation, automatic `filledCount` / `Candidate.status = HIRED`.
 
 ## Candidate vs Application
 
@@ -68,7 +68,7 @@ Ordered Kanban columns:
 6. `REJECTED`
 7. `WITHDRAWN`
 
-Pipeline response shape (lightweight cards only):
+Pipeline response shape (lightweight cards only; the recruiter UI groups these 7 stages into 4 Kanban columns). Cards include `fitLevel` (`green` | `yellow` | `red` | `gray`) from interview ratings:
 
 ```json
 {
@@ -83,8 +83,10 @@ Pipeline response shape (lightweight cards only):
           "candidateId": "...",
           "candidateName": "...",
           "candidateEmail": "...",
+          "hasCv": true,
           "stage": "PENDING_REVIEW",
-          "lastStageChangedAt": "..."
+          "lastStageChangedAt": "...",
+          "fitLevel": "gray"
         }
       ]
     }
@@ -94,15 +96,17 @@ Pipeline response shape (lightweight cards only):
 
 ## Transition matrix
 
-No backwards moves and no jumps in this phase.
+No backwards moves. Recruiters may jump `PENDING_REVIEW` → `INTERVIEW` (Nuevo → Entrevista Equipo de Atracción).
 
 | From | Allowed to |
 |------|------------|
-| `PENDING_REVIEW` | `CONTACTED`, `REJECTED`, `WITHDRAWN` |
+| `PENDING_REVIEW` | `CONTACTED`, `INTERVIEW`, `REJECTED`, `WITHDRAWN` |
 | `CONTACTED` | `INTERVIEW`, `REJECTED`, `WITHDRAWN` |
 | `INTERVIEW` | `OFFER`, `REJECTED`, `WITHDRAWN` |
-| `OFFER` | `HIRED`, `REJECTED`, `WITHDRAWN` |
+| `OFFER` | `REJECTED`, `WITHDRAWN` |
 | `HIRED` / `REJECTED` / `WITHDRAWN` | _(terminal — no moves)_ |
+
+`HIRED` is set only via formal Hiring (`POST /ats/applications/:id/hire`), not `move`. Recruiter Kanban: Nuevo → Entrevista Equipo de Atracción (`INTERVIEW`, creates a pending HR interview) → Entrevista Evaluadores (`OFFER`, creates a pending TECHNICAL interview) → Contratado (hire popup).
 
 Every successful move appends `ApplicationStageHistory`.
 
@@ -138,7 +142,7 @@ Stage moves run inside a transaction with `SELECT … FOR UPDATE` on the applica
 
 | Permission | Purpose |
 |------------|---------|
-| `ats.candidate.read` | List/get candidates |
+| `ats.candidate.read` | List/get candidates and download CV |
 | `ats.candidate.manage` | Create/update candidates |
 | `ats.application.read` | List/get applications, history, pipeline |
 | `ats.application.manage` | Create applications, move stages |
@@ -168,6 +172,7 @@ No full PII or full comments in metadata.
 | `POST` | `/ats/candidates` | manage |
 | `GET` | `/ats/candidates` | read |
 | `GET` | `/ats/candidates/:id` | read |
+| `GET` | `/ats/candidates/:id/cv` | read |
 | `PATCH` | `/ats/candidates/:id` | manage |
 | `POST` | `/ats/candidates/:candidateId/applications` | application.manage |
 | `POST` | `/ats/applications` | manage |

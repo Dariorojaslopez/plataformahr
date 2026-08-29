@@ -9,6 +9,19 @@ export type PerformanceCycleStatus =
   | "CLOSED"
   | "CANCELLED";
 
+export type PerformanceEvaluationModel =
+  | "DEGREE_90"
+  | "DEGREE_180"
+  | "DEGREE_270"
+  | "DEGREE_360";
+
+export type PerformanceCycleFollowUp = {
+  id: string;
+  order: number;
+  startDate: string;
+  endDate: string;
+};
+
 export type PerformanceResultComposition =
   | "COMPETENCY_ONLY"
   | "COMPETENCY_AND_GOALS";
@@ -22,16 +35,34 @@ export type PerformanceCycle = {
   endDate: string;
   evaluationStartDate: string | null;
   evaluationEndDate: string | null;
+  goalDefinitionStartDate: string | null;
+  goalDefinitionEndDate: string | null;
+  managerEvaluationStartDate: string | null;
+  managerEvaluationEndDate: string | null;
+  calibrationStartDate: string | null;
+  calibrationEndDate: string | null;
+  closingStartDate: string | null;
+  closingEndDate: string | null;
+  evaluationModel: PerformanceEvaluationModel;
   /** Decimal from API as fixed string, e.g. "30.00" */
   selfEvaluationWeight: string;
   /** Decimal from API as fixed string, e.g. "70.00" */
   managerEvaluationWeight: string;
+  peerEvaluationWeight: string | null;
+  reportEvaluationWeight: string | null;
+  clientEvaluationWeight: string | null;
   /** Linked GoalCycle when integrated (09D); null = competency-only. */
   goalCycleId: string | null;
+  includeCompetencies: boolean;
   /** Weight of competencyScore in overall; required when goalCycleId is set. */
   competencyResultWeight: string | null;
   /** Weight of goalsAchievement in overall; required when goalCycleId is set. */
   goalsResultWeight: string | null;
+  organizationalGoalsWeight: string | null;
+  individualGoalsWeight: string | null;
+  maxObjectives: number | null;
+  evaluationRange: number;
+  followUps: PerformanceCycleFollowUp[];
   status: PerformanceCycleStatus;
   createdByUserId: string;
   createdAt: string;
@@ -39,6 +70,17 @@ export type PerformanceCycle = {
 };
 
 export type PerformanceResultStatus = "CALCULATED" | "RELEASED";
+
+export type CompetencyScaleKind = "QUALITATIVE" | "QUANTITATIVE";
+
+export type CompetencyScaleFormat =
+  | "NUMERIC"
+  | "DESCRIPTIVE"
+  | "LIKERT"
+  | "PERCENTAGE"
+  | "CURRENCY";
+
+export type LikertIcon = "STARS" | "HEARTS" | "THUMBS" | "FACES";
 
 export type CompetencyScaleLevel = {
   id: string;
@@ -57,6 +99,13 @@ export type CompetencyScale = {
   companyId: string;
   name: string;
   description: string | null;
+  kind: CompetencyScaleKind;
+  format?: CompetencyScaleFormat;
+  minValue?: string | null;
+  maxValue?: string | null;
+  likertIcon?: string | null;
+  currencyCode?: string | null;
+  decimalPlaces?: number | null;
   status: OrganizationEntityStatus;
   createdAt: string;
   updatedAt: string;
@@ -68,6 +117,13 @@ export type CompetencyScale = {
 export type CompetencyScaleRef = {
   id: string;
   name: string;
+  status: OrganizationEntityStatus;
+};
+
+export type CompetencyJobLevelRef = {
+  id: string;
+  name: string;
+  rank: number;
   status: OrganizationEntityStatus;
 };
 
@@ -83,6 +139,7 @@ export type Competency = {
   updatedAt: string;
   deletedAt: string | null;
   defaultScale?: CompetencyScaleRef | null;
+  jobLevels?: CompetencyJobLevelRef[];
 };
 
 export type CompetencyRef = {
@@ -140,6 +197,7 @@ export type ListCompetenciesParams = {
 
 export type ListScalesParams = {
   status?: OrganizationEntityStatus;
+  kind?: CompetencyScaleKind;
   search?: string;
   page?: number;
   limit?: number;
@@ -152,11 +210,29 @@ export type CreatePerformanceCycleInput = {
   endDate: string;
   evaluationStartDate?: string;
   evaluationEndDate?: string;
+  goalDefinitionStartDate?: string;
+  goalDefinitionEndDate?: string;
+  managerEvaluationStartDate?: string;
+  managerEvaluationEndDate?: string;
+  calibrationStartDate?: string;
+  calibrationEndDate?: string;
+  closingStartDate?: string;
+  closingEndDate?: string;
+  followUps?: Array<{ startDate: string; endDate: string }>;
+  evaluationModel?: PerformanceEvaluationModel;
   selfEvaluationWeight?: number;
   managerEvaluationWeight?: number;
+  peerEvaluationWeight?: number | null;
+  reportEvaluationWeight?: number | null;
+  clientEvaluationWeight?: number | null;
   goalCycleId?: string | null;
+  includeCompetencies?: boolean;
   competencyResultWeight?: number | null;
   goalsResultWeight?: number | null;
+  organizationalGoalsWeight?: number | null;
+  individualGoalsWeight?: number | null;
+  maxObjectives?: number | null;
+  evaluationRange?: number;
 };
 
 export type UpdatePerformanceCycleInput = {
@@ -166,11 +242,29 @@ export type UpdatePerformanceCycleInput = {
   endDate?: string;
   evaluationStartDate?: string | null;
   evaluationEndDate?: string | null;
+  goalDefinitionStartDate?: string | null;
+  goalDefinitionEndDate?: string | null;
+  managerEvaluationStartDate?: string | null;
+  managerEvaluationEndDate?: string | null;
+  calibrationStartDate?: string | null;
+  calibrationEndDate?: string | null;
+  closingStartDate?: string | null;
+  closingEndDate?: string | null;
+  followUps?: Array<{ startDate: string; endDate: string }>;
+  evaluationModel?: PerformanceEvaluationModel;
   selfEvaluationWeight?: number;
   managerEvaluationWeight?: number;
+  peerEvaluationWeight?: number | null;
+  reportEvaluationWeight?: number | null;
+  clientEvaluationWeight?: number | null;
   goalCycleId?: string | null;
+  includeCompetencies?: boolean;
   competencyResultWeight?: number | null;
   goalsResultWeight?: number | null;
+  organizationalGoalsWeight?: number | null;
+  individualGoalsWeight?: number | null;
+  maxObjectives?: number | null;
+  evaluationRange?: number;
 };
 
 export type AddCycleCompetencyInput = {
@@ -194,6 +288,7 @@ export type CreateCompetencyInput = {
   description?: string;
   status?: OrganizationEntityStatus;
   defaultScaleId?: string;
+  jobLevelId?: string;
 };
 
 export type UpdateCompetencyInput = {
@@ -202,18 +297,34 @@ export type UpdateCompetencyInput = {
   description?: string | null;
   status?: OrganizationEntityStatus;
   defaultScaleId?: string | null;
+  jobLevelId?: string | null;
 };
 
 export type CreateCompetencyScaleInput = {
   name: string;
   description?: string;
   status?: OrganizationEntityStatus;
+  kind?: CompetencyScaleKind;
+  format?: CompetencyScaleFormat;
+  minValue?: number;
+  maxValue?: number;
+  likertIcon?: string;
+  currencyCode?: string;
+  decimalPlaces?: number;
+  descriptiveLabels?: string[];
 };
 
 export type UpdateCompetencyScaleInput = {
   name?: string;
   description?: string | null;
   status?: OrganizationEntityStatus;
+  kind?: CompetencyScaleKind;
+  format?: CompetencyScaleFormat;
+  minValue?: number;
+  maxValue?: number;
+  likertIcon?: string | null;
+  currencyCode?: string | null;
+  decimalPlaces?: number | null;
 };
 
 export type CreateScaleLevelInput = {
@@ -235,7 +346,12 @@ export type PerformanceParticipantStatus =
   | "COMPLETED"
   | "EXCLUDED";
 
-export type PerformanceEvaluationType = "SELF" | "MANAGER";
+export type PerformanceEvaluationType =
+  | "SELF"
+  | "MANAGER"
+  | "PEER"
+  | "REPORT"
+  | "CLIENT";
 
 export type PerformanceEvaluationStatus =
   | "PENDING"
@@ -430,6 +546,18 @@ export type MineEvaluation = {
     status: PerformanceCycleStatus;
     startDate: string;
     endDate: string;
+    evaluationStartDate: string | null;
+    evaluationEndDate: string | null;
+    goalDefinitionStartDate: string | null;
+    goalDefinitionEndDate: string | null;
+    managerEvaluationStartDate: string | null;
+    managerEvaluationEndDate: string | null;
+    calibrationStartDate: string | null;
+    calibrationEndDate: string | null;
+    closingStartDate: string | null;
+    closingEndDate: string | null;
+    goalCycleId: string | null;
+    followUps: PerformanceCycleFollowUp[];
   };
   employee: {
     id: string;
@@ -443,6 +571,7 @@ export type MineEvaluation = {
 export type MineEvaluationsResponse = {
   self: MineEvaluation[];
   asManager: MineEvaluation[];
+  leaderCycles?: Array<MineEvaluation["cycle"]>;
 };
 
 export type PerformanceEvaluationDetail = {
@@ -486,6 +615,21 @@ export type PerformanceEvaluationDetail = {
   };
   evaluatorEmployee: ParticipantManagerSummary | null;
   competencies: EvaluationSnapshotCompetency[];
+  goals?: EvaluationGoalItem[];
+  selfEvaluation?: {
+    competencies: Array<{
+      name: string;
+      ratingValue: number | null;
+      label: string | null;
+      comment: string | null;
+    }>;
+    goals: Array<{
+      title: string;
+      ratingValue: number | null;
+      label: string | null;
+      comment: string | null;
+    }>;
+  } | null;
 };
 
 export type ResultCycleSummary = {
@@ -711,4 +855,120 @@ export type ListPerformanceResultsParams = {
   search?: string;
   page?: number;
   limit?: number;
+};
+
+export type GoalProgressStatus = "NOT_STARTED" | "IN_PROGRESS" | "FINISHED";
+
+export type PdiDerivedStatus = "NOT_STARTED" | "IN_PROGRESS" | "COMPLETED";
+
+export type GoalDefinitionGoal = {
+  id: string;
+  title: string;
+  description: string | null;
+  progressStatus: GoalProgressStatus;
+  scaleId: string | null;
+  scale: { id: string; name: string; kind: CompetencyScaleKind } | null;
+  parentGoalId: string | null;
+  parentGoalTitle: string | null;
+  status: "DRAFT" | "ACTIVE" | "COMPLETED" | "CANCELLED";
+  areaName: string | null;
+  assignee: { id: string; firstName: string; lastName: string } | null;
+};
+
+export type GoalDefinitionPdi = {
+  id: string;
+  name: string;
+  competencyId: string | null;
+  competencyName: string | null;
+  actions70: string | null;
+  actions20: string | null;
+  actions10: string | null;
+  observations: string | null;
+  progressNotes?: string | null;
+  strengths?: string | null;
+  improvements?: string | null;
+  progressPercent: number;
+  status: PdiDerivedStatus;
+};
+
+export type EvaluationGoalItem = {
+  id: string;
+  title: string;
+  description: string | null;
+  progressStatus: GoalProgressStatus;
+  scale: {
+    id: string;
+    name: string;
+    levels: Array<{
+      id: string;
+      value: number;
+      label: string;
+      description: string | null;
+      order: number;
+    }>;
+  } | null;
+  response: {
+    selectedScaleLevelId: string | null;
+    ratingValue: number | null;
+    comment: string | null;
+  } | null;
+};
+
+export type GoalDefinitionWorkspace = {
+  cycle: {
+    id: string;
+    name: string;
+    status: PerformanceCycleStatus;
+    goalCycleId: string | null;
+    maxObjectives: number | null;
+  };
+  cascadeEnabled: boolean;
+  submittedAt: string | null;
+  reviewStatus?: "PENDING" | "APPROVED" | "REJECTED" | null;
+  reviewComment?: string | null;
+  structureUnlocked?: boolean;
+  pendingEditRequest?: { id: string; comment: string | null; createdAt: string } | null;
+  canRequestEdit?: boolean;
+  canAddFinishedGoal?: boolean;
+  editable: boolean;
+  progressEditable: boolean;
+  organizationalGoals: GoalDefinitionGoal[];
+  assignedFromCascade: GoalDefinitionGoal[];
+  individualGoals: GoalDefinitionGoal[];
+  cascadedGoals: GoalDefinitionGoal[];
+  pdi: GoalDefinitionPdi | null;
+  scales: Array<{ id: string; name: string; kind: CompetencyScaleKind }>;
+  competencies: Array<{ id: string; name: string }>;
+  directReports: Array<{ id: string; firstName: string; lastName: string }>;
+};
+
+export type SaveGoalDefinitionInput = {
+  individualGoals: Array<{
+    id?: string;
+    title: string;
+    description?: string | null;
+    scaleId: string;
+    progressStatus: GoalProgressStatus;
+  }>;
+  cascadedGoals: Array<{
+    id?: string;
+    title: string;
+    description?: string | null;
+    scaleId: string;
+    progressStatus: GoalProgressStatus;
+    parentGoalId: string;
+    assigneeEmployeeId: string;
+  }>;
+  pdi?: {
+    name: string;
+    competencyId?: string | null;
+    actions70?: string | null;
+    actions20?: string | null;
+    actions10?: string | null;
+    observations?: string | null;
+    progressNotes?: string | null;
+    strengths?: string | null;
+    improvements?: string | null;
+    progressPercent: number;
+  } | null;
 };

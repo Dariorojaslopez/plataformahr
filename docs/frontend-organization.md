@@ -18,19 +18,29 @@ In area forms, **Unidad de negocio** is optional. Empty selection maps to `undef
 
 ## Job level competencies
 
-On **Niveles**, each row has **Competencias**: a checklist of the company competency catalog (name, optional code, status). Selection is optional and saved with `PUT /organization/job-levels/:id/competencies` `{ competencyIds }`. Empty array clears the level. The create-level form does not require competencies.
+On **Niveles**, each row has **Competencias**: a checklist of the company competency catalog (name, system code, status). Selection is optional and saved with `PUT /organization/job-levels/:id/competencies` `{ competencyIds }`. Empty array clears the level. The create-level form does not require competencies.
 
-## Position custom fields
+The competency **catalog** lives under Organización (`/organization/competencies`). Create/edit asks for **Nivel** (required) and does not show Código or escala. The API remains `GET/POST/PATCH /performance/competencies` (`jobLevelId` assigns `JobLevelCompetency`). `/performance/competencies` redirects to the organization page. Competency ratings use the qualitative scale from **Escalas de calificación** (`/organization/scales`; API `/performance/scales`). `/performance/scales` redirects to the organization page.
 
-**Campos personalizados de cargos** (`/organization/position-fields`, sibling of `/organization/positions` so nav highlight stays correct) lists company field definitions. Admins name the field, pick a type (texto, número, sí/no, fecha, lista), mark required, add SELECT options, reorder, and deactivate. The technical `key` is shown only on this screen and is locked after create.
+The scale form asks for name, description, status, kind (cualitativa / cuantitativa) and format. Qualitative formats: numérica (min–max), descriptiva (2–5 texts) or Likert (icon + min–max). Quantitative formats: porcentaje (min–max), moneda or numérico (max 2 decimals). Create with a format auto-creates discrete levels for qualitative scales; quantitative scales have none.
 
-Create/edit **Cargos** renders active definitions dynamically (input / number / checkbox / date / select). Inactive fields with stored values appear as read-only `Etiqueta: Valor`. IDs and keys are not shown on the position form.
+## Assigned codes
+
+**Código** on unidades de negocio, áreas, niveles, descripciones de cargo, and competencias is assigned by the API (`001`, `002`, …) when the client omits it. Create/edit forms do not show the field. Lists may still display the code. Import CSV still requires codes as match keys.
+
+## Custom fields
+
+**Campos personalizados** (`/organization/position-fields`) lists company field definitions. Admins name the field, pick **Dónde aparece** (**Formulario de descripciones de cargo** or **Formulario de personas**), pick a type (texto, número, sí/no, fecha, lista), mark required, add SELECT options, reorder, and deactivate. The technical `key` is generated from the name and is not shown. `key` and `appliesTo` are locked after create.
+
+Create/edit **Descripciones de cargo** renders active `POSITION` definitions. Create/edit **Personas** (colaboradores) renders active `EMPLOYEE` definitions. Inactive fields with stored values appear as read-only `Etiqueta: Valor`. IDs and keys are not shown on the forms.
 
 ## Organigrama
 
 **Organigrama** (`/organization/org-chart`) is a read-only chart of DIRECT reports. Cards show name (link to `/organization/employees/:id`), position, area, optional business unit, and job level when present. Inactive status is badged only when the include-inactive toggle is on.
 
-The company name is a visual root only. Several employees without a visible manager appear as sibling roots under that node.
+The company name is a visual root only. Several employees without a visible manager appear as sibling roots under that node. CSS connectors draw the reporting lines in the interactive tree; PNG/PDF export still uses the SVG layout.
+
+The chart can be segmented without another API call: **Unidad de negocio** (hidden if the company has none) and **Nivel**. Combined filters are AND. A person whose manager falls outside the filter is promoted to a root. PNG/PDF export uses the visible tree.
 
 Zoom/pan live in the viewport (no diagram library). PNG/PDF export uses an in-browser SVG layout — no extra npm dependency and no HTML posted to the API. Default query is active employees; the checkbox requests `includeInactive=true`.
 

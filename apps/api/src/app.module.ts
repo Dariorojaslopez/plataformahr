@@ -12,6 +12,7 @@ import { HealthModule } from './health/health.module';
 import { ObservabilityModule } from './observability/observability.module';
 import { OrganizationModule } from './organization/organization.module';
 import { GoalsModule } from './goals/goals.module';
+import { HomeModule } from './home/home.module';
 import { PerformanceModule } from './performance/performance.module';
 import { PlatformModule } from './platform/platform.module';
 import { PrismaModule } from './prisma/prisma.module';
@@ -49,6 +50,7 @@ class SecurityConfigModule {}
     AtsModule,
     PerformanceModule,
     GoalsModule,
+    HomeModule,
     PlatformModule,
     HealthModule,
   ],

@@ -1,47 +1,34 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { Eye } from "lucide-react";
+import { ChevronRight } from "lucide-react";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
 import { PageHeader } from "@/components/ui/page-header";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { useCompanyId } from "@/hooks/use-company-id";
 import { getErrorMessage } from "@/lib/api/errors";
 import { performanceApi, performanceKeys } from "@/lib/api/performance";
-import { CYCLE_STATUS_LABELS } from "@/lib/performance/cycle-labels";
 import {
-  EVALUATION_STATUS_LABELS,
-  EVALUATION_TYPE_LABELS,
-  evaluationStatusVariant,
-} from "@/lib/performance/evaluation-labels";
+  CYCLE_STATUS_LABELS,
+  cycleStatusVariant,
+} from "@/lib/performance/cycle-labels";
 import {
-  countMineEvaluations,
-  formatMineSectionTitle,
-} from "@/lib/performance/mine-grouping";
-import {
-  formatScorePercentage,
-  mineEvaluationCta,
-} from "@/lib/performance/response-workspace";
-import type { MineEvaluation } from "@/types/performance";
-
-function personName(row: {
-  firstName: string;
-  lastName: string;
-}): string {
-  return `${row.firstName} ${row.lastName}`.trim();
-}
+  groupMineEvaluationsByCycle,
+  mineCycleCta,
+  mineCycleHref,
+  type MineCycleGroup,
+} from "@/lib/performance/mine-cycles";
 
 export function MyEvaluationsPageClient() {
   const companyId = useCompanyId();
@@ -49,6 +36,10 @@ export function MyEvaluationsPageClient() {
   const mineQuery = useQuery({
     queryKey: performanceKeys.evaluationsMine(companyId),
     queryFn: () => performanceApi.listMineEvaluations(),
+  });
+  const notificationsQuery = useQuery({
+    queryKey: performanceKeys.notifications(companyId),
+    queryFn: () => performanceApi.listPerformanceNotifications(),
   });
 
   if (mineQuery.isLoading) {
@@ -70,152 +61,96 @@ export function MyEvaluationsPageClient() {
     );
   }
 
-  const data = mineQuery.data ?? { self: [], asManager: [] };
-  const counts = countMineEvaluations(data);
+  const groups = groupMineEvaluationsByCycle(mineQuery.data);
 
   return (
     <div className="space-y-8">
       <PageHeader
         title="Mis evaluaciones"
-        description="Autoevaluaciones y evaluaciones como líder en ciclos activos o cerrados."
+        description="Ciclos a los que fuiste invitado. En un ciclo activo puedes continuar la fase actual; en ciclos inactivos solo visualizas."
       />
 
-      {counts.total === 0 ? (
+      {(notificationsQuery.data?.items.length ?? 0) > 0 ? (
+        <div className="space-y-2 rounded-lg border border-border bg-card p-4">
+          <p className="text-sm font-medium">Notificaciones</p>
+          <ul className="space-y-2">
+            {notificationsQuery.data?.items.slice(0, 5).map((item) => (
+              <li key={item.id} className="text-sm">
+                <p className={item.readAt ? "text-muted-foreground" : "font-medium"}>
+                  {item.title}
+                </p>
+                <p className="text-muted-foreground">{item.body}</p>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
+      {groups.length === 0 ? (
         <EmptyState
           title="Sin evaluaciones"
-          description="Cuando te asignen a un ciclo, aparecerán aquí tus autoevaluaciones y las de tu equipo."
+          description="Cuando te inviten a un ciclo, aparecerán aquí con el nombre del ciclo y la fase en la que te encuentras."
         />
       ) : (
-        <>
-          <EvaluationSection
-            title="Mis autoevaluaciones"
-            subtitle={formatMineSectionTitle("self", counts.self)}
-            items={data.self}
-            emptyDescription="No tienes autoevaluaciones asignadas."
-            kind="self"
-          />
-          <EvaluationSection
-            title="Evaluaciones como líder"
-            subtitle={formatMineSectionTitle("asManager", counts.asManager)}
-            items={data.asManager}
-            emptyDescription="No tienes evaluaciones de equipo pendientes o asignadas."
-            kind="asManager"
-          />
-        </>
+        <div className="space-y-4">
+          {groups.map((group) => (
+            <CycleInviteCard key={group.cycleId} group={group} />
+          ))}
+        </div>
       )}
     </div>
   );
 }
 
-function EvaluationSection({
-  title,
-  subtitle,
-  items,
-  emptyDescription,
-  kind,
-}: {
-  title: string;
-  subtitle: string;
-  items: MineEvaluation[];
-  emptyDescription: string;
-  kind: "self" | "asManager";
-}) {
+function CycleInviteCard({ group }: { group: MineCycleGroup }) {
+  const cta = mineCycleCta(group);
+  const href = mineCycleHref(group.cycleId);
+  const taskCount = group.self.length + group.others.length;
+
   return (
-    <section className="space-y-4">
-      <div>
-        <h2 className="text-lg font-semibold">{title}</h2>
-        <p className="text-sm text-muted-foreground">{subtitle}</p>
-      </div>
-
-      {items.length === 0 ? (
-        <EmptyState title="Sin registros" description={emptyDescription} />
-      ) : (
-        <>
-          <div className="hidden overflow-hidden rounded-lg border border-border bg-card md:block">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  {kind === "asManager" ? (
-                    <TableHead>Colaborador</TableHead>
-                  ) : null}
-                  <TableHead>Ciclo</TableHead>
-                  <TableHead>Tipo</TableHead>
-                  <TableHead>Estado</TableHead>
-                  <TableHead className="text-right">Acciones</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {items.map((item) => (
-                  <TableRow key={item.id}>
-                    {kind === "asManager" ? (
-                      <TableCell className="font-medium">
-                        {personName(item.employee)}
-                      </TableCell>
-                    ) : null}
-                    <TableCell>
-                      <div>
-                        <p className="font-medium">{item.cycle.name}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {CYCLE_STATUS_LABELS[item.cycle.status]} ·{" "}
-                          {item.cycle.startDate} → {item.cycle.endDate}
-                        </p>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      {EVALUATION_TYPE_LABELS[item.type]}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={evaluationStatusVariant(item.status)}>
-                        {EVALUATION_STATUS_LABELS[item.status]}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Button type="button" variant="ghost" size="sm" asChild>
-                        <Link href={`/performance/evaluations/${item.id}`}>
-                          <Eye className="h-4 w-4" />
-                          {mineEvaluationCta(item.status).label}
-                        </Link>
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-
-          <div className="space-y-3 md:hidden">
-            {items.map((item) => (
-              <div
-                key={item.id}
-                className="space-y-2 rounded-lg border border-border bg-card p-4"
-              >
-                {kind === "asManager" ? (
-                  <p className="font-medium">{personName(item.employee)}</p>
-                ) : null}
-                <p className={kind === "asManager" ? "text-sm text-muted-foreground" : "font-medium"}>
-                  {item.cycle.name}
-                </p>
-                <p className="text-sm text-muted-foreground">
-                  {EVALUATION_TYPE_LABELS[item.type]}
-                </p>
-                <Badge variant={evaluationStatusVariant(item.status)}>
-                  {EVALUATION_STATUS_LABELS[item.status]}
-                </Badge>
-                {item.status === "SUBMITTED" && item.scorePercentage ? (
-                  <p className="text-sm text-muted-foreground">
-                    Resultado: {formatScorePercentage(item.scorePercentage)}
-                  </p>
-                ) : null}
-                <Button type="button" variant="outline" size="sm" asChild>
-                  <Link href={`/performance/evaluations/${item.id}`}>
-                    {mineEvaluationCta(item.status).label}
-                  </Link>
-                </Button>
-              </div>
-            ))}
-          </div>
-        </>
-      )}
-    </section>
+    <Card>
+      <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="space-y-1">
+          <CardTitle>{group.name}</CardTitle>
+          <CardDescription>
+            {group.startDate} → {group.endDate}
+            {taskCount > 0
+              ? ` · ${taskCount} ${taskCount === 1 ? "evaluación" : "evaluaciones"} asignadas`
+              : null}
+          </CardDescription>
+        </div>
+        <Badge variant={cycleStatusVariant(group.status)}>
+          {CYCLE_STATUS_LABELS[group.status]}
+        </Badge>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="text-xs text-muted-foreground">Fase actual</p>
+          <p className="mt-1 text-sm font-medium">
+            {group.currentPhase
+              ? group.currentPhase.label
+              : group.editable
+                ? "Fuera de ventana de fase"
+                : "Sin fase activa"}
+          </p>
+          {group.currentPhase ? (
+            <p className="text-xs text-muted-foreground">
+              {group.currentPhase.startDate} → {group.currentPhase.endDate}
+            </p>
+          ) : null}
+          <p className="mt-2 text-sm text-muted-foreground">
+            {group.editable
+              ? "Puedes editar solo la fase actual. Las fases anteriores se consultan en solo lectura."
+              : "Ciclo inactivo: solo visualización."}
+          </p>
+        </div>
+        <Button type="button" asChild>
+          <Link href={href}>
+            {cta.label}
+            <ChevronRight className="h-4 w-4" />
+          </Link>
+        </Button>
+      </CardContent>
+    </Card>
   );
 }

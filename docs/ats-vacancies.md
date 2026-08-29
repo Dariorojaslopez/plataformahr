@@ -33,9 +33,24 @@ Supported approver types (deterministic with the current domain):
 
 | Type | Resolution |
 |------|------------|
+| `POSITION` | Cargo (`positionId`) → ocupantes ACTIVE con usuario y membresía. Si hay más de uno, hay que elegir `specificEmployeeId`. Si hay uno, se usa ese. |
 | `MANAGER_OF_REQUESTER` | `requestedByEmployeeId` → `EmployeeReportingLine` `DIRECT` → manager `Employee`. The manager must have `userId` and an **active** membership in the company. Otherwise submit fails with an explicit 400. |
 | `SPECIFIC_EMPLOYEE` | Employee in the same company, with `userId` and active membership. Cross-tenant IDs return `Employee not found`. |
 | `ROLE` | Existing **COMPANY** role code (e.g. `CLIENT_ADMIN`). Anyone with that membership role and `ats.vacancy.approve` can decide the current step. |
+
+The settings UI only creates `POSITION` steps (Niveles de aprobación por defecto). The other types remain valid for existing workflows and tests.
+
+### Per-request approval plan
+
+On create, enabled global workflow steps are copied onto the request as `VacancyRequestApprovalPlanStep` with `origin = DEFAULT`. Extra levels from the create/edit form are stored as `CUSTOM`. DEFAULT rows stay frozen: they are not rewritten if the company workflow later changes, and the form cannot edit or delete them. CUSTOM rows can be replaced while the request is `DRAFT`.
+
+Submit uses that frozen plan when it has at least one step. If the plan is empty (workflow disabled and no extras), submit uses `buildSnapshot` — the legacy path, including `generalManagerApprovalRequired` for API/e2e compatibility.
+
+The create form (admin `/ats/vacancy-requests` and leader HOME) does **not** show the “Requiere aprobación de Gerencia General” checkbox. The API field remains optional.
+
+`GET /ats/vacancy-approval-workflow` is reachable when the company has `ats.approvals` **or** `ats.vacancy-requests`, so a leader can load the global levels. `PUT` still requires `ats.vacancy.manage`.
+
+Default evaluators (`VacancyEvaluatorDefault`) use the same cargo/occupant rule. They are snapshotted to `VacancyRequestEvaluator` on submit. **Procesos activos** can insert/update/delete pending approval steps and evaluators who have not yet recorded an interview answer on that process.
 
 There is no separate “HR owner” entity. The previous HR step used role `CLIENT_ADMIN`; configurable ROLE steps can express that without inventing a new RRHH source.
 
@@ -69,6 +84,8 @@ Created automatically when the request becomes fully `APPROVED`.
 
 - `vacancyRequestId` is unique (prevents duplicate vacancies)
 - Manual `POST /ats/vacancies` is intentionally not available
+- `assignedRecruiterEmployeeId` is optional. Recruiter HOME lists and metrics only include vacancies assigned to the current recruiter's linked employee. `GET /ats/vacancies` and vacancy get/publish/preview for a `RECRUITER` without `CLIENT_ADMIN` are scoped to that assignee. `PATCH /ats/vacancies/:id` with `assignedRecruiterEmployeeId` (or `null`) requires `ats.vacancy.manage`. The employee must be ACTIVE, linked to a user, and hold `RECRUITER` or `CLIENT_ADMIN` in the company. The admin UI lists only employees with role `RECRUITER` (`GET /ats/vacancies/recruiters`).
+- Optional `salaryAmount` / `salaryCurrency` / `showSalaryPublic`. The public job URL includes salary only when `showSalaryPublic` is true and an amount is set. The public page (and recruiter preview) shows cargo fields: name, mission/vision, responsibilities, and required experience. The admin vacancy detail toggles salary visibility.
 
 ## Position.headcount vs Vacancy.headcount
 
@@ -133,13 +150,21 @@ Migration `vacancy_approval_workflows` is additive: new workflow tables, `label`
 | GET | `/ats/vacancy-requests?pendingMyApproval=true` | read (filtered to current actor) |
 | POST | `/ats/vacancy-requests/:id/submit` | request |
 | POST | `/ats/vacancy-requests/:id/approve\|reject` | approve |
-| GET | `/ats/vacancy-approval-workflow` | read |
+| GET | `/ats/vacancy-approval-workflow` | read (feature `ats.approvals` or `ats.vacancy-requests`) |
 | PUT | `/ats/vacancy-approval-workflow` | manage |
+| GET | `/ats/position-occupants?positionId=` | read |
+| GET/PUT | `/ats/evaluator-defaults` | read / manage |
+| GET | `/ats/active-processes` | read |
+| GET/PUT | `/ats/active-processes/:id/approvals` | read / manage |
+| GET/PUT | `/ats/active-processes/:id/evaluators` | read / manage |
+| GET | `/ats/vacancies/recruiters` | read |
 | GET/PATCH | `/ats/vacancies` | read / manage |
 | POST | `/ats/vacancies/:id/publish` | manage |
 | POST | `/ats/vacancies/:id/unpublish` | manage |
+| GET | `/ats/vacancies/:id/public-preview` | read (assigned vacancies for recruiters) |
 | GET | `/public/jobs/:publicId` | Public |
-| POST | `/public/jobs/:publicId/apply` | Public (rate limited) |
+| POST | `/public/jobs/:publicId/parse-cv` | Public (rate limited; PDF/DOCX/TXT) |
+| POST | `/public/jobs/:publicId/apply` | Public (rate limited; optional CV file) |
 
 Only `/ats/...` routes require JWT + validated `X-Company-Id`. Public job
 routes derive the company exclusively from the vacancy `publicId` and reject
@@ -157,5 +182,9 @@ the same public not-available response.
 Public apply reuses Candidate by `(companyId, email)`, creates Application and
 initial history transactionally, and relies on the existing
 `(candidateId, vacancyId)` unique key for concurrent duplicate protection.
+The public form uploads a CV (`PDF`, `DOCX` or `TXT`, max 5 MB):
+`POST /public/jobs/:publicId/parse-cv` extracts name, email, phone and
+document to prefill the form; apply stores the file on the candidate so
+recruiters can download it from the pipeline or candidate profile.
 Unpublishing never removes ATS history. CAPTCHA is a possible future anti-spam
 layer; this phase uses strict DTO validation and endpoint throttling.

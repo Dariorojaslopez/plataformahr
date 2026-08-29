@@ -37,9 +37,11 @@ Logos are **files**, not PostgreSQL bytes and not base64.
 | Local | `COMPANY_UPLOADS_DIR` or `apps/api/var/company-uploads` |
 | Production | `/data/company-uploads` on volume `talento_prod_company_uploads` |
 
-Layout: `{uploadsDir}/{companyId}/{uuid}.png`. The API never returns the filesystem path.
+Layout: `{uploadsDir}/{companyId}/{uuid}.png` for logos and `{uploadsDir}/{companyId}/info-{uuid}.png` (or `.jpg`, `.webp`, `.mp4`, `.webm`) for HOME company information. The API never returns the filesystem path.
 
-Allowed types: PNG, JPEG, WebP (magic bytes). Max 1 MiB, max 2048×2048. SVG is rejected.
+Allowed logo types: PNG, JPEG, WebP (magic bytes). Max 1 MiB, max 2048×2048. SVG is rejected.
+
+HOME company information uses the same volume: PNG/JPEG/WebP (max 5 MiB, 4096×4096) or MP4/WebM (max 20 MiB, no transcoding). Unpublished files are not streamed to users without `company.manage`.
 
 `docker compose up`, image rebuild, SHA deploy, and application rollback **do not** remove named volumes. Never run `docker compose down -v`.
 
@@ -66,6 +68,8 @@ Invalid MIME → 415. Oversized file → 413. Cross-tenant header → 403.
 Authenticated shell (`AppShell`) loads branding keyed by **active company id**. Switching company clears the React Query cache (`TenantCacheBoundary`) and reapplies tokens. Global `/login` and `/select-company` keep Plataforma HR branding (`#0F5C5A`).
 
 Brand tokens only: `--primary`, `--ring`, `--sidebar-accent`, `--primary-foreground`. Semantic `--destructive`, `--warning`, `--success` are not overwritten.
+
+In dark mode a dark brand hex is lifted (higher lightness) so `bg-primary` stays visible on dark surfaces. `--primary-foreground` is chosen against the **applied** surface (WCAG-style luminance), not the stored hex.
 
 ## Backup debt
 

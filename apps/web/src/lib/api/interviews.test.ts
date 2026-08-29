@@ -32,11 +32,18 @@ describe("interviewsApi", () => {
   });
 
   it("lists and creates interviews by application", async () => {
+    await interviewsApi.listPending();
+    await interviewsApi.applyProcessTemplate("v1", "tpl-1");
     await interviewsApi.listByApplication("app-1");
     await interviewsApi.createForApplication("app-1", {
       type: "TECHNICAL",
       interviewerEmployeeIds: ["e1"],
       templateId: "t1",
+    });
+    expect(mockedRequest).toHaveBeenCalledWith("/ats/interviews/pending");
+    expect(mockedRequest).toHaveBeenCalledWith("/ats/interviews/process-template", {
+      method: "POST",
+      body: { vacancyId: "v1", templateId: "tpl-1" },
     });
     expect(mockedRequest).toHaveBeenCalledWith(
       "/ats/applications/app-1/interviews",
@@ -128,6 +135,12 @@ describe("interviewKeys", () => {
   it("is tenant-aware", () => {
     expect(interviewKeys.detail("c-a", "i1")[1]).toBe("c-a");
     expect(interviewKeys.detail("c-b", "i1")[1]).toBe("c-b");
+    expect(interviewKeys.pending("c1")).toEqual([
+      "ats",
+      "c1",
+      "interviews",
+      "pending",
+    ]);
     expect(interviewKeys.byApplication("c1", "a1")).not.toEqual(
       interviewKeys.byApplication("c2", "a1"),
     );

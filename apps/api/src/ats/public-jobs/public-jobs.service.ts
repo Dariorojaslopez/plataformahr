@@ -1,7 +1,10 @@
 import {
+  BadRequestException,
   ConflictException,
   Injectable,
   NotFoundException,
+  PayloadTooLargeException,
+  UnsupportedMediaTypeException,
 } from '@nestjs/common';
 import {
   ApplicationStage,
@@ -17,6 +20,14 @@ import { PLATFORM_BRAND_PRIMARY } from '../../core/companies/branding/branding.c
 import { PrismaService } from '../../prisma/prisma.service';
 import { ATS_AUDIT } from '../ats.constants';
 import type { PublicJobApplicationDto } from './dto/public-job.dto';
+import { extractCvText, inspectCvFile, type InspectedCv } from './cv-extract';
+import { parseCandidateFromCvText } from './cv-parse';
+import { CV_ERRORS } from './cv.constants';
+import {
+  buildCvFileName,
+  deleteCvFile,
+  writeCvFile,
+} from './cv.storage';
 
 const PUBLIC_JOB_NOT_FOUND = 'Vacante no disponible';
 const PUBLIC_ID_PATTERN = /^[A-Za-z0-9_-]{16}$/;
@@ -28,6 +39,15 @@ export class PublicJobsService {
     private readonly branding: BrandingService,
   ) {}
 
+  async preview(companyId: string, vacancyId: string) {
+    const vacancy = await this.findVacancy({
+      companyId,
+      vacancyId,
+      requirePublished: false,
+    });
+    return this.toResponse(vacancy);
+  }
+
   async get(publicId: string) {
     const vacancy = await this.findAvailable(publicId);
     return this.toResponse(vacancy);
@@ -38,13 +58,28 @@ export class PublicJobsService {
     return this.branding.readLogo(vacancy.companyId);
   }
 
-  async apply(publicId: string, dto: PublicJobApplicationDto) {
+  async parseCv(publicId: string, file: Express.Multer.File | undefined) {
+    await this.findAvailable(publicId);
+    const inspected = this.requireInspectedCv(file);
+    try {
+      return parseCandidateFromCvText(extractCvText(inspected));
+    } catch {
+      throw new BadRequestException(CV_ERRORS.READ);
+    }
+  }
+
+  async apply(
+    publicId: string,
+    dto: PublicJobApplicationDto,
+    file?: Express.Multer.File,
+  ) {
     if (!PUBLIC_ID_PATTERN.test(publicId)) {
       throw new NotFoundException(PUBLIC_JOB_NOT_FOUND);
     }
+    const inspected = file ? this.requireInspectedCv(file) : null;
 
     try {
-      await this.prisma.$transaction(async (tx) => {
+      const saved = await this.prisma.$transaction(async (tx) => {
         const locked = await tx.$queryRaw<Array<{ id: string }>>`
           SELECT id
           FROM vacancies
@@ -176,7 +211,15 @@ export class PublicJobsService {
             },
           },
         });
+        return {
+          candidateId: candidate.id,
+          companyId: vacancy.companyId,
+          previousCvFileName: byEmail?.cvFileName ?? null,
+        };
       });
+      if (inspected) {
+        await this.persistCv(saved, inspected);
+      }
       return { ok: true };
     } catch (error: unknown) {
       if (
@@ -200,15 +243,82 @@ export class PublicJobsService {
     }
   }
 
+  private requireInspectedCv(
+    file: Express.Multer.File | undefined,
+  ): InspectedCv {
+    if (!file) {
+      throw new BadRequestException(CV_ERRORS.MISSING);
+    }
+    const inspected = inspectCvFile({
+      buffer: file.buffer,
+      mimetype: file.mimetype,
+      originalname: file.originalname,
+    });
+    if ('error' in inspected) {
+      if (inspected.error === 'size') {
+        throw new PayloadTooLargeException(CV_ERRORS.SIZE);
+      }
+      if (inspected.error === 'empty') {
+        throw new BadRequestException(CV_ERRORS.EMPTY);
+      }
+      throw new UnsupportedMediaTypeException(CV_ERRORS.TYPE);
+    }
+    return inspected;
+  }
+
+  private async persistCv(
+    saved: {
+      candidateId: string;
+      companyId: string;
+      previousCvFileName: string | null;
+    },
+    inspected: InspectedCv,
+  ) {
+    const fileName = buildCvFileName(inspected.mime);
+    await writeCvFile({
+      uploadsDir: this.branding.uploadsDir(),
+      companyId: saved.companyId,
+      fileName,
+      buffer: inspected.buffer,
+    });
+    await this.prisma.candidate.update({
+      where: { id: saved.candidateId },
+      data: {
+        cvFileName: fileName,
+        cvOriginalName: inspected.originalName,
+        cvMimeType: inspected.mime,
+      },
+    });
+    if (saved.previousCvFileName && saved.previousCvFileName !== fileName) {
+      await deleteCvFile({
+        uploadsDir: this.branding.uploadsDir(),
+        companyId: saved.companyId,
+        fileName: saved.previousCvFileName,
+      });
+    }
+  }
+
   private async findAvailable(publicId: string) {
-    if (!PUBLIC_ID_PATTERN.test(publicId)) {
+    return this.findVacancy({ publicId, requirePublished: true });
+  }
+
+  private async findVacancy(params: {
+    publicId?: string;
+    companyId?: string;
+    vacancyId?: string;
+    requirePublished: boolean;
+  }) {
+    if (params.publicId && !PUBLIC_ID_PATTERN.test(params.publicId)) {
       throw new NotFoundException(PUBLIC_JOB_NOT_FOUND);
     }
     const vacancy = await this.prisma.vacancy.findFirst({
       where: {
-        publicId,
-        publishedAt: { not: null },
-        status: VacancyStatus.OPEN,
+        ...(params.publicId ? { publicId: params.publicId } : {}),
+        ...(params.vacancyId ? { id: params.vacancyId } : {}),
+        ...(params.companyId ? { companyId: params.companyId } : {}),
+        ...(params.requirePublished
+          ? { publishedAt: { not: null }, status: VacancyStatus.OPEN }
+          : {}),
         deletedAt: null,
         company: {
           status: CompanyStatus.ACTIVE,
@@ -229,7 +339,18 @@ export class PublicJobsService {
         title: true,
         description: true,
         publishedAt: true,
+        salaryAmount: true,
+        salaryCurrency: true,
+        showSalaryPublic: true,
         area: { select: { name: true } },
+        position: {
+          select: {
+            name: true,
+            mission: true,
+            responsibilities: true,
+            requiredExperience: true,
+          },
+        },
         company: {
           select: {
             name: true,
@@ -245,17 +366,28 @@ export class PublicJobsService {
     return vacancy;
   }
 
-  private toResponse(vacancy: Awaited<ReturnType<typeof this.findAvailable>>) {
+  private toResponse(vacancy: Awaited<ReturnType<typeof this.findVacancy>>) {
+    const salaryVisible =
+      vacancy.showSalaryPublic && vacancy.salaryAmount != null;
     return {
       publicId: vacancy.publicId,
-      title: vacancy.title,
+      title: vacancy.position?.name || vacancy.title,
       description: vacancy.description,
+      positionName: vacancy.position?.name ?? vacancy.title,
+      mission: vacancy.position?.mission ?? null,
+      responsibilities: vacancy.position?.responsibilities ?? null,
+      requiredExperience: vacancy.position?.requiredExperience ?? null,
       areaName: vacancy.area.name,
       companyName: vacancy.company.name,
       brandPrimaryColor:
         vacancy.company.brandPrimaryColor ?? PLATFORM_BRAND_PRIMARY,
       hasLogo: Boolean(vacancy.company.logoFileName),
       publishedAt: vacancy.publishedAt,
+      salaryAmount:
+        salaryVisible && vacancy.salaryAmount
+          ? vacancy.salaryAmount.toFixed(2)
+          : null,
+      salaryCurrency: salaryVisible ? vacancy.salaryCurrency : null,
     };
   }
 

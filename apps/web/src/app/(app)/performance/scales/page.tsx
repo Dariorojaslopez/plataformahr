@@ -1,11 +1,5 @@
-import { Suspense } from "react";
-import { ScalesPageClient } from "@/components/performance/scales-page";
-import { Skeleton } from "@/components/ui/skeleton";
+import { redirect } from "next/navigation";
 
-export default function ScalesPage() {
-  return (
-    <Suspense fallback={<Skeleton className="h-40 w-full" />}>
-      <ScalesPageClient />
-    </Suspense>
-  );
+export default function PerformanceScalesRedirectPage() {
+  redirect("/organization/scales");
 }

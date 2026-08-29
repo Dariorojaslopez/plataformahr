@@ -134,6 +134,23 @@ describe('calculatePerformanceResult', () => {
     ).toThrow(/SUBMITTED/);
   });
 
+  it('averages multiple PEER scores at 180°', () => {
+    const result = calculatePerformanceResult({
+      configuredSelfWeight: 20,
+      configuredManagerWeight: 50,
+      configuredPeerWeight: 30,
+      evaluations: [
+        { type: 'SELF', status: 'SUBMITTED', scorePercentage: 80 },
+        { type: 'MANAGER', status: 'SUBMITTED', scorePercentage: 70 },
+        { type: 'PEER', status: 'SUBMITTED', scorePercentage: 90 },
+        { type: 'PEER', status: 'SUBMITTED', scorePercentage: 100 },
+      ],
+    });
+    // peer avg 95; 80*0.2 + 70*0.5 + 95*0.3 = 16 + 35 + 28.5 = 79.5
+    expect(result.peerScore).toBe(95);
+    expect(result.overallScore).toBe(79.5);
+  });
+
   it('rejects missing scorePercentage on SUBMITTED', () => {
     expect(() =>
       calculatePerformanceResult({

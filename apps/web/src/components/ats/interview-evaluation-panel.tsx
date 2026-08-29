@@ -4,10 +4,10 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { FormSelect } from "@/components/organization/form-select";
 import { Button } from "@/components/ui/button";
-import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { atsApi, atsKeys } from "@/lib/api/ats";
 import { getErrorMessage } from "@/lib/api/errors";
 import { interviewKeys, interviewsApi } from "@/lib/api/interviews";
 import {
@@ -19,43 +19,140 @@ import {
   type AnswerDraft,
 } from "@/lib/ats/interview-answers";
 import { INTERVIEW_QUESTION_TYPE_LABELS } from "@/lib/ats/labels";
+import {
+  INTERVIEW_PHASE_DECISION_LABELS,
+  interviewPhaseDecisionOptions,
+  nextStageForInterviewAdvance,
+  type InterviewPhaseDecision,
+} from "@/lib/ats/pipeline-kanban";
+import { notifyError, notifySuccess } from "@/lib/ui/notify";
+import type { ApplicationStage } from "@/types/ats";
 import type { Interview, InterviewQuestion } from "@/types/interviews";
 
 type Props = {
   companyId: string;
   interview: Interview;
   userId: string | undefined;
+  applicationStage?: ApplicationStage;
 };
 
 export function InterviewEvaluationPanel({
   companyId,
   interview,
   userId,
+  applicationStage,
 }: Props) {
   const questions = [...(interview.questions ?? [])].sort(
     (a, b) => a.order - b.order,
   );
   const editable = isAnswerEditableStatus(interview.status);
 
-  if (questions.length === 0) {
-    return (
-      <EmptyState title="Esta entrevista no tiene preguntas configuradas." />
-    );
-  }
-
   return (
     <div className="space-y-4">
-      <h2 className="text-lg font-semibold">Evaluación</h2>
-      {questions.map((question) => (
-        <QuestionAnswerCard
-          key={`${question.id}:${findMyAnswer(question, userId)?.updatedAt ?? "new"}`}
-          companyId={companyId}
-          interviewId={interview.id}
-          question={question}
-          userId={userId}
-          editable={editable}
-        />
-      ))}
+      <h2 className="text-lg font-semibold">Formulario de entrevista</h2>
+      <InterviewPhaseDecisionField
+        companyId={companyId}
+        applicationId={interview.applicationId}
+        stage={applicationStage}
+        editable={editable}
+      />
+      {questions.length === 0 ? (
+        <p className="text-sm text-muted-foreground">
+          Asigna una plantilla al proceso para precargar las preguntas. El
+          estado del candidato está disponible aunque no haya plantilla.
+        </p>
+      ) : (
+        questions.map((question) => (
+          <QuestionAnswerCard
+            key={`${question.id}:${findMyAnswer(question, userId)?.updatedAt ?? "new"}`}
+            companyId={companyId}
+            interviewId={interview.id}
+            question={question}
+            userId={userId}
+            editable={editable}
+          />
+        ))
+      )}
+    </div>
+  );
+}
+
+function InterviewPhaseDecisionField({
+  companyId,
+  applicationId,
+  stage,
+  editable,
+}: {
+  companyId: string;
+  applicationId: string;
+  stage?: ApplicationStage;
+  editable: boolean;
+}) {
+  const queryClient = useQueryClient();
+  const [decision, setDecision] = useState<InterviewPhaseDecision>("STANDBY");
+  const [error, setError] = useState<string | null>(null);
+
+  const decisionMutation = useMutation({
+    mutationFn: async (next: InterviewPhaseDecision) => {
+      if (next === "DISCARDED") {
+        await atsApi.moveApplication(applicationId, {
+          stage: "REJECTED",
+          comment: "Descartado en evaluación de entrevista",
+        });
+        return "moved" as const;
+      }
+      const target = stage ? nextStageForInterviewAdvance(stage) : null;
+      if (!target) return "hire-hint" as const;
+      await atsApi.moveApplication(applicationId, { stage: target });
+      return "moved" as const;
+    },
+    onSuccess: async (result) => {
+      await queryClient.invalidateQueries({ queryKey: atsKeys.all(companyId) });
+      await queryClient.invalidateQueries({
+        queryKey: interviewKeys.all(companyId),
+      });
+      notifySuccess(
+        result === "hire-hint"
+          ? "Para contratar, muévelo a Contratado en el Pipeline."
+          : "Estado de fase actualizado",
+      );
+      setError(null);
+    },
+    onError: (err) => {
+      setError(getErrorMessage(err, "No se pudo actualizar el estado."));
+      notifyError(err, "No se pudo actualizar el estado.");
+    },
+  });
+
+  const options = interviewPhaseDecisionOptions(stage);
+
+  return (
+    <div className="space-y-2 rounded-lg border border-border p-3">
+      <FormSelect
+        id="interview-phase-decision"
+        label="Estado del candidato en esta fase"
+        value={decision}
+        onChange={(value) => {
+          const next = value as InterviewPhaseDecision;
+          setDecision(next);
+          if (!editable || next === "STANDBY") return;
+          decisionMutation.mutate(next);
+        }}
+        options={options.map((value) => ({
+          value,
+          label: INTERVIEW_PHASE_DECISION_LABELS[value],
+        }))}
+        disabled={!editable || decisionMutation.isPending}
+      />
+      <p className="text-xs text-muted-foreground">
+        Descartado cierra el proceso. Standby lo deja en esta fase. Pasar a la
+        siguiente lo mueve en el pipeline.
+      </p>
+      {error ? (
+        <p className="text-sm text-destructive" role="alert">
+          {error}
+        </p>
+      ) : null}
     </div>
   );
 }

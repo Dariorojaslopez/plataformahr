@@ -57,12 +57,14 @@ export const APPROVAL_STEP_LABELS: Record<VacancyApprovalStep, string> = {
   GENERAL_MANAGER: "Gerencia General",
   ROLE: "Rol",
   SPECIFIC_EMPLOYEE: "Colaborador",
+  POSITION: "Cargo",
 };
 
 export const VACANCY_APPROVER_TYPE_LABELS: Record<VacancyApproverType, string> = {
   MANAGER_OF_REQUESTER: "Jefe directo del solicitante",
   SPECIFIC_EMPLOYEE: "Colaborador específico",
   ROLE: "Rol de la compañía",
+  POSITION: "Cargo",
 };
 
 export const COMPANY_ROLE_LABELS: Record<string, string> = {

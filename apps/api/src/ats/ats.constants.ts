@@ -6,8 +6,13 @@ export const ATS_AUDIT = {
   VACANCY_REQUEST_REJECTED: 'VACANCY_REQUEST_REJECTED',
   VACANCY_REQUEST_APPROVED: 'VACANCY_REQUEST_APPROVED',
   VACANCY_APPROVAL_WORKFLOW_UPDATED: 'VACANCY_APPROVAL_WORKFLOW_UPDATED',
+  VACANCY_EVALUATOR_DEFAULTS_UPDATED: 'VACANCY_EVALUATOR_DEFAULTS_UPDATED',
+  VACANCY_PROCESS_APPROVALS_UPDATED: 'VACANCY_PROCESS_APPROVALS_UPDATED',
+  VACANCY_PROCESS_EVALUATORS_UPDATED: 'VACANCY_PROCESS_EVALUATORS_UPDATED',
   VACANCY_CREATED: 'VACANCY_CREATED',
   VACANCY_STATUS_CHANGED: 'VACANCY_STATUS_CHANGED',
+  VACANCY_RECRUITER_ASSIGNED: 'VACANCY_RECRUITER_ASSIGNED',
+  VACANCY_SALARY_UPDATED: 'VACANCY_SALARY_UPDATED',
   VACANCY_PUBLISHED: 'VACANCY_PUBLISHED',
   VACANCY_UNPUBLISHED: 'VACANCY_UNPUBLISHED',
   CANDIDATE_CREATED: 'CANDIDATE_CREATED',
@@ -44,6 +49,7 @@ export const MAX_LIMIT = 100;
 export const TEMP_APPROVER_ROLE_CODE = 'CLIENT_ADMIN';
 
 export const MAX_VACANCY_APPROVAL_STEPS = 10;
+export const MAX_VACANCY_EVALUATORS = 10;
 
 export const PROXY_REQUESTER_ROLE_CODES = [
   'CLIENT_ADMIN',
@@ -75,6 +81,31 @@ export const VACANCY_APPROVAL_ERRORS = {
     'SPECIFIC_EMPLOYEE steps require specificEmployeeId and no role',
   INVALID_MANAGER_FIELDS:
     'MANAGER_OF_REQUESTER steps cannot include an employee or role',
+  INVALID_POSITION_FIELDS:
+    'POSITION steps require a cargo and cannot include a role',
+  STEP_ALREADY_DECIDED:
+    'No se puede modificar un nivel que ya aprobó o rechazó.',
+  CANNOT_REMOVE_DECIDED_STEP:
+    'No se puede eliminar un nivel que ya aprobó o rechazó.',
+  PENDING_STEP_REQUIRED:
+    'El proceso debe conservar al menos un nivel pendiente de aprobación.',
+  EVALUATOR_ALREADY_EVALUATED:
+    'No se puede modificar un evaluador que ya calificó en este proceso.',
+  CANNOT_REMOVE_EVALUATOR:
+    'No se puede eliminar un evaluador que ya calificó en este proceso.',
+  PROCESS_NOT_ACTIVE: 'El proceso de selección no está activo.',
+  APPROVALS_NOT_EDITABLE:
+    'Solo se pueden editar niveles de un proceso en aprobación.',
+} as const;
+
+export const POSITION_OCCUPANT_ERRORS = {
+  POSITION_REQUIRED: 'Selecciona un cargo.',
+  NO_OCCUPANTS:
+    'El cargo no tiene ocupantes activos con usuario en la compañía.',
+  SELECT_OCCUPANT:
+    'El cargo tiene más de un ocupante. Selecciona el nombre.',
+  OCCUPANT_NOT_IN_POSITION:
+    'El ocupante no pertenece al cargo seleccionado.',
 } as const;
 
 export const PIPELINE_STAGES = [

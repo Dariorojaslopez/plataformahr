@@ -6,15 +6,22 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import {
+  GoalType,
   PerformanceCycleStatus,
   PerformanceEvaluationStatus,
   PerformanceEvaluationType,
   PerformanceParticipantStatus,
   Prisma,
+  ReportingLineType,
 } from '@prisma/client';
 import { AuditService } from '../../core/audit/audit.service';
 import { RbacService } from '../../core/rbac/rbac.service';
 import { PrismaService } from '../../prisma/prisma.service';
+import {
+  buildCyclePhases,
+  canEditEvaluationInCyclePhase,
+  type CyclePhaseSource,
+} from '../cycle-phases';
 import {
   canAccessEvaluation,
   canRespondToEvaluation,
@@ -27,17 +34,41 @@ import { PERFORMANCE_AUDIT } from '../performance.constants';
 import { decimalToString } from '../performance.helpers';
 import type { UpsertEvaluationResponseDto } from './dto/evaluation-response.dto';
 
-const EVALUATION_INCLUDE = {
-  cycle: {
+const CYCLE_WINDOWS_SELECT = {
+  status: true,
+  startDate: true,
+  endDate: true,
+  evaluationStartDate: true,
+  evaluationEndDate: true,
+  goalDefinitionStartDate: true,
+  goalDefinitionEndDate: true,
+  managerEvaluationStartDate: true,
+  managerEvaluationEndDate: true,
+  calibrationStartDate: true,
+  calibrationEndDate: true,
+  closingStartDate: true,
+  closingEndDate: true,
+  followUps: {
     select: {
       id: true,
-      name: true,
-      status: true,
+      order: true,
       startDate: true,
       endDate: true,
-      evaluationStartDate: true,
-      evaluationEndDate: true,
     },
+    orderBy: { order: 'asc' as const },
+  },
+} as const;
+
+const CYCLE_MINE_SELECT = {
+  id: true,
+  name: true,
+  goalCycleId: true,
+  ...CYCLE_WINDOWS_SELECT,
+} as const;
+
+const EVALUATION_INCLUDE = {
+  cycle: {
+    select: CYCLE_MINE_SELECT,
   },
   employee: {
     select: {
@@ -91,6 +122,70 @@ type LockedEvaluation = {
   scorePercentage: Prisma.Decimal | null;
 };
 
+type MineCycleFollowUpRecord = {
+  id: string;
+  order: number;
+  startDate: Date;
+  endDate: Date;
+};
+
+type MineCycleRecord = {
+  id: string;
+  name: string;
+  status: PerformanceCycleStatus;
+  startDate: Date;
+  endDate: Date;
+  evaluationStartDate: Date | null;
+  evaluationEndDate: Date | null;
+  goalDefinitionStartDate: Date | null;
+  goalDefinitionEndDate: Date | null;
+  managerEvaluationStartDate: Date | null;
+  managerEvaluationEndDate: Date | null;
+  calibrationStartDate: Date | null;
+  calibrationEndDate: Date | null;
+  closingStartDate: Date | null;
+  closingEndDate: Date | null;
+  goalCycleId: string | null;
+  followUps: MineCycleFollowUpRecord[];
+};
+
+function dateOnly(value: Date): string {
+  return value.toISOString().slice(0, 10);
+}
+
+function dateOnlyOrNull(value: Date | null | undefined): string | null {
+  return value ? dateOnly(value) : null;
+}
+
+function serializeMineCycle(cycle: MineCycleRecord) {
+  return {
+    id: cycle.id,
+    name: cycle.name,
+    status: cycle.status,
+    startDate: dateOnly(cycle.startDate),
+    endDate: dateOnly(cycle.endDate),
+    evaluationStartDate: dateOnlyOrNull(cycle.evaluationStartDate),
+    evaluationEndDate: dateOnlyOrNull(cycle.evaluationEndDate),
+    goalDefinitionStartDate: dateOnlyOrNull(cycle.goalDefinitionStartDate),
+    goalDefinitionEndDate: dateOnlyOrNull(cycle.goalDefinitionEndDate),
+    managerEvaluationStartDate: dateOnlyOrNull(
+      cycle.managerEvaluationStartDate,
+    ),
+    managerEvaluationEndDate: dateOnlyOrNull(cycle.managerEvaluationEndDate),
+    calibrationStartDate: dateOnlyOrNull(cycle.calibrationStartDate),
+    calibrationEndDate: dateOnlyOrNull(cycle.calibrationEndDate),
+    closingStartDate: dateOnlyOrNull(cycle.closingStartDate),
+    closingEndDate: dateOnlyOrNull(cycle.closingEndDate),
+    goalCycleId: cycle.goalCycleId,
+    followUps: cycle.followUps.map((row) => ({
+      id: row.id,
+      order: row.order,
+      startDate: dateOnly(row.startDate),
+      endDate: dateOnly(row.endDate),
+    })),
+  };
+}
+
 @Injectable()
 export class EvaluationsService {
   constructor(
@@ -109,7 +204,7 @@ export class EvaluationsService {
       select: { id: true },
     });
     if (!employee) {
-      return { self: [], asManager: [] };
+      return { self: [], asManager: [], leaderCycles: [] };
     }
 
     const evaluations = await this.prisma.performanceEvaluation.findMany({
@@ -124,20 +219,14 @@ export class EvaluationsService {
             employeeId: employee.id,
           },
           {
-            type: PerformanceEvaluationType.MANAGER,
+            type: { not: PerformanceEvaluationType.SELF },
             evaluatorEmployeeId: employee.id,
           },
         ],
       },
       include: {
         cycle: {
-          select: {
-            id: true,
-            name: true,
-            status: true,
-            startDate: true,
-            endDate: true,
-          },
+          select: CYCLE_MINE_SELECT,
         },
         employee: {
           select: {
@@ -169,10 +258,41 @@ export class EvaluationsService {
       .filter((e) => e.type === PerformanceEvaluationType.SELF)
       .map((e) => this.serializeMineItem(e));
     const asManager = evaluations
-      .filter((e) => e.type === PerformanceEvaluationType.MANAGER)
+      .filter((e) => e.type !== PerformanceEvaluationType.SELF)
       .map((e) => this.serializeMineItem(e));
 
-    return { self, asManager };
+    const knownCycleIds = new Set(evaluations.map((e) => e.cycleId));
+    const reportIds = (
+      await this.prisma.employeeReportingLine.findMany({
+        where: {
+          companyId,
+          managerEmployeeId: employee.id,
+          type: ReportingLineType.DIRECT,
+        },
+        select: { employeeId: true },
+      })
+    ).map((row) => row.employeeId);
+    const leaderCycles =
+      reportIds.length === 0
+        ? []
+        : (
+            await this.prisma.performanceCycle.findMany({
+              where: {
+                companyId,
+                id: { notIn: [...knownCycleIds] },
+                participants: {
+                  some: {
+                    employeeId: { in: reportIds },
+                    status: { not: PerformanceParticipantStatus.EXCLUDED },
+                  },
+                },
+              },
+              select: CYCLE_MINE_SELECT,
+              orderBy: { startDate: 'desc' },
+            })
+          ).map((cycle) => serializeMineCycle(cycle));
+
+    return { self, asManager, leaderCycles };
   }
 
   async getById(
@@ -217,7 +337,7 @@ export class EvaluationsService {
       evaluatorEmployeeId: evaluation.evaluatorEmployeeId,
     });
 
-    return this.serializeEvaluationDetail(evaluation, {
+    return this.serializeEvaluationWorkspace(evaluation, {
       canRespond,
       actorEmployeeId: actorEmployee?.id ?? null,
     });
@@ -259,13 +379,14 @@ export class EvaluationsService {
 
       const cycle = await tx.performanceCycle.findFirst({
         where: { id: locked.cycleId, companyId },
-        select: { status: true },
+        select: CYCLE_WINDOWS_SELECT,
       });
       if (!cycle || cycle.status !== PerformanceCycleStatus.ACTIVE) {
         throw new BadRequestException(
           'Responses can only be saved while the cycle is ACTIVE',
         );
       }
+      this.assertWritableInCurrentPhase(locked.type, cycle);
 
       const participant = await tx.performanceCycleParticipant.findFirst({
         where: { id: locked.participantId, companyId },
@@ -370,6 +491,118 @@ export class EvaluationsService {
     };
   }
 
+  async upsertGoalRating(
+    companyId: string,
+    userId: string,
+    membershipId: string,
+    evaluationId: string,
+    goalId: string,
+    dto: UpsertEvaluationResponseDto,
+  ) {
+    const granted =
+      await this.rbac.getPermissionCodesForMembership(membershipId);
+    const hasRespond = granted.has('performance.evaluation.respond');
+    const actorEmployee = await this.resolveActorEmployee(companyId, userId);
+    if (!actorEmployee) {
+      throw new ForbiddenException(
+        'User is not linked to an Employee in this company',
+      );
+    }
+
+    const result = await this.prisma.$transaction(async (tx) => {
+      const locked = await this.lockEvaluation(tx, companyId, evaluationId);
+      this.assertWritableEvaluation(locked);
+      if (
+        !canRespondToEvaluation({
+          hasRespondPermission: hasRespond,
+          actorEmployeeId: actorEmployee.id,
+          evaluatorEmployeeId: locked.evaluatorEmployeeId,
+        })
+      ) {
+        throw new ForbiddenException(
+          'Only the assigned evaluator can save responses',
+        );
+      }
+      const cycle = await tx.performanceCycle.findFirst({
+        where: { id: locked.cycleId, companyId },
+        select: CYCLE_WINDOWS_SELECT,
+      });
+      if (!cycle || cycle.status !== PerformanceCycleStatus.ACTIVE) {
+        throw new BadRequestException(
+          'Responses can only be saved while the cycle is ACTIVE',
+        );
+      }
+      this.assertWritableInCurrentPhase(locked.type, cycle);
+
+      const goals = await this.assignedIndividualGoals(
+        tx,
+        companyId,
+        locked.cycleId,
+        locked.employeeId,
+      );
+      const goal = goals.find((row) => row.id === goalId);
+      if (!goal) throw new NotFoundException('Objetivo no encontrado');
+      if (!goal.scaleId) {
+        throw new BadRequestException('El objetivo no tiene escala');
+      }
+      const level = await tx.competencyScaleLevel.findFirst({
+        where: {
+          id: dto.scaleLevelId,
+          scaleId: goal.scaleId,
+          companyId,
+        },
+      });
+      if (!level) {
+        throw new BadRequestException(
+          'El nivel no pertenece a la escala del objetivo',
+        );
+      }
+      const comment =
+        dto.comment === undefined
+          ? undefined
+          : dto.comment == null || dto.comment.trim() === ''
+            ? null
+            : dto.comment.trim();
+      const rating = await tx.performanceGoalRating.upsert({
+        where: { evaluationId_goalId: { evaluationId, goalId } },
+        create: {
+          companyId,
+          evaluationId,
+          goalId,
+          selectedScaleLevelId: level.id,
+          ratingValue: level.value,
+          comment: comment ?? null,
+        },
+        update: {
+          selectedScaleLevelId: level.id,
+          ratingValue: level.value,
+          ...(comment !== undefined ? { comment } : {}),
+        },
+      });
+      if (locked.status === PerformanceEvaluationStatus.PENDING) {
+        await tx.performanceEvaluation.update({
+          where: { id: evaluationId },
+          data: {
+            status: PerformanceEvaluationStatus.IN_PROGRESS,
+            startedAt: locked.startedAt ?? new Date(),
+          },
+        });
+      }
+      return rating;
+    });
+
+    return {
+      id: result.id,
+      evaluationId: result.evaluationId,
+      goalId: result.goalId,
+      selectedScaleLevelId: result.selectedScaleLevelId,
+      ratingValue: result.ratingValue,
+      comment: result.comment,
+      createdAt: result.createdAt,
+      updatedAt: result.updatedAt,
+    };
+  }
+
   async submit(
     companyId: string,
     userId: string,
@@ -408,13 +641,14 @@ export class EvaluationsService {
 
       const cycle = await tx.performanceCycle.findFirst({
         where: { id: locked.cycleId, companyId },
-        select: { status: true },
+        select: CYCLE_WINDOWS_SELECT,
       });
       if (!cycle || cycle.status !== PerformanceCycleStatus.ACTIVE) {
         throw new BadRequestException(
           'Evaluations can only be submitted while the cycle is ACTIVE',
         );
       }
+      this.assertWritableInCurrentPhase(locked.type, cycle);
 
       const participant = await tx.performanceCycleParticipant.findFirst({
         where: { id: locked.participantId, companyId },
@@ -448,8 +682,36 @@ export class EvaluationsService {
         });
       }
 
+      const assignedGoals = await this.assignedIndividualGoals(
+        tx,
+        companyId,
+        locked.cycleId,
+        locked.employeeId,
+      );
+      if (assignedGoals.length > 0) {
+        const ratings = await tx.performanceGoalRating.findMany({
+          where: { evaluationId, companyId },
+          select: { goalId: true, selectedScaleLevelId: true },
+        });
+        const rated = new Set(
+          ratings
+            .filter((row) => row.selectedScaleLevelId)
+            .map((row) => row.goalId),
+        );
+        const missingGoals = assignedGoals.filter((goal) => !rated.has(goal.id));
+        if (missingGoals.length > 0) {
+          throw new BadRequestException({
+            message: 'Debes calificar todos los objetivos',
+            missingGoals: missingGoals.map((goal) => ({
+              id: goal.id,
+              title: goal.title,
+            })),
+          });
+        }
+      }
+
       const answered = competencies.filter((c) => c.response != null);
-      if (answered.length === 0) {
+      if (answered.length === 0 && assignedGoals.length === 0) {
         throw new BadRequestException(
           'La evaluación debe tener al menos una respuesta.',
         );
@@ -507,7 +769,7 @@ export class EvaluationsService {
       },
     });
 
-    return this.serializeEvaluationDetail(submitted.updated, {
+    return this.serializeEvaluationWorkspace(submitted.updated, {
       canRespond: false,
       actorEmployeeId: actorEmployee.id,
     });
@@ -560,6 +822,24 @@ export class EvaluationsService {
     }
   }
 
+  private assertWritableInCurrentPhase(
+    evaluationType: PerformanceEvaluationType,
+    cycle: CyclePhaseSource,
+  ) {
+    const phases = buildCyclePhases(cycle);
+    if (
+      !canEditEvaluationInCyclePhase({
+        cycleStatus: cycle.status,
+        evaluationType,
+        phases,
+      })
+    ) {
+      throw new BadRequestException(
+        'Solo puedes editar evaluaciones en la fase actual del ciclo',
+      );
+    }
+  }
+
   private serializeMineItem(evaluation: {
     id: string;
     companyId: string;
@@ -572,13 +852,7 @@ export class EvaluationsService {
     scorePercentage?: Prisma.Decimal | null;
     createdAt: Date;
     updatedAt: Date;
-    cycle: {
-      id: string;
-      name: string;
-      status: string;
-      startDate: Date;
-      endDate: Date;
-    };
+    cycle: MineCycleRecord;
     employee: {
       id: string;
       firstName: string;
@@ -607,11 +881,7 @@ export class EvaluationsService {
       competencyCount: evaluation._count?.competencies ?? 0,
       createdAt: evaluation.createdAt,
       updatedAt: evaluation.updatedAt,
-      cycle: {
-        ...evaluation.cycle,
-        startDate: evaluation.cycle.startDate.toISOString().slice(0, 10),
-        endDate: evaluation.cycle.endDate.toISOString().slice(0, 10),
-      },
+      cycle: serializeMineCycle(evaluation.cycle),
       employee: evaluation.employee,
       evaluatorEmployee: evaluation.evaluatorEmployee,
     };
@@ -632,15 +902,7 @@ export class EvaluationsService {
       scorePercentage?: Prisma.Decimal | null;
       createdAt: Date;
       updatedAt: Date;
-      cycle: {
-        id: string;
-        name: string;
-        status: string;
-        startDate: Date;
-        endDate: Date;
-        evaluationStartDate: Date | null;
-        evaluationEndDate: Date | null;
-      };
+      cycle: MineCycleRecord;
       employee: {
         id: string;
         firstName: string;
@@ -692,8 +954,17 @@ export class EvaluationsService {
       evaluation.participant.status === PerformanceParticipantStatus.ACTIVE;
     const notSubmitted =
       evaluation.status !== PerformanceEvaluationStatus.SUBMITTED;
+    const phaseEditable = canEditEvaluationInCyclePhase({
+      cycleStatus: evaluation.cycle.status,
+      evaluationType: evaluation.type,
+      phases: buildCyclePhases(evaluation.cycle),
+    });
     const editable =
-      meta.canRespond && cycleActive && participantActive && notSubmitted;
+      meta.canRespond &&
+      cycleActive &&
+      participantActive &&
+      notSubmitted &&
+      phaseEditable;
 
     let scoreBreakdown:
       ReturnType<typeof calculateEvaluationScore>['breakdown'] | null = null;
@@ -741,17 +1012,7 @@ export class EvaluationsService {
       editable,
       respondedCount,
       competencyCount: evaluation.competencies.length,
-      cycle: {
-        ...evaluation.cycle,
-        startDate: evaluation.cycle.startDate.toISOString().slice(0, 10),
-        endDate: evaluation.cycle.endDate.toISOString().slice(0, 10),
-        evaluationStartDate: evaluation.cycle.evaluationStartDate
-          ? evaluation.cycle.evaluationStartDate.toISOString().slice(0, 10)
-          : null,
-        evaluationEndDate: evaluation.cycle.evaluationEndDate
-          ? evaluation.cycle.evaluationEndDate.toISOString().slice(0, 10)
-          : null,
-      },
+      cycle: serializeMineCycle(evaluation.cycle),
       employee: evaluation.employee,
       evaluatorEmployee: evaluation.evaluatorEmployee,
       competencies: evaluation.competencies.map((c) => {
@@ -789,5 +1050,154 @@ export class EvaluationsService {
         };
       }),
     };
+  }
+
+  private async serializeEvaluationWorkspace(
+    evaluation: Parameters<EvaluationsService['serializeEvaluationDetail']>[0],
+    meta: { canRespond: boolean; actorEmployeeId: string | null },
+  ) {
+    const detail = this.serializeEvaluationDetail(evaluation, meta);
+    const extras = await this.evaluationExtras(evaluation);
+    return { ...detail, ...extras };
+  }
+
+  private async evaluationExtras(evaluation: {
+    id: string;
+    companyId: string;
+    cycleId: string;
+    employeeId: string;
+    type: PerformanceEvaluationType;
+    cycle: MineCycleRecord;
+  }) {
+    const goals = await this.assignedIndividualGoals(
+      this.prisma,
+      evaluation.companyId,
+      evaluation.cycleId,
+      evaluation.employeeId,
+    );
+    const ratings = await this.prisma.performanceGoalRating.findMany({
+      where: { evaluationId: evaluation.id },
+    });
+    const ratingByGoal = new Map(ratings.map((row) => [row.goalId, row]));
+    const goalItems = goals.map((goal) => {
+      const rating = ratingByGoal.get(goal.id);
+      return {
+        id: goal.id,
+        title: goal.title,
+        description: goal.description,
+        progressStatus: goal.progressStatus,
+        scale: goal.scale
+          ? {
+              id: goal.scale.id,
+              name: goal.scale.name,
+              levels: goal.scale.levels.map((level) => ({
+                id: level.id,
+                value: level.value,
+                label: level.label,
+                description: level.description,
+                order: level.order,
+              })),
+            }
+          : null,
+        response: rating
+          ? {
+              selectedScaleLevelId: rating.selectedScaleLevelId,
+              ratingValue: rating.ratingValue,
+              comment: rating.comment,
+            }
+          : null,
+      };
+    });
+
+    let selfEvaluation: {
+      competencies: Array<{
+        name: string;
+        ratingValue: number | null;
+        label: string | null;
+        comment: string | null;
+      }>;
+      goals: Array<{
+        title: string;
+        ratingValue: number | null;
+        label: string | null;
+        comment: string | null;
+      }>;
+    } | null = null;
+
+    if (evaluation.type === PerformanceEvaluationType.MANAGER) {
+      const self = await this.prisma.performanceEvaluation.findFirst({
+        where: {
+          companyId: evaluation.companyId,
+          cycleId: evaluation.cycleId,
+          employeeId: evaluation.employeeId,
+          type: PerformanceEvaluationType.SELF,
+        },
+        include: {
+          competencies: {
+            include: {
+              response: true,
+              levels: true,
+            },
+            orderBy: { order: 'asc' },
+          },
+          goalRatings: {
+            include: {
+              goal: { select: { title: true } },
+              scaleLevel: { select: { label: true } },
+            },
+          },
+        },
+      });
+      if (self) {
+        selfEvaluation = {
+          competencies: self.competencies.map((comp) => {
+            const level = comp.levels.find(
+              (item) => item.id === comp.response?.selectedScaleLevelId,
+            );
+            return {
+              name: comp.name,
+              ratingValue: comp.response?.ratingValue ?? null,
+              label: level?.label ?? null,
+              comment: comp.response?.comment ?? null,
+            };
+          }),
+          goals: self.goalRatings.map((rating) => ({
+            title: rating.goal.title,
+            ratingValue: rating.ratingValue,
+            label: rating.scaleLevel?.label ?? null,
+            comment: rating.comment,
+          })),
+        };
+      }
+    }
+
+    return { goals: goalItems, selfEvaluation };
+  }
+
+  private async assignedIndividualGoals(
+    db: Prisma.TransactionClient | PrismaService,
+    companyId: string,
+    cycleId: string,
+    employeeId: string,
+  ) {
+    const cycle = await db.performanceCycle.findFirst({
+      where: { id: cycleId, companyId },
+      select: { goalCycleId: true },
+    });
+    if (!cycle?.goalCycleId) return [];
+    return db.goal.findMany({
+      where: {
+        companyId,
+        cycleId: cycle.goalCycleId,
+        type: GoalType.INDIVIDUAL,
+        assignments: { some: { employeeId } },
+      },
+      include: {
+        scale: {
+          include: { levels: { orderBy: { order: 'asc' as const } } },
+        },
+      },
+      orderBy: { createdAt: 'asc' },
+    });
   }
 }

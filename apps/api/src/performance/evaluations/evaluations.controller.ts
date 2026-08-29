@@ -63,6 +63,25 @@ export class EvaluationsController {
     );
   }
 
+  @Put(':evaluationId/goals/:goalId/response')
+  @RequirePermissions('performance.evaluation.respond')
+  upsertGoalRating(
+    @CurrentTenant() tenant: TenantContext,
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('evaluationId', ParseUUIDPipe) evaluationId: string,
+    @Param('goalId', ParseUUIDPipe) goalId: string,
+    @Body() dto: UpsertEvaluationResponseDto,
+  ) {
+    return this.evaluationsService.upsertGoalRating(
+      tenant.companyId,
+      user.userId,
+      tenant.membershipId,
+      evaluationId,
+      goalId,
+      dto,
+    );
+  }
+
   @Post(':id/submit')
   @UseGuards(ThrottlerGuard)
   @Throttle({ default: { limit: 40, ttl: 60_000 } })

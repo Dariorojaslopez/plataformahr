@@ -9,6 +9,9 @@ export const EVALUATION_TYPE_LABELS: Record<
 > = {
   SELF: "Autoevaluación",
   MANAGER: "Evaluación de líder",
+  PEER: "Evaluación de pares",
+  REPORT: "Evaluación de colaboradores",
+  CLIENT: "Evaluación de clientes",
 };
 
 export const EVALUATION_STATUS_LABELS: Record<

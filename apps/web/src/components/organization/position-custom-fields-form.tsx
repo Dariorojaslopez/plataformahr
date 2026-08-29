@@ -10,24 +10,24 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import type {
-  Position,
   PositionCustomFieldDefinition,
+  PositionCustomFieldValue,
 } from "@/types/organization";
 
 type PositionCustomFieldsFormProps = {
   definitions: PositionCustomFieldDefinition[];
   values: CustomFieldFormValues;
   onChange: (values: CustomFieldFormValues) => void;
-  position?: Position | null;
+  record?: { customFields?: PositionCustomFieldValue[] } | null;
 };
 
 export function PositionCustomFieldsForm({
   definitions,
   values,
   onChange,
-  position,
+  record,
 }: PositionCustomFieldsFormProps) {
-  const historic = historicCustomFields(position ?? null);
+  const historic = historicCustomFields(record ?? null);
 
   if (definitions.length === 0 && historic.length === 0) {
     return null;

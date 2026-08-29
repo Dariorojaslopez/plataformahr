@@ -387,6 +387,23 @@ describe('Auth + tenant + RBAC (e2e)', () => {
     });
   });
 
+  it('returns HOME persona for CLIENT_ADMIN on /companies/current/features', async () => {
+    const session = await loginAs(adminEmail, adminPassword);
+    const response = await request(app.getHttpServer())
+      .get('/companies/current/features')
+      .set('Authorization', `Bearer ${session.accessToken}`)
+      .set('X-Company-Id', companyId)
+      .expect(200);
+
+    expect(response.body).toMatchObject({
+      homeRole: 'CLIENT_ADMIN',
+      hasDirectReports: false,
+    });
+    expect((response.body as { roleCodes: string[] }).roleCodes).toEqual(
+      expect.arrayContaining(['CLIENT_ADMIN']),
+    );
+  });
+
   it('rejects foreign company, inactive membership/company and deleted company', async () => {
     const session = await loginAs(adminEmail, adminPassword);
 

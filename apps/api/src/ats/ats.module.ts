@@ -24,6 +24,12 @@ import { VacancyRequestsController } from './vacancy-requests/vacancy-requests.c
 import { VacancyRequestsService } from './vacancy-requests/vacancy-requests.service';
 import { VacancyApprovalWorkflowController } from './vacancy-requests/vacancy-approval-workflow.controller';
 import { VacancyApprovalWorkflowService } from './vacancy-requests/vacancy-approval-workflow.service';
+import { PositionOccupantsController } from './position-occupants/position-occupants.controller';
+import { PositionOccupantsService } from './position-occupants/position-occupants.service';
+import { VacancyEvaluatorDefaultsController } from './process-defaults/vacancy-evaluator-defaults.controller';
+import { VacancyEvaluatorDefaultsService } from './process-defaults/vacancy-evaluator-defaults.service';
+import { ActiveProcessesController } from './process-defaults/active-processes.controller';
+import { ActiveProcessesService } from './process-defaults/active-processes.service';
 import { VacanciesController } from './vacancies/vacancies.controller';
 import { VacanciesService } from './vacancies/vacancies.service';
 import { PublicJobsController } from './public-jobs/public-jobs.controller';
@@ -34,6 +40,9 @@ import { PublicJobsService } from './public-jobs/public-jobs.service';
   controllers: [
     VacancyRequestsController,
     VacancyApprovalWorkflowController,
+    PositionOccupantsController,
+    VacancyEvaluatorDefaultsController,
+    ActiveProcessesController,
     VacanciesController,
     PipelineController,
     CandidatesController,
@@ -52,6 +61,9 @@ import { PublicJobsService } from './public-jobs/public-jobs.service';
     OrganizationIntegrityService,
     VacancyRequestsService,
     VacancyApprovalWorkflowService,
+    PositionOccupantsService,
+    VacancyEvaluatorDefaultsService,
+    ActiveProcessesService,
     VacanciesService,
     CandidatesService,
     ApplicationsService,

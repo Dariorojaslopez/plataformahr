@@ -158,7 +158,22 @@ export class PermissionGuard implements CanActivate {
       {
         prefix: '/ats/vacancy-approval-workflow',
         module: 'ATS',
+        features: ['ats.approvals', 'ats.vacancy-requests'],
+      },
+      {
+        prefix: '/ats/evaluator-defaults',
+        module: 'ATS',
         features: ['ats.approvals'],
+      },
+      {
+        prefix: '/ats/active-processes',
+        module: 'ATS',
+        features: ['ats.approvals'],
+      },
+      {
+        prefix: '/ats/position-occupants',
+        module: 'ATS',
+        features: ['ats.approvals', 'ats.vacancy-requests'],
       },
       {
         prefix: '/ats/vacancy-requests',
@@ -206,9 +221,19 @@ export class PermissionGuard implements CanActivate {
         features: ['performance.cycles'],
       },
       {
+        prefix: '/performance/calibration',
+        module: 'PERFORMANCE',
+        features: ['performance.calibration', 'performance.my-results'],
+      },
+      {
         prefix: '/performance/evaluations',
         module: 'PERFORMANCE',
         features: ['performance.cycles', 'performance.my-evaluations'],
+      },
+      {
+        prefix: '/performance/my-evaluations',
+        module: 'PERFORMANCE',
+        features: ['performance.my-evaluations'],
       },
       {
         prefix: '/performance',
@@ -217,6 +242,8 @@ export class PermissionGuard implements CanActivate {
           'performance.results',
           'performance.my-results',
           'performance.my-evaluations',
+          'performance.population',
+          'performance.calibration',
         ],
       },
       {

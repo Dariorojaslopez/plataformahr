@@ -9,6 +9,7 @@ import type {
   InterviewFormTemplate,
   InterviewListItem,
   InterviewTranscriptSegment,
+  PendingInterview,
   UpdateInterviewFormTemplateInput,
   UpdateInterviewInput,
   UpdateTranscriptSegmentInput,
@@ -17,6 +18,19 @@ import type {
 } from "@/types/interviews";
 
 export const interviewsApi = {
+  listPending: () =>
+    apiRequest<PendingInterview[]>("/ats/interviews/pending"),
+
+  applyProcessTemplate: (vacancyId: string, templateId: string) =>
+    apiRequest<{
+      vacancyId: string;
+      templateId: string;
+      interviewsUpdated: number;
+    }>("/ats/interviews/process-template", {
+      method: "POST",
+      body: { vacancyId, templateId },
+    }),
+
   listByApplication: (applicationId: string) =>
     apiRequest<InterviewListItem[]>(
       `/ats/applications/${applicationId}/interviews`,
@@ -116,6 +130,8 @@ export const interviewsApi = {
 /** Tenant-aware keys; share ats prefix for TenantCacheBoundary clears. */
 export const interviewKeys = {
   all: (companyId: string) => ["ats", companyId, "interviews"] as const,
+  pending: (companyId: string) =>
+    [...interviewKeys.all(companyId), "pending"] as const,
   byApplication: (companyId: string, applicationId: string) =>
     [...interviewKeys.all(companyId), "by-application", applicationId] as const,
   detail: (companyId: string, interviewId: string) =>

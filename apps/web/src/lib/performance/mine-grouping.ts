@@ -25,6 +25,6 @@ export function formatMineSectionTitle(
       : `${count} autoevaluaciones`;
   }
   return count === 1
-    ? "1 evaluación como líder"
-    : `${count} evaluaciones como líder`;
+    ? "1 evaluación a realizar"
+    : `${count} evaluaciones a realizar`;
 }

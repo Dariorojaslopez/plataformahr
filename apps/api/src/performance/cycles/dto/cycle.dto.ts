@@ -1,7 +1,9 @@
 import {
+  IsArray,
   IsBoolean,
   IsDateString,
   IsEnum,
+  IsIn,
   IsInt,
   IsNumber,
   IsOptional,
@@ -12,14 +14,26 @@ import {
   Min,
   MinLength,
   ValidateIf,
+  ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
-import { PerformanceCycleStatus } from '@prisma/client';
+import {
+  PerformanceCycleStatus,
+  PerformanceEvaluationModel,
+} from '@prisma/client';
 import {
   DEFAULT_LIMIT,
   DEFAULT_PAGE,
   MAX_LIMIT,
 } from '../../performance.constants';
+
+export class CycleFollowUpDto {
+  @IsDateString()
+  startDate!: string;
+
+  @IsDateString()
+  endDate!: string;
+}
 
 export class CreatePerformanceCycleDto {
   @IsString()
@@ -47,6 +61,48 @@ export class CreatePerformanceCycleDto {
   evaluationEndDate?: string;
 
   @IsOptional()
+  @IsDateString()
+  goalDefinitionStartDate?: string;
+
+  @IsOptional()
+  @IsDateString()
+  goalDefinitionEndDate?: string;
+
+  @IsOptional()
+  @IsDateString()
+  managerEvaluationStartDate?: string;
+
+  @IsOptional()
+  @IsDateString()
+  managerEvaluationEndDate?: string;
+
+  @IsOptional()
+  @IsDateString()
+  calibrationStartDate?: string;
+
+  @IsOptional()
+  @IsDateString()
+  calibrationEndDate?: string;
+
+  @IsOptional()
+  @IsDateString()
+  closingStartDate?: string;
+
+  @IsOptional()
+  @IsDateString()
+  closingEndDate?: string;
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => CycleFollowUpDto)
+  followUps?: CycleFollowUpDto[];
+
+  @IsOptional()
+  @IsEnum(PerformanceEvaluationModel)
+  evaluationModel?: PerformanceEvaluationModel;
+
+  @IsOptional()
   @Type(() => Number)
   @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0)
@@ -60,6 +116,30 @@ export class CreatePerformanceCycleDto {
   @Max(100)
   managerEvaluationWeight?: number;
 
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null)
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  @Max(100)
+  peerEvaluationWeight?: number | null;
+
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null)
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  @Max(100)
+  reportEvaluationWeight?: number | null;
+
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null)
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  @Max(100)
+  clientEvaluationWeight?: number | null;
+
   /** Optional GoalCycle link (09D). Null/omit = competency-only. */
   @IsOptional()
   @ValidateIf((_, v) => v !== null)
@@ -67,11 +147,15 @@ export class CreatePerformanceCycleDto {
   goalCycleId?: string | null;
 
   @IsOptional()
+  @IsBoolean()
+  includeCompetencies?: boolean;
+
+  @IsOptional()
   @ValidateIf((_, v) => v !== null)
   @Type(() => Number)
   @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0)
-  @Max(100)
+  @Max(120)
   competencyResultWeight?: number | null;
 
   @IsOptional()
@@ -79,8 +163,38 @@ export class CreatePerformanceCycleDto {
   @Type(() => Number)
   @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0)
-  @Max(100)
+  @Max(120)
   goalsResultWeight?: number | null;
+
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null)
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  @Max(120)
+  organizationalGoalsWeight?: number | null;
+
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null)
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  @Max(120)
+  individualGoalsWeight?: number | null;
+
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null)
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(200)
+  maxObjectives?: number | null;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @IsIn([100, 120])
+  evaluationRange?: number;
 }
 
 export class UpdatePerformanceCycleDto {
@@ -114,6 +228,56 @@ export class UpdatePerformanceCycleDto {
   evaluationEndDate?: string | null;
 
   @IsOptional()
+  @ValidateIf((_, v) => v !== null)
+  @IsDateString()
+  goalDefinitionStartDate?: string | null;
+
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null)
+  @IsDateString()
+  goalDefinitionEndDate?: string | null;
+
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null)
+  @IsDateString()
+  managerEvaluationStartDate?: string | null;
+
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null)
+  @IsDateString()
+  managerEvaluationEndDate?: string | null;
+
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null)
+  @IsDateString()
+  calibrationStartDate?: string | null;
+
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null)
+  @IsDateString()
+  calibrationEndDate?: string | null;
+
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null)
+  @IsDateString()
+  closingStartDate?: string | null;
+
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null)
+  @IsDateString()
+  closingEndDate?: string | null;
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => CycleFollowUpDto)
+  followUps?: CycleFollowUpDto[];
+
+  @IsOptional()
+  @IsEnum(PerformanceEvaluationModel)
+  evaluationModel?: PerformanceEvaluationModel;
+
+  @IsOptional()
   @Type(() => Number)
   @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0)
@@ -127,6 +291,30 @@ export class UpdatePerformanceCycleDto {
   @Max(100)
   managerEvaluationWeight?: number;
 
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null)
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  @Max(100)
+  peerEvaluationWeight?: number | null;
+
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null)
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  @Max(100)
+  reportEvaluationWeight?: number | null;
+
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null)
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  @Max(100)
+  clientEvaluationWeight?: number | null;
+
   /** Editable only while DRAFT. Null clears Goals integration. */
   @IsOptional()
   @ValidateIf((_, v) => v !== null)
@@ -134,11 +322,15 @@ export class UpdatePerformanceCycleDto {
   goalCycleId?: string | null;
 
   @IsOptional()
+  @IsBoolean()
+  includeCompetencies?: boolean;
+
+  @IsOptional()
   @ValidateIf((_, v) => v !== null)
   @Type(() => Number)
   @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0)
-  @Max(100)
+  @Max(120)
   competencyResultWeight?: number | null;
 
   @IsOptional()
@@ -146,8 +338,38 @@ export class UpdatePerformanceCycleDto {
   @Type(() => Number)
   @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0)
-  @Max(100)
+  @Max(120)
   goalsResultWeight?: number | null;
+
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null)
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  @Max(120)
+  organizationalGoalsWeight?: number | null;
+
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null)
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  @Max(120)
+  individualGoalsWeight?: number | null;
+
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null)
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(200)
+  maxObjectives?: number | null;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @IsIn([100, 120])
+  evaluationRange?: number;
 }
 
 export class ListPerformanceCyclesQueryDto {

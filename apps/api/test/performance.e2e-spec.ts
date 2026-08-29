@@ -360,6 +360,102 @@ describe('Performance core (e2e)', () => {
     );
   });
 
+  it('assigns a competency to a job level without requiring code or scale', async () => {
+    const level = await prisma.jobLevel.create({
+      data: {
+        companyId: companyAId,
+        name: `Nivel competencia ${suffix}`,
+        rank: 800000 + Math.floor(Math.random() * 100000),
+      },
+    });
+
+    const created = await request(app.getHttpServer())
+      .post('/performance/competencies')
+      .set(auth(adminToken))
+      .send({
+        name: `Comp nivel ${suffix}`,
+        jobLevelId: level.id,
+      })
+      .expect(201);
+
+    const body = created.body as {
+      code: string | null;
+      defaultScaleId: string | null;
+      jobLevels: Array<{ id: string; name: string }>;
+    };
+    expect(body.defaultScaleId).toBeNull();
+    expect(body.code).toMatch(/^\d{3}$/);
+    expect(body.jobLevels).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: level.id, name: level.name }),
+      ]),
+    );
+
+    const missingLevel = await request(app.getHttpServer())
+      .post('/performance/competencies')
+      .set(auth(adminToken))
+      .send({
+        name: `Comp nivel missing ${suffix}`,
+        jobLevelId: '00000000-0000-4000-8000-000000000001',
+      })
+      .expect(404);
+    expect((missingLevel.body as { message: string }).message).toBe(
+      'Job level not found',
+    );
+  });
+
+  it('rejects a quantitative scale when adding a competency to a cycle', async () => {
+    const quantitative = await request(app.getHttpServer())
+      .post('/performance/scales')
+      .set(auth(adminToken))
+      .send({
+        name: `Escala cuantitativa ${suffix}`,
+        kind: 'QUANTITATIVE',
+      })
+      .expect(201);
+    const quantitativeId = (quantitative.body as { id: string; kind: string })
+      .id;
+    expect((quantitative.body as { kind: string }).kind).toBe('QUANTITATIVE');
+
+    await request(app.getHttpServer())
+      .post(`/performance/scales/${quantitativeId}/levels`)
+      .set(auth(adminToken))
+      .send({ value: 1, label: '10', order: 1 })
+      .expect(201);
+    await request(app.getHttpServer())
+      .post(`/performance/scales/${quantitativeId}/levels`)
+      .set(auth(adminToken))
+      .send({ value: 2, label: '20', order: 2 })
+      .expect(201);
+
+    const competency = await request(app.getHttpServer())
+      .post('/performance/competencies')
+      .set(auth(adminToken))
+      .send({ name: `Comp cuantitativa ${suffix}` })
+      .expect(201);
+    const competencyId = (competency.body as { id: string }).id;
+
+    const cycle = await request(app.getHttpServer())
+      .post('/performance/cycles')
+      .set(auth(adminToken))
+      .send({
+        name: `Ciclo cuantitativa ${suffix}`,
+        startDate: '2026-01-01',
+        endDate: '2026-12-31',
+      })
+      .expect(201);
+    const cycleId = (cycle.body as { id: string }).id;
+
+    const rejected = await request(app.getHttpServer())
+      .post(`/performance/cycles/${cycleId}/competencies`)
+      .set(auth(adminToken))
+      .send({ competencyId, scaleId: quantitativeId })
+      .expect(400);
+    expect((rejected.body as { message: string }).message).toBe(
+      'Las competencias solo pueden calificarse con una escala cualitativa.',
+    );
+  });
+
   it('creates scales, levels, and rejects duplicates', async () => {
     const scaleId = await createScaleWithLevels(
       adminToken,

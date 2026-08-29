@@ -23,6 +23,10 @@ import {
   UpdatePlatformCompanyFeaturesDto,
 } from './dto/platform-company.dto';
 import {
+  UpdatePlatformCompanyBillingDto,
+  UpdatePlatformCompanyPremiumDto,
+} from './dto/platform-billing.dto';
+import {
   CreatePlatformOwnerDto,
   UpdatePlatformOwnerDto,
 } from './dto/platform-owner.dto';
@@ -60,6 +64,13 @@ export class PlatformController {
     return this.platformService.listActiveCompanies();
   }
 
+  @Get('admin/billing')
+  @UseGuards(JwtAuthGuard, PlatformOwnerGuard)
+  @PlatformOwnerOnly()
+  listBilling() {
+    return this.platformService.listBilling();
+  }
+
   @Get('admin/companies')
   @UseGuards(JwtAuthGuard, PlatformOwnerGuard)
   @PlatformOwnerOnly()
@@ -93,6 +104,28 @@ export class PlatformController {
     @Body() dto: UpdatePlatformCompanyFeaturesDto,
   ) {
     return this.platformService.updateCompanyFeatures(user.userId, id, dto);
+  }
+
+  @Put('admin/companies/:id/premium')
+  @UseGuards(JwtAuthGuard, PlatformOwnerGuard)
+  @PlatformOwnerOnly()
+  updateCompanyPremium(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdatePlatformCompanyPremiumDto,
+  ) {
+    return this.platformService.updateCompanyPremium(user.userId, id, dto);
+  }
+
+  @Put('admin/companies/:id/billing')
+  @UseGuards(JwtAuthGuard, PlatformOwnerGuard)
+  @PlatformOwnerOnly()
+  updateCompanyBilling(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdatePlatformCompanyBillingDto,
+  ) {
+    return this.platformService.updateCompanyBilling(user.userId, id, dto);
   }
 
   @Patch('admin/companies/:id/status')

@@ -1337,6 +1337,7 @@ describe('Organization core (e2e)', () => {
       key: string;
       label: string;
       type: string;
+      appliesTo?: string;
       required: boolean;
       active: boolean;
       options: Array<{ id: string; label: string; active: boolean }>;
@@ -1644,6 +1645,113 @@ describe('Organization core (e2e)', () => {
         .set(headersA())
         .send({ name: `Position A ${suffix}` })
         .expect(200);
+    });
+
+    it('scopes definitions to Cargos or Colaboradores', async () => {
+      const employeeField = await request(app.getHttpServer())
+        .post('/organization/position-custom-fields')
+        .set(headersA())
+        .send({
+          key: 'talla_uniforme',
+          label: 'Talla de uniforme',
+          type: 'TEXT',
+          appliesTo: 'EMPLOYEE',
+          required: true,
+        })
+        .expect(201);
+      const employeeFieldId = (employeeField.body as FieldBody).id;
+      expect((employeeField.body as FieldBody).appliesTo).toBe('EMPLOYEE');
+
+      await request(app.getHttpServer())
+        .post('/organization/position-custom-fields')
+        .set(headersA())
+        .send({
+          key: 'talla_uniforme',
+          label: 'Talla cargo',
+          type: 'TEXT',
+          appliesTo: 'POSITION',
+        })
+        .expect(201);
+
+      const listed = await request(app.getHttpServer())
+        .get('/organization/position-custom-fields')
+        .set(headersA())
+        .expect(200);
+      const talla = (listed.body as FieldBody[]).filter(
+        (item) => item.key === 'talla_uniforme',
+      );
+      expect(talla).toHaveLength(2);
+
+      await request(app.getHttpServer())
+        .post('/organization/positions')
+        .set(headersA())
+        .send({
+          name: `No employee fields ${suffix}`,
+          areaId: areaAId,
+        })
+        .expect(201);
+
+      await request(app.getHttpServer())
+        .post('/organization/employees')
+        .set(headersA())
+        .send({
+          firstName: 'Ana',
+          lastName: 'Campo',
+          email: `ana-campo-${suffix}@example.com`,
+          areaId: areaAId,
+          positionId: positionAId,
+        })
+        .expect(400);
+
+      const createdEmployee = await request(app.getHttpServer())
+        .post('/organization/employees')
+        .set(headersA())
+        .send({
+          firstName: 'Ana',
+          lastName: 'Campo',
+          email: `ana-campo-${suffix}@example.com`,
+          areaId: areaAId,
+          positionId: positionAId,
+          customFields: [{ definitionId: employeeFieldId, value: 'M' }],
+        })
+        .expect(201);
+      expect(
+        (
+          createdEmployee.body as {
+            customFields: Array<{ definitionId: string; value: string }>;
+          }
+        ).customFields,
+      ).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            definitionId: employeeFieldId,
+            value: 'M',
+          }),
+        ]),
+      );
+
+      await request(app.getHttpServer())
+        .post('/organization/employees')
+        .set(headersA())
+        .send({
+          firstName: 'Luis',
+          lastName: 'Cargo',
+          email: `luis-cargo-${suffix}@example.com`,
+          areaId: areaAId,
+          positionId: positionAId,
+          customFields: [{ definitionId: textId, value: 'nope' }],
+        })
+        .expect(404);
+
+      const detail = await request(app.getHttpServer())
+        .get(`/organization/employees/${employeeAId}`)
+        .set(headersA())
+        .expect(200);
+      expect(
+        Array.isArray(
+          (detail.body as { customFields?: unknown[] }).customFields,
+        ),
+      ).toBe(true);
     });
   });
 

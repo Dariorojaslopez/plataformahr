@@ -1,8 +1,14 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import type { ComponentProps } from "react";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { VacancyRequestForm } from "@/components/ats/vacancy-request-form";
 import { VACANCY_REQUESTER_MESSAGES } from "@/lib/ats/vacancy-requester";
+
+vi.mock("@/hooks/use-company-id", () => ({
+  useCompanyId: () => "company-1",
+}));
 
 beforeAll(() => {
   class ResizeObserverStub {
@@ -21,9 +27,9 @@ afterEach(() => {
   cleanup();
 });
 
-const baseProps = {
+const baseProps: ComponentProps<typeof VacancyRequestForm> = {
   values: {
-    type: "EXISTING_POSITION" as const,
+    type: "EXISTING_POSITION",
     requestedByEmployeeId: "",
     existingPositionId: "pos-1",
     requestedPositionName: "",
@@ -31,7 +37,7 @@ const baseProps = {
     requestedJobLevelId: "",
     requestedHeadcount: "1",
     justification: "Need coverage",
-    generalManagerApprovalRequired: false,
+    approvalSteps: [],
   },
   onChange: vi.fn(),
   onSubmit: vi.fn(),
@@ -40,6 +46,8 @@ const baseProps = {
   areas: [],
   jobLevels: [],
   employees: [{ value: "emp-1", label: "Ana Ruiz" }],
+  linkedEmployeeExists: true,
+  canProxyRequester: true,
 };
 
 async function openRequesterSelect() {
@@ -50,15 +58,25 @@ async function openRequesterSelect() {
   return user;
 }
 
+function renderForm(
+  props: Partial<ComponentProps<typeof VacancyRequestForm>> = {},
+) {
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  return render(
+    <QueryClientProvider client={client}>
+      <VacancyRequestForm {...baseProps} {...props} />
+    </QueryClientProvider>,
+  );
+}
+
 describe("VacancyRequestForm requester field", () => {
   it("offers Yo when the user has a linked employee", async () => {
-    render(
-      <VacancyRequestForm
-        {...baseProps}
-        linkedEmployeeExists
-        canProxyRequester
-      />,
-    );
+    renderForm({
+      linkedEmployeeExists: true,
+      canProxyRequester: true,
+    });
     expect(document.getElementById("vr-requester")).toHaveAttribute(
       "aria-required",
       "false",
@@ -71,13 +89,10 @@ describe("VacancyRequestForm requester field", () => {
   });
 
   it("does not offer Yo and requires a collaborator when none is linked", async () => {
-    render(
-      <VacancyRequestForm
-        {...baseProps}
-        linkedEmployeeExists={false}
-        canProxyRequester
-      />,
-    );
+    renderForm({
+      linkedEmployeeExists: false,
+      canProxyRequester: true,
+    });
     const trigger = document.getElementById("vr-requester");
     expect(trigger).toHaveAttribute("aria-required", "true");
     expect(
@@ -93,28 +108,22 @@ describe("VacancyRequestForm requester field", () => {
     ).toBeInTheDocument();
   });
 
-  it("hides the general manager option when a configurable workflow is enabled", () => {
-    render(
-      <VacancyRequestForm
-        {...baseProps}
-        linkedEmployeeExists
-        canProxyRequester
-        showGeneralManagerOption={false}
-      />,
-    );
+  it("shows approval levels and hides the general manager checkbox", () => {
+    renderForm({
+      linkedEmployeeExists: true,
+      canProxyRequester: true,
+    });
+    expect(screen.getByText("Niveles de aprobación")).toBeInTheDocument();
     expect(
       screen.queryByText("Requiere aprobación de Gerencia General"),
     ).not.toBeInTheDocument();
   });
 
   it("blocks submit and explains when there is no linked employee and no proxy", () => {
-    render(
-      <VacancyRequestForm
-        {...baseProps}
-        linkedEmployeeExists={false}
-        canProxyRequester={false}
-      />,
-    );
+    renderForm({
+      linkedEmployeeExists: false,
+      canProxyRequester: false,
+    });
     expect(
       screen.getByText(VACANCY_REQUESTER_MESSAGES.noLinkedEmployee),
     ).toBeInTheDocument();

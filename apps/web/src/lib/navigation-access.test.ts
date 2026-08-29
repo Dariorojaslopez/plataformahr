@@ -30,5 +30,11 @@ describe("company navigation access", () => {
       module: "ORGANIZATION",
       feature: "organization.employees",
     });
+    expect(
+      resolveCompanyAccessForPath("/performance/my-evaluations/abc"),
+    ).toEqual({
+      module: "PERFORMANCE",
+      feature: "performance.my-evaluations",
+    });
   });
 });

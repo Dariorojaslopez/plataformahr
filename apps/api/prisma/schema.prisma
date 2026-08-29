@@ -47,6 +47,7 @@ enum PlatformModule {
   PERFORMANCE
   GOALS
   SETTINGS
+  PREMIUM
   DEVELOPMENT
   TRAINING
 }
@@ -88,6 +89,7 @@ model User {
   goalCompletionRequestsReviewed  GoalCompletionRequest[]      @relation("GoalCompletionReviewedBy")
   goalResultsRequested            GoalResult[]                 @relation("GoalResultRequestedBy")
   goalResultsApproved             GoalResult[]                 @relation("GoalResultApprovedBy")
+  calibrationPlacementsMoved      CalibrationPlacement[]
 
   @@map("users")
 }
@@ -122,12 +124,16 @@ model Company {
   status            CompanyStatus @default(ACTIVE)
   defaultLanguage   Language      @default(ES)
   brandPrimaryColor String?
-  logoFileName      String?
-  logoMimeType      String?
-  logoUpdatedAt     DateTime?
-  createdAt         DateTime      @default(now())
-  updatedAt         DateTime      @updatedAt
-  deletedAt         DateTime?
+  logoFileName             String?
+  logoMimeType             String?
+  logoUpdatedAt            DateTime?
+  /// When false, COMPANY goals stay at company level and do not apply to every employee.
+  goalsCascadeEnabled      Boolean   @default(false)
+  /// When false, collaborators do not see the 9Box on Mis resultados.
+  showNineBoxOnMyResults   Boolean   @default(true)
+  createdAt                DateTime  @default(now())
+  updatedAt                DateTime  @updatedAt
+  deletedAt                DateTime?
 
   memberships                       CompanyMembership[]
   modules                           CompanyModule[]
@@ -141,12 +147,16 @@ model Company {
   positionCustomFieldDefinitions    PositionCustomFieldDefinition[]
   positionCustomFieldOptions        PositionCustomFieldOption[]
   positionCustomFieldValues         PositionCustomFieldValue[]
+  employeeCustomFieldValues         EmployeeCustomFieldValue[]
   employees                         Employee[]
   reportingLines                    EmployeeReportingLine[]
   vacancyRequests                   VacancyRequest[]
   vacancyApprovals                  VacancyApproval[]
   vacancyApprovalWorkflow           VacancyApprovalWorkflow?
   vacancyApprovalWorkflowSteps      VacancyApprovalWorkflowStep[]
+  vacancyEvaluatorDefaults          VacancyEvaluatorDefault[]
+  vacancyRequestEvaluators          VacancyRequestEvaluator[]
+  vacancyRequestApprovalPlanSteps   VacancyRequestApprovalPlanStep[]
   vacancies                         Vacancy[]
   candidates                        Candidate[]
   applications                      Application[]
@@ -160,6 +170,7 @@ model Company {
   jobOffers                         JobOffer[]
   hirings                           Hiring[]
   performanceCycles                 PerformanceCycle[]
+  performanceCycleFollowUps         PerformanceCycleFollowUp[]
   competencies                      Competency[]
   competencyScales                  CompetencyScale[]
   competencyScaleLevels             CompetencyScaleLevel[]
@@ -180,8 +191,59 @@ model Company {
   goalResults                       GoalResult[]
   goalResultKeyResults              GoalResultKeyResult[]
   goalResultApplicableEmployees     GoalResultApplicableEmployee[]
+  homeInfo                          CompanyHomeInfo?
+  billing                           CompanyBilling?
+  calibrationSessions               CalibrationSession[]
+  performanceGoalDefinitions        PerformanceGoalDefinition[]
+  individualDevelopmentPlans        PerformanceIndividualDevelopmentPlan[]
+  goalModificationRequests          PerformanceGoalModificationRequest[]
+  performanceNotifications          PerformanceNotification[]
+  closingSessions                   PerformanceClosingSession[]
+  goalRatings                       PerformanceGoalRating[]
+  calibrationPlacements             CalibrationPlacement[]
 
   @@map("companies")
+}
+
+enum CompanyHomeMediaKind {
+  IMAGE
+  VIDEO
+}
+
+/// Single HOME communication slot per company (image or video + schedule).
+model CompanyHomeInfo {
+  id             String                @id @default(uuid()) @db.Uuid
+  companyId      String                @unique @db.Uuid
+  title          String
+  description    String                @default("")
+  publishedAt    DateTime
+  unpublishedAt  DateTime?
+  mediaKind      CompanyHomeMediaKind?
+  fileName       String?
+  mimeType       String?
+  mediaUpdatedAt DateTime?
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+
+  @@map("company_home_infos")
+}
+
+/// Platform billing inputs per company. Charged amount and net profit are calculated.
+model CompanyBilling {
+  id                   String   @id @default(uuid()) @db.Uuid
+  companyId            String   @unique @db.Uuid
+  taxAmount            Decimal  @default(0) @db.Decimal(14, 2)
+  licenseAmount        Decimal  @default(0) @db.Decimal(14, 2)
+  subscriptionAmount   Decimal  @default(0) @db.Decimal(14, 2)
+  marginPercent        Decimal  @default(0) @db.Decimal(5, 2)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+
+  @@map("company_billings")
 }
 
 /// User <-> Company membership. Users never store companyId directly.
@@ -347,6 +409,11 @@ enum PositionCustomFieldType {
   SELECT
 }
 
+enum CustomFieldAppliesTo {
+  POSITION
+  EMPLOYEE
+}
+
 model BusinessUnit {
   id          String                   @id @default(uuid()) @db.Uuid
   companyId   String                   @db.Uuid
@@ -463,9 +530,14 @@ model Position {
   company           Company                    @relation(fields: [companyId], references: [id], onDelete: Restrict)
   area              Area                       @relation(fields: [areaId], references: [id], onDelete: Restrict)
   jobLevel          JobLevel?                  @relation(fields: [jobLevelId], references: [id], onDelete: Restrict)
-  employees         Employee[]
-  vacancyRequests   VacancyRequest[]
-  vacancies         Vacancy[]
+  employees                    Employee[]
+  vacancyRequests              VacancyRequest[]
+  vacancyApprovalWorkflowSteps VacancyApprovalWorkflowStep[]
+  vacancyApprovals             VacancyApproval[]
+  vacancyEvaluatorDefaults     VacancyEvaluatorDefault[]
+  vacancyRequestEvaluators     VacancyRequestEvaluator[]
+  vacancyRequestApprovalPlanSteps VacancyRequestApprovalPlanStep[]
+  vacancies                    Vacancy[]
   customFieldValues PositionCustomFieldValue[]
 
   @@unique([companyId, name])
@@ -476,26 +548,28 @@ model Position {
   @@map("positions")
 }
 
-/// Company-scoped field definition for Position. Not hardcoded catalog fields.
+/// Company-scoped field definition for Position or Employee. Not hardcoded catalog fields.
 model PositionCustomFieldDefinition {
   id        String                  @id @default(uuid()) @db.Uuid
   companyId String                  @db.Uuid
   key       String
   label     String
   type      PositionCustomFieldType
+  appliesTo CustomFieldAppliesTo    @default(POSITION)
   required  Boolean                 @default(false)
   active    Boolean                 @default(true)
   sortOrder Int                     @default(0)
   createdAt DateTime                @default(now())
   updatedAt DateTime                @updatedAt
 
-  company Company                     @relation(fields: [companyId], references: [id], onDelete: Restrict)
-  options PositionCustomFieldOption[]
-  values  PositionCustomFieldValue[]
+  company         Company                     @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  options         PositionCustomFieldOption[]
+  values          PositionCustomFieldValue[]
+  employeeValues  EmployeeCustomFieldValue[]
 
-  @@unique([companyId, key])
+  @@unique([companyId, appliesTo, key], map: "pcf_defs_company_applies_key_key")
   @@index([companyId])
-  @@index([companyId, active, sortOrder])
+  @@index([companyId, appliesTo, active, sortOrder], map: "pcf_defs_company_applies_active_sort_idx")
   @@map("position_custom_field_definitions")
 }
 
@@ -509,9 +583,10 @@ model PositionCustomFieldOption {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  company    Company                       @relation(fields: [companyId], references: [id], onDelete: Restrict)
-  definition PositionCustomFieldDefinition @relation(fields: [definitionId], references: [id], onDelete: Restrict)
-  values     PositionCustomFieldValue[]
+  company         Company                       @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  definition      PositionCustomFieldDefinition @relation(fields: [definitionId], references: [id], onDelete: Restrict)
+  values          PositionCustomFieldValue[]
+  employeeValues  EmployeeCustomFieldValue[]
 
   @@index([companyId])
   @@index([definitionId, sortOrder])
@@ -544,6 +619,32 @@ model PositionCustomFieldValue {
   @@map("position_custom_field_values")
 }
 
+/// Typed values per Employee + definition. Avoids Employee.metadata blobs.
+model EmployeeCustomFieldValue {
+  id           String    @id @default(uuid()) @db.Uuid
+  companyId    String    @db.Uuid
+  employeeId   String    @db.Uuid
+  definitionId String    @db.Uuid
+  optionId     String?   @db.Uuid
+  textValue    String?
+  numberValue  Decimal?  @db.Decimal(18, 4)
+  booleanValue Boolean?
+  dateValue    DateTime? @db.Date
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  company    Company                       @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  employee   Employee                      @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  definition PositionCustomFieldDefinition @relation(fields: [definitionId], references: [id], onDelete: Restrict)
+  option     PositionCustomFieldOption?    @relation(fields: [optionId], references: [id], onDelete: Restrict)
+
+  @@unique([employeeId, definitionId])
+  @@index([companyId])
+  @@index([definitionId])
+  @@index([optionId])
+  @@map("employee_custom_field_values")
+}
+
 model Employee {
   id                    String         @id @default(uuid()) @db.Uuid
   companyId             String         @db.Uuid
@@ -552,6 +653,8 @@ model Employee {
   lastName              String
   email                 String
   phone                 String?
+  documentType          String?
+  documentNumber        String?
   birthDate             DateTime?      @db.Date
   country               String?
   state                 String?
@@ -576,22 +679,37 @@ model Employee {
   businessUnit BusinessUnit? @relation(fields: [businessUnitId], references: [id], onDelete: Restrict)
   area         Area          @relation(fields: [areaId], references: [id], onDelete: Restrict)
   position     Position      @relation(fields: [positionId], references: [id], onDelete: Restrict)
+  customFieldValues EmployeeCustomFieldValue[]
 
   reportingTo                       EmployeeReportingLine[]        @relation("EmployeeReports")
   managedReports                    EmployeeReportingLine[]        @relation("ManagerReports")
   vacancyRequestsRequested          VacancyRequest[]               @relation("VacancyRequestedBy")
   vacancyApprovals                  VacancyApproval[]              @relation("VacancyApprover")
   vacancyApprovalWorkflowSteps      VacancyApprovalWorkflowStep[]  @relation("WorkflowStepApprover")
+  vacancyEvaluatorDefaults          VacancyEvaluatorDefault[]      @relation("EvaluatorDefaultEmployee")
+  vacancyRequestEvaluators          VacancyRequestEvaluator[]      @relation("RequestEvaluatorEmployee")
+  vacancyRequestApprovalPlanSteps   VacancyRequestApprovalPlanStep[] @relation("PlanStepApprover")
   interviewAssignments              InterviewInterviewer[]
   hiring                            Hiring?
   performanceParticipations         PerformanceCycleParticipant[]
   performanceEvaluationsAsSubject   PerformanceEvaluation[]        @relation("EvaluationSubject")
   performanceEvaluationsAsEvaluator PerformanceEvaluation[]        @relation("EvaluationEvaluator")
   performanceResults                PerformanceResult[]
+  performanceGoalDefinitions        PerformanceGoalDefinition[]
+  goalDefinitionsReviewed           PerformanceGoalDefinition[] @relation("GoalDefinitionReviewer")
+  individualDevelopmentPlans        PerformanceIndividualDevelopmentPlan[]
+  goalModificationRequests          PerformanceGoalModificationRequest[]
+  goalModificationsReviewed         PerformanceGoalModificationRequest[] @relation("GoalModificationReviewer")
+  performanceNotifications          PerformanceNotification[]
+  closingSessions                   PerformanceClosingSession[]
+  calibrationPlacements             CalibrationPlacement[]
   goalAssignments                   GoalAssignment[]
   goalCheckIns                      GoalCheckIn[]
   goalCompletionRequests            GoalCompletionRequest[]
   goalResultApplicableEmployees     GoalResultApplicableEmployee[]
+  assignedVacancies                 Vacancy[]                      @relation("VacancyAssignedRecruiter")
+  calibrationSessionInvitees        CalibrationSessionInvitee[]
+  calibrationSessionLeaders         CalibrationSessionLeader[]
 
   @@unique([companyId, email])
   @@unique([companyId, userId])
@@ -641,18 +759,25 @@ enum VacancyRequestStatus {
   CANCELLED
 }
 
+enum VacancyApprovalPlanOrigin {
+  DEFAULT
+  CUSTOM
+}
+
 enum VacancyApprovalStep {
   DIRECT_MANAGER
   HR
   GENERAL_MANAGER
   ROLE
   SPECIFIC_EMPLOYEE
+  POSITION
 }
 
 enum VacancyApproverType {
   MANAGER_OF_REQUESTER
   SPECIFIC_EMPLOYEE
   ROLE
+  POSITION
 }
 
 enum ApprovalStatus {
@@ -695,6 +820,8 @@ model VacancyRequest {
   requestedArea       Area?             @relation(fields: [requestedAreaId], references: [id], onDelete: Restrict)
   requestedJobLevel   JobLevel?         @relation(fields: [requestedJobLevelId], references: [id], onDelete: Restrict)
   approvals           VacancyApproval[]
+  evaluators          VacancyRequestEvaluator[]
+  approvalPlanSteps   VacancyRequestApprovalPlanStep[]
   vacancy             Vacancy?
 
   @@index([companyId])
@@ -712,6 +839,7 @@ model VacancyApproval {
   step               VacancyApprovalStep
   sequence           Int
   label              String?
+  positionId         String?             @db.Uuid
   approverEmployeeId String?             @db.Uuid
   requiredRoleCode   String?
   status             ApprovalStatus      @default(PENDING)
@@ -723,6 +851,7 @@ model VacancyApproval {
 
   company          Company        @relation(fields: [companyId], references: [id], onDelete: Restrict)
   vacancyRequest   VacancyRequest @relation(fields: [vacancyRequestId], references: [id], onDelete: Restrict)
+  position         Position?      @relation(fields: [positionId], references: [id], onDelete: Restrict)
   approverEmployee Employee?      @relation("VacancyApprover", fields: [approverEmployeeId], references: [id], onDelete: Restrict)
   decidedByUser    User?          @relation(fields: [decidedByUserId], references: [id], onDelete: SetNull)
 
@@ -730,6 +859,7 @@ model VacancyApproval {
   @@index([companyId])
   @@index([vacancyRequestId])
   @@index([status])
+  @@index([positionId])
   @@index([approverEmployeeId])
   @@map("vacancy_approvals")
 }
@@ -756,6 +886,7 @@ model VacancyApprovalWorkflowStep {
   sequence           Int
   approverType       VacancyApproverType
   label              String?
+  positionId         String?             @db.Uuid
   specificEmployeeId String?             @db.Uuid
   requiredRoleCode   String?
   createdAt          DateTime            @default(now())
@@ -763,44 +894,128 @@ model VacancyApprovalWorkflowStep {
 
   company          Company                 @relation(fields: [companyId], references: [id], onDelete: Restrict)
   workflow         VacancyApprovalWorkflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  position         Position?               @relation(fields: [positionId], references: [id], onDelete: Restrict)
   specificEmployee Employee?               @relation("WorkflowStepApprover", fields: [specificEmployeeId], references: [id], onDelete: Restrict)
 
   @@unique([workflowId, sequence])
   @@index([companyId])
+  @@index([positionId])
   @@index([specificEmployeeId])
   @@map("vacancy_approval_workflow_steps")
 }
 
-model Vacancy {
-  id               String        @id @default(uuid()) @db.Uuid
-  companyId        String        @db.Uuid
-  vacancyRequestId String        @unique @db.Uuid
-  positionId       String        @db.Uuid
-  areaId           String        @db.Uuid
-  title            String
-  description      String?
-  headcount        Int
-  filledCount      Int           @default(0)
-  status           VacancyStatus @default(OPEN)
-  publicId         String?       @unique
-  publishedAt      DateTime?
-  openedAt         DateTime      @default(now())
-  closedAt         DateTime?
-  createdAt        DateTime      @default(now())
-  updatedAt        DateTime      @updatedAt
-  deletedAt        DateTime?
+/// Per-request approval plan: frozen global defaults plus extra levels added on the form.
+model VacancyRequestApprovalPlanStep {
+  id                 String                     @id @default(uuid()) @db.Uuid
+  companyId          String                     @db.Uuid
+  vacancyRequestId   String                     @db.Uuid
+  sequence           Int
+  origin             VacancyApprovalPlanOrigin
+  approverType       VacancyApproverType
+  label              String?
+  positionId         String?                    @db.Uuid
+  specificEmployeeId String?                    @db.Uuid
+  requiredRoleCode   String?
+  createdAt          DateTime                   @default(now())
+  updatedAt          DateTime                   @updatedAt
+
+  company          Company        @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  vacancyRequest   VacancyRequest @relation(fields: [vacancyRequestId], references: [id], onDelete: Restrict)
+  position         Position?      @relation(fields: [positionId], references: [id], onDelete: Restrict)
+  specificEmployee Employee?      @relation("PlanStepApprover", fields: [specificEmployeeId], references: [id], onDelete: Restrict)
+
+  @@unique([vacancyRequestId, sequence], map: "vacancy_request_approval_plan_steps_vacancyRequestId_sequence_k")
+  @@index([companyId])
+  @@index([vacancyRequestId])
+  @@index([positionId])
+  @@index([specificEmployeeId])
+  @@map("vacancy_request_approval_plan_steps")
+}
+
+/// Company-level default interview/process evaluators (cargo + optional occupant).
+model VacancyEvaluatorDefault {
+  id         String   @id @default(uuid()) @db.Uuid
+  companyId  String   @db.Uuid
+  sequence   Int
+  positionId String   @db.Uuid
+  employeeId String?  @db.Uuid
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  company  Company  @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  position Position @relation(fields: [positionId], references: [id], onDelete: Restrict)
+  employee Employee? @relation("EvaluatorDefaultEmployee", fields: [employeeId], references: [id], onDelete: Restrict)
+
+  @@unique([companyId, sequence])
+  @@index([companyId])
+  @@index([positionId])
+  @@index([employeeId])
+  @@map("vacancy_evaluator_defaults")
+}
+
+/// Snapshot of evaluators for a submitted selection process.
+model VacancyRequestEvaluator {
+  id               String   @id @default(uuid()) @db.Uuid
+  companyId        String   @db.Uuid
+  vacancyRequestId String   @db.Uuid
+  sequence         Int
+  positionId       String   @db.Uuid
+  employeeId       String   @db.Uuid
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
   company        Company        @relation(fields: [companyId], references: [id], onDelete: Restrict)
   vacancyRequest VacancyRequest @relation(fields: [vacancyRequestId], references: [id], onDelete: Restrict)
   position       Position       @relation(fields: [positionId], references: [id], onDelete: Restrict)
-  area           Area           @relation(fields: [areaId], references: [id], onDelete: Restrict)
-  applications   Application[]
-  hirings        Hiring[]
+  employee       Employee       @relation("RequestEvaluatorEmployee", fields: [employeeId], references: [id], onDelete: Restrict)
+
+  @@unique([vacancyRequestId, sequence])
+  @@index([companyId])
+  @@index([vacancyRequestId])
+  @@index([positionId])
+  @@index([employeeId])
+  @@map("vacancy_request_evaluators")
+}
+
+model Vacancy {
+  id                          String        @id @default(uuid()) @db.Uuid
+  companyId                   String        @db.Uuid
+  vacancyRequestId            String        @unique @db.Uuid
+  positionId                  String        @db.Uuid
+  areaId                      String        @db.Uuid
+  assignedRecruiterEmployeeId String?       @db.Uuid
+  interviewFormTemplateId     String?       @db.Uuid
+  title                       String
+  description                 String?
+  salaryAmount                Decimal?      @db.Decimal(14, 2)
+  salaryCurrency              String        @default("COP") @db.VarChar(3)
+  showSalaryPublic            Boolean       @default(false)
+  headcount                   Int
+  filledCount                 Int           @default(0)
+  status                      VacancyStatus @default(OPEN)
+  publicId                    String?       @unique
+  publishedAt                 DateTime?
+  openedAt                    DateTime      @default(now())
+  closedAt                    DateTime?
+  createdAt                   DateTime      @default(now())
+  updatedAt                   DateTime      @updatedAt
+  deletedAt                   DateTime?
+
+  company            Company        @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  vacancyRequest     VacancyRequest @relation(fields: [vacancyRequestId], references: [id], onDelete: Restrict)
+  position           Position       @relation(fields: [positionId], references: [id], onDelete: Restrict)
+  area               Area           @relation(fields: [areaId], references: [id], onDelete: Restrict)
+  assignedRecruiter  Employee?      @relation("VacancyAssignedRecruiter", fields: [assignedRecruiterEmployeeId], references: [id], onDelete: Restrict)
+  interviewFormTemplate InterviewFormTemplate? @relation(fields: [interviewFormTemplateId], references: [id], onDelete: SetNull)
+  applications       Application[]
+  hirings            Hiring[]
 
   @@index([companyId])
   @@index([positionId])
   @@index([areaId])
   @@index([status])
+  @@index([assignedRecruiterEmployeeId])
+  @@index([interviewFormTemplateId])
   @@map("vacancies")
 }
 
@@ -843,6 +1058,9 @@ model Candidate {
   city           String?
   source         String?
   status         CandidateStatus @default(ACTIVE)
+  cvFileName     String?
+  cvOriginalName String?
+  cvMimeType     String?
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
   deletedAt      DateTime?
@@ -1005,6 +1223,7 @@ model InterviewFormTemplate {
 
   company   Company                 @relation(fields: [companyId], references: [id], onDelete: Restrict)
   questions InterviewFormQuestion[]
+  vacancies Vacancy[]
 
   @@index([companyId])
   @@index([status])
@@ -1211,9 +1430,19 @@ enum PerformanceParticipantStatus {
   EXCLUDED
 }
 
+enum PerformanceEvaluationModel {
+  DEGREE_90
+  DEGREE_180
+  DEGREE_270
+  DEGREE_360
+}
+
 enum PerformanceEvaluationType {
   SELF
   MANAGER
+  PEER
+  REPORT
+  CLIENT
 }
 
 enum PerformanceEvaluationStatus {
@@ -1233,29 +1462,63 @@ enum PerformanceResultComposition {
   COMPETENCY_AND_GOALS
 }
 
+/// Qualitative scales rate competencies (labels). Quantitative scales are numeric, not for competencies.
+enum CompetencyScaleKind {
+  QUALITATIVE
+  QUANTITATIVE
+}
+
+/// Specific layout of a rating scale. Must match `CompetencyScale.kind`.
+enum CompetencyScaleFormat {
+  NUMERIC
+  DESCRIPTIVE
+  LIKERT
+  PERCENTAGE
+  CURRENCY
+}
+
 model PerformanceCycle {
-  id                      String                 @id @default(uuid()) @db.Uuid
-  companyId               String                 @db.Uuid
-  name                    String
-  description             String?
-  startDate               DateTime               @db.Date
-  endDate                 DateTime               @db.Date
-  evaluationStartDate     DateTime?              @db.Date
-  evaluationEndDate       DateTime?              @db.Date
-  status                  PerformanceCycleStatus @default(DRAFT)
-  /// Configured evaluator weights (DRAFT-editable). Must sum to 100 at activation.
-  /// Defaults 30/70 for new cycles; not hardcoded in consolidation logic.
-  selfEvaluationWeight    Decimal                @default(30.00) @db.Decimal(5, 2)
-  managerEvaluationWeight Decimal                @default(70.00) @db.Decimal(5, 2)
+  id                           String                     @id @default(uuid()) @db.Uuid
+  companyId                    String                     @db.Uuid
+  name                         String
+  description                  String?
+  startDate                    DateTime                   @db.Date
+  endDate                      DateTime                   @db.Date
+  /// Self-evaluation window (UI: Fecha Autoevaluación).
+  evaluationStartDate          DateTime?                  @db.Date
+  evaluationEndDate            DateTime?                  @db.Date
+  goalDefinitionStartDate      DateTime?                  @db.Date
+  goalDefinitionEndDate        DateTime?                  @db.Date
+  /// Leader / peer / report / client evaluation window (UI: Fecha Evaluación).
+  managerEvaluationStartDate   DateTime?                  @db.Date
+  managerEvaluationEndDate     DateTime?                  @db.Date
+  calibrationStartDate         DateTime?                  @db.Date
+  calibrationEndDate           DateTime?                  @db.Date
+  closingStartDate             DateTime?                  @db.Date
+  closingEndDate               DateTime?                  @db.Date
+  status                       PerformanceCycleStatus     @default(DRAFT)
+  evaluationModel              PerformanceEvaluationModel @default(DEGREE_90)
+  /// Configured evaluator weights (DRAFT-editable). Enabled groups must sum to 100.
+  selfEvaluationWeight         Decimal                    @default(30.00) @db.Decimal(5, 2)
+  managerEvaluationWeight      Decimal                    @default(70.00) @db.Decimal(5, 2)
+  peerEvaluationWeight         Decimal?                   @db.Decimal(5, 2)
+  reportEvaluationWeight       Decimal?                   @db.Decimal(5, 2)
+  clientEvaluationWeight       Decimal?                   @db.Decimal(5, 2)
   /// Optional GoalCycle link (09D). Null = competency-only (08D behavior).
-  goalCycleId             String?                @db.Uuid
-  /// Weight of competencyScore in overall (required when goalCycleId set; sum with goals = 100).
-  competencyResultWeight  Decimal?               @db.Decimal(5, 2)
-  /// Weight of goalsAchievement in overall (required when goalCycleId set).
-  goalsResultWeight       Decimal?               @db.Decimal(5, 2)
-  createdByUserId         String                 @db.Uuid
-  createdAt               DateTime               @default(now())
-  updatedAt               DateTime               @updatedAt
+  goalCycleId                  String?                    @db.Uuid
+  includeCompetencies          Boolean                    @default(true)
+  /// Weight of competencyScore in overall (when goals are included).
+  competencyResultWeight       Decimal?                   @db.Decimal(5, 2)
+  /// Weight of goalsAchievement in overall (org + individual; legacy scoring).
+  goalsResultWeight            Decimal?                   @db.Decimal(5, 2)
+  organizationalGoalsWeight    Decimal?                   @db.Decimal(5, 2)
+  individualGoalsWeight        Decimal?                   @db.Decimal(5, 2)
+  maxObjectives                Int?
+  /// Total evaluation range (100 or 120). Composition weights must not exceed it.
+  evaluationRange              Int                        @default(100)
+  createdByUserId              String                     @db.Uuid
+  createdAt                    DateTime                   @default(now())
+  updatedAt                    DateTime                   @updatedAt
 
   company      Company                       @relation(fields: [companyId], references: [id], onDelete: Restrict)
   createdBy    User                          @relation(fields: [createdByUserId], references: [id], onDelete: Restrict)
@@ -1264,12 +1527,209 @@ model PerformanceCycle {
   participants PerformanceCycleParticipant[]
   evaluations  PerformanceEvaluation[]
   results      PerformanceResult[]
+  followUps                  PerformanceCycleFollowUp[]
+  goalDefinitions            PerformanceGoalDefinition[]
+  individualDevelopmentPlans PerformanceIndividualDevelopmentPlan[]
+  goalModificationRequests   PerformanceGoalModificationRequest[]
+  closingSessions            PerformanceClosingSession[]
+  notifications              PerformanceNotification[]
 
   @@index([companyId])
   @@index([status])
   @@index([createdByUserId])
   @@index([goalCycleId])
   @@map("performance_cycles")
+}
+
+model PerformanceCycleFollowUp {
+  id        String   @id @default(uuid()) @db.Uuid
+  companyId String   @db.Uuid
+  cycleId   String   @db.Uuid
+  order     Int      @default(0)
+  startDate DateTime @db.Date
+  endDate   DateTime @db.Date
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  company Company          @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  cycle   PerformanceCycle @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+  @@index([cycleId])
+  @@map("performance_cycle_follow_ups")
+}
+
+/// Locks a participant's goal-definition form after "Enviar a aprobación".
+model PerformanceGoalDefinition {
+  id                    String                       @id @default(uuid()) @db.Uuid
+  companyId             String                       @db.Uuid
+  cycleId               String                       @db.Uuid
+  employeeId            String                       @db.Uuid
+  submittedAt           DateTime?
+  reviewStatus          GoalDefinitionReviewStatus?
+  reviewComment         String?
+  reviewedAt            DateTime?
+  reviewedByEmployeeId  String?                      @db.Uuid
+  structureUnlocked     Boolean                      @default(false)
+  createdAt             DateTime                     @default(now())
+  updatedAt             DateTime                     @updatedAt
+
+  company    Company          @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  cycle      PerformanceCycle @relation(fields: [cycleId], references: [id], onDelete: Restrict)
+  employee   Employee         @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  reviewedBy Employee?        @relation("GoalDefinitionReviewer", fields: [reviewedByEmployeeId], references: [id], onDelete: Restrict)
+
+  @@unique([cycleId, employeeId])
+  @@index([companyId])
+  @@index([employeeId])
+  @@index([reviewedByEmployeeId])
+  @@map("performance_goal_definitions")
+}
+
+/// Individual development plan (70-20-10) for a participant in a performance cycle.
+model PerformanceIndividualDevelopmentPlan {
+  id              String   @id @default(uuid()) @db.Uuid
+  companyId       String   @db.Uuid
+  cycleId         String   @db.Uuid
+  employeeId      String   @db.Uuid
+  name            String
+  competencyId    String?  @db.Uuid
+  actions70       String?
+  actions20       String?
+  actions10       String?
+  observations    String?
+  progressPercent Int      @default(0)
+  progressNotes   String?
+  strengths       String?
+  improvements    String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  company     Company          @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  cycle       PerformanceCycle @relation(fields: [cycleId], references: [id], onDelete: Restrict)
+  employee    Employee         @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  competency  Competency?      @relation(fields: [competencyId], references: [id], onDelete: Restrict)
+
+  @@unique([cycleId, employeeId])
+  @@index([companyId])
+  @@index([employeeId])
+  @@index([competencyId])
+  @@map("performance_individual_development_plans")
+}
+
+model PerformanceGoalModificationRequest {
+  id                   String                         @id @default(uuid()) @db.Uuid
+  companyId            String                         @db.Uuid
+  cycleId              String                         @db.Uuid
+  employeeId           String                         @db.Uuid
+  comment              String?
+  status               GoalModificationRequestStatus  @default(PENDING)
+  reviewComment        String?
+  reviewedAt           DateTime?
+  reviewedByEmployeeId String?                        @db.Uuid
+  createdAt            DateTime                       @default(now())
+  updatedAt            DateTime                       @updatedAt
+
+  company    Company          @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  cycle      PerformanceCycle @relation(fields: [cycleId], references: [id], onDelete: Restrict)
+  employee   Employee         @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  reviewedBy Employee?        @relation("GoalModificationReviewer", fields: [reviewedByEmployeeId], references: [id], onDelete: Restrict)
+
+  @@index([companyId])
+  @@index([cycleId, employeeId, status])
+  @@index([reviewedByEmployeeId])
+  @@map("performance_goal_modification_requests")
+}
+
+model PerformanceNotification {
+  id         String                       @id @default(uuid()) @db.Uuid
+  companyId  String                       @db.Uuid
+  employeeId String                       @db.Uuid
+  cycleId    String?                      @db.Uuid
+  type       PerformanceNotificationType
+  title      String
+  body       String
+  readAt     DateTime?
+  createdAt  DateTime                     @default(now())
+
+  company  Company           @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  employee Employee          @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  cycle    PerformanceCycle? @relation(fields: [cycleId], references: [id], onDelete: Restrict)
+
+  @@index([companyId, employeeId, createdAt])
+  @@index([cycleId])
+  @@map("performance_notifications")
+}
+
+model PerformanceClosingSession {
+  id                         String    @id @default(uuid()) @db.Uuid
+  companyId                  String    @db.Uuid
+  cycleId                    String    @db.Uuid
+  employeeId                 String    @db.Uuid
+  collaboratorObservations   String?
+  leaderObservations         String?
+  acceptedAt                 DateTime?
+  createdAt                  DateTime  @default(now())
+  updatedAt                  DateTime  @updatedAt
+
+  company  Company          @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  cycle    PerformanceCycle @relation(fields: [cycleId], references: [id], onDelete: Restrict)
+  employee Employee         @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+
+  @@unique([cycleId, employeeId])
+  @@index([companyId])
+  @@index([employeeId])
+  @@map("performance_closing_sessions")
+}
+
+model PerformanceGoalRating {
+  id                    String   @id @default(uuid()) @db.Uuid
+  companyId             String   @db.Uuid
+  evaluationId          String   @db.Uuid
+  goalId                String   @db.Uuid
+  selectedScaleLevelId  String?  @db.Uuid
+  ratingValue           Int?
+  comment               String?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  company    Company                 @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  evaluation PerformanceEvaluation   @relation(fields: [evaluationId], references: [id], onDelete: Restrict)
+  goal       Goal                    @relation(fields: [goalId], references: [id], onDelete: Restrict)
+  scaleLevel CompetencyScaleLevel?   @relation(fields: [selectedScaleLevelId], references: [id], onDelete: Restrict)
+
+  @@unique([evaluationId, goalId])
+  @@index([companyId])
+  @@index([goalId])
+  @@index([selectedScaleLevelId])
+  @@map("performance_goal_ratings")
+}
+
+model CalibrationPlacement {
+  id              String   @id @default(uuid()) @db.Uuid
+  companyId       String   @db.Uuid
+  sessionId       String   @db.Uuid
+  employeeId      String   @db.Uuid
+  cycleId         String?  @db.Uuid
+  row             Int
+  col             Int
+  calculatedRow   Int?
+  calculatedCol   Int?
+  justification   String
+  movedByUserId   String   @db.Uuid
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  company   Company            @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  session   CalibrationSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  employee  Employee           @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  movedBy   User               @relation(fields: [movedByUserId], references: [id], onDelete: Restrict)
+
+  @@unique([sessionId, employeeId])
+  @@index([companyId])
+  @@index([employeeId])
+  @@index([movedByUserId])
+  @@map("calibration_placements")
 }
 
 model Competency {
@@ -1286,8 +1746,9 @@ model Competency {
 
   company             Company                      @relation(fields: [companyId], references: [id], onDelete: Restrict)
   defaultScale        CompetencyScale?             @relation("CompetencyDefaultScale", fields: [defaultScaleId], references: [id], onDelete: Restrict)
-  cycleAssignments    PerformanceCycleCompetency[]
-  jobLevelAssignments JobLevelCompetency[]
+  cycleAssignments           PerformanceCycleCompetency[]
+  jobLevelAssignments        JobLevelCompetency[]
+  individualDevelopmentPlans PerformanceIndividualDevelopmentPlan[]
 
   @@unique([companyId, name])
   @@unique([companyId, code])
@@ -1298,19 +1759,27 @@ model Competency {
 }
 
 model CompetencyScale {
-  id          String                   @id @default(uuid()) @db.Uuid
-  companyId   String                   @db.Uuid
-  name        String
-  description String?
-  status      OrganizationEntityStatus @default(ACTIVE)
-  createdAt   DateTime                 @default(now())
-  updatedAt   DateTime                 @updatedAt
-  deletedAt   DateTime?
+  id             String                   @id @default(uuid()) @db.Uuid
+  companyId      String                   @db.Uuid
+  name           String
+  description    String?
+  kind           CompetencyScaleKind      @default(QUALITATIVE)
+  format         CompetencyScaleFormat    @default(NUMERIC)
+  minValue       Decimal?                 @db.Decimal(12, 2)
+  maxValue       Decimal?                 @db.Decimal(12, 2)
+  likertIcon     String?
+  currencyCode   String?
+  decimalPlaces  Int?
+  status         OrganizationEntityStatus @default(ACTIVE)
+  createdAt      DateTime                 @default(now())
+  updatedAt      DateTime                 @updatedAt
+  deletedAt      DateTime?
 
   company                Company                      @relation(fields: [companyId], references: [id], onDelete: Restrict)
   levels                 CompetencyScaleLevel[]
   defaultForCompetencies Competency[]                 @relation("CompetencyDefaultScale")
   cycleAssignments       PerformanceCycleCompetency[]
+  goals                  Goal[]
 
   @@unique([companyId, name])
   @@index([companyId])
@@ -1331,6 +1800,7 @@ model CompetencyScaleLevel {
 
   company Company         @relation(fields: [companyId], references: [id], onDelete: Restrict)
   scale   CompetencyScale @relation(fields: [scaleId], references: [id], onDelete: Restrict)
+  goalRatings PerformanceGoalRating[]
 
   @@unique([scaleId, value])
   @@unique([scaleId, order])
@@ -1413,8 +1883,9 @@ model PerformanceEvaluation {
   evaluatorEmployee Employee?                         @relation("EvaluationEvaluator", fields: [evaluatorEmployeeId], references: [id], onDelete: Restrict)
   competencies      PerformanceEvaluationCompetency[]
   responses         PerformanceEvaluationResponse[]
+  goalRatings       PerformanceGoalRating[]
 
-  @@unique([participantId, type])
+  @@unique([participantId, type, evaluatorEmployeeId])
   @@index([companyId])
   @@index([cycleId])
   @@index([participantId])
@@ -1586,6 +2057,81 @@ model PerformanceResultGoal {
 }
 
 // ---------------------------------------------------------------------------
+// Performance — Calibration sessions & 9Box
+// ---------------------------------------------------------------------------
+
+model CalibrationSession {
+  id        String    @id @default(uuid()) @db.Uuid
+  companyId String    @db.Uuid
+  name      String
+  opensAt   DateTime?
+  closesAt  DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  company  Company                     @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  cells      CalibrationNineBoxCell[]
+  invitees   CalibrationSessionInvitee[]
+  leaders    CalibrationSessionLeader[]
+  placements CalibrationPlacement[]
+
+  @@index([companyId])
+  @@map("calibration_sessions")
+}
+
+/// row 0 = low potential (bottom), col 0 = low performance (left).
+model CalibrationNineBoxCell {
+  id        String   @id @default(uuid()) @db.Uuid
+  companyId String   @db.Uuid
+  sessionId String   @db.Uuid
+  row       Int
+  col       Int
+  label     String
+  color     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  session CalibrationSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId, row, col])
+  @@index([companyId])
+  @@index([sessionId])
+  @@map("calibration_nine_box_cells")
+}
+
+model CalibrationSessionInvitee {
+  id         String   @id @default(uuid()) @db.Uuid
+  companyId  String   @db.Uuid
+  sessionId  String   @db.Uuid
+  employeeId String   @db.Uuid
+  createdAt  DateTime @default(now())
+
+  session  CalibrationSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  employee Employee           @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+
+  @@unique([sessionId, employeeId])
+  @@index([companyId])
+  @@index([employeeId])
+  @@map("calibration_session_invitees")
+}
+
+model CalibrationSessionLeader {
+  id         String   @id @default(uuid()) @db.Uuid
+  companyId  String   @db.Uuid
+  sessionId  String   @db.Uuid
+  employeeId String   @db.Uuid
+  createdAt  DateTime @default(now())
+
+  session  CalibrationSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  employee Employee           @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+
+  @@unique([sessionId, employeeId])
+  @@index([companyId])
+  @@index([employeeId])
+  @@map("calibration_session_leaders")
+}
+
+// ---------------------------------------------------------------------------
 // Goals / OKRs — Core (09A): periods, goals, key results, assignments
 // Independent of Performance. No progress/check-ins/scoring in 09A.
 // ---------------------------------------------------------------------------
@@ -1610,6 +2156,34 @@ enum GoalStatus {
   ACTIVE
   COMPLETED
   CANCELLED
+}
+
+enum GoalProgressStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  FINISHED
+}
+
+/// Operational progress shown in definición / seguimientos (independent of GoalStatus).
+enum GoalDefinitionReviewStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum GoalModificationRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum PerformanceNotificationType {
+  GOAL_DEFINITION_SUBMITTED
+  GOAL_DEFINITION_APPROVED
+  GOAL_DEFINITION_REJECTED
+  GOAL_EDIT_REQUESTED
+  GOAL_EDIT_APPROVED
+  GOAL_EDIT_REJECTED
 }
 
 enum GoalCompletionRequestStatus {
@@ -1655,29 +2229,38 @@ model GoalCycle {
 
 /// GoalAssignment = explicit responsibility/assignment to an Employee (not mass materialization).
 model Goal {
-  id              String     @id @default(uuid()) @db.Uuid
-  companyId       String     @db.Uuid
-  cycleId         String     @db.Uuid
+  id              String             @id @default(uuid()) @db.Uuid
+  companyId       String             @db.Uuid
+  cycleId         String             @db.Uuid
   title           String
   description     String?
   type            GoalType
-  status          GoalStatus @default(DRAFT)
+  status          GoalStatus         @default(DRAFT)
+  /// Operational status in definición / seguimiento (No iniciado / En proceso / Finalizado).
+  progressStatus  GoalProgressStatus @default(NOT_STARTED)
   /// Required when type=AREA; null for INDIVIDUAL/COMPANY.
-  areaId          String?    @db.Uuid
-  weight          Decimal?   @db.Decimal(5, 2)
-  createdByUserId String     @db.Uuid
-  createdAt       DateTime   @default(now())
-  updatedAt       DateTime   @updatedAt
+  areaId          String?            @db.Uuid
+  weight          Decimal?           @db.Decimal(5, 2)
+  scaleId         String?            @db.Uuid
+  /// Source organizational goal when this individual goal was cascaded.
+  parentGoalId    String?            @db.Uuid
+  createdByUserId String             @db.Uuid
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
 
   company            Company                 @relation(fields: [companyId], references: [id], onDelete: Restrict)
   cycle              GoalCycle               @relation(fields: [cycleId], references: [id], onDelete: Restrict)
   area               Area?                   @relation(fields: [areaId], references: [id], onDelete: Restrict)
+  scale              CompetencyScale?        @relation(fields: [scaleId], references: [id], onDelete: Restrict)
+  parentGoal         Goal?                   @relation("GoalCascade", fields: [parentGoalId], references: [id], onDelete: Restrict)
+  childGoals         Goal[]                  @relation("GoalCascade")
   createdBy          User                    @relation(fields: [createdByUserId], references: [id], onDelete: Restrict)
   keyResults         GoalKeyResult[]
   assignments        GoalAssignment[]
   checkIns           GoalCheckIn[]
   completionRequests GoalCompletionRequest[]
   result             GoalResult?
+  ratings            PerformanceGoalRating[]
 
   @@index([companyId])
   @@index([companyId, cycleId, status])
@@ -1686,6 +2269,8 @@ model Goal {
   @@index([cycleId])
   @@index([status])
   @@index([createdByUserId])
+  @@index([scaleId])
+  @@index([parentGoalId])
   @@map("goals")
 }
 

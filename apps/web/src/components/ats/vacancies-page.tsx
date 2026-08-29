@@ -23,6 +23,9 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useCompanyId } from "@/hooks/use-company-id";
+import { useSession } from "@/components/auth/session-provider";
+import { publicJobUrl } from "@/lib/ats/public-job-url";
+import { recruiterSeesAssignedOnly } from "@/lib/ats/vacancies-view";
 import { atsApi, atsKeys } from "@/lib/api/ats";
 import { getErrorMessage } from "@/lib/api/errors";
 import {
@@ -61,10 +64,14 @@ function useVacancyFilters() {
 
 export function VacanciesPageClient() {
   const companyId = useCompanyId();
+  const { companyAccess } = useSession();
   const queryClient = useQueryClient();
   const { params, setParams } = useVacancyFilters();
   const [searchInput, setSearchInput] = useState(params.search ?? "");
   const [actionError, setActionError] = useState<string | null>(null);
+  const assignedOnly = recruiterSeesAssignedOnly(
+    companyAccess?.roleCodes ?? [],
+  );
 
   const listQuery = useQuery({
     queryKey: atsKeys.vacancies(companyId, params),
@@ -85,13 +92,43 @@ export function VacanciesPageClient() {
     },
   });
 
+  const publishMutation = useMutation({
+    mutationFn: (id: string) => atsApi.publishVacancy(id),
+    onSuccess: async (vacancy) => {
+      await queryClient.invalidateQueries({ queryKey: atsKeys.all(companyId) });
+      setActionError(null);
+      if (vacancy.publicId && typeof window !== "undefined") {
+        try {
+          await navigator.clipboard.writeText(
+            publicJobUrl(vacancy.publicId, window.location.origin),
+          );
+          notifySuccess("Vacante publicada. Enlace copiado.");
+          return;
+        } catch {
+          /* clipboard may be unavailable */
+        }
+      }
+      notifySuccess("Vacante publicada");
+    },
+    onError: (error) => {
+      setActionError(getErrorMessage(error, "No se pudo publicar la vacante."));
+      notifyError(error, "No se pudo publicar la vacante.");
+    },
+  });
+  const actionPending =
+    statusMutation.isPending || publishMutation.isPending;
+
   const items = listQuery.data?.items ?? [];
 
   return (
     <div className="space-y-6">
       <PageHeader
         title="Vacantes"
-        description="Vacantes abiertas y su cobertura."
+        description={
+          assignedOnly
+            ? "Procesos de selección asignados a ti."
+            : "Vacantes abiertas y su cobertura."
+        }
       />
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
@@ -153,7 +190,13 @@ export function VacanciesPageClient() {
       ) : null}
 
       {listQuery.isSuccess && items.length === 0 ? (
-        <EmptyState title="No hay vacantes disponibles." />
+        <EmptyState
+          title={
+            assignedOnly
+              ? "No hay procesos asignados a ti."
+              : "No hay vacantes disponibles."
+          }
+        />
       ) : null}
 
       {items.length > 0 ? (
@@ -165,6 +208,7 @@ export function VacanciesPageClient() {
                   <TableHead>Vacante</TableHead>
                   <TableHead>Cargo</TableHead>
                   <TableHead>Área</TableHead>
+                  <TableHead>Reclutador</TableHead>
                   <TableHead>Plazas</TableHead>
                   <TableHead>Cubiertas</TableHead>
                   <TableHead>Estado</TableHead>
@@ -178,10 +222,11 @@ export function VacanciesPageClient() {
                   <VacancyRow
                     key={vacancy.id}
                     vacancy={vacancy}
-                    pending={statusMutation.isPending}
+                    pending={actionPending}
                     onStatus={(status) =>
                       statusMutation.mutate({ id: vacancy.id, status })
                     }
+                    onPublish={() => publishMutation.mutate(vacancy.id)}
                   />
                 ))}
               </TableBody>
@@ -200,6 +245,9 @@ export function VacanciesPageClient() {
                     <p className="text-sm text-muted-foreground">
                       {vacancy.position?.name ?? "—"} ·{" "}
                       {vacancy.area?.name ?? "—"}
+                      {vacancy.assignedRecruiter
+                        ? ` · ${vacancy.assignedRecruiter.firstName} ${vacancy.assignedRecruiter.lastName}`
+                        : ""}
                     </p>
                   </div>
                   <Badge variant={vacancyStatusVariant(vacancy.status)}>
@@ -215,10 +263,11 @@ export function VacanciesPageClient() {
                 </p>
                 <VacancyActions
                   vacancy={vacancy}
-                  pending={statusMutation.isPending}
+                  pending={actionPending}
                   onStatus={(status) =>
                     statusMutation.mutate({ id: vacancy.id, status })
                   }
+                  onPublish={() => publishMutation.mutate(vacancy.id)}
                 />
               </div>
             ))}
@@ -240,16 +289,23 @@ function VacancyRow({
   vacancy,
   pending,
   onStatus,
+  onPublish,
 }: {
   vacancy: Vacancy;
   pending: boolean;
   onStatus: (status: VacancyStatus) => void;
+  onPublish: () => void;
 }) {
   return (
     <TableRow>
       <TableCell className="font-medium">{vacancy.title}</TableCell>
       <TableCell>{vacancy.position?.name ?? "—"}</TableCell>
       <TableCell>{vacancy.area?.name ?? "—"}</TableCell>
+      <TableCell>
+        {vacancy.assignedRecruiter
+          ? `${vacancy.assignedRecruiter.firstName} ${vacancy.assignedRecruiter.lastName}`.trim()
+          : "—"}
+      </TableCell>
       <TableCell>{vacancy.headcount}</TableCell>
       <TableCell>{vacancy.filledCount}</TableCell>
       <TableCell>
@@ -268,6 +324,7 @@ function VacancyRow({
           vacancy={vacancy}
           pending={pending}
           onStatus={onStatus}
+          onPublish={onPublish}
           compact
         />
       </TableCell>
@@ -279,14 +336,17 @@ function VacancyActions({
   vacancy,
   pending,
   onStatus,
+  onPublish,
   compact,
 }: {
   vacancy: Vacancy;
   pending: boolean;
   onStatus: (status: VacancyStatus) => void;
+  onPublish: () => void;
   compact?: boolean;
 }) {
   const actions = getVacancyStatusActions(vacancy.status);
+  const canPublish = vacancy.status === "OPEN" && !vacancy.publishedAt;
   return (
     <div className={`flex flex-wrap gap-1 ${compact ? "justify-end" : ""}`}>
       <Button variant="ghost" size={compact ? "icon" : "sm"} asChild>
@@ -294,6 +354,19 @@ function VacancyActions({
           {compact ? <Eye className="size-4" /> : "Ver"}
         </Link>
       </Button>
+      <Button variant="outline" size="sm" asChild>
+        <Link href={`/ats/vacancies/${vacancy.id}/preview`}>Preview</Link>
+      </Button>
+      {canPublish ? (
+        <Button
+          type="button"
+          size="sm"
+          disabled={pending}
+          onClick={onPublish}
+        >
+          Publicar
+        </Button>
+      ) : null}
       {actions.map((status) => (
         <Button
           key={status}

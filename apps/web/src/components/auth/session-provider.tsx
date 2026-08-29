@@ -33,7 +33,11 @@ import {
   subscribeSession,
   type SessionSnapshot,
 } from "@/lib/auth/session-store";
-import type { CompanyAccess, PublicCompany, PublicUser } from "@/types/auth";
+import type {
+  CurrentCompanyAccess,
+  PublicCompany,
+  PublicUser,
+} from "@/types/auth";
 
 export type AuthStatus = "loading" | "authenticated" | "anonymous";
 
@@ -43,7 +47,7 @@ type SessionContextValue = {
   companies: PublicCompany[];
   activeCompanyId: string | null;
   activeCompany: PublicCompany | null;
-  companyAccess: CompanyAccess | null;
+  companyAccess: CurrentCompanyAccess | null;
   companyAccessLoading: boolean;
   login: (
     email: string,
@@ -84,7 +88,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     getServerSnapshot,
   );
   const [status, setStatus] = useState<AuthStatus>("loading");
-  const [companyAccess, setCompanyAccess] = useState<CompanyAccess | null>(null);
+  const [companyAccess, setCompanyAccess] =
+    useState<CurrentCompanyAccess | null>(null);
   const [companyAccessLoading, setCompanyAccessLoading] = useState(false);
 
   useEffect(() => {

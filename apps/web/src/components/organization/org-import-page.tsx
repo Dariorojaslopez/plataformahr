@@ -29,7 +29,7 @@ const ENTITY_LABELS: Array<{ key: keyof OrgImportSummary; label: string }> = [
   { key: "businessUnits", label: "Unidades" },
   { key: "areas", label: "Áreas" },
   { key: "jobLevels", label: "Niveles" },
-  { key: "positions", label: "Cargos" },
+  { key: "positions", label: "Descripciones de cargo" },
   { key: "employees", label: "Colaboradores" },
   { key: "reportingLines", label: "Relaciones de reporte" },
 ];

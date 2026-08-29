@@ -9,11 +9,11 @@ import { EntityEditorShell } from "@/components/organization/entity-editor-shell
 import { FormSelect } from "@/components/organization/form-select";
 import { OrgStatusBadge } from "@/components/organization/status-badge";
 import { PaginationControls } from "@/components/organization/pagination-controls";
+import { ScaleFormFields } from "@/components/performance/scale-form-fields";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { PageHeader } from "@/components/ui/page-header";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -24,27 +24,20 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Textarea } from "@/components/ui/textarea";
 import { useCompanyId } from "@/hooks/use-company-id";
 import { getErrorMessage } from "@/lib/api/errors";
 import { performanceApi, performanceKeys } from "@/lib/api/performance";
 import { notifyError, notifySuccess } from "@/lib/ui/notify";
+import { scaleTypeLabel } from "@/lib/performance/scale-format";
+import {
+  emptyScaleForm,
+  toCreateScalePayload,
+  type ScaleFormValues,
+} from "@/lib/performance/scale-form";
 import type {
   ListScalesParams,
   OrganizationEntityStatus,
 } from "@/types/performance";
-
-type FormState = {
-  name: string;
-  description: string;
-  status: OrganizationEntityStatus;
-};
-
-const emptyForm = (): FormState => ({
-  name: "",
-  description: "",
-  status: "ACTIVE",
-});
 
 function useScaleFilters() {
   const searchParams = useSearchParams();
@@ -78,7 +71,7 @@ export function ScalesPageClient() {
   const { params, setParams } = useScaleFilters();
   const [searchInput, setSearchInput] = useState(params.search ?? "");
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState<FormState>(emptyForm());
+  const [form, setForm] = useState<ScaleFormValues>(emptyScaleForm());
   const [formError, setFormError] = useState<string | null>(null);
 
   const listQuery = useQuery({
@@ -91,18 +84,14 @@ export function ScalesPageClient() {
       if (!form.name.trim()) {
         throw new Error("El nombre es obligatorio.");
       }
-      return performanceApi.createScale({
-        name: form.name.trim(),
-        description: form.description.trim() || undefined,
-        status: form.status,
-      });
+      return performanceApi.createScale(toCreateScalePayload(form));
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({
         queryKey: performanceKeys.all(companyId),
       });
       setOpen(false);
-      setForm(emptyForm());
+      setForm(emptyScaleForm());
       setFormError(null);
       notifySuccess("Escala creada");
     },
@@ -117,13 +106,13 @@ export function ScalesPageClient() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Escalas"
+        title="Escalas de calificación"
         description="Escalas de valoración para competencias."
         actions={
           <Button
             type="button"
             onClick={() => {
-              setForm(emptyForm());
+              setForm(emptyScaleForm());
               setFormError(null);
               setOpen(true);
             }}
@@ -192,12 +181,12 @@ export function ScalesPageClient() {
       {listQuery.isSuccess && items.length === 0 ? (
         <EmptyState
           title="Sin escalas"
-          description="Crea una escala y define sus niveles."
+          description="Crea una escala y configura su formato de calificación."
           action={
             <Button
               type="button"
               onClick={() => {
-                setForm(emptyForm());
+                setForm(emptyScaleForm());
                 setFormError(null);
                 setOpen(true);
               }}
@@ -215,6 +204,7 @@ export function ScalesPageClient() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Nombre</TableHead>
+                  <TableHead>Tipo</TableHead>
                   <TableHead>Niveles</TableHead>
                   <TableHead>Estado</TableHead>
                   <TableHead className="text-right">Acciones</TableHead>
@@ -224,13 +214,16 @@ export function ScalesPageClient() {
                 {items.map((scale) => (
                   <TableRow key={scale.id}>
                     <TableCell className="font-medium">{scale.name}</TableCell>
+                    <TableCell>
+                      {scaleTypeLabel(scale.kind, scale.format)}
+                    </TableCell>
                     <TableCell>{scale.levelCount ?? "—"}</TableCell>
                     <TableCell>
                       <OrgStatusBadge status={scale.status} />
                     </TableCell>
                     <TableCell className="text-right">
                       <Button variant="ghost" size="sm" asChild>
-                        <Link href={`/performance/scales/${scale.id}`}>
+                        <Link href={`/organization/scales/${scale.id}`}>
                           <Eye className="h-4 w-4" />
                           Ver
                         </Link>
@@ -252,14 +245,15 @@ export function ScalesPageClient() {
                   <div>
                     <p className="font-medium">{scale.name}</p>
                     <p className="text-sm text-muted-foreground">
-                      {scale.levelCount ?? 0} nivel
+                      {scaleTypeLabel(scale.kind, scale.format)}{" "}
+                      · {scale.levelCount ?? 0} nivel
                       {(scale.levelCount ?? 0) === 1 ? "" : "es"}
                     </p>
                   </div>
                   <OrgStatusBadge status={scale.status} />
                 </div>
                 <Button variant="outline" size="sm" asChild>
-                  <Link href={`/performance/scales/${scale.id}`}>Ver</Link>
+                  <Link href={`/organization/scales/${scale.id}`}>Ver</Link>
                 </Button>
               </div>
             ))}
@@ -286,43 +280,7 @@ export function ScalesPageClient() {
             createMutation.mutate();
           }}
         >
-          <div className="space-y-2">
-            <Label htmlFor="scale-name">Nombre *</Label>
-            <Input
-              id="scale-name"
-              value={form.name}
-              onChange={(e) =>
-                setForm((f) => ({ ...f, name: e.target.value }))
-              }
-              required
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="scale-description">Descripción</Label>
-            <Textarea
-              id="scale-description"
-              value={form.description}
-              onChange={(e) =>
-                setForm((f) => ({ ...f, description: e.target.value }))
-              }
-              rows={3}
-            />
-          </div>
-          <FormSelect
-            id="scale-form-status"
-            label="Estado"
-            value={form.status}
-            onChange={(status) =>
-              setForm((f) => ({
-                ...f,
-                status: status as OrganizationEntityStatus,
-              }))
-            }
-            options={[
-              { value: "ACTIVE", label: "Activo" },
-              { value: "INACTIVE", label: "Inactivo" },
-            ]}
-          />
+          <ScaleFormFields values={form} onChange={setForm} />
           {formError ? (
             <p className="text-sm text-destructive" role="alert">
               {formError}

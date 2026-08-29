@@ -20,12 +20,24 @@ export function canActivateCycle(input: {
   status: PerformanceCycleStatus;
   competencyCount: number;
   weights: Array<string | number | null | undefined>;
+  includeCompetencies?: boolean;
   selfEvaluationWeight?: string | number | null;
   managerEvaluationWeight?: string | number | null;
+  evaluationModel?: import("@/types/performance").PerformanceEvaluationModel;
+  peerEvaluationWeight?: string | number | null;
+  reportEvaluationWeight?: string | number | null;
+  clientEvaluationWeight?: string | number | null;
 }): boolean {
   if (input.status !== "DRAFT") return false;
-  if (input.competencyCount < 1) return false;
-  if (!canActivateWeights(input.weights)) return false;
+  if (input.includeCompetencies !== false && input.competencyCount < 1) {
+    return false;
+  }
+  if (
+    input.includeCompetencies !== false &&
+    !canActivateWeights(input.weights)
+  ) {
+    return false;
+  }
   if (
     input.selfEvaluationWeight != null ||
     input.managerEvaluationWeight != null
@@ -33,6 +45,12 @@ export function canActivateCycle(input: {
     return evaluatorWeightsAreValid(
       input.selfEvaluationWeight,
       input.managerEvaluationWeight,
+      {
+        model: input.evaluationModel,
+        peer: input.peerEvaluationWeight,
+        report: input.reportEvaluationWeight,
+        client: input.clientEvaluationWeight,
+      },
     );
   }
   return true;

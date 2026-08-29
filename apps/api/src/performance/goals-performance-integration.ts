@@ -31,6 +31,7 @@ export type IntegratedOverallInput = {
   goalsAchievement: number;
   competencyResultWeight: number;
   goalsResultWeight: number;
+  evaluationRange?: number;
 };
 
 export class GoalsPerformanceIntegrationError extends Error {
@@ -57,22 +58,30 @@ function toNum(
 export function assertCompositionWeights(
   competencyResultWeight: number,
   goalsResultWeight: number,
+  evaluationRange = 100,
 ): void {
+  const max = evaluationRange === 120 ? 120 : 100;
   if (
     competencyResultWeight < 0 ||
-    competencyResultWeight > 100 ||
+    competencyResultWeight > max ||
     goalsResultWeight < 0 ||
-    goalsResultWeight > 100
+    goalsResultWeight > max
   ) {
     throw new GoalsPerformanceIntegrationError(
-      'Los pesos de composición deben estar entre 0 y 100',
+      `Los pesos de composición deben estar entre 0 y ${max}`,
     );
   }
-  if (
-    roundScorePercentage(competencyResultWeight + goalsResultWeight) !== 100
-  ) {
+  const sum = roundScorePercentage(
+    competencyResultWeight + goalsResultWeight,
+  );
+  if (sum <= 0) {
     throw new GoalsPerformanceIntegrationError(
-      'El peso de competencias y el de objetivos deben sumar 100',
+      'La ponderación de competencias y objetivos debe ser mayor a 0',
+    );
+  }
+  if (sum > max) {
+    throw new GoalsPerformanceIntegrationError(
+      `El peso de competencias y el de objetivos no pueden superar ${max}`,
     );
   }
 }
@@ -153,7 +162,11 @@ export function calculateIntegratedOverallScore(
     'competencyResultWeight',
   );
   const goalsResultWeight = toNum(input.goalsResultWeight, 'goalsResultWeight');
-  assertCompositionWeights(competencyResultWeight, goalsResultWeight);
+  assertCompositionWeights(
+    competencyResultWeight,
+    goalsResultWeight,
+    input.evaluationRange ?? 100,
+  );
 
   if (competencyScore < 0 || competencyScore > 100) {
     throw new GoalsPerformanceIntegrationError(

@@ -13,3 +13,16 @@ export function buildBulkAssignPayload(
   }
   return { employeeIds: unique };
 }
+
+export const BULK_ASSIGN_MAX = 100;
+
+export function chunkEmployeeIds(
+  employeeIds: string[],
+  size = BULK_ASSIGN_MAX,
+): string[][] {
+  const chunks: string[][] = [];
+  for (let i = 0; i < employeeIds.length; i += size) {
+    chunks.push(employeeIds.slice(i, i + size));
+  }
+  return chunks;
+}

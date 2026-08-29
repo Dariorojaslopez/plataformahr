@@ -1,4 +1,6 @@
 import {
+  ArrayMaxSize,
+  IsArray,
   IsDateString,
   IsEmail,
   IsEnum,
@@ -10,6 +12,7 @@ import {
   MaxLength,
   Min,
   MinLength,
+  ValidateNested,
 } from 'class-validator';
 import { EmployeeStatus } from '@prisma/client';
 import { Type } from 'class-transformer';
@@ -18,6 +21,8 @@ import {
   DEFAULT_PAGE,
   MAX_LIMIT,
 } from '../../organization.constants';
+import { PositionCustomFieldValueInputDto } from '../../position-custom-fields/dto/position-custom-field.dto';
+import { MAX_CUSTOM_FIELDS } from '../../position-custom-fields/position-custom-fields.validation';
 
 export class CreateEmployeeDto {
   @IsString()
@@ -42,6 +47,16 @@ export class CreateEmployeeDto {
   @IsString()
   @MaxLength(50)
   phone?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(20)
+  documentType?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  documentNumber?: string;
 
   @IsOptional()
   @IsDateString()
@@ -109,6 +124,13 @@ export class CreateEmployeeDto {
   @IsOptional()
   @IsDateString()
   terminationDate?: string;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(MAX_CUSTOM_FIELDS)
+  @ValidateNested({ each: true })
+  @Type(() => PositionCustomFieldValueInputDto)
+  customFields?: PositionCustomFieldValueInputDto[];
 }
 
 export class UpdateEmployeeDto {
@@ -137,6 +159,16 @@ export class UpdateEmployeeDto {
   @IsString()
   @MaxLength(50)
   phone?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(20)
+  documentType?: string | null;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  documentNumber?: string | null;
 
   @IsOptional()
   @IsDateString()
@@ -206,6 +238,13 @@ export class UpdateEmployeeDto {
   @IsOptional()
   @IsDateString()
   terminationDate?: string | null;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(MAX_CUSTOM_FIELDS)
+  @ValidateNested({ each: true })
+  @Type(() => PositionCustomFieldValueInputDto)
+  customFields?: PositionCustomFieldValueInputDto[];
 }
 
 export class ListEmployeesQueryDto {

@@ -94,7 +94,7 @@ export function PositionsPageClient() {
     queryKey: orgKeys.positionCustomFields(companyId),
     queryFn: () => organizationApi.listPositionCustomFields(),
   });
-  const activeFields = activeDefinitions(fieldsQuery.data ?? []);
+  const activeFields = activeDefinitions(fieldsQuery.data ?? [], "POSITION");
 
   const areaMap = useMemo(() => {
     const map = new Map<string, string>();
@@ -118,7 +118,6 @@ export function PositionsPageClient() {
       const base = {
         name: form.name.trim(),
         areaId: form.areaId,
-        code: form.code.trim() || undefined,
         mission: form.mission.trim() || undefined,
         responsibilities: form.responsibilities.trim() || undefined,
         requiredExperience: form.requiredExperience.trim() || undefined,
@@ -157,7 +156,7 @@ export function PositionsPageClient() {
   function openCreate() {
     setEditing(null);
     setForm(emptyForm);
-    setCustomValues(emptyCustomFieldValues(fieldsQuery.data ?? []));
+    setCustomValues(emptyCustomFieldValues(activeFields));
     setFormError(null);
     setOpen(true);
   }
@@ -176,9 +175,7 @@ export function PositionsPageClient() {
       headcount: String(position.headcount),
       status: position.status,
     });
-    setCustomValues(
-      customFieldValuesFromPosition(fieldsQuery.data ?? [], position),
-    );
+    setCustomValues(customFieldValuesFromPosition(activeFields, position));
     setFormError(null);
     setOpen(true);
   }
@@ -186,8 +183,8 @@ export function PositionsPageClient() {
   return (
     <div>
       <PageHeader
-        title="Cargos"
-        description="Definición de posiciones organizacionales."
+        title="Descripciones de cargo"
+        description="Definición de descripciones de cargo y plazas."
         actions={
           <Button type="button" onClick={openCreate}>
             <Plus className="h-4 w-4" aria-hidden />
@@ -307,14 +304,6 @@ export function PositionsPageClient() {
               required
             />
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="pos-code">Código</Label>
-            <Input
-              id="pos-code"
-              value={form.code}
-              onChange={(e) => setForm((f) => ({ ...f, code: e.target.value }))}
-            />
-          </div>
           <FormSelect
             id="pos-area"
             label="Área"
@@ -412,7 +401,7 @@ export function PositionsPageClient() {
             definitions={activeFields}
             values={customValues}
             onChange={setCustomValues}
-            position={editing}
+            record={editing}
           />
           {formError ? (
             <p className="text-sm text-destructive" role="alert">

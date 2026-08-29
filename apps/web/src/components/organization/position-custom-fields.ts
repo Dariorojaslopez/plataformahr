@@ -1,4 +1,5 @@
 import type {
+  CustomFieldAppliesTo,
   Position,
   PositionCustomFieldDefinition,
   PositionCustomFieldInput,
@@ -10,9 +11,13 @@ export type CustomFieldFormValues = Record<string, string | boolean>;
 
 export function activeDefinitions(
   definitions: PositionCustomFieldDefinition[],
+  appliesTo?: CustomFieldAppliesTo,
 ): PositionCustomFieldDefinition[] {
   return [...definitions]
     .filter((definition) => definition.active)
+    .filter((definition) =>
+      appliesTo ? definition.appliesTo === appliesTo : true,
+    )
     .sort((a, b) => {
       if (a.sortOrder !== b.sortOrder) return a.sortOrder - b.sortOrder;
       return a.label.localeCompare(b.label);
@@ -29,12 +34,12 @@ export function emptyCustomFieldValues(
   return values;
 }
 
-export function customFieldValuesFromPosition(
+export function customFieldValuesFromRecord(
   definitions: PositionCustomFieldDefinition[],
-  position: Position | null,
+  record: { customFields?: PositionCustomFieldValue[] } | null,
 ): CustomFieldFormValues {
   const values = emptyCustomFieldValues(definitions);
-  for (const field of position?.customFields ?? []) {
+  for (const field of record?.customFields ?? []) {
     if (!(field.definitionId in values)) continue;
     if (field.type === "BOOLEAN") {
       values[field.definitionId] = field.value === true;
@@ -45,6 +50,25 @@ export function customFieldValuesFromPosition(
     }
   }
   return values;
+}
+
+export function customFieldValuesFromPosition(
+  definitions: PositionCustomFieldDefinition[],
+  position: Position | null,
+): CustomFieldFormValues {
+  return customFieldValuesFromRecord(definitions, position);
+}
+
+export function historicCustomFields(
+  record: { customFields?: PositionCustomFieldValue[] } | null,
+): PositionCustomFieldValue[] {
+  return (record?.customFields ?? []).filter((field) => !field.active);
+}
+
+export function appliesToLabel(appliesTo: CustomFieldAppliesTo): string {
+  return appliesTo === "EMPLOYEE"
+    ? "Formulario de personas"
+    : "Formulario de descripciones de cargo";
 }
 
 export function toCustomFieldsPayload(
@@ -68,12 +92,6 @@ export function toCustomFieldsPayload(
     }
     return { definitionId: definition.id, value: String(raw) };
   });
-}
-
-export function historicCustomFields(
-  position: Position | null,
-): PositionCustomFieldValue[] {
-  return (position?.customFields ?? []).filter((field) => !field.active);
 }
 
 export function formatCustomFieldDisplay(

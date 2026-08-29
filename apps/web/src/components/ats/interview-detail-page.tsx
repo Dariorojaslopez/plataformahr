@@ -278,6 +278,7 @@ export function InterviewDetailPageClient() {
               companyId={companyId}
               interview={interview}
               userId={user?.id}
+              applicationStage={application?.stage}
             />
             {canTranscribe || interview.status === "COMPLETED" ? (
               <InterviewTranscriptPanel
@@ -300,6 +301,7 @@ export function InterviewDetailPageClient() {
                   companyId={companyId}
                   interview={interview}
                   userId={user?.id}
+                  applicationStage={application?.stage}
                 />
               </TabsContent>
               <TabsContent value="transcript" className="mt-4">
@@ -332,6 +334,7 @@ export function InterviewDetailPageClient() {
           companyId={companyId}
           interview={interview}
           userId={user?.id}
+          applicationStage={application?.stage}
         />
       ) : null}
 

@@ -239,6 +239,7 @@ export function GoalDetailPageClient() {
     cycleStatus: goal.cycle.status,
   });
   const assignedIds = new Set(goal.assignments.map((a) => a.employeeId));
+  const organizationalReadOnly = goal.type === "COMPANY";
   const employeeOptions = (employeesQuery.data?.items ?? [])
     .filter((e) => !assignedIds.has(e.id))
     .map((e) => ({
@@ -252,7 +253,7 @@ export function GoalDetailPageClient() {
         <Button type="button" variant="ghost" size="sm" asChild>
           <Link href="/goals">
             <ArrowLeft className="h-4 w-4" />
-            Objetivos
+            Objetivos organizacionales
           </Link>
         </Button>
       </div>
@@ -260,6 +261,7 @@ export function GoalDetailPageClient() {
         title={goal.title}
         description={`${GOAL_TYPE_LABELS[goal.type]} · ${goal.cycle.name}`}
         actions={
+          organizationalReadOnly ? undefined : (
           <div className="flex flex-wrap gap-2">
             {draft ? (
               <Button
@@ -288,6 +290,7 @@ export function GoalDetailPageClient() {
               </Button>
             ) : null}
           </div>
+          )
         }
       />
       <div className="flex flex-wrap gap-2">
@@ -331,7 +334,7 @@ export function GoalDetailPageClient() {
                 </p>
                 <GoalProgressBar value={kr.progressPercentage} label="KR" />
                 <div className="flex flex-wrap gap-2">
-                  {goal.canCheckIn ? (
+                  {goal.canCheckIn && !organizationalReadOnly ? (
                     <Button size="sm" onClick={() => setActiveKr(kr)}>
                       Registrar avance
                     </Button>
@@ -377,7 +380,7 @@ export function GoalDetailPageClient() {
               onSubmit={(body) => checkInMutation.mutate(body)}
             />
           ) : null}
-          {goal.canRequestCompletion ? (
+          {goal.canRequestCompletion && !organizationalReadOnly ? (
             <Button size="sm" variant="secondary" onClick={() => setRequestOpen(true)}>
               Solicitar cierre
             </Button>
@@ -522,7 +525,7 @@ export function GoalDetailPageClient() {
                   <TableHead>Métrica</TableHead>
                   <TableHead>Target</TableHead>
                   <TableHead>Peso</TableHead>
-                  {draft ? <TableHead /> : null}
+                    {draft && !organizationalReadOnly ? <TableHead /> : null}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -537,7 +540,7 @@ export function GoalDetailPageClient() {
                     </TableCell>
                     <TableCell>{formatKeyResultTarget(kr)}</TableCell>
                     <TableCell>{kr.weight ?? "—"}</TableCell>
-                    {draft ? (
+                    {draft && !organizationalReadOnly ? (
                       <TableCell className="text-right">
                         <Button
                           type="button"
@@ -557,7 +560,7 @@ export function GoalDetailPageClient() {
           </div>
         )}
 
-        {draft ? (
+        {draft && !organizationalReadOnly ? (
           <div className="space-y-3 rounded-lg border p-4">
             <p className="font-medium">Agregar Key Result</p>
             <div className="grid gap-3 sm:grid-cols-2">
@@ -735,7 +738,7 @@ export function GoalDetailPageClient() {
                 <span>
                   {a.employee.firstName} {a.employee.lastName}
                 </span>
-                {draft ? (
+                {draft && !organizationalReadOnly ? (
                   <Button
                     type="button"
                     variant="ghost"
@@ -750,7 +753,7 @@ export function GoalDetailPageClient() {
             ))}
           </ul>
         )}
-        {draft ? (
+        {draft && !organizationalReadOnly ? (
           <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
             <FormSelect
               id="assign-emp"

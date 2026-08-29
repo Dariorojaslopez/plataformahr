@@ -5,7 +5,7 @@ import { ArrowDown, ArrowUp, Pencil, Plus } from "lucide-react";
 import { useState } from "react";
 import { EntityEditorShell } from "@/components/organization/entity-editor-shell";
 import { FormSelect } from "@/components/organization/form-select";
-import { slugFromLabel, typeLabel } from "@/components/organization/position-custom-fields";
+import { slugFromLabel, typeLabel, appliesToLabel } from "@/components/organization/position-custom-fields";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -28,6 +28,7 @@ import { organizationApi, orgKeys } from "@/lib/api/organization";
 import type {
   PositionCustomFieldDefinition,
   PositionCustomFieldType,
+  CustomFieldAppliesTo,
 } from "@/types/organization";
 
 type OptionDraft = { id?: string; label: string; active: boolean };
@@ -36,6 +37,7 @@ type FormState = {
   key: string;
   label: string;
   type: PositionCustomFieldType;
+  appliesTo: CustomFieldAppliesTo;
   required: boolean;
   active: boolean;
   options: OptionDraft[];
@@ -45,6 +47,7 @@ const emptyForm: FormState = {
   key: "",
   label: "",
   type: "TEXT",
+  appliesTo: "POSITION",
   required: false,
   active: true,
   options: [{ label: "", active: true }],
@@ -98,6 +101,7 @@ export function PositionCustomFieldsPageClient() {
         key,
         label,
         type: form.type,
+        appliesTo: form.appliesTo,
         required: form.required,
         active: form.active,
         options:
@@ -168,6 +172,7 @@ export function PositionCustomFieldsPageClient() {
       key: definition.key,
       label: definition.label,
       type: definition.type,
+      appliesTo: definition.appliesTo,
       required: definition.required,
       active: definition.active,
       options:
@@ -191,8 +196,8 @@ export function PositionCustomFieldsPageClient() {
   return (
     <div>
       <PageHeader
-        title="Campos personalizados de cargos"
-        description="Cada compañía define campos adicionales para sus cargos. No se agregan columnas fijas por campo."
+        title="Campos personalizados"
+        description="Define campos adicionales para descripciones de cargo o personas. Cada campo aparece solo en el formulario que elijas."
         actions={
           <Button type="button" onClick={openCreate}>
             <Plus className="h-4 w-4" aria-hidden />
@@ -214,7 +219,7 @@ export function PositionCustomFieldsPageClient() {
       ) : !(query.data?.length ?? 0) ? (
         <EmptyState
           title="Sin campos personalizados"
-          description="Crea campos como centro de costo o código SAP. Son ejemplos: tú eliges el nombre y el tipo."
+          description="Crea campos como centro de costo o talla de uniforme. Tú eliges el nombre, el tipo y si aparecen en descripciones de cargo o en personas."
           action={
             <Button type="button" onClick={openCreate}>
               Nuevo campo
@@ -227,7 +232,7 @@ export function PositionCustomFieldsPageClient() {
             <TableHeader>
               <TableRow>
                 <TableHead>Campo</TableHead>
-                <TableHead>Clave</TableHead>
+                <TableHead>Dónde aparece</TableHead>
                 <TableHead>Tipo</TableHead>
                 <TableHead>Obligatorio</TableHead>
                 <TableHead>Estado</TableHead>
@@ -238,7 +243,7 @@ export function PositionCustomFieldsPageClient() {
               {(query.data ?? []).map((definition, index) => (
                 <TableRow key={definition.id}>
                   <TableCell className="font-medium">{definition.label}</TableCell>
-                  <TableCell className="font-mono text-xs">{definition.key}</TableCell>
+                  <TableCell>{appliesToLabel(definition.appliesTo)}</TableCell>
                   <TableCell>{typeLabel(definition.type)}</TableCell>
                   <TableCell>{definition.required ? "Sí" : "No"}</TableCell>
                   <TableCell>{definition.active ? "Activo" : "Inactivo"}</TableCell>
@@ -338,21 +343,30 @@ export function PositionCustomFieldsPageClient() {
               required
             />
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="pcf-key">Clave</Label>
-            <Input
-              id="pcf-key"
-              value={form.key}
-              onChange={(event) =>
-                setForm((current) => ({ ...current, key: event.target.value }))
-              }
-              disabled={Boolean(editing)}
-              className="font-mono"
-            />
-            <p className="text-xs text-muted-foreground">
-              Identificador estable. No cambia después de crear el campo.
-            </p>
-          </div>
+          <FormSelect
+            id="pcf-applies-to"
+            label="Dónde aparece"
+            value={form.appliesTo}
+            disabled={Boolean(editing)}
+            onChange={(value) =>
+              setForm((current) => ({
+                ...current,
+                appliesTo: value as CustomFieldAppliesTo,
+              }))
+            }
+            options={[
+              {
+                value: "POSITION",
+                label: "Formulario de descripciones de cargo",
+              },
+              { value: "EMPLOYEE", label: "Formulario de personas" },
+            ]}
+            hint={
+              editing
+                ? "El destino no se puede cambiar después de crear el campo."
+                : "Elige el formulario en el que las personas verán este campo."
+            }
+          />
           <FormSelect
             id="pcf-type"
             label="Tipo"
@@ -385,7 +399,10 @@ export function PositionCustomFieldsPageClient() {
                 setForm((current) => ({ ...current, required: checked === true }))
               }
             />
-            <span className="text-sm">Obligatorio al crear o editar un cargo</span>
+            <span className="text-sm">
+              Obligatorio al crear o editar un{" "}
+              {form.appliesTo === "EMPLOYEE" ? "persona" : "cargo"}
+            </span>
           </label>
           <label htmlFor="pcf-active" className="flex items-center gap-3">
             <Checkbox

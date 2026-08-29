@@ -34,6 +34,15 @@ describe("cycle activation helpers", () => {
 
     expect(
       canActivateCycle({
+        status: "DRAFT",
+        competencyCount: 0,
+        weights: [],
+        includeCompetencies: false,
+      }),
+    ).toBe(true);
+
+    expect(
+      canActivateCycle({
         status: "ACTIVE",
         competencyCount: 2,
         weights: [null, null],

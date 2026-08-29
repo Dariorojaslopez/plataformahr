@@ -12,12 +12,14 @@ export type VacancyApprovalStep =
   | "HR"
   | "GENERAL_MANAGER"
   | "ROLE"
-  | "SPECIFIC_EMPLOYEE";
+  | "SPECIFIC_EMPLOYEE"
+  | "POSITION";
 
 export type VacancyApproverType =
   | "MANAGER_OF_REQUESTER"
   | "SPECIFIC_EMPLOYEE"
-  | "ROLE";
+  | "ROLE"
+  | "POSITION";
 
 export type ApprovalStatus = "PENDING" | "APPROVED" | "REJECTED" | "SKIPPED";
 
@@ -55,6 +57,9 @@ export type PositionRef = {
   id: string;
   name: string;
   areaId?: string;
+  mission?: string | null;
+  responsibilities?: string | null;
+  requiredExperience?: string | null;
 };
 
 export type AreaRef = {
@@ -75,6 +80,7 @@ export type VacancyApproval = {
   step: VacancyApprovalStep;
   sequence: number;
   label: string | null;
+  positionId: string | null;
   approverEmployeeId: string | null;
   requiredRoleCode: string | null;
   status: ApprovalStatus;
@@ -84,6 +90,7 @@ export type VacancyApproval = {
   createdAt: string;
   updatedAt: string;
   approverEmployee?: EmployeeRef | null;
+  position?: PositionRef | null;
   decidedByUser?: { id: string; firstName: string; lastName: string } | null;
 };
 
@@ -109,6 +116,7 @@ export type VacancyRequest = {
   requestedJobLevel?: JobLevelRef | null;
   requestedByEmployee?: EmployeeRef | null;
   approvals?: VacancyApproval[];
+  approvalPlanSteps?: VacancyRequestApprovalPlanStep[];
   vacancy?: { id: string; title: string; status: VacancyStatus } | null;
   currentUserCanDecide?: boolean;
 };
@@ -119,6 +127,7 @@ export type Vacancy = {
   vacancyRequestId: string | null;
   positionId: string;
   areaId: string;
+  assignedRecruiterEmployeeId: string | null;
   title: string;
   description: string | null;
   headcount: number;
@@ -132,6 +141,11 @@ export type Vacancy = {
   updatedAt: string;
   position?: PositionRef | null;
   area?: AreaRef | null;
+  assignedRecruiter?: EmployeeRef | null;
+  salaryAmount: string | null;
+  salaryCurrency: string;
+  showSalaryPublic: boolean;
+  interviewFormTemplateId?: string | null;
   vacancyRequest?: {
     id: string;
     type: VacancyRequestType;
@@ -140,14 +154,20 @@ export type Vacancy = {
 };
 
 export type PublicJob = {
-  publicId: string;
+  publicId: string | null;
   title: string;
   description: string | null;
+  positionName?: string | null;
+  mission?: string | null;
+  responsibilities?: string | null;
+  requiredExperience?: string | null;
   areaName: string;
   companyName: string;
   brandPrimaryColor: string;
   hasLogo: boolean;
-  publishedAt: string;
+  publishedAt: string | null;
+  salaryAmount: string | null;
+  salaryCurrency: string | null;
 };
 
 export type PublicJobApplicationInput = {
@@ -157,6 +177,15 @@ export type PublicJobApplicationInput = {
   phone: string;
   documentType: string;
   documentNumber: string;
+};
+
+export type ParsedPublicCv = {
+  firstName: string | null;
+  lastName: string | null;
+  email: string | null;
+  phone: string | null;
+  documentType: string | null;
+  documentNumber: string | null;
 };
 
 export type Candidate = {
@@ -173,6 +202,9 @@ export type Candidate = {
   city: string | null;
   source: string | null;
   status: CandidateStatus;
+  cvFileName?: string | null;
+  cvOriginalName?: string | null;
+  cvMimeType?: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -206,8 +238,10 @@ export type PipelineCard = {
   candidateId: string;
   candidateName: string;
   candidateEmail: string;
+  hasCv?: boolean;
   stage: ApplicationStage;
   lastStageChangedAt: string;
+  fitLevel?: "green" | "yellow" | "red" | "gray";
 };
 
 export type PipelineColumn = {
@@ -231,13 +265,30 @@ export type ListVacancyRequestsParams = {
   limit?: number;
 };
 
+export type VacancyApprovalPlanOrigin = "DEFAULT" | "CUSTOM";
+
+export type VacancyRequestApprovalPlanStep = {
+  id: string;
+  sequence: number;
+  origin: VacancyApprovalPlanOrigin;
+  approverType: VacancyApproverType;
+  label: string | null;
+  positionId: string | null;
+  specificEmployeeId: string | null;
+  requiredRoleCode: string | null;
+  position?: PositionRef | null;
+  specificEmployee?: EmployeeRef | null;
+};
+
 export type VacancyApprovalWorkflowStep = {
   id: string;
   sequence: number;
   approverType: VacancyApproverType;
   label: string | null;
+  positionId: string | null;
   specificEmployeeId: string | null;
   requiredRoleCode: string | null;
+  position?: PositionRef | null;
   specificEmployee?: EmployeeRef | null;
 };
 
@@ -252,9 +303,69 @@ export type UpdateVacancyApprovalWorkflowInput = {
   steps: Array<{
     approverType: VacancyApproverType;
     label?: string | null;
+    positionId?: string | null;
     specificEmployeeId?: string | null;
     requiredRoleCode?: string | null;
   }>;
+};
+
+export type PositionOccupant = {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  userId: string | null;
+};
+
+export type PositionOccupantStep = {
+  id: string;
+  sequence: number;
+  positionId: string;
+  employeeId: string | null;
+  position?: PositionRef | null;
+  employee?: EmployeeRef | null;
+};
+
+export type EvaluatorDefaults = {
+  steps: PositionOccupantStep[];
+};
+
+export type ReplacePositionOccupantStepsInput = {
+  steps: Array<{
+    positionId: string;
+    employeeId?: string | null;
+  }>;
+};
+
+export type ActiveSelectionProcess = {
+  id: string;
+  status: VacancyRequestStatus;
+  title: string;
+  vacancyId: string | null;
+  vacancyStatus: VacancyStatus | null;
+  requestedByEmployee: EmployeeRef;
+};
+
+export type ActiveProcessApprovalStep = VacancyApproval & {
+  locked: boolean;
+  position?: PositionRef | null;
+};
+
+export type ActiveProcessEvaluatorStep = PositionOccupantStep & {
+  locked: boolean;
+  employeeId: string;
+};
+
+export type ActiveProcessApprovals = {
+  requestId: string;
+  status: VacancyRequestStatus;
+  steps: ActiveProcessApprovalStep[];
+};
+
+export type ActiveProcessEvaluators = {
+  requestId: string;
+  status: VacancyRequestStatus;
+  steps: ActiveProcessEvaluatorStep[];
 };
 
 export type ListVacanciesParams = {
@@ -293,6 +404,10 @@ export type CreateVacancyRequestInput = {
   requestedHeadcount: number;
   justification: string;
   generalManagerApprovalRequired?: boolean;
+  extraApprovalSteps?: Array<{
+    positionId: string;
+    employeeId?: string | null;
+  }>;
 };
 
 export type UpdateVacancyRequestInput = {
@@ -305,6 +420,10 @@ export type UpdateVacancyRequestInput = {
   requestedHeadcount?: number;
   justification?: string;
   generalManagerApprovalRequired?: boolean;
+  extraApprovalSteps?: Array<{
+    positionId: string;
+    employeeId?: string | null;
+  }>;
 };
 
 export type ApprovalDecisionInput = {
@@ -318,6 +437,10 @@ export type RejectDecisionInput = {
 export type UpdateVacancyInput = {
   description?: string;
   status?: VacancyStatus;
+  assignedRecruiterEmployeeId?: string | null;
+  salaryAmount?: string | null;
+  salaryCurrency?: string;
+  showSalaryPublic?: boolean;
 };
 
 export type CreateCandidateInput = {

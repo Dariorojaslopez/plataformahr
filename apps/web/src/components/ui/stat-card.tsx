@@ -21,11 +21,12 @@ export function StatCard({
   soon = false,
   className,
 }: StatCardProps) {
+  const clickable = Boolean(href) && !soon;
   const content = (
     <Card
       className={cn(
         "h-full transition-colors",
-        href && !soon ? "hover:border-primary/40" : "",
+        clickable ? "hover:border-primary/40" : "",
         soon ? "opacity-80" : "",
         className,
       )}
@@ -39,9 +40,15 @@ export function StatCard({
           <Icon className="h-4 w-4" aria-hidden />
         </div>
       </CardHeader>
-      <CardContent>
-        {soon ? <Badge variant="secondary">Próximamente</Badge> : null}
-      </CardContent>
+      {soon || clickable ? (
+        <CardContent>
+          {soon ? (
+            <Badge variant="secondary">Próximamente</Badge>
+          ) : (
+            <span className="text-sm text-primary">Abrir</span>
+          )}
+        </CardContent>
+      ) : null}
     </Card>
   );
 

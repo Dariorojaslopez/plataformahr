@@ -6,11 +6,16 @@ import {
   Param,
   Post,
   StreamableFile,
+  UploadedFile,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
+import { memoryStorage } from 'multer';
 import { PublicJobApplicationDto } from './dto/public-job.dto';
 import { PublicJobsService } from './public-jobs.service';
+import { CV_FIELD_NAME, CV_MAX_BYTES } from './cv.constants';
 
 @Controller('public/jobs')
 export class PublicJobsController {
@@ -32,13 +37,36 @@ export class PublicJobsController {
     });
   }
 
+  @Post(':publicId/parse-cv')
+  @UseGuards(ThrottlerGuard)
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @UseInterceptors(
+    FileInterceptor(CV_FIELD_NAME, {
+      storage: memoryStorage(),
+      limits: { fileSize: CV_MAX_BYTES, files: 1 },
+    }),
+  )
+  parseCv(
+    @Param('publicId') publicId: string,
+    @UploadedFile() file: Express.Multer.File | undefined,
+  ) {
+    return this.publicJobs.parseCv(publicId, file);
+  }
+
   @Post(':publicId/apply')
   @UseGuards(ThrottlerGuard)
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @UseInterceptors(
+    FileInterceptor(CV_FIELD_NAME, {
+      storage: memoryStorage(),
+      limits: { fileSize: CV_MAX_BYTES, files: 1 },
+    }),
+  )
   apply(
     @Param('publicId') publicId: string,
     @Body() dto: PublicJobApplicationDto,
+    @UploadedFile() file: Express.Multer.File | undefined,
   ) {
-    return this.publicJobs.apply(publicId, dto);
+    return this.publicJobs.apply(publicId, dto, file);
   }
 }

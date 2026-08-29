@@ -29,6 +29,7 @@ import {
   MAX_LIMIT,
 } from '../goals.constants';
 import { decimalToString, emptyToNull } from '../goals.helpers';
+import { isGoalsCascadeEnabled } from '../goals.cascade';
 import type {
   ApproveCompletionDto,
   CreateCompletionRequestDto,
@@ -1033,10 +1034,17 @@ export class GoalCompletionService {
       await this.rbac.getPermissionCodesForMembership(membershipId);
     if (granted.has('goals.goal.manage')) return goal;
 
+    const cascade = isGoalsCascadeEnabled(
+      await this.prisma.company.findUnique({
+        where: { id: companyId },
+        select: { goalsCascadeEnabled: true },
+      }),
+    );
+
     const employee = await this.findEmployeeForUser(companyId, userId);
     if (
       employee &&
-      this.isApplicable(goal, employee) &&
+      this.isApplicable(goal, employee, cascade) &&
       (goal.status === GoalStatus.ACTIVE ||
         goal.status === GoalStatus.COMPLETED)
     ) {
@@ -1058,7 +1066,7 @@ export class GoalCompletionService {
       const ok = reports.some(
         (r) =>
           r.employee.deletedAt == null &&
-          this.isApplicable(goal, r.employee) &&
+          this.isApplicable(goal, r.employee, cascade) &&
           (goal.status === GoalStatus.ACTIVE ||
             goal.status === GoalStatus.COMPLETED),
       );
@@ -1075,8 +1083,12 @@ export class GoalCompletionService {
       assignments: Array<{ employeeId: string }>;
     },
     employee: { id: string; areaId: string },
+    cascadeEnabled: boolean,
   ): boolean {
-    if (goal.type === GoalType.COMPANY) return true;
+    if (goal.type === GoalType.COMPANY) {
+      if (cascadeEnabled) return true;
+      return goal.assignments.some((a) => a.employeeId === employee.id);
+    }
     if (goal.type === GoalType.AREA) return goal.areaId === employee.areaId;
     return goal.assignments.some((a) => a.employeeId === employee.id);
   }

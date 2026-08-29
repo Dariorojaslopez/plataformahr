@@ -9,7 +9,9 @@ import {
   ApprovalStatus,
   OrganizationEntityStatus,
   Prisma,
+  VacancyApprovalPlanOrigin,
   VacancyApprovalStep,
+  VacancyApproverType,
   VacancyRequestStatus,
   VacancyRequestType,
   VacancyStatus,
@@ -25,12 +27,14 @@ import {
   DEFAULT_LIMIT,
   DEFAULT_PAGE,
   MAX_LIMIT,
+  MAX_VACANCY_APPROVAL_STEPS,
   PROXY_REQUESTER_ROLE_CODES,
   VACANCY_REQUESTER_ERRORS,
 } from '../ats.constants';
 import type {
   ApprovalDecisionDto,
   CreateVacancyRequestDto,
+  ExtraApprovalStepDto,
   ListVacancyRequestsQueryDto,
   RejectDecisionDto,
   UpdateVacancyRequestDto,
@@ -41,12 +45,29 @@ import {
   type ApprovalActor,
 } from './vacancy-approval.helpers';
 import { VacancyApprovalWorkflowService } from './vacancy-approval-workflow.service';
+import { VacancyEvaluatorDefaultsService } from '../process-defaults/vacancy-evaluator-defaults.service';
+import { PositionOccupantsService } from '../position-occupants/position-occupants.service';
+
+const PERSON_SELECT = {
+  id: true,
+  firstName: true,
+  lastName: true,
+  email: true,
+} as const;
+
+const PLAN_INCLUDE = {
+  orderBy: { sequence: 'asc' as const },
+  include: {
+    position: { select: { id: true, name: true } },
+    specificEmployee: { select: PERSON_SELECT },
+  },
+} as const;
 
 const APPROVAL_INCLUDE = {
   orderBy: { sequence: 'asc' as const },
   include: {
     approverEmployee: {
-      select: { id: true, firstName: true, lastName: true, email: true },
+      select: PERSON_SELECT,
     },
     decidedByUser: {
       select: { id: true, firstName: true, lastName: true },
@@ -62,6 +83,8 @@ export class VacancyRequestsService {
     private readonly integrity: OrganizationIntegrityService,
     private readonly rbac: RbacService,
     private readonly workflow: VacancyApprovalWorkflowService,
+    private readonly evaluatorDefaults: VacancyEvaluatorDefaultsService,
+    private readonly occupants: PositionOccupantsService,
   ) {}
 
   async list(tenant: TenantContext, query: ListVacancyRequestsQueryDto) {
@@ -111,6 +134,7 @@ export class VacancyRequestsService {
             select: { id: true, firstName: true, lastName: true, email: true },
           },
           approvals: APPROVAL_INCLUDE,
+          approvalPlanSteps: PLAN_INCLUDE,
         },
         orderBy: { createdAt: 'desc' },
       });
@@ -139,6 +163,7 @@ export class VacancyRequestsService {
             select: { id: true, firstName: true, lastName: true, email: true },
           },
           approvals: APPROVAL_INCLUDE,
+          approvalPlanSteps: PLAN_INCLUDE,
         },
         orderBy: { createdAt: 'desc' },
         skip,
@@ -167,6 +192,7 @@ export class VacancyRequestsService {
           select: { id: true, firstName: true, lastName: true, email: true },
         },
         approvals: APPROVAL_INCLUDE,
+        approvalPlanSteps: PLAN_INCLUDE,
         vacancy: true,
       },
     });
@@ -190,6 +216,11 @@ export class VacancyRequestsService {
     const created = await this.prisma.vacancyRequest.create({
       data: this.toCreateData(tenant.companyId, requestedByEmployeeId, dto),
     });
+    await this.seedApprovalPlan(
+      tenant.companyId,
+      created.id,
+      dto.extraApprovalSteps ?? [],
+    );
 
     await this.audit.create({
       action: ATS_AUDIT.VACANCY_REQUEST_CREATED,
@@ -264,6 +295,26 @@ export class VacancyRequestsService {
       } satisfies Prisma.VacancyRequestUncheckedUpdateInput,
     });
 
+    if (dto.extraApprovalSteps !== undefined) {
+      const existingPlanCount =
+        await this.prisma.vacancyRequestApprovalPlanStep.count({
+          where: { companyId: tenant.companyId, vacancyRequestId: id },
+        });
+      if (existingPlanCount === 0) {
+        await this.seedApprovalPlan(
+          tenant.companyId,
+          id,
+          dto.extraApprovalSteps,
+        );
+      } else {
+        await this.replaceCustomPlanSteps(
+          tenant.companyId,
+          id,
+          dto.extraApprovalSteps,
+        );
+      }
+    }
+
     await this.audit.create({
       action: ATS_AUDIT.VACANCY_REQUEST_UPDATED,
       entity: 'VacancyRequest',
@@ -289,12 +340,30 @@ export class VacancyRequestsService {
       generalManagerApprovalRequired: request.generalManagerApprovalRequired,
     });
 
-    const approvalsData = await this.workflow.buildSnapshot({
-      companyId: tenant.companyId,
-      vacancyRequestId: id,
-      requestedByEmployeeId: request.requestedByEmployeeId,
-      generalManagerApprovalRequired: request.generalManagerApprovalRequired,
+    const plan = await this.prisma.vacancyRequestApprovalPlanStep.findMany({
+      where: { companyId: tenant.companyId, vacancyRequestId: id },
+      orderBy: { sequence: 'asc' },
     });
+    const approvalsData =
+      plan.length > 0
+        ? await this.workflow.snapshotFromSteps(
+            {
+              companyId: tenant.companyId,
+              vacancyRequestId: id,
+              requestedByEmployeeId: request.requestedByEmployeeId,
+            },
+            plan,
+          )
+        : await this.workflow.buildSnapshot({
+            companyId: tenant.companyId,
+            vacancyRequestId: id,
+            requestedByEmployeeId: request.requestedByEmployeeId,
+            generalManagerApprovalRequired: request.generalManagerApprovalRequired,
+          });
+    const evaluatorsData = await this.evaluatorDefaults.buildSnapshot(
+      tenant.companyId,
+      id,
+    );
 
     const result = await this.prisma.$transaction(async (tx) => {
       const transition = await tx.vacancyRequest.updateMany({
@@ -314,10 +383,16 @@ export class VacancyRequestsService {
       }
 
       await tx.vacancyApproval.createMany({ data: approvalsData });
+      if (evaluatorsData.length > 0) {
+        await tx.vacancyRequestEvaluator.createMany({ data: evaluatorsData });
+      }
 
       return tx.vacancyRequest.findFirstOrThrow({
         where: { id, companyId: tenant.companyId },
-        include: { approvals: APPROVAL_INCLUDE },
+        include: {
+          approvals: APPROVAL_INCLUDE,
+          approvalPlanSteps: PLAN_INCLUDE,
+        },
       });
     });
 
@@ -422,7 +497,10 @@ export class VacancyRequestsService {
 
         return tx.vacancyRequest.findFirstOrThrow({
           where: { id, companyId: tenant.companyId },
-          include: { approvals: APPROVAL_INCLUDE },
+          include: {
+          approvals: APPROVAL_INCLUDE,
+          approvalPlanSteps: PLAN_INCLUDE,
+        },
         });
       });
 
@@ -475,6 +553,7 @@ export class VacancyRequestsService {
           where: { id, companyId: tenant.companyId },
           include: {
             approvals: APPROVAL_INCLUDE,
+            approvalPlanSteps: PLAN_INCLUDE,
             vacancy: true,
           },
         });
@@ -501,6 +580,7 @@ export class VacancyRequestsService {
         where: { id, companyId: tenant.companyId },
         include: {
           approvals: APPROVAL_INCLUDE,
+          approvalPlanSteps: PLAN_INCLUDE,
           vacancy: true,
         },
       });
@@ -914,5 +994,117 @@ export class VacancyRequestsService {
       );
     }
     return request;
+  }
+
+  private async seedApprovalPlan(
+    companyId: string,
+    requestId: string,
+    extras: ExtraApprovalStepDto[],
+  ) {
+    const workflow = await this.prisma.vacancyApprovalWorkflow.findUnique({
+      where: { companyId },
+      include: { steps: { orderBy: { sequence: 'asc' } } },
+    });
+    const defaults = workflow?.enabled ? workflow.steps : [];
+    const custom = await this.normalizeExtraPlanSteps(companyId, extras);
+    if (defaults.length + custom.length > MAX_VACANCY_APPROVAL_STEPS) {
+      throw new BadRequestException(
+        `A workflow can have at most ${MAX_VACANCY_APPROVAL_STEPS} steps`,
+      );
+    }
+    const rows: Prisma.VacancyRequestApprovalPlanStepCreateManyInput[] = [
+      ...defaults.map((step, index) => ({
+        companyId,
+        vacancyRequestId: requestId,
+        sequence: index + 1,
+        origin: VacancyApprovalPlanOrigin.DEFAULT,
+        approverType: step.approverType,
+        label: step.label,
+        positionId: step.positionId,
+        specificEmployeeId: step.specificEmployeeId,
+        requiredRoleCode: step.requiredRoleCode,
+        updatedAt: new Date(),
+      })),
+      ...custom.map((step, index) => ({
+        companyId,
+        vacancyRequestId: requestId,
+        sequence: defaults.length + index + 1,
+        origin: VacancyApprovalPlanOrigin.CUSTOM,
+        approverType: VacancyApproverType.POSITION,
+        label: null,
+        positionId: step.positionId,
+        specificEmployeeId: step.specificEmployeeId,
+        requiredRoleCode: null,
+        updatedAt: new Date(),
+      })),
+    ];
+    if (rows.length > 0) {
+      await this.prisma.vacancyRequestApprovalPlanStep.createMany({ data: rows });
+    }
+  }
+
+  private async replaceCustomPlanSteps(
+    companyId: string,
+    requestId: string,
+    extras: ExtraApprovalStepDto[],
+  ) {
+    const defaults = await this.prisma.vacancyRequestApprovalPlanStep.findMany({
+      where: {
+        companyId,
+        vacancyRequestId: requestId,
+        origin: VacancyApprovalPlanOrigin.DEFAULT,
+      },
+      orderBy: { sequence: 'asc' },
+    });
+    const custom = await this.normalizeExtraPlanSteps(companyId, extras);
+    if (defaults.length + custom.length > MAX_VACANCY_APPROVAL_STEPS) {
+      throw new BadRequestException(
+        `A workflow can have at most ${MAX_VACANCY_APPROVAL_STEPS} steps`,
+      );
+    }
+    await this.prisma.vacancyRequestApprovalPlanStep.deleteMany({
+      where: {
+        companyId,
+        vacancyRequestId: requestId,
+        origin: VacancyApprovalPlanOrigin.CUSTOM,
+      },
+    });
+    if (custom.length === 0) {
+      return;
+    }
+    await this.prisma.vacancyRequestApprovalPlanStep.createMany({
+      data: custom.map((step, index) => ({
+        companyId,
+        vacancyRequestId: requestId,
+        sequence: defaults.length + index + 1,
+        origin: VacancyApprovalPlanOrigin.CUSTOM,
+        approverType: VacancyApproverType.POSITION,
+        label: null,
+        positionId: step.positionId,
+        specificEmployeeId: step.specificEmployeeId,
+        requiredRoleCode: null,
+        updatedAt: new Date(),
+      })),
+    });
+  }
+
+  private async normalizeExtraPlanSteps(
+    companyId: string,
+    extras: ExtraApprovalStepDto[],
+  ) {
+    const custom: Array<{ positionId: string; specificEmployeeId: string }> =
+      [];
+    for (const extra of extras) {
+      const occupant = await this.occupants.resolve(
+        companyId,
+        extra.positionId,
+        extra.employeeId,
+      );
+      custom.push({
+        positionId: extra.positionId,
+        specificEmployeeId: occupant.id,
+      });
+    }
+    return custom;
   }
 }

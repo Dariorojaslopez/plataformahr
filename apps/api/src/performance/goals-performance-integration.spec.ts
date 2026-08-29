@@ -180,7 +180,9 @@ describe('goals-performance-integration', () => {
 
   it('legacy competency-only composition weights', () => {
     expect(() => assertCompositionWeights(70, 30)).not.toThrow();
-    expect(() => assertCompositionWeights(50, 40)).toThrow(/100/);
+    expect(() => assertCompositionWeights(50, 40)).not.toThrow();
+    expect(() => assertCompositionWeights(80, 50, 100)).toThrow(/superar 100/);
+    expect(() => assertCompositionWeights(70, 50, 120)).not.toThrow();
   });
 
   it('empty goals rejected', () => {

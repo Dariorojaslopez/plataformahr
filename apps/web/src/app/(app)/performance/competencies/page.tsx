@@ -1,11 +1,5 @@
-import { Suspense } from "react";
-import { CompetenciesPageClient } from "@/components/performance/competencies-page";
-import { Skeleton } from "@/components/ui/skeleton";
+import { redirect } from "next/navigation";
 
-export default function CompetenciesPage() {
-  return (
-    <Suspense fallback={<Skeleton className="h-40 w-full" />}>
-      <CompetenciesPageClient />
-    </Suspense>
-  );
+export default function PerformanceCompetenciesRedirectPage() {
+  redirect("/organization/competencies");
 }

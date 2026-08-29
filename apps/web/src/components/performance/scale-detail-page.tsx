@@ -6,13 +6,13 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useMemo, useState } from "react";
 import { EntityEditorShell } from "@/components/organization/entity-editor-shell";
-import { FormSelect } from "@/components/organization/form-select";
 import { OrgStatusBadge } from "@/components/organization/status-badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { ScaleFormFields } from "@/components/performance/scale-form-fields";
 import { PageHeader } from "@/components/ui/page-header";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -28,16 +28,13 @@ import { useCompanyId } from "@/hooks/use-company-id";
 import { getErrorMessage } from "@/lib/api/errors";
 import { performanceApi, performanceKeys } from "@/lib/api/performance";
 import { notifyError, notifySuccess } from "@/lib/ui/notify";
-import type {
-  CompetencyScaleLevel,
-  OrganizationEntityStatus,
-} from "@/types/performance";
-
-type ScaleForm = {
-  name: string;
-  description: string;
-  status: OrganizationEntityStatus;
-};
+import { scaleTypeLabel } from "@/lib/performance/scale-format";
+import {
+  scaleToForm,
+  toUpdateScalePayload,
+  type ScaleFormValues,
+} from "@/lib/performance/scale-form";
+import type { CompetencyScaleLevel } from "@/types/performance";
 
 type LevelForm = {
   value: string;
@@ -60,7 +57,7 @@ export function ScaleDetailPageClient() {
   const scaleId = params.id;
 
   const [scaleOpen, setScaleOpen] = useState(false);
-  const [scaleForm, setScaleForm] = useState<ScaleForm | null>(null);
+  const [scaleForm, setScaleForm] = useState<ScaleFormValues | null>(null);
   const [scaleError, setScaleError] = useState<string | null>(null);
 
   const [levelOpen, setLevelOpen] = useState(false);
@@ -97,11 +94,10 @@ export function ScaleDetailPageClient() {
       if (!scaleForm.name.trim()) {
         throw new Error("El nombre es obligatorio.");
       }
-      return performanceApi.updateScale(scaleId, {
-        name: scaleForm.name.trim(),
-        description: scaleForm.description.trim() || null,
-        status: scaleForm.status,
-      });
+      return performanceApi.updateScale(
+        scaleId,
+        toUpdateScalePayload(scaleForm),
+      );
     },
     onSuccess: async () => {
       await invalidate();
@@ -170,11 +166,7 @@ export function ScaleDetailPageClient() {
 
   function openScaleEdit() {
     if (!scale) return;
-    setScaleForm({
-      name: scale.name,
-      description: scale.description ?? "",
-      status: scale.status,
-    });
+    setScaleForm(scaleToForm(scale));
     setScaleError(null);
     setScaleOpen(true);
   }
@@ -223,9 +215,9 @@ export function ScaleDetailPageClient() {
     <div className="space-y-6">
       <div>
         <Button variant="ghost" size="sm" className="mb-2 -ml-2" asChild>
-          <Link href="/performance/scales">
+          <Link href="/organization/scales">
             <ArrowLeft className="h-4 w-4" />
-            Volver a escalas
+            Volver a escalas de calificación
           </Link>
         </Button>
         <PageHeader
@@ -234,14 +226,19 @@ export function ScaleDetailPageClient() {
           actions={
             <div className="flex flex-wrap gap-2">
               <OrgStatusBadge status={scale.status} />
+              <span className="text-sm text-muted-foreground">
+                {scaleTypeLabel(scale.kind, scale.format)}
+              </span>
               <Button type="button" variant="outline" onClick={openScaleEdit}>
                 <Pencil className="h-4 w-4" />
                 Editar escala
               </Button>
-              <Button type="button" onClick={openAddLevel}>
-                <Plus className="h-4 w-4" />
-                Agregar nivel
-              </Button>
+              {scale.kind !== "QUANTITATIVE" ? (
+                <Button type="button" onClick={openAddLevel}>
+                  <Plus className="h-4 w-4" />
+                  Agregar nivel
+                </Button>
+              ) : null}
             </div>
           }
         />
@@ -251,19 +248,26 @@ export function ScaleDetailPageClient() {
         <div>
           <h2 className="text-lg font-semibold">Niveles</h2>
           <p className="text-sm text-muted-foreground">
-            Define los valores y etiquetas de la escala. Se recomienda al menos
-            dos niveles para usarla en ciclos activos.
+            {scale.kind === "QUANTITATIVE"
+              ? "Las escalas cuantitativas no usan niveles discretos; el valor se captura con el formato configurado."
+              : "Define los valores y etiquetas de la escala. Se recomienda al menos dos niveles para usarla en ciclos activos."}
           </p>
         </div>
 
         {levels.length === 0 ? (
           <EmptyState
             title="Sin niveles"
-            description="Agrega niveles para completar la escala."
+            description={
+              scale.kind === "QUANTITATIVE"
+                ? "Esta escala no requiere niveles."
+                : "Agrega niveles para completar la escala."
+            }
             action={
-              <Button type="button" onClick={openAddLevel}>
-                Agregar nivel
-              </Button>
+              scale.kind === "QUANTITATIVE" ? undefined : (
+                <Button type="button" onClick={openAddLevel}>
+                  Agregar nivel
+                </Button>
+              )
             }
           />
         ) : (
@@ -376,47 +380,10 @@ export function ScaleDetailPageClient() {
               scaleMutation.mutate();
             }}
           >
-            <div className="space-y-2">
-              <Label htmlFor="scale-edit-name">Nombre *</Label>
-              <Input
-                id="scale-edit-name"
-                value={scaleForm.name}
-                onChange={(e) =>
-                  setScaleForm((f) =>
-                    f ? { ...f, name: e.target.value } : f,
-                  )
-                }
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="scale-edit-description">Descripción</Label>
-              <Textarea
-                id="scale-edit-description"
-                value={scaleForm.description}
-                onChange={(e) =>
-                  setScaleForm((f) =>
-                    f ? { ...f, description: e.target.value } : f,
-                  )
-                }
-                rows={3}
-              />
-            </div>
-            <FormSelect
-              id="scale-edit-status"
-              label="Estado"
-              value={scaleForm.status}
-              onChange={(status) =>
-                setScaleForm((f) =>
-                  f
-                    ? { ...f, status: status as OrganizationEntityStatus }
-                    : f,
-                )
-              }
-              options={[
-                { value: "ACTIVE", label: "Activo" },
-                { value: "INACTIVE", label: "Inactivo" },
-              ]}
+            <ScaleFormFields
+              values={scaleForm}
+              onChange={(next) => setScaleForm(next)}
+              idPrefix="scale-edit"
             />
             {scaleError ? (
               <p className="text-sm text-destructive" role="alert">

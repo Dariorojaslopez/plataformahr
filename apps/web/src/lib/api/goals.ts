@@ -60,6 +60,17 @@ export const goalsApi = {
   cancelCycle: (id: string) =>
     apiRequest<GoalCycle>(`/goals/cycles/${id}/cancel`, { method: "POST" }),
 
+  listOrganizationalGoals: (params: ListGoalsParams = {}) =>
+    apiRequest<Paginated<GoalListItem>>(
+      `/goals/organizational${toQuery({
+        cycleId: params.cycleId,
+        status: params.status,
+        search: params.search,
+        page: params.page,
+        limit: params.limit,
+      })}`,
+    ),
+
   listGoals: (params: ListGoalsParams = {}) =>
     apiRequest<Paginated<GoalListItem>>(
       `/goals${toQuery({

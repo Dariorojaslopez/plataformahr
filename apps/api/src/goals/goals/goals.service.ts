@@ -31,6 +31,10 @@ import {
   emptyToNull,
   parseOptionalWeight,
 } from '../goals.helpers';
+import {
+  companyGoalWhereClause,
+  isGoalsCascadeEnabled,
+} from '../goals.cascade';
 import { GoalProgressService } from '../progress/progress.service';
 import type {
   CreateAssignmentDto,
@@ -185,6 +189,13 @@ export class GoalsService {
     const employee = await this.findEmployeeForUser(companyId, userId);
     if (!employee) return { items: [] };
 
+    const cascade = isGoalsCascadeEnabled(
+      await this.prisma.company.findUnique({
+        where: { id: companyId },
+        select: { goalsCascadeEnabled: true },
+      }),
+    );
+
     const goals = await this.prisma.goal.findMany({
       where: {
         companyId,
@@ -195,7 +206,7 @@ export class GoalsService {
             assignments: { some: { employeeId: employee.id } },
           },
           { type: GoalType.AREA, areaId: employee.areaId },
-          { type: GoalType.COMPANY },
+          ...companyGoalWhereClause(cascade),
         ],
       },
       include: GOAL_DETAIL_INCLUDE,

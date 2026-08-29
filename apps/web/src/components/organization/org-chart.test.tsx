@@ -102,6 +102,9 @@ describe("OrgChartTree", () => {
       />,
     );
 
+    expect(screen.getByTestId("org-chart-tree")).toHaveClass("org-chart-tree");
+    const companyNode = screen.getByText("Acme").closest("div");
+    expect(companyNode).toHaveClass("bg-primary", "text-primary-foreground");
     expect(screen.getByText("Acme")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Ana Jefe" })).toHaveAttribute(
       "href",

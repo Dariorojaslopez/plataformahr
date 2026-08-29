@@ -31,135 +31,193 @@ export function CycleCompositionFields({
   goalCyclesLoading = false,
   idPrefix = "cycle",
 }: CycleCompositionFieldsProps) {
-  const compositionSum = form.includeGoals
-    ? sumResultCompositionWeights(
-        form.competencyResultWeight,
-        form.goalsResultWeight,
-      )
-    : null;
+  const range = form.evaluationRange === "120" ? 120 : 100;
+  const competencyWeight = form.includeCompetencies
+    ? form.competencyResultWeight
+    : "0";
+  const compositionSum = sumResultCompositionWeights(
+    competencyWeight,
+    form.organizationalGoalsWeight,
+    form.individualGoalsWeight,
+  );
+  const hasGoals =
+    (Number(form.organizationalGoalsWeight) || 0) +
+      (Number(form.individualGoalsWeight) || 0) >
+    0;
   const compositionValid =
-    !form.includeGoals ||
-    (form.goalCycleId.trim() !== "" &&
-      resultCompositionWeightsAreValid(
-        form.competencyResultWeight,
-        form.goalsResultWeight,
-      ));
+    (!form.includeCompetencies && !hasGoals) === false &&
+    (!hasGoals ||
+      (form.goalCycleId.trim() !== "" &&
+        resultCompositionWeightsAreValid(
+          competencyWeight,
+          form.organizationalGoalsWeight,
+          form.individualGoalsWeight,
+          range,
+        )));
 
   return (
     <div className="space-y-4 rounded-md border border-border p-3">
       <div>
-        <p className="text-sm font-medium">Composición del resultado</p>
+        <p className="text-sm font-medium">
+          Incluir Competencias en la evaluación
+        </p>
         <p className="text-xs text-muted-foreground">
-          Define cómo se combinan competencias y objetivos en el resultado
-          overall. La ponderación de evaluadores (auto / líder) es independiente
-          y aplica solo a competencias.
+          Define cómo se combinan competencias y objetivos. La suma no puede
+          superar el rango total de evaluación. La ponderación de evaluadores
+          aplica solo a competencias.
         </p>
       </div>
 
       <div className="flex items-center gap-2">
         <Checkbox
-          id={`${idPrefix}-include-goals`}
-          checked={form.includeGoals}
+          id={`${idPrefix}-include-competencies`}
+          checked={form.includeCompetencies}
           onCheckedChange={(checked) =>
             setForm((f) => ({
               ...f,
-              includeGoals: checked === true,
+              includeCompetencies: checked === true,
             }))
           }
         />
-        <Label htmlFor={`${idPrefix}-include-goals`}>Incluir objetivos</Label>
+        <Label htmlFor={`${idPrefix}-include-competencies`}>
+          Activar evaluación de competencias
+        </Label>
       </div>
 
-      {form.includeGoals ? (
-        <div className="space-y-4 border-l-2 border-muted pl-3">
-          <FormSelect
-            id={`${idPrefix}-goal-cycle`}
-            label="Ciclo de objetivos"
-            required
-            disabled={goalCyclesLoading}
-            value={form.goalCycleId}
-            onChange={(goalCycleId) =>
-              setForm((f) => ({ ...f, goalCycleId }))
-            }
-            options={goalCycleOptions}
-            emptyLabel={
-              goalCyclesLoading ? "Cargando…" : "Selecciona un ciclo"
-            }
-          />
+      <FormSelect
+        id={`${idPrefix}-eval-range`}
+        label="Rango total de evaluación"
+        value={form.evaluationRange}
+        onChange={(evaluationRange) =>
+          setForm((f) => ({
+            ...f,
+            evaluationRange: evaluationRange === "120" ? "120" : "100",
+          }))
+        }
+        options={[
+          { value: "100", label: "100%" },
+          { value: "120", label: "120%" },
+        ]}
+      />
 
-          <div>
-            <p className="mb-2 text-xs font-medium text-muted-foreground">
-              Resultado general
-            </p>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor={`${idPrefix}-comp-result-weight`}>
-                  Peso competencias (%)
-                </Label>
-                <Input
-                  id={`${idPrefix}-comp-result-weight`}
-                  type="number"
-                  min={0}
-                  max={100}
-                  step="0.01"
-                  value={form.competencyResultWeight}
-                  onChange={(e) =>
-                    setForm((f) => ({
-                      ...f,
-                      competencyResultWeight: e.target.value,
-                    }))
-                  }
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor={`${idPrefix}-goals-result-weight`}>
-                  Peso objetivos (%)
-                </Label>
-                <Input
-                  id={`${idPrefix}-goals-result-weight`}
-                  type="number"
-                  min={0}
-                  max={100}
-                  step="0.01"
-                  value={form.goalsResultWeight}
-                  onChange={(e) =>
-                    setForm((f) => ({
-                      ...f,
-                      goalsResultWeight: e.target.value,
-                    }))
-                  }
-                  required
-                />
-              </div>
-            </div>
-            {compositionSum != null && !compositionValid ? (
-              <p className="mt-2 text-xs text-destructive">
-                Competencias + objetivos deben sumar 100% (actual:{" "}
-                {compositionSum.toFixed(2)}%).
-              </p>
-            ) : null}
+      <div>
+        <p className="mb-2 text-xs font-medium text-muted-foreground">
+          Ponderación sobre el resultado ({range}%)
+        </p>
+        <div className="grid gap-4 sm:grid-cols-3">
+          <div className="space-y-2">
+            <Label htmlFor={`${idPrefix}-comp-result-weight`}>
+              Competencias (%)
+            </Label>
+            <Input
+              id={`${idPrefix}-comp-result-weight`}
+              type="number"
+              min={0}
+              max={range}
+              step="0.01"
+              value={form.competencyResultWeight}
+              onChange={(e) =>
+                setForm((f) => ({
+                  ...f,
+                  competencyResultWeight: e.target.value,
+                }))
+              }
+              disabled={!form.includeCompetencies}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor={`${idPrefix}-org-goals-weight`}>
+              Objetivos organizacionales (%)
+            </Label>
+            <Input
+              id={`${idPrefix}-org-goals-weight`}
+              type="number"
+              min={0}
+              max={range}
+              step="0.01"
+              value={form.organizationalGoalsWeight}
+              onChange={(e) =>
+                setForm((f) => ({
+                  ...f,
+                  organizationalGoalsWeight: e.target.value,
+                }))
+              }
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor={`${idPrefix}-ind-goals-weight`}>
+              Objetivos individuales (%)
+            </Label>
+            <Input
+              id={`${idPrefix}-ind-goals-weight`}
+              type="number"
+              min={0}
+              max={range}
+              step="0.01"
+              value={form.individualGoalsWeight}
+              onChange={(e) =>
+                setForm((f) => ({
+                  ...f,
+                  individualGoalsWeight: e.target.value,
+                }))
+              }
+            />
           </div>
         </div>
+        {compositionSum != null && !compositionValid ? (
+          <p className="mt-2 text-xs text-destructive">
+            La suma no puede superar {range}% (actual: {compositionSum.toFixed(2)}
+            %).
+          </p>
+        ) : null}
+      </div>
+
+      {hasGoals ? (
+        <FormSelect
+          id={`${idPrefix}-goal-cycle`}
+          label="Ciclo de objetivos"
+          required
+          disabled={goalCyclesLoading}
+          value={form.goalCycleId}
+          onChange={(goalCycleId) => setForm((f) => ({ ...f, goalCycleId }))}
+          options={goalCycleOptions}
+          emptyLabel={goalCyclesLoading ? "Cargando…" : "Selecciona un ciclo"}
+        />
       ) : null}
+
+      <div className="space-y-2">
+        <Label htmlFor={`${idPrefix}-max-objectives`}>
+          Máximo de objetivos
+        </Label>
+        <Input
+          id={`${idPrefix}-max-objectives`}
+          type="number"
+          min={1}
+          step={1}
+          value={form.maxObjectives}
+          onChange={(e) =>
+            setForm((f) => ({ ...f, maxObjectives: e.target.value }))
+          }
+        />
+        <p className="text-xs text-muted-foreground">
+          La cantidad de objetivos definida incluye los objetivos
+          organizacionales e individuales.
+        </p>
+      </div>
 
       <div className="rounded-md bg-muted/40 p-3 text-xs text-muted-foreground">
         <p className="font-medium text-foreground">Competencias</p>
         <p className="mt-1">
-          Autoevaluación {form.selfEvaluationWeight}% · Líder{" "}
-          {form.managerEvaluationWeight}%
+          {form.includeCompetencies
+            ? `Autoevaluación ${form.selfEvaluationWeight}% · Líder ${form.managerEvaluationWeight}%`
+            : "Evaluación de competencias desactivada."}
         </p>
-        {form.includeGoals ? (
-          <>
-            <p className="mt-2 font-medium text-foreground">Resultado general</p>
-            <p className="mt-1">
-              Competencias {form.competencyResultWeight}% · Objetivos{" "}
-              {form.goalsResultWeight}%
-            </p>
-          </>
-        ) : (
-          <p className="mt-2">Resultado general: 100% competencias.</p>
-        )}
+        <p className="mt-2 font-medium text-foreground">Resultado general</p>
+        <p className="mt-1">
+          Competencias {form.includeCompetencies ? form.competencyResultWeight : 0}
+          % · Organizacionales {form.organizationalGoalsWeight}% · Individuales{" "}
+          {form.individualGoalsWeight}% (rango {range}%).
+        </p>
       </div>
     </div>
   );

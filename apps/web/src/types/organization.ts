@@ -57,6 +57,8 @@ export type PositionCustomFieldType =
   | "DATE"
   | "SELECT";
 
+export type CustomFieldAppliesTo = "POSITION" | "EMPLOYEE";
+
 export type PositionCustomFieldOption = {
   id: string;
   companyId: string;
@@ -74,6 +76,7 @@ export type PositionCustomFieldDefinition = {
   key: string;
   label: string;
   type: PositionCustomFieldType;
+  appliesTo: CustomFieldAppliesTo;
   required: boolean;
   active: boolean;
   sortOrder: number;
@@ -104,6 +107,7 @@ export type CreatePositionCustomFieldDefinitionInput = {
   key: string;
   label: string;
   type: PositionCustomFieldType;
+  appliesTo?: CustomFieldAppliesTo;
   required?: boolean;
   active?: boolean;
   sortOrder?: number;
@@ -152,6 +156,8 @@ export type Employee = {
   email: string;
   phone: string | null;
   birthDate: string | null;
+  documentType: string | null;
+  documentNumber: string | null;
   country: string | null;
   state: string | null;
   city: string | null;
@@ -169,6 +175,7 @@ export type Employee = {
   createdAt: string;
   updatedAt: string;
   deletedAt: string | null;
+  customFields?: PositionCustomFieldValue[];
 };
 
 export type PaginatedEmployees = {
@@ -338,6 +345,8 @@ export type CreateEmployeeInput = {
   email: string;
   userId?: string;
   phone?: string;
+  documentType?: string;
+  documentNumber?: string;
   birthDate?: string;
   country?: string;
   state?: string;
@@ -353,6 +362,7 @@ export type CreateEmployeeInput = {
   status?: EmployeeStatus;
   hireDate?: string;
   terminationDate?: string;
+  customFields?: PositionCustomFieldInput[];
 };
 
 export type UpdateEmployeeInput = {
@@ -361,6 +371,8 @@ export type UpdateEmployeeInput = {
   email?: string;
   userId?: string | null;
   phone?: string;
+  documentType?: string | null;
+  documentNumber?: string | null;
   birthDate?: string | null;
   country?: string;
   state?: string;
@@ -376,6 +388,7 @@ export type UpdateEmployeeInput = {
   status?: EmployeeStatus;
   hireDate?: string | null;
   terminationDate?: string | null;
+  customFields?: PositionCustomFieldInput[];
 };
 
 export type CreateReportingLineInput = {

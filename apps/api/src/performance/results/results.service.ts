@@ -366,6 +366,18 @@ export class ResultsService {
           configuredManagerWeight: Number(
             cycle.managerEvaluationWeight.toString(),
           ),
+          configuredPeerWeight:
+            cycle.peerEvaluationWeight == null
+              ? 0
+              : Number(cycle.peerEvaluationWeight.toString()),
+          configuredReportWeight:
+            cycle.reportEvaluationWeight == null
+              ? 0
+              : Number(cycle.reportEvaluationWeight.toString()),
+          configuredClientWeight:
+            cycle.clientEvaluationWeight == null
+              ? 0
+              : Number(cycle.clientEvaluationWeight.toString()),
           evaluations: evaluations.map((e) => ({
             type: e.type,
             status: e.status,
@@ -421,11 +433,16 @@ export class ResultsService {
         }
 
         if (configuredGoalsResultWeight > 0) {
+          const companyFlags = await tx.company.findUnique({
+            where: { id: companyId },
+            select: { goalsCascadeEnabled: true },
+          });
           const incomplete = await findIncompleteApplicableGoals(tx, {
             companyId,
             goalCycleId: cycle.goalCycleId,
             employeeId: participant.employeeId,
             employeeAreaId: employeeForGoals.areaId,
+            cascadeEnabled: companyFlags?.goalsCascadeEnabled === true,
           });
           if (incomplete.length > 0) {
             throw new BadRequestException(
@@ -456,6 +473,7 @@ export class ResultsService {
               goalsAchievement,
               competencyResultWeight: configuredCompetencyResultWeight,
               goalsResultWeight: configuredGoalsResultWeight,
+              evaluationRange: cycle.evaluationRange,
             });
           } catch (error) {
             if (error instanceof GoalsPerformanceIntegrationError) {

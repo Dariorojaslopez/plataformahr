@@ -12,7 +12,13 @@ import type {
   CreatePlatformOwnerInput,
   UpdatePlatformOwnerInput,
   CompanyAccess,
+  CurrentCompanyAccess,
 } from "@/types/auth";
+import type {
+  CompanyBillingItem,
+  PlatformBillingReport,
+  UpdateCompanyBillingInput,
+} from "@/lib/platform/billing";
 
 export async function loginRequest(
   email: string,
@@ -87,8 +93,8 @@ export function grantPlatformTenantAccessRequest(
   });
 }
 
-export function currentCompanyAccessRequest(): Promise<CompanyAccess> {
-  return apiRequest<CompanyAccess>("/companies/current/features");
+export function currentCompanyAccessRequest(): Promise<CurrentCompanyAccess> {
+  return apiRequest<CurrentCompanyAccess>("/companies/current/features");
 }
 
 export function updateManagedCompanyFeaturesRequest(
@@ -167,4 +173,44 @@ export function resetPlatformOwnerPasswordRequest(
     method: "POST",
     companyId: null,
   });
+}
+
+export type PlatformPremiumFlags = {
+  digitalSignature: boolean;
+  interviewRecording: boolean;
+  pdi: boolean;
+};
+
+export function updateManagedCompanyPremiumRequest(
+  id: string,
+  body: PlatformPremiumFlags,
+): Promise<CompanyAccess> {
+  return apiRequest<CompanyAccess>(
+    `/platform/admin/companies/${id}/premium`,
+    {
+      method: "PUT",
+      body,
+      companyId: null,
+    },
+  );
+}
+
+export function platformBillingRequest(): Promise<PlatformBillingReport> {
+  return apiRequest<PlatformBillingReport>("/platform/admin/billing", {
+    companyId: null,
+  });
+}
+
+export function updateManagedCompanyBillingRequest(
+  id: string,
+  body: UpdateCompanyBillingInput,
+): Promise<CompanyBillingItem> {
+  return apiRequest<CompanyBillingItem>(
+    `/platform/admin/companies/${id}/billing`,
+    {
+      method: "PUT",
+      body,
+      companyId: null,
+    },
+  );
 }

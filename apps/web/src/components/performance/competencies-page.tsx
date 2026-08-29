@@ -8,6 +8,14 @@ import { EntityEditorShell } from "@/components/organization/entity-editor-shell
 import { FormSelect } from "@/components/organization/form-select";
 import { OrgStatusBadge } from "@/components/organization/status-badge";
 import { PaginationControls } from "@/components/organization/pagination-controls";
+import {
+  competencyJobLevelLabel,
+  competencyToForm,
+  emptyCompetencyForm,
+  toCreateCompetencyPayload,
+  toUpdateCompetencyPayload,
+  type CompetencyFormValues,
+} from "@/components/performance/competency-form";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
@@ -26,6 +34,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { useCompanyId } from "@/hooks/use-company-id";
 import { getErrorMessage } from "@/lib/api/errors";
+import { organizationApi, orgKeys } from "@/lib/api/organization";
 import { performanceApi, performanceKeys } from "@/lib/api/performance";
 import { notifyError, notifySuccess } from "@/lib/ui/notify";
 import type {
@@ -33,22 +42,6 @@ import type {
   ListCompetenciesParams,
   OrganizationEntityStatus,
 } from "@/types/performance";
-
-type FormState = {
-  name: string;
-  code: string;
-  description: string;
-  status: OrganizationEntityStatus;
-  defaultScaleId: string;
-};
-
-const emptyForm = (): FormState => ({
-  name: "",
-  code: "",
-  description: "",
-  status: "ACTIVE",
-  defaultScaleId: "",
-});
 
 function useCompetencyFilters() {
   const searchParams = useSearchParams();
@@ -83,7 +76,7 @@ export function CompetenciesPageClient() {
   const [searchInput, setSearchInput] = useState(params.search ?? "");
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Competency | null>(null);
-  const [form, setForm] = useState<FormState>(emptyForm());
+  const [form, setForm] = useState<CompetencyFormValues>(emptyCompetencyForm());
   const [formError, setFormError] = useState<string | null>(null);
 
   const listQuery = useQuery({
@@ -91,10 +84,9 @@ export function CompetenciesPageClient() {
     queryFn: () => performanceApi.listCompetencies(params),
   });
 
-  const scalesQuery = useQuery({
-    queryKey: performanceKeys.scales(companyId, { status: "ACTIVE", limit: 100 }),
-    queryFn: () =>
-      performanceApi.listScales({ status: "ACTIVE", limit: 100 }),
+  const levelsQuery = useQuery({
+    queryKey: orgKeys.jobLevels(companyId),
+    queryFn: () => organizationApi.listJobLevels(),
   });
 
   const saveMutation = useMutation({
@@ -102,30 +94,27 @@ export function CompetenciesPageClient() {
       if (!form.name.trim()) {
         throw new Error("El nombre es obligatorio.");
       }
-      if (editing) {
-        return performanceApi.updateCompetency(editing.id, {
-          name: form.name.trim(),
-          code: form.code.trim() || null,
-          description: form.description.trim() || null,
-          status: form.status,
-          defaultScaleId: form.defaultScaleId || null,
-        });
+      if (!form.jobLevelId) {
+        throw new Error("El nivel es obligatorio.");
       }
-      return performanceApi.createCompetency({
-        name: form.name.trim(),
-        code: form.code.trim() || undefined,
-        description: form.description.trim() || undefined,
-        status: form.status,
-        defaultScaleId: form.defaultScaleId || undefined,
-      });
+      if (editing) {
+        return performanceApi.updateCompetency(
+          editing.id,
+          toUpdateCompetencyPayload(form),
+        );
+      }
+      return performanceApi.createCompetency(toCreateCompetencyPayload(form));
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({
         queryKey: performanceKeys.all(companyId),
       });
+      await queryClient.invalidateQueries({
+        queryKey: orgKeys.all(companyId),
+      });
       setOpen(false);
       setEditing(null);
-      setForm(emptyForm());
+      setForm(emptyCompetencyForm());
       setFormError(null);
       notifySuccess(
         editing ? "Competencia actualizada" : "Competencia creada",
@@ -139,20 +128,14 @@ export function CompetenciesPageClient() {
 
   function openCreate() {
     setEditing(null);
-    setForm(emptyForm());
+    setForm(emptyCompetencyForm());
     setFormError(null);
     setOpen(true);
   }
 
   function openEdit(item: Competency) {
     setEditing(item);
-    setForm({
-      name: item.name,
-      code: item.code ?? "",
-      description: item.description ?? "",
-      status: item.status,
-      defaultScaleId: item.defaultScaleId ?? "",
-    });
+    setForm(competencyToForm(item));
     setFormError(null);
     setOpen(true);
   }
@@ -247,7 +230,7 @@ export function CompetenciesPageClient() {
                 <TableRow>
                   <TableHead>Nombre</TableHead>
                   <TableHead>Código</TableHead>
-                  <TableHead>Escala por defecto</TableHead>
+                  <TableHead>Nivel</TableHead>
                   <TableHead>Estado</TableHead>
                   <TableHead className="text-right">Acciones</TableHead>
                 </TableRow>
@@ -260,7 +243,7 @@ export function CompetenciesPageClient() {
                       {item.code ?? "—"}
                     </TableCell>
                     <TableCell>
-                      {item.defaultScale?.name ?? "—"}
+                      {competencyJobLevelLabel(item.jobLevels)}
                     </TableCell>
                     <TableCell>
                       <OrgStatusBadge status={item.status} />
@@ -293,7 +276,7 @@ export function CompetenciesPageClient() {
                     <p className="font-medium">{item.name}</p>
                     <p className="text-sm text-muted-foreground">
                       {item.code ?? "Sin código"} ·{" "}
-                      {item.defaultScale?.name ?? "Sin escala"}
+                      {competencyJobLevelLabel(item.jobLevels)}
                     </p>
                   </div>
                   <OrgStatusBadge status={item.status} />
@@ -343,16 +326,6 @@ export function CompetenciesPageClient() {
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="comp-code">Código</Label>
-            <Input
-              id="comp-code"
-              value={form.code}
-              onChange={(e) =>
-                setForm((f) => ({ ...f, code: e.target.value }))
-              }
-            />
-          </div>
-          <div className="space-y-2">
             <Label htmlFor="comp-description">Descripción</Label>
             <Textarea
               id="comp-description"
@@ -379,18 +352,22 @@ export function CompetenciesPageClient() {
             ]}
           />
           <FormSelect
-            id="comp-default-scale"
-            label="Escala por defecto"
-            value={form.defaultScaleId}
-            onChange={(defaultScaleId) =>
-              setForm((f) => ({ ...f, defaultScaleId }))
-            }
-            allowEmpty
-            emptyLabel="Ninguna"
-            options={(scalesQuery.data?.items ?? []).map((s) => ({
-              value: s.id,
-              label: s.name,
-            }))}
+            id="comp-job-level"
+            label="Nivel"
+            required
+            value={form.jobLevelId}
+            onChange={(jobLevelId) => setForm((f) => ({ ...f, jobLevelId }))}
+            placeholder="Seleccionar nivel"
+            options={(levelsQuery.data ?? [])
+              .filter(
+                (level) =>
+                  level.status === "ACTIVE" || level.id === form.jobLevelId,
+              )
+              .map((level) => ({
+                value: level.id,
+                label: level.name,
+              }))}
+            hint="Nivel al que queda asignada esta competencia."
           />
           {formError ? (
             <p className="text-sm text-destructive" role="alert">

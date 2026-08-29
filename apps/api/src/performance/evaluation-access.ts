@@ -93,10 +93,7 @@ export function canAccessEvaluation(params: {
   if (evaluation.type === PerformanceEvaluationType.SELF) {
     return evaluation.employeeId === actorEmployeeId;
   }
-  if (evaluation.type === PerformanceEvaluationType.MANAGER) {
-    return evaluation.evaluatorEmployeeId === actorEmployeeId;
-  }
-  return false;
+  return evaluation.evaluatorEmployeeId === actorEmployeeId;
 }
 
 /**

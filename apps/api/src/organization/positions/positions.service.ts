@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { OrganizationEntityStatus } from '@prisma/client';
 import { withDuplicateCompanyCodeConflict } from '../../common/prisma/duplicate-company-code';
+import { nextSequentialCode } from '../../common/sequential-code';
 import { AuditService } from '../../core/audit/audit.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ORG_AUDIT } from '../organization.constants';
@@ -37,7 +38,17 @@ export class PositionsService {
       await this.integrity.requireJobLevel(companyId, dto.jobLevelId);
     }
 
-    const created = await withDuplicateCompanyCodeConflict(dto.code, () =>
+    const code =
+      emptyToNull(dto.code) ??
+      nextSequentialCode(
+        (
+          await this.prisma.position.findMany({
+            where: { companyId },
+            select: { code: true },
+          })
+        ).map((row) => row.code),
+      );
+    const created = await withDuplicateCompanyCodeConflict(code, () =>
       this.prisma.$transaction(async (tx) => {
         const position = await tx.position.create({
           data: {
@@ -45,7 +56,7 @@ export class PositionsService {
             areaId: dto.areaId,
             jobLevelId: dto.jobLevelId ?? null,
             name: dto.name.trim(),
-            code: emptyToNull(dto.code) ?? null,
+            code,
             mission: emptyToNull(dto.mission) ?? null,
             responsibilities: emptyToNull(dto.responsibilities) ?? null,
             requiredExperience: emptyToNull(dto.requiredExperience) ?? null,

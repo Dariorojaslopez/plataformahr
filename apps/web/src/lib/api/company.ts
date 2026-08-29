@@ -1,4 +1,5 @@
 import { apiRequest, apiRequestBlob } from "@/lib/api/client";
+import type { CurrentCompanyResponse } from "@/types/auth";
 import type {
   CompanyBranding,
   UpdateCompanyBrandingInput,
@@ -8,11 +9,25 @@ export const companyKeys = {
   all: (companyId: string) => ["company", companyId] as const,
   branding: (companyId: string) =>
     [...companyKeys.all(companyId), "branding"] as const,
+  current: (companyId: string) =>
+    [...companyKeys.all(companyId), "current"] as const,
   logo: (companyId: string, logoUpdatedAt: string | null) =>
     [...companyKeys.all(companyId), "logo", logoUpdatedAt] as const,
 };
 
 export const companyApi = {
+  getCurrent: () =>
+    apiRequest<CurrentCompanyResponse>("/companies/current"),
+
+  updatePerformanceSettings: (body: {
+    goalsCascadeEnabled?: boolean;
+    showNineBoxOnMyResults?: boolean;
+  }) =>
+    apiRequest<CurrentCompanyResponse>(
+      "/companies/current/performance-settings",
+      { method: "PATCH", body },
+    ),
+
   getBranding: () => apiRequest<CompanyBranding>("/companies/current/branding"),
 
   updateBranding: (body: UpdateCompanyBrandingInput) =>

@@ -74,10 +74,12 @@ describe("atsApi", () => {
 
   it("lists vacancies and patches status", async () => {
     await atsApi.listVacancies({ status: "OPEN", search: "eng" });
+    await atsApi.listRecruiters();
     await atsApi.updateVacancy("v1", { status: "PAUSED" });
     expect(mockedRequest).toHaveBeenCalledWith(
       "/ats/vacancies?status=OPEN&search=eng",
     );
+    expect(mockedRequest).toHaveBeenCalledWith("/ats/vacancies/recruiters");
     expect(mockedRequest).toHaveBeenCalledWith("/ats/vacancies/v1", {
       method: "PATCH",
       body: { status: "PAUSED" },
@@ -87,6 +89,7 @@ describe("atsApi", () => {
   it("publishes vacancies and calls public endpoints without tenant auth", async () => {
     await atsApi.publishVacancy("v1");
     await atsApi.unpublishVacancy("v1");
+    await atsApi.previewVacancyPublic("v1");
     await publicJobsApi.get("public-1");
     await publicJobsApi.apply("public-1", {
       firstName: "Ana",
@@ -96,6 +99,10 @@ describe("atsApi", () => {
       documentType: "CC",
       documentNumber: "123",
     });
+    await publicJobsApi.parseCv(
+      "public-1",
+      new File(["cv"], "cv.txt", { type: "text/plain" }),
+    );
     expect(mockedRequest).toHaveBeenNthCalledWith(
       1,
       "/ats/vacancies/v1/publish",
@@ -106,15 +113,29 @@ describe("atsApi", () => {
       "/ats/vacancies/v1/unpublish",
       { method: "POST" },
     );
-    expect(mockedRequest).toHaveBeenNthCalledWith(3, "/public/jobs/public-1", {
+    expect(mockedRequest).toHaveBeenNthCalledWith(
+      3,
+      "/ats/vacancies/v1/public-preview",
+    );
+    expect(mockedRequest).toHaveBeenNthCalledWith(4, "/public/jobs/public-1", {
       auth: false,
       companyId: null,
     });
     expect(mockedRequest).toHaveBeenNthCalledWith(
-      4,
+      5,
       "/public/jobs/public-1/apply",
       expect.objectContaining({
         method: "POST",
+        auth: false,
+        companyId: null,
+      }),
+    );
+    expect(mockedRequest).toHaveBeenNthCalledWith(
+      6,
+      "/public/jobs/public-1/parse-cv",
+      expect.objectContaining({
+        method: "POST",
+        formData: expect.any(FormData),
         auth: false,
         companyId: null,
       }),

@@ -70,5 +70,8 @@ describe('vacancy-approval.helpers', () => {
     expect(snapshotStepFromApproverType(VacancyApproverType.ROLE)).toBe(
       VacancyApprovalStep.ROLE,
     );
+    expect(snapshotStepFromApproverType(VacancyApproverType.POSITION)).toBe(
+      VacancyApprovalStep.POSITION,
+    );
   });
 });

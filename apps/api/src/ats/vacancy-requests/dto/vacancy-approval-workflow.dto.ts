@@ -25,10 +25,19 @@ export class VacancyApprovalWorkflowStepInputDto {
 
   @ValidateIf(
     (o: VacancyApprovalWorkflowStepInputDto) =>
-      o.approverType === VacancyApproverType.SPECIFIC_EMPLOYEE,
+      o.approverType === VacancyApproverType.SPECIFIC_EMPLOYEE ||
+      (o.approverType === VacancyApproverType.POSITION &&
+        Boolean(o.specificEmployeeId)),
   )
   @IsUUID()
   specificEmployeeId?: string | null;
+
+  @ValidateIf(
+    (o: VacancyApprovalWorkflowStepInputDto) =>
+      o.approverType === VacancyApproverType.POSITION,
+  )
+  @IsUUID()
+  positionId?: string | null;
 
   @ValidateIf(
     (o: VacancyApprovalWorkflowStepInputDto) =>

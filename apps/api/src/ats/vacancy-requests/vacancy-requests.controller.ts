@@ -78,7 +78,7 @@ export class VacancyRequestsController {
   }
 
   @Post(':id/approve')
-  @RequirePermissions('ats.vacancy.approve')
+  @RequirePermissions('ats.vacancy.read')
   approve(
     @CurrentTenant() tenant: TenantContext,
     @Param('id', ParseUUIDPipe) id: string,
@@ -88,7 +88,7 @@ export class VacancyRequestsController {
   }
 
   @Post(':id/reject')
-  @RequirePermissions('ats.vacancy.approve')
+  @RequirePermissions('ats.vacancy.read')
   reject(
     @CurrentTenant() tenant: TenantContext,
     @Param('id', ParseUUIDPipe) id: string,

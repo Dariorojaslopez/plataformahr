@@ -20,7 +20,8 @@ export type ApprovalStepView = {
 export function isEmployeeBoundStep(step: VacancyApprovalStep): boolean {
   return (
     step === VacancyApprovalStep.DIRECT_MANAGER ||
-    step === VacancyApprovalStep.SPECIFIC_EMPLOYEE
+    step === VacancyApprovalStep.SPECIFIC_EMPLOYEE ||
+    step === VacancyApprovalStep.POSITION
   );
 }
 
@@ -60,6 +61,8 @@ export function snapshotStepFromApproverType(
       return VacancyApprovalStep.DIRECT_MANAGER;
     case VacancyApproverType.SPECIFIC_EMPLOYEE:
       return VacancyApprovalStep.SPECIFIC_EMPLOYEE;
+    case VacancyApproverType.POSITION:
+      return VacancyApprovalStep.POSITION;
     case VacancyApproverType.ROLE:
       return VacancyApprovalStep.ROLE;
   }

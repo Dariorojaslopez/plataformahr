@@ -8,6 +8,8 @@ import {
   formatCustomFieldDisplay,
   slugFromLabel,
   toCustomFieldsPayload,
+  activeDefinitions,
+  appliesToLabel,
 } from "@/components/organization/position-custom-fields";
 import type {
   Position,
@@ -46,6 +48,7 @@ function definition(
     updatedAt: now,
     options: [],
     _count: { values: 0 },
+    appliesTo: "POSITION",
     ...partial,
   };
 }
@@ -111,6 +114,23 @@ describe("position custom field payloads", () => {
     expect(toCustomFieldsPayload(definitions, values)).toHaveLength(5);
   });
 
+  it("keeps POSITION and EMPLOYEE definitions on their own forms", () => {
+    const employeeField = definition({
+      id: "d-emp",
+      key: "talla",
+      label: "Talla",
+      type: "TEXT",
+      appliesTo: "EMPLOYEE",
+    });
+    const all = [...definitions, employeeField];
+    expect(activeDefinitions(all, "POSITION").map((item) => item.id)).not.toContain(
+      "d-emp",
+    );
+    expect(activeDefinitions(all, "EMPLOYEE").map((item) => item.id)).toEqual([
+      "d-emp",
+    ]);
+  });
+
   it("prefills from a stored position without showing technical keys", () => {
     const position: Position = {
       id: "p1",
@@ -149,6 +169,8 @@ describe("position custom field payloads", () => {
       "Sí",
     );
     expect(slugFromLabel("Centro de costo")).toBe("centro_de_costo");
+    expect(appliesToLabel("POSITION")).toBe("Formulario de descripciones de cargo");
+    expect(appliesToLabel("EMPLOYEE")).toBe("Formulario de personas");
   });
 });
 

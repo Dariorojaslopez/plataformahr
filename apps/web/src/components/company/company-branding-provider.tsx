@@ -1,6 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
+import { useTheme } from "next-themes";
 import {
   createContext,
   useContext,
@@ -30,6 +31,7 @@ const CompanyBrandingContext = createContext<CompanyBrandingView | null>(null);
 
 export function CompanyBrandingProvider({ children }: { children: ReactNode }) {
   const { activeCompanyId, activeCompany } = useSession();
+  const { resolvedTheme } = useTheme();
 
   const brandingQuery = useQuery({
     queryKey: companyKeys.branding(activeCompanyId ?? "none"),
@@ -69,7 +71,9 @@ export function CompanyBrandingProvider({ children }: { children: ReactNode }) {
     branding,
   };
 
-  const style = brandCssVars(view.brandPrimaryColor);
+  const style = brandCssVars(view.brandPrimaryColor, {
+    dark: resolvedTheme === "dark",
+  });
 
   return (
     <CompanyBrandingContext.Provider value={view}>

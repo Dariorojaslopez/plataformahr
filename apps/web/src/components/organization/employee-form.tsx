@@ -3,6 +3,8 @@
 import { useMemo, useState } from "react";
 import { NO_BUSINESS_UNIT_LABEL } from "@/components/organization/area-form";
 import { FormSelect } from "@/components/organization/form-select";
+import { PositionCustomFieldsForm } from "@/components/organization/position-custom-fields-form";
+import type { CustomFieldFormValues } from "@/components/organization/position-custom-fields";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -13,6 +15,7 @@ import type {
   Employee,
   EmployeeStatus,
   Position,
+  PositionCustomFieldDefinition,
   UpdateEmployeeInput,
 } from "@/types/organization";
 
@@ -21,6 +24,8 @@ export type EmployeeFormValues = {
   lastName: string;
   email: string;
   phone: string;
+  documentType: string;
+  documentNumber: string;
   birthDate: string;
   country: string;
   state: string;
@@ -44,6 +49,8 @@ export function employeeToFormValues(employee?: Employee | null): EmployeeFormVa
     lastName: employee?.lastName ?? "",
     email: employee?.email ?? "",
     phone: employee?.phone ?? "",
+    documentType: employee?.documentType ?? "",
+    documentNumber: employee?.documentNumber ?? "",
     birthDate: employee?.birthDate?.slice(0, 10) ?? "",
     country: employee?.country ?? "",
     state: employee?.state ?? "",
@@ -71,6 +78,8 @@ export function toCreatePayload(values: EmployeeFormValues): CreateEmployeeInput
     lastName: values.lastName.trim(),
     email: values.email.trim(),
     phone: values.phone.trim() || undefined,
+    documentType: values.documentType.trim() || undefined,
+    documentNumber: values.documentNumber.trim() || undefined,
     birthDate: values.birthDate || undefined,
     country: values.country.trim() || undefined,
     state: values.state.trim() || undefined,
@@ -95,6 +104,8 @@ export function toUpdatePayload(values: EmployeeFormValues): UpdateEmployeeInput
     ...toCreatePayload(values),
     businessUnitId: values.businessUnitId || null,
     birthDate: values.birthDate || null,
+    documentType: values.documentType.trim() || null,
+    documentNumber: values.documentNumber.trim() || null,
     hireDate: values.hireDate || null,
     terminationDate: values.terminationDate || null,
     childrenCount:
@@ -107,6 +118,9 @@ type EmployeeFormProps = {
   areas: Area[];
   positions: Position[];
   businessUnits: BusinessUnit[];
+  customFieldDefinitions?: PositionCustomFieldDefinition[];
+  customValues?: CustomFieldFormValues;
+  onCustomValuesChange?: (values: CustomFieldFormValues) => void;
   submitting?: boolean;
   error?: string | null;
   onSubmit: (values: EmployeeFormValues) => void;
@@ -118,6 +132,9 @@ export function EmployeeForm({
   areas,
   positions,
   businessUnits,
+  customFieldDefinitions = [],
+  customValues = {},
+  onCustomValuesChange,
   submitting,
   error,
   onSubmit,
@@ -188,6 +205,22 @@ export function EmployeeForm({
               value={values.lastName}
               onChange={(e) => setField("lastName", e.target.value)}
               required
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="emp-doc-type">Identificación (tipo)</Label>
+            <Input
+              id="emp-doc-type"
+              value={values.documentType}
+              onChange={(e) => setField("documentType", e.target.value)}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="emp-doc-number">Identificación (número)</Label>
+            <Input
+              id="emp-doc-number"
+              value={values.documentNumber}
+              onChange={(e) => setField("documentNumber", e.target.value)}
             />
           </div>
           <div className="space-y-2">
@@ -385,6 +418,15 @@ export function EmployeeForm({
           </div>
         </div>
       </section>
+
+      {onCustomValuesChange ? (
+        <PositionCustomFieldsForm
+          definitions={customFieldDefinitions}
+          values={customValues}
+          onChange={onCustomValuesChange}
+          record={initial ?? null}
+        />
+      ) : null}
 
       {localError || error ? (
         <p className="text-sm text-destructive" role="alert">

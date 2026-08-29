@@ -41,6 +41,10 @@ export class CreateCompetencyDto {
   @IsOptional()
   @IsUUID()
   defaultScaleId?: string;
+
+  @IsOptional()
+  @IsUUID()
+  jobLevelId?: string;
 }
 
 export class UpdateCompetencyDto {
@@ -70,6 +74,11 @@ export class UpdateCompetencyDto {
   @ValidateIf((_, v) => v !== null)
   @IsUUID()
   defaultScaleId?: string | null;
+
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null)
+  @IsUUID()
+  jobLevelId?: string | null;
 }
 
 export class ListCompetenciesQueryDto {

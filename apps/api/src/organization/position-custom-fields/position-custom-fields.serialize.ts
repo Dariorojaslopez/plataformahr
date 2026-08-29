@@ -1,4 +1,5 @@
 import {
+  type Employee,
   type Position,
   type PositionCustomFieldType,
   Prisma,
@@ -106,4 +107,27 @@ export function serializePosition(
     })
     .map(serializeCustomFieldValue);
   return { ...position, customFields };
+}
+
+export type EmployeeWithCustomFieldValues = Employee & {
+  customFieldValues: PositionCustomFieldValueRow[];
+};
+
+export type SerializedEmployee = Employee & {
+  customFields: PositionCustomFieldPublic[];
+};
+
+export function serializeEmployee(
+  row: EmployeeWithCustomFieldValues,
+): SerializedEmployee {
+  const { customFieldValues, ...employee } = row;
+  const customFields = [...customFieldValues]
+    .sort((a, b) => {
+      if (a.definition.sortOrder !== b.definition.sortOrder) {
+        return a.definition.sortOrder - b.definition.sortOrder;
+      }
+      return a.definition.label.localeCompare(b.definition.label);
+    })
+    .map(serializeCustomFieldValue);
+  return { ...employee, customFields };
 }

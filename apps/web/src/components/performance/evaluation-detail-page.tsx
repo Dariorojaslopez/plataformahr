@@ -51,18 +51,30 @@ type LocalDraft = {
   comment: string;
 };
 
-export function EvaluationDetailPageClient() {
+type EvaluationDetailPageProps = {
+  evaluationId?: string;
+  embedded?: boolean;
+  forceReadOnly?: boolean;
+};
+
+export function EvaluationDetailPageClient({
+  evaluationId: evaluationIdProp,
+  embedded = false,
+  forceReadOnly = false,
+}: EvaluationDetailPageProps = {}) {
   const companyId = useCompanyId();
-  const params = useParams<{ id: string }>();
-  const evaluationId = params.id;
+  const params = useParams<{ id?: string }>();
+  const evaluationId = evaluationIdProp ?? params.id ?? "";
   const queryClient = useQueryClient();
   const [drafts, setDrafts] = useState<Record<string, LocalDraft>>({});
+  const [goalDrafts, setGoalDrafts] = useState<Record<string, LocalDraft>>({});
   const [submitOpen, setSubmitOpen] = useState(false);
   const [highlightMissing, setHighlightMissing] = useState(false);
 
   const detailQuery = useQuery({
     queryKey: performanceKeys.evaluation(companyId, evaluationId),
     queryFn: () => performanceApi.getEvaluation(evaluationId),
+    enabled: Boolean(evaluationId),
   });
 
   function draftFor(comp: SnapshotCompetencyView): LocalDraft {
@@ -114,6 +126,33 @@ export function EvaluationDetailPageClient() {
     onError: (error) => notifyError(error, "No se pudo guardar la respuesta."),
   });
 
+  const saveGoalMutation = useMutation({
+    mutationFn: (args: {
+      goalId: string;
+      scaleLevelId: string;
+      comment: string;
+    }) =>
+      performanceApi.saveGoalRating(evaluationId, args.goalId, {
+        ...buildSaveResponsePayload({
+          scaleLevelId: args.scaleLevelId,
+          comment: args.comment,
+        }),
+      }),
+    onSuccess: async (_data, vars) => {
+      setGoalDrafts((prev) => {
+        const next = { ...prev };
+        delete next[vars.goalId];
+        return next;
+      });
+      if (detailQuery.data) {
+        await invalidateRelated(detailQuery.data.cycleId);
+      }
+      notifySuccess("Calificación de objetivo guardada");
+    },
+    onError: (error) =>
+      notifyError(error, "No se pudo guardar la calificación del objetivo."),
+  });
+
   const submitMutation = useMutation({
     mutationFn: () => performanceApi.submitEvaluation(evaluationId),
     onSuccess: async (data) => {
@@ -150,7 +189,8 @@ export function EvaluationDetailPageClient() {
   const competencies = mapSnapshotCompetenciesForDisplay(
     evaluation.competencies,
   );
-  const editable = hasEvaluationResponseControls(evaluation);
+  const editable =
+    !forceReadOnly && hasEvaluationResponseControls(evaluation);
   const progress = evaluationProgress({
     respondedCount: evaluation.respondedCount,
     competencyCount: evaluation.competencyCount,
@@ -173,59 +213,77 @@ export function EvaluationDetailPageClient() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <Button variant="ghost" size="sm" className="mb-2 -ml-2" asChild>
-          <Link href="/performance/my-evaluations">
-            <ArrowLeft className="h-4 w-4" />
-            Volver a mis evaluaciones
-          </Link>
-        </Button>
-        <PageHeader
-          title={EVALUATION_TYPE_LABELS[evaluation.type]}
-          description={`${personName(evaluation.employee)} · ${evaluation.cycle.name}`}
-        />
-      </div>
-
-      <div className="grid gap-4 rounded-lg border border-border bg-card p-4 sm:grid-cols-2 lg:grid-cols-4">
-        <div>
-          <p className="text-xs text-muted-foreground">Estado</p>
-          <Badge
-            variant={evaluationStatusVariant(evaluation.status)}
-            className="mt-1"
-          >
+      {embedded ? (
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <div>
+            <h3 className="text-base font-semibold">
+              {EVALUATION_TYPE_LABELS[evaluation.type]}
+            </h3>
+            <p className="text-sm text-muted-foreground">
+              {personName(evaluation.employee)}
+            </p>
+          </div>
+          <Badge variant={evaluationStatusVariant(evaluation.status)}>
             {EVALUATION_STATUS_LABELS[evaluation.status]}
           </Badge>
         </div>
+      ) : (
         <div>
-          <p className="text-xs text-muted-foreground">Ciclo</p>
-          <p className="mt-1 text-sm font-medium">{evaluation.cycle.name}</p>
-          <p className="text-xs text-muted-foreground">
-            {CYCLE_STATUS_LABELS[evaluation.cycle.status]}
-          </p>
+          <Button variant="ghost" size="sm" className="mb-2 -ml-2" asChild>
+            <Link href="/performance/my-evaluations">
+              <ArrowLeft className="h-4 w-4" />
+              Volver a mis evaluaciones
+            </Link>
+          </Button>
+          <PageHeader
+            title={EVALUATION_TYPE_LABELS[evaluation.type]}
+            description={`${personName(evaluation.employee)} · ${evaluation.cycle.name}`}
+          />
         </div>
-        <div>
-          <p className="text-xs text-muted-foreground">Colaborador</p>
-          <p className="mt-1 text-sm font-medium">
-            {personName(evaluation.employee)}
-          </p>
-          <p className="text-xs text-muted-foreground">
-            {evaluation.employee.area.name} ·{" "}
-            {evaluation.employee.position.name}
-          </p>
+      )}
+
+      {embedded ? null : (
+        <div className="grid gap-4 rounded-lg border border-border bg-card p-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div>
+            <p className="text-xs text-muted-foreground">Estado</p>
+            <Badge
+              variant={evaluationStatusVariant(evaluation.status)}
+              className="mt-1"
+            >
+              {EVALUATION_STATUS_LABELS[evaluation.status]}
+            </Badge>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground">Ciclo</p>
+            <p className="mt-1 text-sm font-medium">{evaluation.cycle.name}</p>
+            <p className="text-xs text-muted-foreground">
+              {CYCLE_STATUS_LABELS[evaluation.cycle.status]}
+            </p>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground">Colaborador</p>
+            <p className="mt-1 text-sm font-medium">
+              {personName(evaluation.employee)}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {evaluation.employee.area.name} ·{" "}
+              {evaluation.employee.position.name}
+            </p>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground">Evaluador</p>
+            <p className="mt-1 text-sm font-medium">
+              {evaluation.evaluatorEmployee
+                ? personName(evaluation.evaluatorEmployee)
+                : "—"}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Participante:{" "}
+              {PARTICIPANT_STATUS_LABELS[evaluation.participant.status]}
+            </p>
+          </div>
         </div>
-        <div>
-          <p className="text-xs text-muted-foreground">Evaluador</p>
-          <p className="mt-1 text-sm font-medium">
-            {evaluation.evaluatorEmployee
-              ? personName(evaluation.evaluatorEmployee)
-              : "—"}
-          </p>
-          <p className="text-xs text-muted-foreground">
-            Participante:{" "}
-            {PARTICIPANT_STATUS_LABELS[evaluation.participant.status]}
-          </p>
-        </div>
-      </div>
+      )}
 
       {evaluation.status === "SUBMITTED" ? (
         <div
@@ -259,8 +317,20 @@ export function EvaluationDetailPageClient() {
             onClick={openSubmit}
             disabled={submitMutation.isPending}
           >
-            Enviar evaluación
+            {evaluation.type === "SELF"
+              ? "Enviar al líder"
+              : evaluation.type === "MANAGER"
+                ? "Finalizar evaluación"
+                : "Enviar evaluación"}
           </Button>
+        </div>
+      ) : forceReadOnly ? (
+        <div
+          className="rounded-lg border border-border bg-muted/40 px-4 py-3 text-sm text-muted-foreground"
+          role="status"
+        >
+          Solo lectura. Puedes consultar las respuestas de esta fase, pero no
+          editarlas.
         </div>
       ) : (
         <div
@@ -273,6 +343,101 @@ export function EvaluationDetailPageClient() {
           participante estén activos.
         </div>
       )}
+
+      {evaluation.selfEvaluation ? (
+        <section className="space-y-2 rounded-lg border border-border bg-muted/20 p-4">
+          <h2 className="text-lg font-semibold">Autoevaluación del colaborador</h2>
+          {evaluation.selfEvaluation.goals.map((goal) => (
+            <p key={goal.title} className="text-sm">
+              {goal.title}: {goal.label ?? goal.ratingValue ?? "—"}
+            </p>
+          ))}
+          {evaluation.selfEvaluation.competencies.map((comp) => (
+            <p key={comp.name} className="text-sm">
+              {comp.name}: {comp.label ?? comp.ratingValue ?? "—"}
+            </p>
+          ))}
+        </section>
+      ) : null}
+
+      {(evaluation.goals ?? []).length > 0 ? (
+        <section className="space-y-4">
+          <h2 className="text-lg font-semibold">Objetivos</h2>
+          {(evaluation.goals ?? []).map((goal) => {
+            const draft =
+              goalDrafts[goal.id] ?? {
+                selectedScaleLevelId: goal.response?.selectedScaleLevelId ?? null,
+                comment: goal.response?.comment ?? "",
+              };
+            return (
+              <article
+                key={goal.id}
+                className="space-y-3 rounded-lg border border-border bg-card p-4"
+              >
+                <h3 className="font-medium">{goal.title}</h3>
+                {goal.scale ? (
+                  <select
+                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    disabled={!editable}
+                    value={draft.selectedScaleLevelId ?? ""}
+                    onChange={(event) =>
+                      setGoalDrafts((prev) => ({
+                        ...prev,
+                        [goal.id]: {
+                          ...draft,
+                          selectedScaleLevelId: event.target.value || null,
+                        },
+                      }))
+                    }
+                  >
+                    <option value="">Selecciona un nivel</option>
+                    {goal.scale.levels.map((level) => (
+                      <option key={level.id} value={level.id}>
+                        {level.label} ({level.value})
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    Este objetivo no tiene escala.
+                  </p>
+                )}
+                <Textarea
+                  value={draft.comment}
+                  disabled={!editable}
+                  rows={2}
+                  onChange={(event) =>
+                    setGoalDrafts((prev) => ({
+                      ...prev,
+                      [goal.id]: { ...draft, comment: event.target.value },
+                    }))
+                  }
+                />
+                {editable && draft.selectedScaleLevelId ? (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="secondary"
+                    disabled={
+                      saveGoalMutation.isPending &&
+                      saveGoalMutation.variables?.goalId === goal.id
+                    }
+                    onClick={() =>
+                      saveGoalMutation.mutate({
+                        goalId: goal.id,
+                        scaleLevelId: draft.selectedScaleLevelId!,
+                        comment: draft.comment,
+                      })
+                    }
+                  >
+                    Guardar
+                  </Button>
+                ) : null}
+              </article>
+            );
+          })}
+        </section>
+      ) : null}
 
       <section className="space-y-4">
         <div>

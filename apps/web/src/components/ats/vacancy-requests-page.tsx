@@ -19,7 +19,6 @@ import { FormSelect } from "@/components/organization/form-select";
 import { PaginationControls } from "@/components/organization/pagination-controls";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
 import { Input } from "@/components/ui/input";
@@ -50,6 +49,12 @@ import {
   validateRequesterSelection,
   vacancyRequestSaveError,
 } from "@/lib/ats/vacancy-requester";
+import { workflowToLockedApprovalRows } from "@/lib/ats/approval-plan";
+import {
+  canProxyVacancyRequester,
+  isLeaderSelectionProcessView,
+  selectionProcessPageTitle,
+} from "@/lib/ats/vacancy-requests-view";
 import type {
   ListVacancyRequestsParams,
   VacancyRequest,
@@ -74,7 +79,6 @@ function useRequestFilters() {
     status:
       (searchParams.get("status") as VacancyRequestStatus | null) ?? undefined,
     type: (searchParams.get("type") as VacancyRequestType | null) ?? undefined,
-    pendingMyApproval: searchParams.get("pendingMyApproval") === "true",
     requestedByEmployeeId:
       searchParams.get("requestedByEmployeeId") ?? undefined,
     page: Number(searchParams.get("page") ?? "1") || 1,
@@ -90,7 +94,6 @@ function useRequestFilters() {
     if (merged.requestedByEmployeeId) {
       sp.set("requestedByEmployeeId", merged.requestedByEmployeeId);
     }
-    if (merged.pendingMyApproval) sp.set("pendingMyApproval", "true");
     if (merged.page && merged.page > 1) sp.set("page", String(merged.page));
     const qs = sp.toString();
     router.replace(qs ? `${pathname}?${qs}` : pathname);
@@ -101,7 +104,7 @@ function useRequestFilters() {
 
 export function VacancyRequestsPageClient() {
   const companyId = useCompanyId();
-  const { user } = useSession();
+  const { user, companyAccess } = useSession();
   const queryClient = useQueryClient();
   const { params, setParams } = useRequestFilters();
   const [searchInput, setSearchInput] = useState(params.search ?? "");
@@ -110,10 +113,9 @@ export function VacancyRequestsPageClient() {
   const [form, setForm] = useState(emptyVacancyRequestForm());
   const [formError, setFormError] = useState<string | null>(null);
 
-  const listQuery = useQuery({
-    queryKey: atsKeys.vacancyRequests(companyId, params),
-    queryFn: () => atsApi.listVacancyRequests(params),
-  });
+  const isLeaderView = isLeaderSelectionProcessView(companyAccess?.homeRole);
+  const roleCodes = companyAccess?.roleCodes ?? [];
+
   const positionsQuery = useQuery({
     queryKey: orgKeys.positions(companyId),
     queryFn: () => organizationApi.listPositions(),
@@ -133,6 +135,47 @@ export function VacancyRequestsPageClient() {
   const workflowQuery = useQuery({
     queryKey: atsKeys.vacancyApprovalWorkflow(companyId),
     queryFn: () => atsApi.getVacancyApprovalWorkflow(),
+  });
+
+  const linkedEmployeeId = findLinkedEmployeeId(
+    employeesQuery.data?.items ?? [],
+    user?.id,
+  );
+  const linkedEmployeeExists = Boolean(linkedEmployeeId);
+  const canProxyRequester = canProxyVacancyRequester(roleCodes);
+  const requesterField = describeVacancyRequesterField({
+    linkedEmployeeExists,
+    canProxyRequester,
+  });
+
+  const mineParams: ListVacancyRequestsParams = isLeaderView
+    ? {
+        ...params,
+        requestedByEmployeeId: linkedEmployeeId ?? undefined,
+        pendingMyApproval: undefined,
+      }
+    : { ...params, pendingMyApproval: undefined };
+
+  const listQuery = useQuery({
+    queryKey: atsKeys.vacancyRequests(companyId, mineParams),
+    queryFn: () => atsApi.listVacancyRequests(mineParams),
+    enabled: !isLeaderView || (employeesQuery.isSuccess && Boolean(linkedEmployeeId)),
+  });
+  const approverQuery = useQuery({
+    queryKey: atsKeys.vacancyRequests(companyId, {
+      pendingMyApproval: true,
+      search: params.search,
+      page: 1,
+      limit: 50,
+    }),
+    queryFn: () =>
+      atsApi.listVacancyRequests({
+        pendingMyApproval: true,
+        search: params.search,
+        page: 1,
+        limit: 50,
+      }),
+    enabled: isLeaderView,
   });
 
   const positionOptions = useMemo(
@@ -161,18 +204,6 @@ export function VacancyRequestsPageClient() {
       })),
     [employeesQuery.data],
   );
-  const linkedEmployeeId = findLinkedEmployeeId(
-    employeesQuery.data?.items ?? [],
-    user?.id,
-  );
-  const linkedEmployeeExists = Boolean(linkedEmployeeId);
-  // This screen lists collaborators for on-behalf requests. The API does not
-  // expose membership roles; PROXY_REQUESTER_ROLE_CODES remain backend-only.
-  const canProxyRequester = true;
-  const requesterField = describeVacancyRequesterField({
-    linkedEmployeeExists,
-    canProxyRequester,
-  });
 
   const saveMutation = useMutation({
     mutationFn: async (values: VacancyRequestFormValues) => {
@@ -213,7 +244,10 @@ export function VacancyRequestsPageClient() {
 
   function openCreate() {
     setEditing(null);
-    setForm(emptyVacancyRequestForm());
+    setForm({
+      ...emptyVacancyRequestForm(),
+      approvalSteps: workflowToLockedApprovalRows(workflowQuery.data),
+    });
     setFormError(null);
     setOpen(true);
   }
@@ -221,18 +255,25 @@ export function VacancyRequestsPageClient() {
   function openEdit(request: VacancyRequest) {
     if (request.status !== "DRAFT") return;
     setEditing(request);
-    setForm(vacancyRequestToForm(request));
+    setForm(vacancyRequestToForm(request, workflowQuery.data));
     setFormError(null);
     setOpen(true);
   }
 
   const items = listQuery.data?.items ?? [];
+  const approverItems = approverQuery.data?.items ?? [];
+  const mineEmptyBecauseUnlinked =
+    isLeaderView && employeesQuery.isSuccess && !linkedEmployeeId;
 
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Solicitudes de vacante"
-        description="Solicitudes de cobertura y flujo de aprobación."
+        title={selectionProcessPageTitle(companyAccess?.homeRole)}
+        description={
+          isLeaderView
+            ? "Tus procesos de selección y las solicitudes que debes aprobar."
+            : "Solicitudes de cobertura y flujo de aprobación."
+        }
         actions={
           <Button type="button" onClick={openCreate}>
             <Plus className="size-4" aria-hidden />
@@ -293,178 +334,79 @@ export function VacancyRequestsPageClient() {
             ([value, label]) => ({ value, label }),
           )}
         />
-        <FormSelect
-          id="vr-filter-requester"
-          label="Solicitante"
-          className="w-full sm:w-56"
-          value={params.requestedByEmployeeId ?? ""}
-          onChange={(requestedByEmployeeId) =>
-            setParams({
-              requestedByEmployeeId: requestedByEmployeeId || undefined,
-              page: 1,
-            })
-          }
-          allowEmpty
-          emptyLabel="Todos"
-          options={employeeOptions}
-        />
-        <label className="flex items-center gap-2 pb-1 text-sm">
-          <Checkbox
-            checked={params.pendingMyApproval === true}
-            onCheckedChange={(checked) =>
+        {!isLeaderView ? (
+          <FormSelect
+            id="vr-filter-requester"
+            label="Solicitante"
+            className="w-full sm:w-56"
+            value={params.requestedByEmployeeId ?? ""}
+            onChange={(requestedByEmployeeId) =>
               setParams({
-                pendingMyApproval: checked === true,
+                requestedByEmployeeId: requestedByEmployeeId || undefined,
                 page: 1,
               })
             }
+            allowEmpty
+            emptyLabel="Todos"
+            options={employeeOptions}
           />
-          Pendientes de mi aprobación
-        </label>
+        ) : null}
       </div>
 
-      {listQuery.isLoading ? (
-        <div className="space-y-2">
-          <Skeleton className="h-10 w-full" />
-          <Skeleton className="h-10 w-full" />
-          <Skeleton className="h-10 w-full" />
-        </div>
-      ) : null}
-
-      {listQuery.isError ? (
-        <ErrorState
-          title="No se pudieron cargar las solicitudes"
-          description={getErrorMessage(
-            listQuery.error,
-            "Error al cargar solicitudes.",
-          )}
-          onRetry={() => void listQuery.refetch()}
-        />
-      ) : null}
-
-      {listQuery.isSuccess && items.length === 0 ? (
-        <EmptyState
-          title="Aún no hay solicitudes de vacante."
-          action={
-            <Button type="button" onClick={openCreate}>
-              Nueva solicitud
-            </Button>
-          }
-        />
-      ) : null}
-
-      {items.length > 0 ? (
-        <>
-          <div className="hidden md:block">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Cargo solicitado</TableHead>
-                  <TableHead>Tipo</TableHead>
-                  <TableHead>Solicitante</TableHead>
-                  <TableHead>Cantidad</TableHead>
-                  <TableHead>Estado</TableHead>
-                  <TableHead>Fecha</TableHead>
-                  <TableHead className="text-right">Acciones</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {items.map((request) => (
-                  <TableRow key={request.id}>
-                    <TableCell className="font-medium">
-                      {requestTitle(request)}
-                    </TableCell>
-                    <TableCell>
-                      {VACANCY_REQUEST_TYPE_LABELS[request.type]}
-                    </TableCell>
-                    <TableCell>
-                      {formatEmployeeName(request.requestedByEmployee)}
-                    </TableCell>
-                    <TableCell>{request.requestedHeadcount}</TableCell>
-                    <TableCell>
-                      <Badge
-                        variant={vacancyRequestStatusVariant(request.status)}
-                      >
-                        {VACANCY_REQUEST_STATUS_LABELS[request.status]}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>{formatDateShort(request.createdAt)}</TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-1">
-                        <Button variant="ghost" size="icon" asChild>
-                          <Link
-                            href={`/ats/vacancy-requests/${request.id}`}
-                            aria-label="Ver solicitud"
-                          >
-                            <Eye className="size-4" />
-                          </Link>
-                        </Button>
-                        {request.status === "DRAFT" ? (
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            aria-label="Editar solicitud"
-                            onClick={() => openEdit(request)}
-                          >
-                            <Pencil className="size-4" />
-                          </Button>
-                        ) : null}
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-
-          <div className="space-y-3 md:hidden">
-            {items.map((request) => (
-              <div
-                key={request.id}
-                className="rounded-lg border border-border p-4"
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <p className="font-medium">{requestTitle(request)}</p>
-                    <p className="text-sm text-muted-foreground">
-                      {formatEmployeeName(request.requestedByEmployee)}
-                    </p>
-                  </div>
-                  <Badge variant={vacancyRequestStatusVariant(request.status)}>
-                    {VACANCY_REQUEST_STATUS_LABELS[request.status]}
-                  </Badge>
-                </div>
-                <p className="mt-2 text-sm text-muted-foreground">
-                  {VACANCY_REQUEST_TYPE_LABELS[request.type]} ·{" "}
-                  {request.requestedHeadcount} ·{" "}
-                  {formatDateShort(request.createdAt)}
-                </p>
-                <div className="mt-3 flex gap-2">
-                  <Button variant="outline" size="sm" asChild>
-                    <Link href={`/ats/vacancy-requests/${request.id}`}>Ver</Link>
-                  </Button>
-                  {request.status === "DRAFT" ? (
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      size="sm"
-                      onClick={() => openEdit(request)}
-                    >
-                      Editar
-                    </Button>
-                  ) : null}
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <PaginationControls
+      {isLeaderView ? (
+        <section className="space-y-3">
+          <h2 className="text-lg font-semibold">Mis procesos</h2>
+          <VacancyRequestList
+            isLoading={listQuery.isLoading || employeesQuery.isLoading}
+            isError={listQuery.isError}
+            error={listQuery.error}
+            onRetry={() => void listQuery.refetch()}
+            items={mineEmptyBecauseUnlinked ? [] : items}
+            emptyTitle="Aún no hay procesos de selección creados por ti."
+            onCreate={openCreate}
+            onEdit={openEdit}
             page={listQuery.data?.page ?? 1}
             totalPages={listQuery.data?.totalPages ?? 1}
-            total={listQuery.data?.total ?? 0}
+            total={mineEmptyBecauseUnlinked ? 0 : (listQuery.data?.total ?? 0)}
             onPageChange={(page) => setParams({ page })}
           />
-        </>
+        </section>
+      ) : (
+        <VacancyRequestList
+          isLoading={listQuery.isLoading}
+          isError={listQuery.isError}
+          error={listQuery.error}
+          onRetry={() => void listQuery.refetch()}
+          items={items}
+          emptyTitle="Aún no hay procesos de selección."
+          onCreate={openCreate}
+          onEdit={openEdit}
+          page={listQuery.data?.page ?? 1}
+          totalPages={listQuery.data?.totalPages ?? 1}
+          total={listQuery.data?.total ?? 0}
+          onPageChange={(page) => setParams({ page })}
+        />
+      )}
+
+      {isLeaderView ? (
+        <section className="space-y-3">
+          <h2 className="text-lg font-semibold">Pendientes de mi aprobación</h2>
+          <VacancyRequestList
+            isLoading={approverQuery.isLoading}
+            isError={approverQuery.isError}
+            error={approverQuery.error}
+            onRetry={() => void approverQuery.refetch()}
+            items={approverItems}
+            emptyTitle="No tienes solicitudes pendientes de aprobación."
+            onEdit={openEdit}
+            page={approverQuery.data?.page ?? 1}
+            totalPages={approverQuery.data?.totalPages ?? 1}
+            total={approverQuery.data?.total ?? 0}
+            onPageChange={() => undefined}
+            hideCreate
+            hidePagination={(approverQuery.data?.totalPages ?? 1) <= 1}
+          />
+        </section>
       ) : null}
 
       <EntityEditorShell
@@ -485,10 +427,191 @@ export function VacancyRequestsPageClient() {
           employees={employeeOptions}
           linkedEmployeeExists={linkedEmployeeExists}
           canProxyRequester={canProxyRequester}
-          showGeneralManagerOption={!workflowQuery.data?.enabled}
           submitLabel={editing ? "Guardar cambios" : "Crear solicitud"}
         />
       </EntityEditorShell>
     </div>
+  );
+}
+
+function VacancyRequestList({
+  isLoading,
+  isError,
+  error,
+  onRetry,
+  items,
+  emptyTitle,
+  onCreate,
+  onEdit,
+  page,
+  totalPages,
+  total,
+  onPageChange,
+  hideCreate = false,
+  hidePagination = false,
+}: {
+  isLoading: boolean;
+  isError: boolean;
+  error: unknown;
+  onRetry: () => void;
+  items: VacancyRequest[];
+  emptyTitle: string;
+  onCreate?: () => void;
+  onEdit: (request: VacancyRequest) => void;
+  page: number;
+  totalPages: number;
+  total: number;
+  onPageChange: (page: number) => void;
+  hideCreate?: boolean;
+  hidePagination?: boolean;
+}) {
+  if (isLoading) {
+    return (
+      <div className="space-y-2">
+        <Skeleton className="h-10 w-full" />
+        <Skeleton className="h-10 w-full" />
+        <Skeleton className="h-10 w-full" />
+      </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <ErrorState
+        title="No se pudieron cargar las solicitudes"
+        description={getErrorMessage(error, "Error al cargar solicitudes.")}
+        onRetry={onRetry}
+      />
+    );
+  }
+
+  if (items.length === 0) {
+    return (
+      <EmptyState
+        title={emptyTitle}
+        action={
+          hideCreate || !onCreate ? undefined : (
+            <Button type="button" onClick={onCreate}>
+              Nueva solicitud
+            </Button>
+          )
+        }
+      />
+    );
+  }
+
+  return (
+    <>
+      <div className="hidden md:block">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Cargo solicitado</TableHead>
+              <TableHead>Tipo</TableHead>
+              <TableHead>Solicitante</TableHead>
+              <TableHead>Cantidad</TableHead>
+              <TableHead>Estado</TableHead>
+              <TableHead>Fecha</TableHead>
+              <TableHead className="text-right">Acciones</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {items.map((request) => (
+              <TableRow key={request.id}>
+                <TableCell className="font-medium">
+                  {requestTitle(request)}
+                </TableCell>
+                <TableCell>
+                  {VACANCY_REQUEST_TYPE_LABELS[request.type]}
+                </TableCell>
+                <TableCell>
+                  {formatEmployeeName(request.requestedByEmployee)}
+                </TableCell>
+                <TableCell>{request.requestedHeadcount}</TableCell>
+                <TableCell>
+                  <Badge variant={vacancyRequestStatusVariant(request.status)}>
+                    {VACANCY_REQUEST_STATUS_LABELS[request.status]}
+                  </Badge>
+                </TableCell>
+                <TableCell>{formatDateShort(request.createdAt)}</TableCell>
+                <TableCell className="text-right">
+                  <div className="flex justify-end gap-1">
+                    <Button variant="ghost" size="icon" asChild>
+                      <Link
+                        href={`/ats/vacancy-requests/${request.id}`}
+                        aria-label="Ver solicitud"
+                      >
+                        <Eye className="size-4" />
+                      </Link>
+                    </Button>
+                    {request.status === "DRAFT" ? (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        aria-label="Editar solicitud"
+                        onClick={() => onEdit(request)}
+                      >
+                        <Pencil className="size-4" />
+                      </Button>
+                    ) : null}
+                  </div>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+
+      <div className="space-y-3 md:hidden">
+        {items.map((request) => (
+          <div
+            key={request.id}
+            className="rounded-lg border border-border p-4"
+          >
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <p className="font-medium">{requestTitle(request)}</p>
+                <p className="text-sm text-muted-foreground">
+                  {formatEmployeeName(request.requestedByEmployee)}
+                </p>
+              </div>
+              <Badge variant={vacancyRequestStatusVariant(request.status)}>
+                {VACANCY_REQUEST_STATUS_LABELS[request.status]}
+              </Badge>
+            </div>
+            <p className="mt-2 text-sm text-muted-foreground">
+              {VACANCY_REQUEST_TYPE_LABELS[request.type]} ·{" "}
+              {request.requestedHeadcount} ·{" "}
+              {formatDateShort(request.createdAt)}
+            </p>
+            <div className="mt-3 flex gap-2">
+              <Button variant="outline" size="sm" asChild>
+                <Link href={`/ats/vacancy-requests/${request.id}`}>Ver</Link>
+              </Button>
+              {request.status === "DRAFT" ? (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => onEdit(request)}
+                >
+                  Editar
+                </Button>
+              ) : null}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {hidePagination ? null : (
+        <PaginationControls
+          page={page}
+          totalPages={totalPages}
+          total={total}
+          onPageChange={onPageChange}
+        />
+      )}
+    </>
   );
 }

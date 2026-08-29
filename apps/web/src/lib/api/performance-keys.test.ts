@@ -33,6 +33,10 @@ describe("performance query keys tenant isolation", () => {
     expect(performanceKeys.evaluationsMine("a")).not.toEqual(
       performanceKeys.evaluationsMine("b"),
     );
+    expect(performanceKeys.goalDefinition("c1", "cycle-1")[1]).toBe("c1");
+    expect(performanceKeys.goalDefinition("a", "x")).not.toEqual(
+      performanceKeys.goalDefinition("b", "x"),
+    );
   });
 
   it("scopes results keys by companyId", () => {

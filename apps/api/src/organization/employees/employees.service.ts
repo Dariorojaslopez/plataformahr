@@ -7,7 +7,6 @@ import {
   EmployeeStatus,
   Prisma,
   ReportingLineType,
-  type Employee,
 } from '@prisma/client';
 import { AuditService } from '../../core/audit/audit.service';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -19,6 +18,12 @@ import {
 } from '../organization.constants';
 import { emptyToNull, normalizeEmail } from '../organization.helpers';
 import { OrganizationIntegrityService } from '../organization-integrity.service';
+import { PositionCustomFieldsService } from '../position-custom-fields/position-custom-fields.service';
+import {
+  POSITION_CUSTOM_FIELD_VALUE_INCLUDE,
+  serializeEmployee,
+  type SerializedEmployee,
+} from '../position-custom-fields/position-custom-fields.serialize';
 import type {
   CreateEmployeeDto,
   ListEmployeesQueryDto,
@@ -31,6 +36,7 @@ export class EmployeesService {
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
     private readonly integrity: OrganizationIntegrityService,
+    private readonly customFields: PositionCustomFieldsService,
   ) {}
 
   async list(companyId: string, query: ListEmployeesQueryDto) {
@@ -71,18 +77,21 @@ export class EmployeesService {
         : {}),
     };
 
-    const [items, total] = await this.prisma.$transaction([
+    const [rows, total] = await this.prisma.$transaction([
       this.prisma.employee.findMany({
         where,
         orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }],
         skip,
         take: limit,
+        include: {
+          customFieldValues: { include: POSITION_CUSTOM_FIELD_VALUE_INCLUDE },
+        },
       }),
       this.prisma.employee.count({ where }),
     ]);
 
     return {
-      items,
+      items: rows.map(serializeEmployee),
       page,
       limit,
       total,
@@ -90,8 +99,8 @@ export class EmployeesService {
     };
   }
 
-  getById(companyId: string, id: string): Promise<Employee> {
-    return this.integrity.requireEmployee(companyId, id);
+  getById(companyId: string, id: string): Promise<SerializedEmployee> {
+    return this.customFields.getSerializedEmployee(companyId, id);
   }
 
   async getOrganizationProfile(companyId: string, id: string) {
@@ -171,36 +180,49 @@ export class EmployeesService {
     companyId: string,
     userId: string,
     dto: CreateEmployeeDto,
-  ): Promise<Employee> {
+  ): Promise<SerializedEmployee> {
     await this.validateRelations(companyId, dto);
 
     try {
-      const created = await this.prisma.employee.create({
-        data: {
+      const created = await this.prisma.$transaction(async (tx) => {
+        const employee = await tx.employee.create({
+          data: {
+            companyId,
+            userId: dto.userId ?? null,
+            firstName: dto.firstName.trim(),
+            lastName: dto.lastName.trim(),
+            email: normalizeEmail(dto.email),
+            phone: emptyToNull(dto.phone) ?? null,
+            documentType: emptyToNull(dto.documentType) ?? null,
+            documentNumber: emptyToNull(dto.documentNumber) ?? null,
+            birthDate: dto.birthDate ? new Date(dto.birthDate) : null,
+            country: emptyToNull(dto.country) ?? null,
+            state: emptyToNull(dto.state) ?? null,
+            city: emptyToNull(dto.city) ?? null,
+            maritalStatus: emptyToNull(dto.maritalStatus) ?? null,
+            childrenCount: dto.childrenCount ?? null,
+            housingType: emptyToNull(dto.housingType) ?? null,
+            emergencyContactName: emptyToNull(dto.emergencyContactName) ?? null,
+            emergencyContactPhone:
+              emptyToNull(dto.emergencyContactPhone) ?? null,
+            businessUnitId: dto.businessUnitId ?? null,
+            areaId: dto.areaId,
+            positionId: dto.positionId,
+            status: dto.status ?? EmployeeStatus.ACTIVE,
+            hireDate: dto.hireDate ? new Date(dto.hireDate) : null,
+            terminationDate: dto.terminationDate
+              ? new Date(dto.terminationDate)
+              : null,
+          },
+        });
+        await this.customFields.writeEmployeeValues(
+          tx,
           companyId,
-          userId: dto.userId ?? null,
-          firstName: dto.firstName.trim(),
-          lastName: dto.lastName.trim(),
-          email: normalizeEmail(dto.email),
-          phone: emptyToNull(dto.phone) ?? null,
-          birthDate: dto.birthDate ? new Date(dto.birthDate) : null,
-          country: emptyToNull(dto.country) ?? null,
-          state: emptyToNull(dto.state) ?? null,
-          city: emptyToNull(dto.city) ?? null,
-          maritalStatus: emptyToNull(dto.maritalStatus) ?? null,
-          childrenCount: dto.childrenCount ?? null,
-          housingType: emptyToNull(dto.housingType) ?? null,
-          emergencyContactName: emptyToNull(dto.emergencyContactName) ?? null,
-          emergencyContactPhone: emptyToNull(dto.emergencyContactPhone) ?? null,
-          businessUnitId: dto.businessUnitId ?? null,
-          areaId: dto.areaId,
-          positionId: dto.positionId,
-          status: dto.status ?? EmployeeStatus.ACTIVE,
-          hireDate: dto.hireDate ? new Date(dto.hireDate) : null,
-          terminationDate: dto.terminationDate
-            ? new Date(dto.terminationDate)
-            : null,
-        },
+          employee.id,
+          dto.customFields,
+          'create',
+        );
+        return employee;
       });
 
       await this.audit.create({
@@ -212,7 +234,7 @@ export class EmployeesService {
         metadata: { id: created.id },
       });
 
-      return created;
+      return this.customFields.getSerializedEmployee(companyId, created.id);
     } catch (error: unknown) {
       this.rethrowUniqueConflict(error);
     }
@@ -223,81 +245,123 @@ export class EmployeesService {
     actorUserId: string,
     id: string,
     dto: UpdateEmployeeDto,
-  ): Promise<Employee> {
+  ): Promise<SerializedEmployee> {
     await this.integrity.requireEmployee(companyId, id);
     await this.validateRelations(companyId, dto);
 
     try {
-      const updated = await this.prisma.employee.update({
-        where: { id },
-        data: {
-          ...(dto.firstName !== undefined
-            ? { firstName: dto.firstName.trim() }
-            : {}),
-          ...(dto.lastName !== undefined
-            ? { lastName: dto.lastName.trim() }
-            : {}),
-          ...(dto.email !== undefined
-            ? { email: normalizeEmail(dto.email) }
-            : {}),
-          ...(dto.userId !== undefined ? { userId: dto.userId } : {}),
-          ...(dto.phone !== undefined ? { phone: emptyToNull(dto.phone) } : {}),
-          ...(dto.birthDate !== undefined
-            ? {
-                birthDate: dto.birthDate ? new Date(dto.birthDate) : null,
-              }
-            : {}),
-          ...(dto.country !== undefined
-            ? { country: emptyToNull(dto.country) }
-            : {}),
-          ...(dto.state !== undefined ? { state: emptyToNull(dto.state) } : {}),
-          ...(dto.city !== undefined ? { city: emptyToNull(dto.city) } : {}),
-          ...(dto.maritalStatus !== undefined
-            ? { maritalStatus: emptyToNull(dto.maritalStatus) }
-            : {}),
-          ...(dto.childrenCount !== undefined
-            ? { childrenCount: dto.childrenCount }
-            : {}),
-          ...(dto.housingType !== undefined
-            ? { housingType: emptyToNull(dto.housingType) }
-            : {}),
-          ...(dto.emergencyContactName !== undefined
-            ? { emergencyContactName: emptyToNull(dto.emergencyContactName) }
-            : {}),
-          ...(dto.emergencyContactPhone !== undefined
-            ? { emergencyContactPhone: emptyToNull(dto.emergencyContactPhone) }
-            : {}),
-          ...(dto.businessUnitId !== undefined
-            ? { businessUnitId: dto.businessUnitId }
-            : {}),
-          ...(dto.areaId !== undefined ? { areaId: dto.areaId } : {}),
-          ...(dto.positionId !== undefined
-            ? { positionId: dto.positionId }
-            : {}),
-          ...(dto.status !== undefined ? { status: dto.status } : {}),
-          ...(dto.hireDate !== undefined
-            ? { hireDate: dto.hireDate ? new Date(dto.hireDate) : null }
-            : {}),
-          ...(dto.terminationDate !== undefined
-            ? {
-                terminationDate: dto.terminationDate
-                  ? new Date(dto.terminationDate)
-                  : null,
-              }
-            : {}),
-        },
+      await this.prisma.$transaction(async (tx) => {
+        await tx.employee.update({
+          where: { id },
+          data: {
+            ...(dto.firstName !== undefined
+              ? { firstName: dto.firstName.trim() }
+              : {}),
+            ...(dto.lastName !== undefined
+              ? { lastName: dto.lastName.trim() }
+              : {}),
+            ...(dto.email !== undefined
+              ? { email: normalizeEmail(dto.email) }
+              : {}),
+            ...(dto.userId !== undefined ? { userId: dto.userId } : {}),
+            ...(dto.phone !== undefined
+              ? { phone: emptyToNull(dto.phone) }
+              : {}),
+            ...(dto.documentType !== undefined
+              ? { documentType: emptyToNull(dto.documentType) }
+              : {}),
+            ...(dto.documentNumber !== undefined
+              ? { documentNumber: emptyToNull(dto.documentNumber) }
+              : {}),
+            ...(dto.birthDate !== undefined
+              ? {
+                  birthDate: dto.birthDate ? new Date(dto.birthDate) : null,
+                }
+              : {}),
+            ...(dto.country !== undefined
+              ? { country: emptyToNull(dto.country) }
+              : {}),
+            ...(dto.state !== undefined
+              ? { state: emptyToNull(dto.state) }
+              : {}),
+            ...(dto.city !== undefined
+              ? { city: emptyToNull(dto.city) }
+              : {}),
+            ...(dto.maritalStatus !== undefined
+              ? { maritalStatus: emptyToNull(dto.maritalStatus) }
+              : {}),
+            ...(dto.childrenCount !== undefined
+              ? { childrenCount: dto.childrenCount }
+              : {}),
+            ...(dto.housingType !== undefined
+              ? { housingType: emptyToNull(dto.housingType) }
+              : {}),
+            ...(dto.emergencyContactName !== undefined
+              ? {
+                  emergencyContactName: emptyToNull(dto.emergencyContactName),
+                }
+              : {}),
+            ...(dto.emergencyContactPhone !== undefined
+              ? {
+                  emergencyContactPhone: emptyToNull(dto.emergencyContactPhone),
+                }
+              : {}),
+            ...(dto.businessUnitId !== undefined
+              ? { businessUnitId: dto.businessUnitId }
+              : {}),
+            ...(dto.areaId !== undefined ? { areaId: dto.areaId } : {}),
+            ...(dto.positionId !== undefined
+              ? { positionId: dto.positionId }
+              : {}),
+            ...(dto.status !== undefined ? { status: dto.status } : {}),
+            ...(dto.hireDate !== undefined
+              ? { hireDate: dto.hireDate ? new Date(dto.hireDate) : null }
+              : {}),
+            ...(dto.terminationDate !== undefined
+              ? {
+                  terminationDate: dto.terminationDate
+                    ? new Date(dto.terminationDate)
+                    : null,
+                }
+              : {}),
+          },
+        });
+        await this.customFields.writeEmployeeValues(
+          tx,
+          companyId,
+          id,
+          dto.customFields,
+          'update',
+        );
       });
 
       await this.audit.create({
         action: ORG_AUDIT.EMPLOYEE_UPDATED,
         entity: 'Employee',
-        entityId: updated.id,
+        entityId: id,
         company: { connect: { id: companyId } },
         user: { connect: { id: actorUserId } },
-        metadata: { id: updated.id },
+        metadata: {
+          id,
+          customFieldsUpdated: dto.customFields !== undefined,
+        },
       });
 
-      return updated;
+      if (dto.customFields !== undefined) {
+        await this.audit.create({
+          action: ORG_AUDIT.EMPLOYEE_CUSTOM_FIELDS_UPDATED,
+          entity: 'Employee',
+          entityId: id,
+          company: { connect: { id: companyId } },
+          user: { connect: { id: actorUserId } },
+          metadata: {
+            id,
+            definitionIds: dto.customFields.map((field) => field.definitionId),
+          },
+        });
+      }
+
+      return this.customFields.getSerializedEmployee(companyId, id);
     } catch (error: unknown) {
       this.rethrowUniqueConflict(error);
     }

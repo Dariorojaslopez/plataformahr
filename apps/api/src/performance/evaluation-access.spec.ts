@@ -58,6 +58,18 @@ describe('evaluation access helpers', () => {
     expect(
       canAccessEvaluation({
         hasManagePermission: false,
+        actorEmployeeId: 'peer-1',
+        evaluation: {
+          employeeId: 'emp-a',
+          evaluatorEmployeeId: 'peer-1',
+          type: PerformanceEvaluationType.PEER,
+        },
+      }),
+    ).toBe(true);
+
+    expect(
+      canAccessEvaluation({
+        hasManagePermission: false,
         actorEmployeeId: 'mgr-b',
         evaluation: baseEval,
       }),

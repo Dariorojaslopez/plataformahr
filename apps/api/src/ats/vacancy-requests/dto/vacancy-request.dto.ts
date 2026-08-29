@@ -1,4 +1,7 @@
+import { Transform, Type } from 'class-transformer';
 import {
+  ArrayMaxSize,
+  IsArray,
   IsBoolean,
   IsEnum,
   IsInt,
@@ -10,10 +13,24 @@ import {
   Min,
   MinLength,
   ValidateIf,
+  ValidateNested,
 } from 'class-validator';
-import { Transform, Type } from 'class-transformer';
 import { VacancyRequestStatus, VacancyRequestType } from '@prisma/client';
-import { DEFAULT_LIMIT, DEFAULT_PAGE, MAX_LIMIT } from '../../ats.constants';
+import {
+  DEFAULT_LIMIT,
+  DEFAULT_PAGE,
+  MAX_LIMIT,
+  MAX_VACANCY_APPROVAL_STEPS,
+} from '../../ats.constants';
+
+export class ExtraApprovalStepDto {
+  @IsUUID()
+  positionId!: string;
+
+  @IsOptional()
+  @IsUUID()
+  employeeId?: string | null;
+}
 
 export class CreateVacancyRequestDto {
   @IsEnum(VacancyRequestType)
@@ -61,6 +78,13 @@ export class CreateVacancyRequestDto {
   @IsOptional()
   @IsBoolean()
   generalManagerApprovalRequired?: boolean;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(MAX_VACANCY_APPROVAL_STEPS)
+  @ValidateNested({ each: true })
+  @Type(() => ExtraApprovalStepDto)
+  extraApprovalSteps?: ExtraApprovalStepDto[];
 }
 
 export class UpdateVacancyRequestDto {
@@ -104,6 +128,13 @@ export class UpdateVacancyRequestDto {
   @IsOptional()
   @IsBoolean()
   generalManagerApprovalRequired?: boolean;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(MAX_VACANCY_APPROVAL_STEPS)
+  @ValidateNested({ each: true })
+  @Type(() => ExtraApprovalStepDto)
+  extraApprovalSteps?: ExtraApprovalStepDto[];
 }
 
 export class ListVacancyRequestsQueryDto {

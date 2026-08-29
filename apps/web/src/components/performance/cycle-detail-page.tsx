@@ -7,7 +7,7 @@ import { useParams } from "next/navigation";
 import { useMemo, useState } from "react";
 import { EntityEditorShell } from "@/components/organization/entity-editor-shell";
 import { FormSelect } from "@/components/organization/form-select";
-import { CycleCompositionFields } from "@/components/performance/cycle-composition-fields";
+import { CycleFormFields } from "@/components/performance/cycle-form-fields";
 import { CycleAnalyticsTab } from "@/components/performance/cycle-analytics-tab";
 import { CycleParticipantsTab } from "@/components/performance/cycle-participants-tab";
 import { Badge } from "@/components/ui/badge";
@@ -42,6 +42,7 @@ import {
 } from "@/lib/performance/activation";
 import {
   buildUpdateCyclePayload,
+  cycleEvaluatorWeightsAreValid,
   cycleFormFromPerformanceCycle,
   cycleGoalsCompositionIsValid,
   type CycleFormState,
@@ -57,6 +58,10 @@ import {
 import { formatResultCompositionWeightLabel } from "@/lib/performance/result-composition-weights";
 import { canActivateWeights, sumWeights } from "@/lib/performance/weights";
 import { notifyError, notifySuccess } from "@/lib/ui/notify";
+import {
+  autoQualitativeScaleId,
+  qualitativeScalesForRating,
+} from "@/lib/performance/scale-kind";
 import type { CycleCompetency } from "@/types/performance";
 
 type CompetencyForm = {
@@ -107,9 +112,15 @@ export function CycleDetailPageClient() {
   const scalesQuery = useQuery({
     queryKey: performanceKeys.scales(companyId, {
       status: "ACTIVE",
+      kind: "QUALITATIVE",
       limit: 100,
     }),
-    queryFn: () => performanceApi.listScales({ status: "ACTIVE", limit: 100 }),
+    queryFn: () =>
+      performanceApi.listScales({
+        status: "ACTIVE",
+        kind: "QUALITATIVE",
+        limit: 100,
+      }),
   });
 
   const goalCyclesQuery = useQuery({
@@ -142,8 +153,13 @@ export function CycleDetailPageClient() {
         status: cycle.status,
         competencyCount: assignments.length,
         weights,
+        includeCompetencies: cycle.includeCompetencies !== false,
         selfEvaluationWeight: cycle.selfEvaluationWeight,
         managerEvaluationWeight: cycle.managerEvaluationWeight,
+        evaluationModel: cycle.evaluationModel,
+        peerEvaluationWeight: cycle.peerEvaluationWeight,
+        reportEvaluationWeight: cycle.reportEvaluationWeight,
+        clientEvaluationWeight: cycle.clientEvaluationWeight,
       })
     : false;
 
@@ -162,6 +178,11 @@ export function CycleDetailPageClient() {
     [competenciesQuery.data?.items, assignedCompetencyIds, editingComp],
   );
 
+  const qualitativeScales = useMemo(
+    () => qualitativeScalesForRating(scalesQuery.data?.items ?? []),
+    [scalesQuery.data?.items],
+  );
+
   async function invalidateCycle() {
     await queryClient.invalidateQueries({
       queryKey: performanceKeys.cycle(companyId, cycleId),
@@ -174,19 +195,14 @@ export function CycleDetailPageClient() {
   const metaMutation = useMutation({
     mutationFn: async () => {
       if (!metaForm) throw new Error("Formulario incompleto.");
-      if (
-        !evaluatorWeightsAreValid(
-          metaForm.selfEvaluationWeight,
-          metaForm.managerEvaluationWeight,
-        )
-      ) {
+      if (!cycleEvaluatorWeightsAreValid(metaForm)) {
         throw new Error(
           "La ponderación de evaluadores debe sumar exactamente 100%.",
         );
       }
       if (!cycleGoalsCompositionIsValid(metaForm)) {
         throw new Error(
-          "La composición de objetivos requiere un ciclo y pesos que sumen 100%.",
+          "Revisa la composición: activa competencias o indica pesos de objetivos que no superen el rango.",
         );
       }
       return performanceApi.updateCycle(
@@ -236,7 +252,11 @@ export function CycleDetailPageClient() {
   const saveCompMutation = useMutation({
     mutationFn: async () => {
       if (!compForm.competencyId || !compForm.scaleId) {
-        throw new Error("Competencia y escala son obligatorias.");
+        throw new Error(
+          qualitativeScales.length === 0
+            ? "Define una escala cualitativa activa para calificar competencias."
+            : "Competencia y escala cualitativa son obligatorias.",
+        );
       }
       const order = Number(compForm.order);
       if (!Number.isInteger(order) || order < 0) {
@@ -309,7 +329,11 @@ export function CycleDetailPageClient() {
       assignments.length === 0
         ? 0
         : Math.max(...assignments.map((a) => a.order)) + 1;
-    setCompForm({ ...emptyCompetencyForm(), order: String(nextOrder) });
+    setCompForm({
+      ...emptyCompetencyForm(),
+      order: String(nextOrder),
+      scaleId: autoQualitativeScaleId(qualitativeScales),
+    });
     setCompError(null);
     setCompOpen(true);
   }
@@ -418,13 +442,13 @@ export function CycleDetailPageClient() {
           </Badge>
         </div>
         <div>
-          <p className="text-xs text-muted-foreground">Periodo</p>
+          <p className="text-xs text-muted-foreground">Apertura / cierre</p>
           <p className="mt-1 text-sm font-medium">
             {cycle.startDate} → {cycle.endDate}
           </p>
         </div>
         <div>
-          <p className="text-xs text-muted-foreground">Ventana de evaluación</p>
+          <p className="text-xs text-muted-foreground">Fecha Autoevaluación</p>
           <p className="mt-1 text-sm font-medium">
             {cycle.evaluationStartDate && cycle.evaluationEndDate
               ? `${cycle.evaluationStartDate} → ${cycle.evaluationEndDate}`
@@ -452,14 +476,26 @@ export function CycleDetailPageClient() {
             {formatEvaluatorWeightLabel(
               cycle.selfEvaluationWeight,
               cycle.managerEvaluationWeight,
+              {
+                model: cycle.evaluationModel,
+                peer: cycle.peerEvaluationWeight,
+                report: cycle.reportEvaluationWeight,
+                client: cycle.clientEvaluationWeight,
+              },
             )}
           </p>
           {!evaluatorWeightsAreValid(
             cycle.selfEvaluationWeight,
             cycle.managerEvaluationWeight,
+            {
+              model: cycle.evaluationModel,
+              peer: cycle.peerEvaluationWeight,
+              report: cycle.reportEvaluationWeight,
+              client: cycle.clientEvaluationWeight,
+            },
           ) ? (
             <p className="mt-1 text-xs text-destructive">
-              Autoevaluación + líder deben sumar 100%.
+              Los grupos habilitados deben sumar 100%.
             </p>
           ) : null}
         </div>
@@ -470,8 +506,14 @@ export function CycleDetailPageClient() {
               ? formatResultCompositionWeightLabel(
                   cycle.competencyResultWeight,
                   cycle.goalsResultWeight,
+                  {
+                    organizational: cycle.organizationalGoalsWeight,
+                    individual: cycle.individualGoalsWeight,
+                  },
                 )
-              : "Solo competencias"}
+              : cycle.includeCompetencies === false
+                ? "Sin competencias"
+                : "Solo competencias"}
           </p>
         </div>
       </div>
@@ -648,144 +690,7 @@ export function CycleDetailPageClient() {
               metaMutation.mutate();
             }}
           >
-            <div className="space-y-2">
-              <Label htmlFor="meta-name">Nombre *</Label>
-              <Input
-                id="meta-name"
-                value={metaForm.name}
-                onChange={(e) =>
-                  setMetaForm((f) =>
-                    f ? { ...f, name: e.target.value } : f,
-                  )
-                }
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="meta-description">Descripción</Label>
-              <Textarea
-                id="meta-description"
-                value={metaForm.description}
-                onChange={(e) =>
-                  setMetaForm((f) =>
-                    f ? { ...f, description: e.target.value } : f,
-                  )
-                }
-                rows={3}
-              />
-            </div>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="meta-start">Fecha inicio *</Label>
-                <Input
-                  id="meta-start"
-                  type="date"
-                  value={metaForm.startDate}
-                  onChange={(e) =>
-                    setMetaForm((f) =>
-                      f ? { ...f, startDate: e.target.value } : f,
-                    )
-                  }
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="meta-end">Fecha fin *</Label>
-                <Input
-                  id="meta-end"
-                  type="date"
-                  value={metaForm.endDate}
-                  onChange={(e) =>
-                    setMetaForm((f) =>
-                      f ? { ...f, endDate: e.target.value } : f,
-                    )
-                  }
-                  required
-                />
-              </div>
-            </div>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="meta-eval-start">Inicio evaluación</Label>
-                <Input
-                  id="meta-eval-start"
-                  type="date"
-                  value={metaForm.evaluationStartDate}
-                  onChange={(e) =>
-                    setMetaForm((f) =>
-                      f
-                        ? { ...f, evaluationStartDate: e.target.value }
-                        : f,
-                    )
-                  }
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="meta-eval-end">Fin evaluación</Label>
-                <Input
-                  id="meta-eval-end"
-                  type="date"
-                  value={metaForm.evaluationEndDate}
-                  onChange={(e) =>
-                    setMetaForm((f) =>
-                      f ? { ...f, evaluationEndDate: e.target.value } : f,
-                    )
-                  }
-                />
-              </div>
-            </div>
-            <div className="space-y-3 rounded-md border border-border p-3">
-              <div>
-                <p className="text-sm font-medium">Ponderación de evaluadores</p>
-                <p className="text-xs text-muted-foreground">
-                  Solo editable en borrador. Autoevaluación + líder = 100%.
-                </p>
-              </div>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="meta-self-weight">Autoevaluación (%)</Label>
-                  <Input
-                    id="meta-self-weight"
-                    type="number"
-                    min={0}
-                    max={100}
-                    step="0.01"
-                    value={metaForm.selfEvaluationWeight}
-                    onChange={(e) =>
-                      setMetaForm((f) =>
-                        f
-                          ? { ...f, selfEvaluationWeight: e.target.value }
-                          : f,
-                      )
-                    }
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="meta-manager-weight">Líder (%)</Label>
-                  <Input
-                    id="meta-manager-weight"
-                    type="number"
-                    min={0}
-                    max={100}
-                    step="0.01"
-                    value={metaForm.managerEvaluationWeight}
-                    onChange={(e) =>
-                      setMetaForm((f) =>
-                        f
-                          ? {
-                              ...f,
-                              managerEvaluationWeight: e.target.value,
-                            }
-                          : f,
-                      )
-                    }
-                    required
-                  />
-                </div>
-              </div>
-            </div>
-            <CycleCompositionFields
+            <CycleFormFields
               form={metaForm}
               setForm={(updater) => {
                 setMetaForm((prev) => {
@@ -798,6 +703,7 @@ export function CycleDetailPageClient() {
               goalCycleOptions={goalCycleOptions}
               goalCyclesLoading={goalCyclesQuery.isLoading}
               idPrefix="meta"
+              lockStartDate
             />
             {metaError ? (
               <p className="text-sm text-destructive" role="alert">
@@ -841,16 +747,10 @@ export function CycleDetailPageClient() {
             disabled={Boolean(editingComp)}
             value={compForm.competencyId}
             onChange={(competencyId) => {
-              const selected = availableCompetencies.find(
-                (c) => c.id === competencyId,
-              );
               setCompForm((f) => ({
                 ...f,
                 competencyId,
-                scaleId:
-                  f.scaleId ||
-                  selected?.defaultScaleId ||
-                  "",
+                scaleId: f.scaleId || autoQualitativeScaleId(qualitativeScales),
               }));
             }}
             options={availableCompetencies.map((c) => ({
@@ -858,17 +758,28 @@ export function CycleDetailPageClient() {
               label: c.code ? `${c.name} (${c.code})` : c.name,
             }))}
           />
-          <FormSelect
-            id="scale-select"
-            label="Escala"
-            required
-            value={compForm.scaleId}
-            onChange={(scaleId) => setCompForm((f) => ({ ...f, scaleId }))}
-            options={(scalesQuery.data?.items ?? []).map((s) => ({
-              value: s.id,
-              label: s.name,
-            }))}
-          />
+          {qualitativeScales.length === 1 ? (
+            <p className="text-sm text-muted-foreground">
+              Se califica con la escala cualitativa{" "}
+              <span className="font-medium text-foreground">
+                {qualitativeScales[0]?.name}
+              </span>
+              .
+            </p>
+          ) : (
+            <FormSelect
+              id="scale-select"
+              label="Escala cualitativa"
+              required
+              value={compForm.scaleId}
+              onChange={(scaleId) => setCompForm((f) => ({ ...f, scaleId }))}
+              options={qualitativeScales.map((s) => ({
+                value: s.id,
+                label: s.name,
+              }))}
+              hint="Las competencias no usan escalas cuantitativas."
+            />
+          )}
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="comp-weight">Peso (%)</Label>

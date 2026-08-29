@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { OrganizationEntityStatus, type BusinessUnit } from '@prisma/client';
 import { withDuplicateCompanyCodeConflict } from '../../common/prisma/duplicate-company-code';
+import { nextSequentialCode } from '../../common/sequential-code';
 import { AuditService } from '../../core/audit/audit.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ORG_AUDIT } from '../organization.constants';
@@ -29,12 +30,22 @@ export class BusinessUnitsService {
     userId: string,
     dto: CreateBusinessUnitDto,
   ): Promise<BusinessUnit> {
-    const created = await withDuplicateCompanyCodeConflict(dto.code, () =>
+    const code =
+      emptyToNull(dto.code) ??
+      nextSequentialCode(
+        (
+          await this.prisma.businessUnit.findMany({
+            where: { companyId },
+            select: { code: true },
+          })
+        ).map((row) => row.code),
+      );
+    const created = await withDuplicateCompanyCodeConflict(code, () =>
       this.prisma.businessUnit.create({
         data: {
           companyId,
           name: dto.name.trim(),
-          code: emptyToNull(dto.code) ?? null,
+          code,
           description: emptyToNull(dto.description) ?? null,
           status: dto.status ?? OrganizationEntityStatus.ACTIVE,
         },

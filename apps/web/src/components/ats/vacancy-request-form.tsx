@@ -1,15 +1,18 @@
 "use client";
 
+import { CargoOccupantListEditor } from "@/components/ats/cargo-occupant-list";
 import { FormSelect } from "@/components/organization/form-select";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { extraApprovalRows, requestPlanToApprovalRows } from "@/lib/ats/approval-plan";
+import { toPositionOccupantPayload, type CargoOccupantRow } from "@/lib/ats/position-occupant";
 import { describeVacancyRequesterField } from "@/lib/ats/vacancy-requester";
 import type {
   CreateVacancyRequestInput,
   UpdateVacancyRequestInput,
+  VacancyApprovalWorkflow,
   VacancyRequest,
   VacancyRequestType,
 } from "@/types/ats";
@@ -23,7 +26,7 @@ export type VacancyRequestFormValues = {
   requestedJobLevelId: string;
   requestedHeadcount: string;
   justification: string;
-  generalManagerApprovalRequired: boolean;
+  approvalSteps: CargoOccupantRow[];
 };
 
 export const emptyVacancyRequestForm = (): VacancyRequestFormValues => ({
@@ -35,11 +38,12 @@ export const emptyVacancyRequestForm = (): VacancyRequestFormValues => ({
   requestedJobLevelId: "",
   requestedHeadcount: "1",
   justification: "",
-  generalManagerApprovalRequired: false,
+  approvalSteps: [],
 });
 
 export function vacancyRequestToForm(
   request: VacancyRequest,
+  workflow?: VacancyApprovalWorkflow,
 ): VacancyRequestFormValues {
   return {
     type: request.type,
@@ -50,7 +54,7 @@ export function vacancyRequestToForm(
     requestedJobLevelId: request.requestedJobLevelId ?? "",
     requestedHeadcount: String(request.requestedHeadcount),
     justification: request.justification,
-    generalManagerApprovalRequired: request.generalManagerApprovalRequired,
+    approvalSteps: requestPlanToApprovalRows(request, workflow),
   };
 }
 
@@ -58,11 +62,12 @@ export function toCreateVacancyRequestPayload(
   values: VacancyRequestFormValues,
 ): CreateVacancyRequestInput {
   const headcount = Number(values.requestedHeadcount);
+  const extras = toPositionOccupantPayload(extraApprovalRows(values.approvalSteps));
   const base: CreateVacancyRequestInput = {
     type: values.type,
     requestedHeadcount: headcount,
     justification: values.justification.trim(),
-    generalManagerApprovalRequired: values.generalManagerApprovalRequired,
+    extraApprovalSteps: extras,
   };
   if (values.requestedByEmployeeId) {
     base.requestedByEmployeeId = values.requestedByEmployeeId;
@@ -114,7 +119,6 @@ type VacancyRequestFormProps = {
   employees: Option[];
   linkedEmployeeExists: boolean;
   canProxyRequester: boolean;
-  showGeneralManagerOption?: boolean;
   submitLabel?: string;
 };
 
@@ -131,7 +135,6 @@ export function VacancyRequestForm({
   employees,
   linkedEmployeeExists,
   canProxyRequester,
-  showGeneralManagerOption = true,
   submitLabel = "Guardar",
 }: VacancyRequestFormProps) {
   const requesterField = describeVacancyRequesterField({
@@ -283,20 +286,22 @@ export function VacancyRequestForm({
         />
       </div>
 
-      {showGeneralManagerOption ? (
-        <label className="flex items-center gap-2 text-sm">
-          <Checkbox
-            checked={values.generalManagerApprovalRequired}
-            onCheckedChange={(checked) =>
-              onChange({
-                ...values,
-                generalManagerApprovalRequired: checked === true,
-              })
-            }
-          />
-          Requiere aprobación de Gerencia General
-        </label>
-      ) : null}
+      <div className="space-y-2">
+        <p className="text-sm font-medium">Niveles de aprobación</p>
+        <p className="text-xs text-muted-foreground">
+          Los niveles definidos globalmente no se pueden editar. Puedes agregar
+          niveles extra para esta solicitud.
+        </p>
+        <CargoOccupantListEditor
+          rows={values.approvalSteps}
+          onChange={(approvalSteps) => onChange({ ...values, approvalSteps })}
+          positions={positions}
+          rowLabel={(index) => `Nivel ${index + 1}`}
+          addLabel="Agregar nivel"
+          emptyHint="No hay niveles globales. Agrega los que apliquen a esta solicitud."
+          lockedHint="Nivel definido globalmente. No se puede editar ni eliminar."
+        />
+      </div>
 
       {error ? (
         <p className="text-sm text-destructive" role="alert">

@@ -9,6 +9,7 @@ import {
   type Competency,
 } from '@prisma/client';
 import { duplicateCompanyCodeMessage } from '../../common/prisma/duplicate-company-code';
+import { nextSequentialCode } from '../../common/sequential-code';
 import { AuditService } from '../../core/audit/audit.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import {
@@ -18,6 +19,7 @@ import {
   PERFORMANCE_AUDIT,
 } from '../performance.constants';
 import { emptyToNull } from '../performance.helpers';
+import { serializeCompetency } from './competency.serialize';
 import type {
   CreateCompetencyDto,
   ListCompetenciesQueryDto,
@@ -27,6 +29,14 @@ import type {
 const COMPETENCY_INCLUDE = {
   defaultScale: {
     select: { id: true, name: true, status: true },
+  },
+  jobLevelAssignments: {
+    select: {
+      jobLevel: {
+        select: { id: true, name: true, rank: true, status: true },
+      },
+    },
+    orderBy: { jobLevel: { rank: 'asc' as const } },
   },
 } as const;
 
@@ -70,7 +80,7 @@ export class CompetenciesService {
     ]);
 
     return {
-      items,
+      items: items.map((item) => serializeCompetency(item)),
       page,
       limit,
       total,
@@ -86,25 +96,53 @@ export class CompetenciesService {
     if (!row) {
       throw new NotFoundException('Competency not found');
     }
-    return row;
+    return serializeCompetency(row);
   }
 
   async create(companyId: string, userId: string, dto: CreateCompetencyDto) {
     if (dto.defaultScaleId) {
       await this.requireScale(companyId, dto.defaultScaleId);
     }
+    if (dto.jobLevelId) {
+      await this.requireJobLevel(companyId, dto.jobLevelId);
+    }
+
+    const code =
+      emptyToNull(dto.code) ??
+      nextSequentialCode(
+        (
+          await this.prisma.competency.findMany({
+            where: { companyId },
+            select: { code: true },
+          })
+        ).map((row) => row.code),
+      );
 
     try {
-      const created = await this.prisma.competency.create({
-        data: {
-          companyId,
-          name: dto.name.trim(),
-          code: emptyToNull(dto.code) ?? null,
-          description: emptyToNull(dto.description) ?? null,
-          status: dto.status ?? OrganizationEntityStatus.ACTIVE,
-          defaultScaleId: dto.defaultScaleId ?? null,
-        },
-        include: COMPETENCY_INCLUDE,
+      const created = await this.prisma.$transaction(async (tx) => {
+        const competency = await tx.competency.create({
+          data: {
+            companyId,
+            name: dto.name.trim(),
+            code,
+            description: emptyToNull(dto.description) ?? null,
+            status: dto.status ?? OrganizationEntityStatus.ACTIVE,
+            defaultScaleId: dto.defaultScaleId ?? null,
+          },
+        });
+        if (dto.jobLevelId) {
+          await tx.jobLevelCompetency.create({
+            data: {
+              companyId,
+              jobLevelId: dto.jobLevelId,
+              competencyId: competency.id,
+            },
+          });
+        }
+        return tx.competency.findFirstOrThrow({
+          where: { id: competency.id },
+          include: COMPETENCY_INCLUDE,
+        });
       });
 
       await this.audit.create({
@@ -113,12 +151,12 @@ export class CompetenciesService {
         entityId: created.id,
         company: { connect: { id: companyId } },
         user: { connect: { id: userId } },
-        metadata: { id: created.id },
+        metadata: { id: created.id, jobLevelId: dto.jobLevelId ?? null },
       });
 
-      return created;
+      return serializeCompetency(created);
     } catch (error) {
-      this.rethrowUnique(error, dto.code);
+      this.rethrowUnique(error, code);
     }
   }
 
@@ -133,22 +171,44 @@ export class CompetenciesService {
     if (dto.defaultScaleId) {
       await this.requireScale(companyId, dto.defaultScaleId);
     }
+    if (dto.jobLevelId) {
+      await this.requireJobLevel(companyId, dto.jobLevelId);
+    }
 
     try {
-      const updated = await this.prisma.competency.update({
-        where: { id },
-        data: {
-          ...(dto.name !== undefined ? { name: dto.name.trim() } : {}),
-          ...(dto.code !== undefined ? { code: emptyToNull(dto.code) } : {}),
-          ...(dto.description !== undefined
-            ? { description: emptyToNull(dto.description) }
-            : {}),
-          ...(dto.status !== undefined ? { status: dto.status } : {}),
-          ...(dto.defaultScaleId !== undefined
-            ? { defaultScaleId: dto.defaultScaleId }
-            : {}),
-        },
-        include: COMPETENCY_INCLUDE,
+      const updated = await this.prisma.$transaction(async (tx) => {
+        await tx.competency.update({
+          where: { id },
+          data: {
+            ...(dto.name !== undefined ? { name: dto.name.trim() } : {}),
+            ...(dto.code !== undefined ? { code: emptyToNull(dto.code) } : {}),
+            ...(dto.description !== undefined
+              ? { description: emptyToNull(dto.description) }
+              : {}),
+            ...(dto.status !== undefined ? { status: dto.status } : {}),
+            ...(dto.defaultScaleId !== undefined
+              ? { defaultScaleId: dto.defaultScaleId }
+              : {}),
+          },
+        });
+        if (dto.jobLevelId !== undefined) {
+          await tx.jobLevelCompetency.deleteMany({
+            where: { companyId, competencyId: id },
+          });
+          if (dto.jobLevelId) {
+            await tx.jobLevelCompetency.create({
+              data: {
+                companyId,
+                jobLevelId: dto.jobLevelId,
+                competencyId: id,
+              },
+            });
+          }
+        }
+        return tx.competency.findFirstOrThrow({
+          where: { id },
+          include: COMPETENCY_INCLUDE,
+        });
       });
 
       await this.audit.create({
@@ -157,10 +217,10 @@ export class CompetenciesService {
         entityId: updated.id,
         company: { connect: { id: companyId } },
         user: { connect: { id: userId } },
-        metadata: { id: updated.id },
+        metadata: { id: updated.id, jobLevelId: dto.jobLevelId ?? undefined },
       });
 
-      return updated;
+      return serializeCompetency(updated);
     } catch (error) {
       this.rethrowUnique(error, dto.code);
     }
@@ -185,6 +245,16 @@ export class CompetenciesService {
     });
     if (!row) {
       throw new NotFoundException('Competency scale not found');
+    }
+    return row;
+  }
+
+  private async requireJobLevel(companyId: string, id: string) {
+    const row = await this.prisma.jobLevel.findFirst({
+      where: { id, companyId, deletedAt: null },
+    });
+    if (!row) {
+      throw new NotFoundException('Job level not found');
     }
     return row;
   }

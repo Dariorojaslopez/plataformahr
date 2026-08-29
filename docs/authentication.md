@@ -28,6 +28,10 @@ Passwords and refresh tokens are never stored in plaintext. `passwordHash` and r
 | `GET` | `/platform/me` | Bearer + Platform Owner | Platform identity |
 | `GET` | `/platform/companies` | Bearer + Platform Owner | ACTIVE companies catalog for tenant entry |
 | `GET/POST` | `/platform/admin/companies` | Bearer + Platform Owner | List/provision companies and initial admin |
+| `PUT` | `/platform/admin/companies/:id/features` | Bearer + Platform Owner | Standard module/feature entitlements (premium flags are preserved) |
+| `PUT` | `/platform/admin/companies/:id/premium` | Bearer + Platform Owner | Digital signature, interview recording, PDI |
+| `GET` | `/platform/admin/billing` | Bearer + Platform Owner | Per-company costs, calculated charge, consolidated net profit |
+| `PUT` | `/platform/admin/companies/:id/billing` | Bearer + Platform Owner | Tax, license, subscription costs and margin % |
 | `PATCH` | `/platform/admin/companies/:id/status` | Bearer + Platform Owner | Activate/suspend a company |
 | `POST` | `/platform/admin/companies/:id/access` | Bearer + Platform Owner | Create/activate a real CLIENT_ADMIN membership |
 | `POST` | `/auth/change-password` | Bearer | Replace a temporary password |

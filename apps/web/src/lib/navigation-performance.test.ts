@@ -10,6 +10,11 @@ describe("performance navigation", () => {
     expect(items.map(({ label, href, disabled }) => ({ label, href, disabled }))).toEqual([
       { label: "Ciclos", href: "/performance/cycles", disabled: undefined },
       {
+        label: "Seleccionar población a evaluar",
+        href: "/performance/population",
+        disabled: undefined,
+      },
+      {
         label: "Mis evaluaciones",
         href: "/performance/my-evaluations",
         disabled: undefined,
@@ -25,13 +30,53 @@ describe("performance navigation", () => {
         disabled: undefined,
       },
       {
-        label: "Competencias",
-        href: "/performance/competencies",
+        label: "Objetivos organizacionales",
+        href: "/goals",
         disabled: undefined,
       },
-      { label: "Escalas", href: "/performance/scales", disabled: undefined },
+      {
+        label: "Calibración",
+        href: "/performance/calibration",
+        disabled: undefined,
+      },
     ]);
-    expect(items).toHaveLength(6);
+    expect(items).toHaveLength(7);
+  });
+
+  it("places competencias under Organización", () => {
+    const section = APP_NAV.find((s) => s.title === "Organización");
+    expect(section?.items.map(({ label, href }) => ({ label, href }))).toEqual(
+      expect.arrayContaining([
+        { label: "Competencias", href: "/organization/competencies" },
+      ]),
+    );
+    expect(
+      APP_NAV.find((s) => s.title === "Performance")?.items.map(
+        ({ label }) => label,
+      ),
+    ).not.toContain("Competencias");
+  });
+
+  it("places escalas de calificación under Organización", () => {
+    const section = APP_NAV.find((s) => s.title === "Organización");
+    expect(section?.items.map(({ label, href }) => ({ label, href }))).toEqual(
+      expect.arrayContaining([
+        {
+          label: "Escalas de calificación",
+          href: "/organization/scales",
+        },
+      ]),
+    );
+    expect(
+      APP_NAV.find((s) => s.title === "Performance")?.items.map(
+        ({ label }) => label,
+      ),
+    ).not.toContain("Escalas");
+    expect(
+      APP_NAV.find((s) => s.title === "Performance")?.items.map(
+        ({ label }) => label,
+      ),
+    ).not.toContain("Escalas de calificación");
   });
 
   it("resolves page titles for performance routes", () => {
@@ -39,14 +84,31 @@ describe("performance navigation", () => {
     expect(resolvePageTitle("/performance/my-evaluations")).toBe(
       "Mis evaluaciones",
     );
+    expect(resolvePageTitle("/performance/my-evaluations/abc")).toBe(
+      "Mis evaluaciones",
+    );
     expect(resolvePageTitle("/performance/my-results")).toBe("Mis resultados");
     expect(resolvePageTitle("/performance/results")).toBe("Resultados");
+    expect(resolvePageTitle("/organization/competencies")).toBe("Competencias");
     expect(resolvePageTitle("/performance/competencies")).toBe("Competencias");
-    expect(resolvePageTitle("/performance/scales")).toBe("Escalas");
+    expect(resolvePageTitle("/organization/scales")).toBe(
+      "Escalas de calificación",
+    );
+    expect(resolvePageTitle("/performance/scales")).toBe(
+      "Escalas de calificación",
+    );
     expect(resolvePageTitle("/performance/cycles/abc")).toBe("Ciclo");
+    expect(resolvePageTitle("/organization/scales/abc")).toBe("Escala");
     expect(resolvePageTitle("/performance/scales/abc")).toBe("Escala");
     expect(resolvePageTitle("/performance/evaluations/abc")).toBe("Evaluación");
     expect(resolvePageTitle("/performance/results/abc")).toBe("Resultado");
     expect(resolvePageTitle("/performance/my-results/abc")).toBe("Mi resultado");
+    expect(resolvePageTitle("/performance/population")).toBe(
+      "Seleccionar población a evaluar",
+    );
+    expect(resolvePageTitle("/performance/calibration")).toBe("Calibración");
+    expect(resolvePageTitle("/organization/settings")).toBe(
+      "Ajustes de resultados",
+    );
   });
 });

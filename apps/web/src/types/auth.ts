@@ -1,5 +1,6 @@
 import type {
   CompanyFeatureCode,
+  CompanyHomeRole,
   CompanyModuleCode,
 } from "@talento/shared";
 
@@ -76,6 +77,12 @@ export type CompanyAccess = {
   enabledFeatures: CompanyFeatureCode[];
 };
 
+export type CurrentCompanyAccess = CompanyAccess & {
+  roleCodes: string[];
+  hasDirectReports: boolean;
+  homeRole: CompanyHomeRole;
+};
+
 export type CreateManagedCompanyResponse = {
   company: Pick<ManagedCompany, "id" | "name" | "legalName" | "slug" | "status">;
   initialAdmin: NonNullable<ManagedCompany["initialAdmin"]>;
@@ -113,4 +120,6 @@ export type CurrentCompanyResponse = {
   slug: string;
   status: string;
   defaultLanguage: string;
+  goalsCascadeEnabled: boolean;
+  showNineBoxOnMyResults: boolean;
 };

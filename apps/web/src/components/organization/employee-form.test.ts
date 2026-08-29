@@ -14,6 +14,8 @@ const sample: Employee = {
   lastName: "Lovelace",
   email: "ada@example.com",
   phone: null,
+  documentType: null,
+  documentNumber: null,
   birthDate: null,
   country: null,
   state: null,

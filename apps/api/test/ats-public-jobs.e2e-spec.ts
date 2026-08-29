@@ -58,6 +58,9 @@ describe('ATS public jobs (e2e)', () => {
           companyId: company.id,
           areaId: area.id,
           name: `Developer ${name}`,
+          mission: `Misión ${name}`,
+          responsibilities: `Responsabilidades ${name}`,
+          requiredExperience: `Experiencia ${name}`,
           headcount: 1,
         },
       });
@@ -149,11 +152,31 @@ describe('ATS public jobs (e2e)', () => {
     documentType: 'CC',
     documentNumber: `DOC-${email.replace(/[^A-Za-z0-9]/g, '')}`.slice(0, 80),
   });
+  const SAMPLE_CV = `
+Hoja de vida
+Ana María Pérez Gómez
+Correo: ana.perez@example.com
+Teléfono: +57 300 123 4567
+Cédula de ciudadanía: 1.234.567.890
+`;
 
   it('is private by default, publishes explicitly and exposes only public DTO', async () => {
     await request(app.getHttpServer())
       .get('/public/jobs/not-published-id')
       .expect(404);
+
+    const unpublishedPreview = await request(app.getHttpServer())
+      .get(`/ats/vacancies/${vacancyAId}/public-preview`)
+      .set(auth())
+      .expect(200);
+    expect(unpublishedPreview.body).toMatchObject({
+      positionName: `Developer Public A ${suffix}`,
+      mission: `Misión Public A ${suffix}`,
+      responsibilities: `Responsabilidades Public A ${suffix}`,
+      requiredExperience: `Experiencia Public A ${suffix}`,
+    });
+    expect(unpublishedPreview.body.publishedAt).toBeNull();
+    expect(unpublishedPreview.body.salaryAmount).toBeNull();
 
     const published = await request(app.getHttpServer())
       .post(`/ats/vacancies/${vacancyAId}/publish`)
@@ -170,10 +193,29 @@ describe('ATS public jobs (e2e)', () => {
       companyName: `Public A ${suffix}`,
       brandPrimaryColor: '#123456',
       hasLogo: false,
+      positionName: `Developer Public A ${suffix}`,
+      mission: `Misión Public A ${suffix}`,
+      responsibilities: `Responsabilidades Public A ${suffix}`,
+      requiredExperience: `Experiencia Public A ${suffix}`,
     });
     expect(publicResponse.body).not.toHaveProperty('companyId');
     expect(publicResponse.body).not.toHaveProperty('vacancyRequestId');
     expect(publicResponse.body).not.toHaveProperty('headcount');
+
+    const parsed = await request(app.getHttpServer())
+      .post(`/public/jobs/${publicId}/parse-cv`)
+      .attach('cv', Buffer.from(SAMPLE_CV, 'utf8'), {
+        filename: 'cv.txt',
+        contentType: 'text/plain',
+      })
+      .expect(201);
+    expect(parsed.body).toMatchObject({
+      firstName: 'Ana María',
+      lastName: 'Pérez Gómez',
+      email: 'ana.perez@example.com',
+      documentType: 'CC',
+      documentNumber: '1234567890',
+    });
   });
 
   it('creates a tenant-scoped candidate/application and blocks duplicates', async () => {

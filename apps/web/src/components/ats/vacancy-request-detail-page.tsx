@@ -220,7 +220,7 @@ export function VacancyRequestDetailPageClient() {
                   type="button"
                   variant="outline"
                   onClick={() => {
-                    setForm(vacancyRequestToForm(request));
+                    setForm(vacancyRequestToForm(request, workflowQuery.data));
                     setFormError(null);
                     setEditOpen(true);
                   }}
@@ -282,9 +282,6 @@ export function VacancyRequestDetailPageClient() {
         <Info label="Creada">{formatDate(request.createdAt)}</Info>
         <Info label="Enviada">{formatDate(request.submittedAt)}</Info>
         <Info label="Decidida">{formatDate(request.decidedAt)}</Info>
-        <Info label="Gerencia General">
-          {request.generalManagerApprovalRequired ? "Requerida" : "No"}
-        </Info>
       </section>
 
       <section className="space-y-2">
@@ -382,7 +379,6 @@ export function VacancyRequestDetailPageClient() {
           }))}
           linkedEmployeeExists={linkedEmployeeExists}
           canProxyRequester={canProxyRequester}
-          showGeneralManagerOption={!workflowQuery.data?.enabled}
           submitLabel="Guardar cambios"
         />
       </EntityEditorShell>

@@ -7,6 +7,9 @@ import {
 import {
   ApplicationStage,
   ApplicationStatus,
+  InterviewFormStatus,
+  InterviewStatus,
+  InterviewType,
   Prisma,
   VacancyStatus,
   type Application,
@@ -30,6 +33,7 @@ const ALLOWED_STAGE_TRANSITIONS: Record<ApplicationStage, ApplicationStage[]> =
   {
     [ApplicationStage.PENDING_REVIEW]: [
       ApplicationStage.CONTACTED,
+      ApplicationStage.INTERVIEW,
       ApplicationStage.REJECTED,
       ApplicationStage.WITHDRAWN,
     ],
@@ -340,6 +344,25 @@ export class ApplicationsService {
         where: { id, companyId },
       });
 
+      if (dto.stage === ApplicationStage.INTERVIEW) {
+        await this.ensurePendingInterview(
+          tx,
+          companyId,
+          id,
+          application.vacancyId,
+          InterviewType.HR,
+        );
+      }
+      if (dto.stage === ApplicationStage.OFFER) {
+        await this.ensurePendingInterview(
+          tx,
+          companyId,
+          id,
+          application.vacancyId,
+          InterviewType.TECHNICAL,
+        );
+      }
+
       return {
         application: current,
         fromStage: application.stage,
@@ -404,6 +427,17 @@ export class ApplicationsService {
             firstName: true,
             lastName: true,
             email: true,
+            cvFileName: true,
+          },
+        },
+        interviews: {
+          where: { deletedAt: null, status: { not: InterviewStatus.CANCELLED } },
+          select: {
+            questions: {
+              select: {
+                answers: { select: { rating: true } },
+              },
+            },
           },
         },
       },
@@ -430,11 +464,120 @@ export class ApplicationsService {
             candidateId: item.candidateId,
             candidateName: `${item.candidate.firstName} ${item.candidate.lastName}`,
             candidateEmail: item.candidate.email,
+            hasCv: Boolean(item.candidate.cvFileName),
             stage: item.stage,
             lastStageChangedAt: item.lastStageChangedAt,
+            fitLevel: this.fitLevelFromInterviews(item.interviews),
           })),
         };
       }),
     };
+  }
+
+  private async ensurePendingInterview(
+    tx: Prisma.TransactionClient,
+    companyId: string,
+    applicationId: string,
+    vacancyId: string,
+    type: InterviewType,
+  ) {
+    const existing = await tx.interview.findFirst({
+      where: {
+        companyId,
+        applicationId,
+        type,
+        deletedAt: null,
+        status: { not: InterviewStatus.CANCELLED },
+      },
+      select: { id: true },
+    });
+    if (existing) return;
+
+    const vacancy = await tx.vacancy.findFirst({
+      where: { id: vacancyId, companyId },
+      select: {
+        assignedRecruiterEmployeeId: true,
+        interviewFormTemplateId: true,
+      },
+    });
+
+    let template = vacancy?.interviewFormTemplateId
+      ? await tx.interviewFormTemplate.findFirst({
+          where: {
+            id: vacancy.interviewFormTemplateId,
+            companyId,
+            deletedAt: null,
+            status: InterviewFormStatus.ACTIVE,
+          },
+          include: { questions: { orderBy: { order: 'asc' } } },
+        })
+      : null;
+
+    if (!template) {
+      template = await tx.interviewFormTemplate.findFirst({
+        where: {
+          companyId,
+          type,
+          deletedAt: null,
+          status: InterviewFormStatus.ACTIVE,
+        },
+        include: { questions: { orderBy: { order: 'asc' } } },
+        orderBy: { createdAt: 'asc' },
+      });
+    }
+
+    await tx.interview.create({
+      data: {
+        companyId,
+        applicationId,
+        type,
+        status: InterviewStatus.DRAFT,
+        ...(vacancy?.assignedRecruiterEmployeeId
+          ? {
+              interviewers: {
+                create: [
+                  { employeeId: vacancy.assignedRecruiterEmployeeId },
+                ],
+              },
+            }
+          : {}),
+        ...(template
+          ? {
+              questions: {
+                create: template.questions.map((question) => ({
+                  companyId,
+                  sourceTemplateQuestionId: question.id,
+                  text: question.text,
+                  type: question.type,
+                  required: question.required,
+                  weight: question.weight,
+                  order: question.order,
+                })),
+              },
+            }
+          : {}),
+      },
+    });
+  }
+
+  private fitLevelFromInterviews(
+    interviews: Array<{
+      questions: Array<{ answers: Array<{ rating: number | null }> }>;
+    }>,
+  ): 'green' | 'yellow' | 'red' | 'gray' {
+    const ratings: number[] = [];
+    for (const interview of interviews) {
+      for (const question of interview.questions) {
+        for (const answer of question.answers) {
+          if (typeof answer.rating === 'number') ratings.push(answer.rating);
+        }
+      }
+    }
+    if (ratings.length === 0) return 'gray';
+    const average =
+      ratings.reduce((sum, value) => sum + value, 0) / ratings.length;
+    if (average >= 4) return 'green';
+    if (average >= 3) return 'yellow';
+    return 'red';
   }
 }

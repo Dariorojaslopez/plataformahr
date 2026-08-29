@@ -3,22 +3,32 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Copy, ExternalLink } from "lucide-react";
 import Link from "next/link";
+import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
+import { useSession } from "@/components/auth/session-provider";
+import { FormSelect } from "@/components/organization/form-select";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { ErrorState } from "@/components/ui/error-state";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { PageHeader } from "@/components/ui/page-header";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useCompanyId } from "@/hooks/use-company-id";
 import { atsApi, atsKeys } from "@/lib/api/ats";
+import { homeKeys } from "@/lib/api/home";
 import { getErrorMessage } from "@/lib/api/errors";
 import { publicJobUrl } from "@/lib/ats/public-job-url";
+import { formatMoney } from "@/lib/ats/offer-labels";
 import {
   formatDate,
+  formatEmployeeName,
   VACANCY_STATUS_LABELS,
   vacancyStatusVariant,
 } from "@/lib/ats/labels";
 import { notifyError, notifySuccess } from "@/lib/ui/notify";
+import type { Vacancy } from "@/types/ats";
 
 export function VacancyDetailPageClient() {
   const companyId = useCompanyId();
@@ -85,6 +95,12 @@ export function VacancyDetailPageClient() {
                 Publicar
               </Button>
             ) : null}
+            <Button variant="outline" asChild>
+              <Link href={`/ats/vacancies/${vacancy.id}/preview`}>
+                <ExternalLink className="size-4" />
+                Preview
+              </Link>
+            </Button>
             {vacancy.publishedAt ? (
               <>
                 <Button
@@ -144,6 +160,8 @@ export function VacancyDetailPageClient() {
         </Field>
         <Field label="Cargo">{vacancy.position?.name ?? "—"}</Field>
         <Field label="Área">{vacancy.area?.name ?? "—"}</Field>
+        <RecruiterAssignmentField vacancy={vacancy} />
+        <SalaryPublicationField vacancy={vacancy} />
         <Field label="Plazas">
           {vacancy.filledCount} / {vacancy.headcount}
           <p className="mt-1 text-xs text-muted-foreground">
@@ -161,6 +179,138 @@ export function VacancyDetailPageClient() {
           {vacancy.description?.trim() || "Sin descripción."}
         </p>
       </section>
+    </div>
+  );
+}
+
+function RecruiterAssignmentField({ vacancy }: { vacancy: Vacancy }) {
+  const companyId = useCompanyId();
+  const queryClient = useQueryClient();
+  const roleCodes = new Set(useSession().companyAccess?.roleCodes ?? []);
+  const canAssign = roleCodes.has("CLIENT_ADMIN");
+
+  const recruitersQuery = useQuery({
+    queryKey: atsKeys.recruiters(companyId),
+    queryFn: () => atsApi.listRecruiters(),
+    enabled: canAssign,
+  });
+
+  const assignMutation = useMutation({
+    mutationFn: (assignedRecruiterEmployeeId: string | null) =>
+      atsApi.updateVacancy(vacancy.id, { assignedRecruiterEmployeeId }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: atsKeys.all(companyId) });
+      await queryClient.invalidateQueries({ queryKey: homeKeys.feed(companyId) });
+      notifySuccess("Reclutador actualizado");
+    },
+    onError: (error) =>
+      notifyError(error, "No se pudo asignar el reclutador."),
+  });
+
+  const options = useMemo(() => {
+    const recruiters = recruitersQuery.data ?? [];
+    const current = vacancy.assignedRecruiter;
+    const hasCurrent = current
+      ? recruiters.some((item) => item.id === current.id)
+      : true;
+    const items = hasCurrent || !current ? recruiters : [current, ...recruiters];
+    return items.map((employee) => ({
+      value: employee.id,
+      label: formatEmployeeName(employee),
+    }));
+  }, [recruitersQuery.data, vacancy.assignedRecruiter]);
+
+  if (!canAssign) {
+    return (
+      <Field label="Reclutador">
+        {vacancy.assignedRecruiter
+          ? formatEmployeeName(vacancy.assignedRecruiter)
+          : "Sin asignar"}
+      </Field>
+    );
+  }
+
+  return (
+    <FormSelect
+      id="vacancy-assigned-recruiter"
+      label="Reclutador"
+      className="w-full"
+      value={vacancy.assignedRecruiterEmployeeId ?? ""}
+      onChange={(value) => assignMutation.mutate(value ? value : null)}
+      options={options}
+      allowEmpty
+      emptyLabel="Sin asignar"
+    />
+  );
+}
+
+function SalaryPublicationField({ vacancy }: { vacancy: Vacancy }) {
+  const companyId = useCompanyId();
+  const queryClient = useQueryClient();
+  const isAdmin = (useSession().companyAccess?.roleCodes ?? []).includes(
+    "CLIENT_ADMIN",
+  );
+  const [amount, setAmount] = useState(vacancy.salaryAmount ?? "");
+  useEffect(() => {
+    setAmount(vacancy.salaryAmount ?? "");
+  }, [vacancy.salaryAmount]);
+
+  const saveMutation = useMutation({
+    mutationFn: (payload: {
+      salaryAmount: string | null;
+      showSalaryPublic: boolean;
+    }) => atsApi.updateVacancy(vacancy.id, payload),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: atsKeys.all(companyId) });
+      notifySuccess("Salario actualizado");
+    },
+    onError: (error) => notifyError(error, "No se pudo guardar el salario."),
+  });
+
+  if (!isAdmin) {
+    return (
+      <Field label="Salario público">
+        {vacancy.showSalaryPublic && vacancy.salaryAmount
+          ? formatMoney(vacancy.salaryAmount, vacancy.salaryCurrency)
+          : "Oculto en la vacante pública"}
+      </Field>
+    );
+  }
+
+  return (
+    <div className="space-y-2 sm:col-span-2">
+      <Label htmlFor="vacancy-salary">Salario (opcional)</Label>
+      <Input
+        id="vacancy-salary"
+        inputMode="decimal"
+        placeholder="Ej. 4500000"
+        value={amount}
+        onChange={(event) => setAmount(event.target.value)}
+        onBlur={() => {
+          const trimmed = amount.trim();
+          if (trimmed === (vacancy.salaryAmount ?? "")) return;
+          void saveMutation.mutate({
+            salaryAmount: trimmed || null,
+            showSalaryPublic: trimmed ? vacancy.showSalaryPublic : false,
+          });
+        }}
+      />
+      <label className="flex items-center gap-2 text-sm">
+        <Checkbox
+          checked={vacancy.showSalaryPublic}
+          disabled={!vacancy.salaryAmount || saveMutation.isPending}
+          onCheckedChange={(checked) =>
+            saveMutation.mutate({
+              salaryAmount: vacancy.salaryAmount,
+              showSalaryPublic: checked === true,
+            })
+          }
+        />
+        Mostrar salario en la vacante pública
+      </label>
+      <p className="text-xs text-muted-foreground">
+        Si está activo, el salario aparece en el enlace público de la vacante.
+      </p>
     </div>
   );
 }

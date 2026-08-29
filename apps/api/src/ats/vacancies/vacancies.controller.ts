@@ -18,11 +18,15 @@ import { CurrentTenant } from '../../tenant/decorators/current-tenant.decorator'
 import { CompanyContextGuard } from '../../tenant/guards/company-context.guard';
 import { ListVacanciesQueryDto, UpdateVacancyDto } from './dto/vacancy.dto';
 import { VacanciesService } from './vacancies.service';
+import { PublicJobsService } from '../public-jobs/public-jobs.service';
 
 @Controller('ats/vacancies')
 @UseGuards(JwtAuthGuard, CompanyContextGuard, PermissionGuard)
 export class VacanciesController {
-  constructor(private readonly vacanciesService: VacanciesService) {}
+  constructor(
+    private readonly vacanciesService: VacanciesService,
+    private readonly publicJobs: PublicJobsService,
+  ) {}
 
   @Get()
   @RequirePermissions('ats.vacancy.read')
@@ -30,7 +34,23 @@ export class VacanciesController {
     @CurrentTenant() tenant: TenantContext,
     @Query() query: ListVacanciesQueryDto,
   ) {
-    return this.vacanciesService.list(tenant.companyId, query);
+    return this.vacanciesService.list(tenant, query);
+  }
+
+  @Get('recruiters')
+  @RequirePermissions('ats.vacancy.read')
+  listRecruiters(@CurrentTenant() tenant: TenantContext) {
+    return this.vacanciesService.listRecruiters(tenant.companyId);
+  }
+
+  @Get(':id/public-preview')
+  @RequirePermissions('ats.vacancy.read')
+  async publicPreview(
+    @CurrentTenant() tenant: TenantContext,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    await this.vacanciesService.requireVisibleVacancy(tenant, id);
+    return this.publicJobs.preview(tenant.companyId, id);
   }
 
   @Get(':id')
@@ -39,7 +59,7 @@ export class VacanciesController {
     @CurrentTenant() tenant: TenantContext,
     @Param('id', ParseUUIDPipe) id: string,
   ) {
-    return this.vacanciesService.getById(tenant.companyId, id);
+    return this.vacanciesService.getById(tenant, id);
   }
 
   @Patch(':id')
@@ -50,7 +70,7 @@ export class VacanciesController {
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateVacancyDto,
   ) {
-    return this.vacanciesService.update(tenant.companyId, user.userId, id, dto);
+    return this.vacanciesService.update(tenant, user.userId, id, dto);
   }
 
   @Post(':id/publish')
@@ -60,7 +80,7 @@ export class VacanciesController {
     @CurrentUser() user: AuthenticatedUser,
     @Param('id', ParseUUIDPipe) id: string,
   ) {
-    return this.vacanciesService.publish(tenant.companyId, user.userId, id);
+    return this.vacanciesService.publish(tenant, user.userId, id);
   }
 
   @Post(':id/unpublish')
@@ -70,6 +90,6 @@ export class VacanciesController {
     @CurrentUser() user: AuthenticatedUser,
     @Param('id', ParseUUIDPipe) id: string,
   ) {
-    return this.vacanciesService.unpublish(tenant.companyId, user.userId, id);
+    return this.vacanciesService.unpublish(tenant, user.userId, id);
   }
 }

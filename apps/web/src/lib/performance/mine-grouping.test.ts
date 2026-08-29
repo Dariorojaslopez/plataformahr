@@ -23,10 +23,10 @@ describe("mine grouping", () => {
     expect(formatMineSectionTitle("self", 1)).toBe("1 autoevaluación");
     expect(formatMineSectionTitle("self", 2)).toBe("2 autoevaluaciones");
     expect(formatMineSectionTitle("asManager", 1)).toBe(
-      "1 evaluación como líder",
+      "1 evaluación a realizar",
     );
     expect(formatMineSectionTitle("asManager", 0)).toBe(
-      "0 evaluaciones como líder",
+      "0 evaluaciones a realizar",
     );
   });
 });

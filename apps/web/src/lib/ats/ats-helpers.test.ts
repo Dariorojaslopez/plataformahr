@@ -27,18 +27,18 @@ describe("vacancy request form payloads", () => {
       requestedPositionName: "should-ignore",
       requestedAreaId: "area-1",
       requestedJobLevelId: "jl-1",
-      requestedHeadcount: "2",
-      justification: "Need coverage",
-      generalManagerApprovalRequired: false,
-    };
-    const payload = toCreateVacancyRequestPayload(values);
-    expect(payload).toEqual({
-      type: "EXISTING_POSITION",
-      requestedHeadcount: 2,
-      justification: "Need coverage",
-      generalManagerApprovalRequired: false,
-      existingPositionId: "pos-1",
-    });
+    requestedHeadcount: "2",
+    justification: "Need coverage",
+    approvalSteps: [],
+  };
+  const payload = toCreateVacancyRequestPayload(values);
+  expect(payload).toEqual({
+    type: "EXISTING_POSITION",
+    requestedHeadcount: 2,
+    justification: "Need coverage",
+    extraApprovalSteps: [],
+    existingPositionId: "pos-1",
+  });
     expect(payload).not.toHaveProperty("requestedPositionName");
     expect(payload).not.toHaveProperty("requestedAreaId");
   });
@@ -53,7 +53,7 @@ describe("vacancy request form payloads", () => {
       requestedJobLevelId: "",
       requestedHeadcount: "1",
       justification: "Growth",
-      generalManagerApprovalRequired: true,
+      approvalSteps: [],
     });
     expect(payload.existingPositionId).toBeUndefined();
     expect(payload.requestedPositionName).toBe("Data Analyst");
@@ -71,9 +71,44 @@ describe("vacancy request form payloads", () => {
       requestedJobLevelId: "",
       requestedHeadcount: "1",
       justification: "Coverage",
-      generalManagerApprovalRequired: false,
+      approvalSteps: [],
     });
     expect(payload.requestedByEmployeeId).toBe("emp-selected");
+  });
+
+  it("sends only unlocked approval levels as extras", () => {
+    const payload = toCreateVacancyRequestPayload({
+      type: "EXISTING_POSITION",
+      requestedByEmployeeId: "",
+      existingPositionId: "pos-1",
+      requestedPositionName: "",
+      requestedAreaId: "",
+      requestedJobLevelId: "",
+      requestedHeadcount: "1",
+      justification: "Coverage",
+      approvalSteps: [
+        {
+          key: "default-1",
+          positionId: "pos-global",
+          occupantId: "emp-global",
+          locked: true,
+        },
+        {
+          key: "extra-1",
+          positionId: "pos-extra",
+          occupantId: "emp-extra",
+        },
+        {
+          key: "blank",
+          positionId: "",
+          occupantId: "",
+        },
+      ],
+    });
+    expect(payload.extraApprovalSteps).toEqual([
+      { positionId: "pos-extra", employeeId: "emp-extra" },
+    ]);
+    expect(payload).not.toHaveProperty("generalManagerApprovalRequired");
   });
 });
 
@@ -161,6 +196,7 @@ describe("stage transitions", () => {
   it("exposes valid destinations and hides invalid ones", () => {
     expect(getValidMoveTargets("PENDING_REVIEW")).toEqual([
       "CONTACTED",
+      "INTERVIEW",
       "REJECTED",
       "WITHDRAWN",
     ]);

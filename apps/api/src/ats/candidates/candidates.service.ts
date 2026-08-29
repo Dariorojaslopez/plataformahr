@@ -17,6 +17,8 @@ import {
   DEFAULT_PAGE,
   MAX_LIMIT,
 } from '../ats.constants';
+import { CV_ERRORS } from '../public-jobs/cv.constants';
+import { readCvFile, resolveCompanyUploadsDir } from '../public-jobs/cv.storage';
 import type {
   CreateCandidateDto,
   ListCandidatesQueryDto,
@@ -86,6 +88,23 @@ export class CandidatesService {
       throw new NotFoundException('Candidate not found');
     }
     return candidate;
+  }
+
+  async readCv(companyId: string, id: string) {
+    const candidate = await this.getById(companyId, id);
+    if (!candidate.cvFileName || !candidate.cvMimeType) {
+      throw new NotFoundException(CV_ERRORS.NOT_FOUND);
+    }
+    const buffer = await readCvFile({
+      uploadsDir: resolveCompanyUploadsDir(),
+      companyId,
+      fileName: candidate.cvFileName,
+    });
+    return {
+      buffer,
+      mimeType: candidate.cvMimeType,
+      originalName: candidate.cvOriginalName ?? 'cv',
+    };
   }
 
   async create(

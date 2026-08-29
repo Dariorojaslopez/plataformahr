@@ -137,7 +137,6 @@ export function JobLevelsPageClient() {
       }
       const payload = {
         name: form.name.trim(),
-        code: form.code.trim() || undefined,
         rank,
         status: form.status,
       };
@@ -318,14 +317,6 @@ export function JobLevelsPageClient() {
               value={form.name}
               onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
               required
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="jl-code">Código</Label>
-            <Input
-              id="jl-code"
-              value={form.code}
-              onChange={(e) => setForm((f) => ({ ...f, code: e.target.value }))}
             />
           </div>
           <div className="space-y-2">

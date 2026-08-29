@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Pencil, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { AutomaticTranscriptionControls } from "@/components/ats/automatic-transcription-controls";
+import { useSession } from "@/components/auth/session-provider";
 import { FormSelect } from "@/components/organization/form-select";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -47,6 +48,10 @@ export function InterviewTranscriptPanel({
   canEdit,
 }: Props) {
   const queryClient = useQueryClient();
+  const { companyAccess } = useSession();
+  const hasInterviewRecording = (
+    companyAccess?.enabledFeatures ?? []
+  ).includes("premium.interview-recording");
 
   const [draft, setDraft] = useState<CreateTranscriptSegmentInput>({
     text: "",
@@ -129,15 +134,16 @@ export function InterviewTranscriptPanel({
       <div className="space-y-1">
         <h2 className="text-lg font-semibold">Transcripción</h2>
         <p className="text-sm text-muted-foreground">
-          Puedes dictar con el micrófono o agregar segmentos manualmente. El
-          servidor solo guarda texto.
+          {hasInterviewRecording
+            ? "Puedes dictar con el micrófono o agregar segmentos manualmente. El servidor solo guarda texto."
+            : "Agrega segmentos de transcripción de forma manual. El servidor solo guarda texto."}
         </p>
       </div>
 
       <AutomaticTranscriptionControls
         interviewId={interviewId}
         interviewStatus={interviewStatus}
-        enabled={canEdit}
+        enabled={canEdit && hasInterviewRecording}
         onSegmentPersisted={invalidate}
       />
 

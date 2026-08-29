@@ -12,7 +12,8 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import {
-  COMPANY_ACCESS_CATALOG,
+  COMPANY_STANDARD_ACCESS_CATALOG,
+  splitCompanyAccess,
   type CompanyFeatureCode,
   type CompanyModuleCode,
 } from "@talento/shared";
@@ -21,6 +22,9 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { AuthGuard } from "@/components/auth/auth-guard";
 import { useSession } from "@/components/auth/session-provider";
+import { PlatformBillingSection } from "@/components/platform/platform-billing-section";
+import { PlatformConfigShortcuts } from "@/components/platform/platform-config-shortcuts";
+import { PlatformPremiumSection } from "@/components/platform/platform-premium-section";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -197,7 +201,7 @@ function PlatformAdministration() {
       <main className="mx-auto w-full max-w-6xl space-y-6 px-4 py-8 sm:px-6">
         <PageHeader
           title="Administración global"
-          description="Crea compañías, entrega el acceso inicial y entra con una membresía CLIENT_ADMIN real."
+          description="Configura compañías, opciones premium y facturación. Entra a un tenant para organización, ATS, performance y sistema."
           actions={
             <div className="flex flex-wrap gap-2">
               <Button variant="outline" asChild>
@@ -213,96 +217,101 @@ function PlatformAdministration() {
                     Nueva compañía
                   </Button>
                 </DialogTrigger>
-              <DialogContent>
-                <form onSubmit={createCompany}>
-                  <DialogHeader>
+                <DialogContent className="max-h-[90vh] overflow-hidden p-0">
+                  <form
+                    onSubmit={createCompany}
+                    className="flex max-h-[90vh] min-h-0 flex-col"
+                  >
+                    <DialogHeader className="mb-0 shrink-0 px-6 pb-4 pt-6 pr-12">
                     <DialogTitle>Crear compañía</DialogTitle>
                     <p className="text-sm text-muted-foreground">
                       Se creará también el administrador inicial y una contraseña temporal.
                     </p>
                   </DialogHeader>
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <Field
-                      id="company-name"
-                      label="Nombre comercial"
-                      value={form.name}
-                      onChange={(name) => setForm((v) => ({ ...v, name }))}
-                    />
-                    <Field
-                      id="company-legal-name"
-                      label="Razón social"
-                      required={false}
-                      value={form.legalName ?? ""}
-                      onChange={(legalName) =>
-                        setForm((v) => ({ ...v, legalName }))
-                      }
-                    />
-                    <Field
-                      id="company-slug"
-                      label="Identificador"
-                      value={form.slug}
-                      pattern="[a-z0-9]+(?:-[a-z0-9]+)*"
-                      onChange={(slug) =>
-                        setForm((v) => ({
-                          ...v,
-                          slug: slug.toLowerCase().replace(/\s+/g, "-"),
-                        }))
-                      }
-                    />
-                    <Field
-                      id="admin-email"
-                      label="Email administrador"
-                      type="email"
-                      value={form.adminEmail}
-                      onChange={(adminEmail) =>
-                        setForm((v) => ({ ...v, adminEmail }))
-                      }
-                    />
-                    <Field
-                      id="admin-first-name"
-                      label="Nombres administrador"
-                      value={form.adminFirstName}
-                      onChange={(adminFirstName) =>
-                        setForm((v) => ({ ...v, adminFirstName }))
-                      }
-                    />
-                    <Field
-                      id="admin-last-name"
-                      label="Apellidos administrador"
-                      value={form.adminLastName}
-                      onChange={(adminLastName) =>
-                        setForm((v) => ({ ...v, adminLastName }))
-                      }
-                    />
-                  </div>
-                  <div className="mt-4">
-                    <PasswordControl
-                      id="initial-password"
-                      label="Contraseña inicial"
-                      value={form.initialPassword ?? ""}
-                      onChange={(initialPassword) =>
-                        setForm((value) => ({
-                          ...value,
-                          initialPassword,
-                        }))
-                      }
-                      help="Puedes escribirla o generar una segura. Si queda vacía, el servidor generará una."
-                    />
-                  </div>
-                  <div className="mt-5">
-                    <AccessSelector
-                      enabledModules={form.enabledModules}
-                      enabledFeatures={form.enabledFeatures}
-                      onChange={(enabledModules, enabledFeatures) =>
-                        setForm((value) => ({
-                          ...value,
-                          enabledModules,
-                          enabledFeatures,
-                        }))
-                      }
-                    />
-                  </div>
-                  <DialogFooter>
+                    <div className="min-h-0 flex-1 overflow-y-auto px-6 py-1">
+                      <div className="grid gap-4 sm:grid-cols-2">
+                        <Field
+                          id="company-name"
+                          label="Nombre comercial"
+                          value={form.name}
+                          onChange={(name) => setForm((v) => ({ ...v, name }))}
+                        />
+                        <Field
+                          id="company-legal-name"
+                          label="Razón social"
+                          required={false}
+                          value={form.legalName ?? ""}
+                          onChange={(legalName) =>
+                            setForm((v) => ({ ...v, legalName }))
+                          }
+                        />
+                        <Field
+                          id="company-slug"
+                          label="Identificador"
+                          value={form.slug}
+                          pattern="[a-z0-9]+(?:-[a-z0-9]+)*"
+                          onChange={(slug) =>
+                            setForm((v) => ({
+                              ...v,
+                              slug: slug.toLowerCase().replace(/\s+/g, "-"),
+                            }))
+                          }
+                        />
+                        <Field
+                          id="admin-email"
+                          label="Email administrador"
+                          type="email"
+                          value={form.adminEmail}
+                          onChange={(adminEmail) =>
+                            setForm((v) => ({ ...v, adminEmail }))
+                          }
+                        />
+                        <Field
+                          id="admin-first-name"
+                          label="Nombres administrador"
+                          value={form.adminFirstName}
+                          onChange={(adminFirstName) =>
+                            setForm((v) => ({ ...v, adminFirstName }))
+                          }
+                        />
+                        <Field
+                          id="admin-last-name"
+                          label="Apellidos administrador"
+                          value={form.adminLastName}
+                          onChange={(adminLastName) =>
+                            setForm((v) => ({ ...v, adminLastName }))
+                          }
+                        />
+                      </div>
+                      <div className="mt-4">
+                        <PasswordControl
+                          id="initial-password"
+                          label="Contraseña inicial"
+                          value={form.initialPassword ?? ""}
+                          onChange={(initialPassword) =>
+                            setForm((value) => ({
+                              ...value,
+                              initialPassword,
+                            }))
+                          }
+                          help="Puedes escribirla o generar una segura. Si queda vacía, el servidor generará una."
+                        />
+                      </div>
+                      <div className="my-5">
+                        <AccessSelector
+                          enabledModules={form.enabledModules}
+                          enabledFeatures={form.enabledFeatures}
+                          onChange={(enabledModules, enabledFeatures) =>
+                            setForm((value) => ({
+                              ...value,
+                              enabledModules,
+                              enabledFeatures,
+                            }))
+                          }
+                        />
+                      </div>
+                    </div>
+                    <DialogFooter className="mt-0 shrink-0 border-t bg-card px-6 pb-6 pt-4">
                     <Button type="submit" disabled={pending}>
                       {pending ? "Creando…" : "Crear compañía"}
                     </Button>
@@ -349,6 +358,15 @@ function PlatformAdministration() {
             </CardContent>
           </Card>
         ) : null}
+
+        <PlatformConfigShortcuts />
+        {loading ? null : (
+          <PlatformPremiumSection
+            companies={companies}
+            onSaved={refreshCompanies}
+          />
+        )}
+        <PlatformBillingSection />
 
         {loading ? (
           <div className="grid gap-4 md:grid-cols-2">
@@ -562,8 +580,12 @@ function CompanyAccessDialog({
       onOpenChange={(next) => {
         setOpen(next);
         if (next) {
-          setModules(company.enabledModules);
-          setFeatures(company.enabledFeatures);
+          const split = splitCompanyAccess(
+            company.enabledModules,
+            company.enabledFeatures,
+          );
+          setModules(split.modules);
+          setFeatures(split.features);
         }
       }}
     >
@@ -684,10 +706,10 @@ function AccessSelector({
       <div>
         <p className="text-sm font-medium">Módulos y opciones</p>
         <p className="text-xs text-muted-foreground">
-          Dashboard permanece disponible como función básica.
+          Inicio permanece disponible como función básica.
         </p>
       </div>
-      {COMPANY_ACCESS_CATALOG.map((module) => {
+      {COMPANY_STANDARD_ACCESS_CATALOG.map((module) => {
         const moduleEnabled = modules.has(module.code);
         return (
           <div key={module.code} className="rounded-md border p-3">

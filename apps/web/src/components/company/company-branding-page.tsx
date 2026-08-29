@@ -1,6 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useTheme } from "next-themes";
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -62,6 +63,7 @@ function CompanyBrandingForm({
   branding: CompanyBranding;
 }) {
   const queryClient = useQueryClient();
+  const { resolvedTheme } = useTheme();
   const [name, setName] = useState(branding.name);
   const [color, setColor] = useState(
     branding.brandPrimaryColor ?? PLATFORM_BRAND_PRIMARY,
@@ -88,7 +90,9 @@ function CompanyBrandingForm({
     () => normalizeBrandColor(color) ?? PLATFORM_BRAND_PRIMARY,
     [color],
   );
-  const previewVars = brandCssVars(previewColor);
+  const previewVars = brandCssVars(previewColor, {
+    dark: resolvedTheme === "dark",
+  });
 
   const saveMutation = useMutation({
     mutationFn: async () => {
@@ -162,7 +166,7 @@ function CompanyBrandingForm({
               className="h-8 w-8 rounded object-contain bg-white"
             />
           ) : (
-            <span className="flex h-8 w-8 items-center justify-center rounded bg-sidebar-accent text-xs font-semibold text-white">
+            <span className="flex h-8 w-8 items-center justify-center rounded bg-sidebar-accent text-xs font-semibold text-primary-foreground">
               {name.slice(0, 2).toUpperCase() || "HR"}
             </span>
           )}

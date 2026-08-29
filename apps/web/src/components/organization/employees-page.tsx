@@ -12,6 +12,13 @@ import {
   toUpdatePayload,
   type EmployeeFormValues,
 } from "@/components/organization/employee-form";
+import {
+  activeDefinitions,
+  customFieldValuesFromRecord,
+  emptyCustomFieldValues,
+  toCustomFieldsPayload,
+  type CustomFieldFormValues,
+} from "@/components/organization/position-custom-fields";
 import { EntityEditorShell } from "@/components/organization/entity-editor-shell";
 import { FormSelect } from "@/components/organization/form-select";
 import { PaginationControls } from "@/components/organization/pagination-controls";
@@ -76,6 +83,7 @@ export function EmployeesPageClient() {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Employee | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
+  const [customValues, setCustomValues] = useState<CustomFieldFormValues>({});
 
   const employeesQuery = useQuery({
     queryKey: orgKeys.employees(companyId, params),
@@ -93,6 +101,14 @@ export function EmployeesPageClient() {
     queryKey: orgKeys.businessUnits(companyId),
     queryFn: () => organizationApi.listBusinessUnits(),
   });
+  const fieldsQuery = useQuery({
+    queryKey: orgKeys.positionCustomFields(companyId),
+    queryFn: () => organizationApi.listPositionCustomFields(),
+  });
+  const activeEmployeeFields = activeDefinitions(
+    fieldsQuery.data ?? [],
+    "EMPLOYEE",
+  );
 
   const areaMap = useMemo(() => {
     const map = new Map<string, string>();
@@ -115,13 +131,20 @@ export function EmployeesPageClient() {
 
   const saveMutation = useMutation({
     mutationFn: async (values: EmployeeFormValues) => {
+      const customFields = toCustomFieldsPayload(
+        activeEmployeeFields,
+        customValues,
+      );
       if (editing) {
-        return organizationApi.updateEmployee(
-          editing.id,
-          toUpdatePayload(values),
-        );
+        return organizationApi.updateEmployee(editing.id, {
+          ...toUpdatePayload(values),
+          customFields,
+        });
       }
-      return organizationApi.createEmployee(toCreatePayload(values));
+      return organizationApi.createEmployee({
+        ...toCreatePayload(values),
+        customFields,
+      });
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({
@@ -129,6 +152,7 @@ export function EmployeesPageClient() {
       });
       setOpen(false);
       setEditing(null);
+      setCustomValues({});
       setFormError(null);
     },
     onError: (error) => {
@@ -148,6 +172,7 @@ export function EmployeesPageClient() {
             type="button"
             onClick={() => {
               setEditing(null);
+              setCustomValues(emptyCustomFieldValues(activeEmployeeFields));
               setFormError(null);
               setOpen(true);
             }}
@@ -330,6 +355,12 @@ export function EmployeesPageClient() {
                           size="sm"
                           onClick={() => {
                             setEditing(employee);
+                            setCustomValues(
+                              customFieldValuesFromRecord(
+                                activeEmployeeFields,
+                                employee,
+                              ),
+                            );
                             setFormError(null);
                             setOpen(true);
                           }}
@@ -384,6 +415,12 @@ export function EmployeesPageClient() {
                     size="sm"
                     onClick={() => {
                       setEditing(employee);
+                      setCustomValues(
+                        customFieldValuesFromRecord(
+                          activeEmployeeFields,
+                          employee,
+                        ),
+                      );
                       setFormError(null);
                       setOpen(true);
                     }}
@@ -417,6 +454,9 @@ export function EmployeesPageClient() {
           areas={areasQuery.data ?? []}
           positions={positionsQuery.data ?? []}
           businessUnits={buQuery.data ?? []}
+          customFieldDefinitions={activeEmployeeFields}
+          customValues={customValues}
+          onCustomValuesChange={setCustomValues}
           submitting={saveMutation.isPending}
           error={formError}
           onCancel={() => setOpen(false)}

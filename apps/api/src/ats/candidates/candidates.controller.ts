@@ -2,11 +2,13 @@ import {
   Body,
   Controller,
   Get,
+  Header,
   Param,
   ParseUUIDPipe,
   Patch,
   Post,
   Query,
+  StreamableFile,
   UseGuards,
 } from '@nestjs/common';
 import type { AuthenticatedUser, TenantContext } from '../../auth/auth.types';
@@ -40,6 +42,22 @@ export class CandidatesController {
     @Query() query: ListCandidatesQueryDto,
   ) {
     return this.candidatesService.list(tenant.companyId, query);
+  }
+
+  @Get(':id/cv')
+  @RequirePermissions('ats.candidate.read')
+  @Header('Cache-Control', 'private, no-store')
+  @Header('X-Content-Type-Options', 'nosniff')
+  async downloadCv(
+    @CurrentTenant() tenant: TenantContext,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<StreamableFile> {
+    const cv = await this.candidatesService.readCv(tenant.companyId, id);
+    const filename = cv.originalName.replace(/["\r\n]/g, '');
+    return new StreamableFile(cv.buffer, {
+      type: cv.mimeType,
+      disposition: `attachment; filename="${filename}"`,
+    });
   }
 
   @Get(':id')

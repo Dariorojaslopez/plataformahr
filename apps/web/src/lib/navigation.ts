@@ -9,15 +9,18 @@ import {
   GitBranch,
   LayoutDashboard,
   Layers3,
+  LayoutGrid,
   ListChecks,
   Medal,
   Network,
   Palette,
+  Settings2,
   Share2,
   ShieldCheck,
   SlidersHorizontal,
   Target,
   Upload,
+  UserCheck,
   Users,
   type LucideIcon,
 } from "lucide-react";
@@ -44,7 +47,7 @@ export const APP_NAV: NavSection[] = [
   {
     items: [
       {
-        label: "Dashboard",
+        label: "Inicio",
         href: "/dashboard",
         icon: LayoutDashboard,
       },
@@ -79,12 +82,12 @@ export const APP_NAV: NavSection[] = [
         icon: Network,
       },
       {
-        label: "Cargos",
+        label: "Descripciones de cargo",
         href: "/organization/positions",
         icon: BriefcaseBusiness,
       },
       {
-        label: "Campos personalizados de cargos",
+        label: "Campos personalizados",
         href: "/organization/position-fields",
         icon: ListChecks,
       },
@@ -93,13 +96,28 @@ export const APP_NAV: NavSection[] = [
         href: "/organization/job-levels",
         icon: Layers3,
       },
+      {
+        label: "Competencias",
+        href: "/organization/competencies",
+        icon: Target,
+      },
+      {
+        label: "Escalas de calificación",
+        href: "/organization/scales",
+        icon: SlidersHorizontal,
+      },
+      {
+        label: "Ajustes de resultados",
+        href: "/organization/settings",
+        icon: Settings2,
+      },
     ],
   },
   {
     title: "ATS",
     items: [
       {
-        label: "Solicitudes",
+        label: "Crear proceso de selección",
         href: "/ats/vacancy-requests",
         icon: ClipboardList,
       },
@@ -129,9 +147,19 @@ export const APP_NAV: NavSection[] = [
         icon: FileText,
       },
       {
-        label: "Aprobación de solicitudes",
+        label: "Niveles de aprobación por defecto",
         href: "/ats/settings/approvals",
         icon: ShieldCheck,
+      },
+      {
+        label: "Evaluadores por defecto",
+        href: "/ats/settings/evaluators",
+        icon: UserCheck,
+      },
+      {
+        label: "Procesos activos",
+        href: "/ats/settings/active-processes",
+        icon: ListChecks,
       },
     ],
   },
@@ -142,6 +170,11 @@ export const APP_NAV: NavSection[] = [
         label: "Ciclos",
         href: "/performance/cycles",
         icon: Gauge,
+      },
+      {
+        label: "Seleccionar población a evaluar",
+        href: "/performance/population",
+        icon: UserCheck,
       },
       {
         label: "Mis evaluaciones",
@@ -159,44 +192,14 @@ export const APP_NAV: NavSection[] = [
         icon: ChartColumn,
       },
       {
-        label: "Competencias",
-        href: "/performance/competencies",
-        icon: Target,
-      },
-      {
-        label: "Escalas",
-        href: "/performance/scales",
-        icon: SlidersHorizontal,
-      },
-    ],
-  },
-  {
-    title: "Objetivos",
-    items: [
-      {
-        label: "Periodos",
-        href: "/goals/cycles",
-        icon: CalendarDays,
-      },
-      {
-        label: "Objetivos",
+        label: "Objetivos organizacionales",
         href: "/goals",
         icon: Target,
       },
       {
-        label: "Mis objetivos",
-        href: "/my-goals",
-        icon: Medal,
-      },
-      {
-        label: "Mi equipo",
-        href: "/goals/team",
-        icon: Users,
-      },
-      {
-        label: "Revisión de cierres",
-        href: "/goals/reviews",
-        icon: ClipboardList,
+        label: "Calibración",
+        href: "/performance/calibration",
+        icon: LayoutGrid,
       },
     ],
   },
@@ -221,6 +224,9 @@ const NAV_FEATURE_BY_HREF: Record<string, CompanyFeatureCode> = {
   "/organization/positions": "organization.positions",
   "/organization/position-fields": "organization.position-fields",
   "/organization/job-levels": "organization.job-levels",
+  "/organization/competencies": "performance.competencies",
+  "/organization/scales": "performance.scales",
+  "/organization/settings": "organization.employees",
   "/ats/vacancy-requests": "ats.vacancy-requests",
   "/ats/vacancies": "ats.vacancies",
   "/ats/candidates": "ats.candidates",
@@ -228,10 +234,14 @@ const NAV_FEATURE_BY_HREF: Record<string, CompanyFeatureCode> = {
   "/ats/interviews": "ats.interviews",
   "/ats/interview-templates": "ats.interview-templates",
   "/ats/settings/approvals": "ats.approvals",
+  "/ats/settings/evaluators": "ats.approvals",
+  "/ats/settings/active-processes": "ats.approvals",
   "/performance/cycles": "performance.cycles",
+  "/performance/population": "performance.population",
   "/performance/my-evaluations": "performance.my-evaluations",
   "/performance/my-results": "performance.my-results",
   "/performance/results": "performance.results",
+  "/performance/calibration": "performance.calibration",
   "/performance/competencies": "performance.competencies",
   "/performance/scales": "performance.scales",
   "/goals/cycles": "goals.cycles",
@@ -336,7 +346,10 @@ export function resolvePageTitle(pathname: string): string {
     }
   }
   if (pathname.startsWith("/organization/employees/")) return "Perfil";
-  if (pathname.startsWith("/ats/vacancy-requests/")) return "Solicitud";
+  if (pathname === "/performance/competencies") return "Competencias";
+  if (pathname === "/performance/scales") return "Escalas de calificación";
+  if (pathname.startsWith("/organization/scales/")) return "Escala";
+  if (pathname.startsWith("/ats/vacancy-requests/")) return "Proceso de selección";
   if (pathname.startsWith("/ats/vacancies/")) return "Vacante";
   if (pathname.startsWith("/ats/candidates/")) return "Candidato";
   if (pathname.startsWith("/ats/applications/")) return "Aplicación";
@@ -347,6 +360,7 @@ export function resolvePageTitle(pathname: string): string {
   if (pathname.startsWith("/performance/evaluations/")) return "Evaluación";
   if (pathname.startsWith("/performance/results/")) return "Resultado";
   if (pathname.startsWith("/performance/my-results/")) return "Mi resultado";
+  if (pathname.startsWith("/performance/my-evaluations/")) return "Mis evaluaciones";
   if (pathname === "/performance/my-evaluations") return "Mis evaluaciones";
   if (pathname === "/performance/my-results") return "Mis resultados";
   if (pathname === "/performance/results") return "Resultados";
@@ -357,7 +371,12 @@ export function resolvePageTitle(pathname: string): string {
   if (pathname.startsWith("/goals/") && pathname !== "/goals/cycles")
     return "Objetivo";
   if (pathname === "/goals/cycles") return "Periodos";
-  if (pathname === "/goals") return "Objetivos";
+  if (pathname === "/goals") return "Objetivos organizacionales";
+  if (pathname === "/performance/population")
+    return "Seleccionar población a evaluar";
+  if (pathname === "/performance/calibration") return "Calibración";
+  if (pathname.startsWith("/performance/calibration/")) return "Calibración";
+  if (pathname === "/organization/settings") return "Ajustes de resultados";
   if (pathname === "/my-goals") return "Mis objetivos";
   if (pathname === "/select-company") return "Seleccionar compañía";
   if (pathname === "/platform") return "Platform";

@@ -1,4 +1,4 @@
-import { apiRequest } from "@/lib/api/client";
+import { apiRequest, apiRequestBlob } from "@/lib/api/client";
 import type {
   Application,
   ApplicationStageHistory,
@@ -8,6 +8,7 @@ import type {
   CreateApplicationInput,
   CreateCandidateInput,
   CreateVacancyRequestInput,
+  EvaluatorDefaults,
   ListApplicationsParams,
   ListCandidatesParams,
   ListVacanciesParams,
@@ -15,9 +16,12 @@ import type {
   MoveApplicationInput,
   Paginated,
   PipelineResponse,
+  PositionOccupant,
   PublicJob,
   PublicJobApplicationInput,
+  ParsedPublicCv,
   RejectDecisionInput,
+  ReplacePositionOccupantStepsInput,
   UpdateCandidateInput,
   UpdateVacancyApprovalWorkflowInput,
   UpdateVacancyInput,
@@ -25,6 +29,9 @@ import type {
   Vacancy,
   VacancyApprovalWorkflow,
   VacancyRequest,
+  ActiveProcessApprovals,
+  ActiveProcessEvaluators,
+  ActiveSelectionProcess,
 } from "@/types/ats";
 
 function toQuery(
@@ -94,6 +101,49 @@ export const atsApi = {
       body,
     }),
 
+  listPositionOccupants: (positionId: string) =>
+    apiRequest<PositionOccupant[]>(
+      `/ats/position-occupants${toQuery({ positionId })}`,
+    ),
+
+  getEvaluatorDefaults: () =>
+    apiRequest<EvaluatorDefaults>("/ats/evaluator-defaults"),
+
+  updateEvaluatorDefaults: (body: ReplacePositionOccupantStepsInput) =>
+    apiRequest<EvaluatorDefaults>("/ats/evaluator-defaults", {
+      method: "PUT",
+      body,
+    }),
+
+  listActiveProcesses: () =>
+    apiRequest<{ items: ActiveSelectionProcess[] }>("/ats/active-processes"),
+
+  getActiveProcessApprovals: (id: string) =>
+    apiRequest<ActiveProcessApprovals>(`/ats/active-processes/${id}/approvals`),
+
+  updateActiveProcessApprovals: (
+    id: string,
+    body: ReplacePositionOccupantStepsInput,
+  ) =>
+    apiRequest<ActiveProcessApprovals>(
+      `/ats/active-processes/${id}/approvals`,
+      { method: "PUT", body },
+    ),
+
+  getActiveProcessEvaluators: (id: string) =>
+    apiRequest<ActiveProcessEvaluators>(
+      `/ats/active-processes/${id}/evaluators`,
+    ),
+
+  updateActiveProcessEvaluators: (
+    id: string,
+    body: ReplacePositionOccupantStepsInput,
+  ) =>
+    apiRequest<ActiveProcessEvaluators>(
+      `/ats/active-processes/${id}/evaluators`,
+      { method: "PUT", body },
+    ),
+
   listVacancies: (params: ListVacanciesParams = {}) =>
     apiRequest<Paginated<Vacancy>>(
       `/ats/vacancies${toQuery({
@@ -106,6 +156,11 @@ export const atsApi = {
 
   getVacancy: (id: string) => apiRequest<Vacancy>(`/ats/vacancies/${id}`),
 
+  listRecruiters: () =>
+    apiRequest<
+      Array<{ id: string; firstName: string; lastName: string; email: string }>
+    >("/ats/vacancies/recruiters"),
+
   updateVacancy: (id: string, body: UpdateVacancyInput) =>
     apiRequest<Vacancy>(`/ats/vacancies/${id}`, {
       method: "PATCH",
@@ -117,6 +172,9 @@ export const atsApi = {
 
   unpublishVacancy: (id: string) =>
     apiRequest<Vacancy>(`/ats/vacancies/${id}/unpublish`, { method: "POST" }),
+
+  previewVacancyPublic: (id: string) =>
+    apiRequest<PublicJob>(`/ats/vacancies/${id}/public-preview`),
 
   getVacancyPipeline: (vacancyId: string) =>
     apiRequest<PipelineResponse>(`/ats/vacancies/${vacancyId}/pipeline`),
@@ -132,6 +190,11 @@ export const atsApi = {
     ),
 
   getCandidate: (id: string) => apiRequest<Candidate>(`/ats/candidates/${id}`),
+
+  downloadCandidateCv: (id: string) =>
+    apiRequestBlob(`/ats/candidates/${id}/cv`, {
+      headers: { Accept: "application/octet-stream, */*" },
+    }),
 
   createCandidate: (body: CreateCandidateInput) =>
     apiRequest<Candidate>("/ats/candidates", { method: "POST", body }),
@@ -189,16 +252,54 @@ export const publicJobsApi = {
       companyId: null,
     }),
 
-  apply: (publicId: string, body: PublicJobApplicationInput) =>
-    apiRequest<{ ok: true }>(
-      `/public/jobs/${encodeURIComponent(publicId)}/apply`,
+  parseCv: (publicId: string, file: File) => {
+    const formData = new FormData();
+    formData.append("cv", file);
+    return apiRequest<ParsedPublicCv>(
+      `/public/jobs/${encodeURIComponent(publicId)}/parse-cv`,
       {
         method: "POST",
-        body,
+        formData,
         auth: false,
         companyId: null,
       },
-    ),
+    );
+  },
+
+  apply: (
+    publicId: string,
+    body: PublicJobApplicationInput,
+    file?: File,
+  ) => {
+    if (!file) {
+      return apiRequest<{ ok: true }>(
+        `/public/jobs/${encodeURIComponent(publicId)}/apply`,
+        {
+          method: "POST",
+          body,
+          auth: false,
+          companyId: null,
+        },
+      );
+    }
+    const formData = new FormData();
+    formData.append("firstName", body.firstName);
+    formData.append("lastName", body.lastName);
+    formData.append("email", body.email);
+    formData.append("phone", body.phone);
+    formData.append("documentType", body.documentType);
+    formData.append("documentNumber", body.documentNumber);
+    formData.append("cv", file);
+    return apiRequest<{ ok: true }>(
+      `/public/jobs/${encodeURIComponent(publicId)}/apply`,
+      {
+        method: "POST",
+        formData,
+        auth: false,
+        companyId: null,
+      },
+    );
+  },
 };
 
 export const atsKeys = {
@@ -209,10 +310,24 @@ export const atsKeys = {
     [...atsKeys.all(companyId), "vacancy-request", id] as const,
   vacancyApprovalWorkflow: (companyId: string) =>
     [...atsKeys.all(companyId), "vacancy-approval-workflow"] as const,
+  positionOccupants: (companyId: string, positionId: string) =>
+    [...atsKeys.all(companyId), "position-occupants", positionId] as const,
+  evaluatorDefaults: (companyId: string) =>
+    [...atsKeys.all(companyId), "evaluator-defaults"] as const,
+  activeProcesses: (companyId: string) =>
+    [...atsKeys.all(companyId), "active-processes"] as const,
+  activeProcessApprovals: (companyId: string, id: string) =>
+    [...atsKeys.all(companyId), "active-process-approvals", id] as const,
+  activeProcessEvaluators: (companyId: string, id: string) =>
+    [...atsKeys.all(companyId), "active-process-evaluators", id] as const,
   vacancies: (companyId: string, params: ListVacanciesParams = {}) =>
     [...atsKeys.all(companyId), "vacancies", params] as const,
   vacancy: (companyId: string, id: string) =>
     [...atsKeys.all(companyId), "vacancy", id] as const,
+  vacancyPublicPreview: (companyId: string, id: string) =>
+    [...atsKeys.all(companyId), "vacancy-public-preview", id] as const,
+  recruiters: (companyId: string) =>
+    [...atsKeys.all(companyId), "recruiters"] as const,
   candidates: (companyId: string, params: ListCandidatesParams = {}) =>
     [...atsKeys.all(companyId), "candidates", params] as const,
   candidate: (companyId: string, id: string) =>

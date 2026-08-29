@@ -98,6 +98,24 @@ export type Interview = {
 
 export type InterviewListItem = Interview;
 
+export type PendingInterview = InterviewListItem & {
+  application?: {
+    id: string;
+    stage: string;
+    candidate?: {
+      id: string;
+      firstName: string;
+      lastName: string;
+      email: string;
+    } | null;
+    vacancy?: {
+      id: string;
+      title: string;
+      interviewFormTemplateId?: string | null;
+    } | null;
+  };
+};
+
 export type InterviewFormQuestion = {
   id: string;
   companyId: string;

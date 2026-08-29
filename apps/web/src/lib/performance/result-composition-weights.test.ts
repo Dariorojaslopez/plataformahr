@@ -20,14 +20,10 @@ describe("result composition weights", () => {
     ).toBe(true);
   });
 
-  it("requires sum exactly 100", () => {
-    expect(resultCompositionWeightsAreValid(70, 30)).toBe(true);
-    expect(resultCompositionWeightsAreValid("60", "40")).toBe(true);
-    expect(resultCompositionWeightsAreValid(0, 100)).toBe(true);
-    expect(resultCompositionWeightsAreValid(100, 0)).toBe(true);
-    expect(resultCompositionWeightsAreValid(50, 40)).toBe(false);
-    expect(sumResultCompositionWeights(70, 30)).toBe(100);
-    expect(sumResultCompositionWeights(50, 40)).toBe(90);
+  it("allows sum below the range when three weights are provided", () => {
+    expect(resultCompositionWeightsAreValid(70, 10, 10, 100)).toBe(true);
+    expect(resultCompositionWeightsAreValid(70, 30, 30, 100)).toBe(false);
+    expect(resultCompositionWeightsAreValid(70, 20, 30, 120)).toBe(true);
   });
 
   it("rejects out-of-range or incomplete inputs", () => {

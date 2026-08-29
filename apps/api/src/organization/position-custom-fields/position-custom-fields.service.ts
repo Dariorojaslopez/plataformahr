@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import {
+  CustomFieldAppliesTo,
   PositionCustomFieldType,
   Prisma,
   type PositionCustomFieldDefinition,
@@ -22,7 +23,9 @@ import type {
 } from './dto/position-custom-field.dto';
 import {
   POSITION_CUSTOM_FIELD_VALUE_INCLUDE,
+  serializeEmployee,
   serializePosition,
+  type SerializedEmployee,
   type SerializedPosition,
 } from './position-custom-fields.serialize';
 import {
@@ -37,13 +40,27 @@ const DEFINITION_INCLUDE = {
   options: {
     orderBy: [{ sortOrder: 'asc' as const }, { label: 'asc' as const }],
   },
-  _count: { select: { values: true } },
+  _count: { select: { values: true, employeeValues: true } },
 };
 
 type DefinitionWithOptions = PositionCustomFieldDefinition & {
   options: PositionCustomFieldOption[];
+  _count: { values: number; employeeValues: number };
+};
+
+type DefinitionPublic = Omit<DefinitionWithOptions, '_count'> & {
   _count: { values: number };
 };
+
+function toPublicDefinition(
+  definition: DefinitionWithOptions,
+): DefinitionPublic {
+  const { _count, ...rest } = definition;
+  return {
+    ...rest,
+    _count: { values: _count.values + _count.employeeValues },
+  };
+}
 
 @Injectable()
 export class PositionCustomFieldsService {
@@ -53,12 +70,13 @@ export class PositionCustomFieldsService {
     private readonly integrity: OrganizationIntegrityService,
   ) {}
 
-  listDefinitions(companyId: string) {
-    return this.prisma.positionCustomFieldDefinition.findMany({
+  async listDefinitions(companyId: string) {
+    const definitions = await this.prisma.positionCustomFieldDefinition.findMany({
       where: { companyId },
       include: DEFINITION_INCLUDE,
       orderBy: [{ sortOrder: 'asc' }, { label: 'asc' }],
     });
+    return definitions.map(toPublicDefinition);
   }
 
   async createDefinition(
@@ -68,6 +86,7 @@ export class PositionCustomFieldsService {
   ) {
     const key = assertCustomFieldKey(dto.key);
     this.assertTypeOptions(dto.type, dto.options?.length ?? 0);
+    const appliesTo = dto.appliesTo ?? CustomFieldAppliesTo.POSITION;
 
     const count = await this.prisma.positionCustomFieldDefinition.count({
       where: { companyId },
@@ -83,6 +102,7 @@ export class PositionCustomFieldsService {
           key,
           label: dto.label.trim(),
           type: dto.type,
+          appliesTo,
           required: dto.required ?? false,
           active: dto.active ?? true,
           sortOrder: dto.sortOrder ?? count,
@@ -107,10 +127,15 @@ export class PositionCustomFieldsService {
         entityId: created.id,
         company: { connect: { id: companyId } },
         user: { connect: { id: userId } },
-        metadata: { id: created.id, key: created.key, type: created.type },
+        metadata: {
+          id: created.id,
+          key: created.key,
+          type: created.type,
+          appliesTo: created.appliesTo,
+        },
       });
 
-      return created;
+      return toPublicDefinition(created);
     } catch (error) {
       this.rethrowDuplicateKey(error);
     }
@@ -124,7 +149,8 @@ export class PositionCustomFieldsService {
   ) {
     const current = await this.requireDefinition(companyId, id);
     const nextType = dto.type ?? current.type;
-    const hasValues = current._count.values > 0;
+    const hasValues =
+      current._count.values + current._count.employeeValues > 0;
 
     if (dto.type && dto.type !== current.type && hasValues) {
       throw new ConflictException(
@@ -190,100 +216,69 @@ export class PositionCustomFieldsService {
         required: updated.required,
         active: updated.active,
         type: updated.type,
+        appliesTo: updated.appliesTo,
       },
     });
 
-    return updated;
+    return toPublicDefinition(updated);
   }
 
-  async writePositionValues(
+  writePositionValues(
     tx: Prisma.TransactionClient,
     companyId: string,
     positionId: string,
     inputs: PositionCustomFieldValueInputDto[] | undefined,
     mode: 'create' | 'update',
   ): Promise<boolean> {
-    if (mode === 'update' && inputs === undefined) {
-      return false;
-    }
-
-    const submitted = inputs ?? [];
-    const submittedIds = submitted.map((item) => item.definitionId);
-    if (new Set(submittedIds).size !== submittedIds.length) {
-      throw new BadRequestException('Duplicate custom field definitionId');
-    }
-
-    const definitions = await tx.positionCustomFieldDefinition.findMany({
-      where: { companyId },
-      include: { options: true },
-    });
-    const defById = new Map(
-      definitions.map((definition) => [definition.id, definition]),
+    return this.writeScopedValues(
+      tx,
+      companyId,
+      CustomFieldAppliesTo.POSITION,
+      inputs,
+      mode,
+      {
+        listExisting: () =>
+          tx.positionCustomFieldValue.findMany({
+            where: { companyId, positionId },
+          }),
+        deleteById: (id) => tx.positionCustomFieldValue.delete({ where: { id } }),
+        updateById: (id, columns) =>
+          tx.positionCustomFieldValue.update({ where: { id }, data: columns }),
+        createValue: (definitionId, columns) =>
+          tx.positionCustomFieldValue.create({
+            data: { companyId, positionId, definitionId, ...columns },
+          }),
+      },
     );
-    const submittedByDef = new Map(
-      submitted.map((item) => [item.definitionId, item] as const),
+  }
+
+  writeEmployeeValues(
+    tx: Prisma.TransactionClient,
+    companyId: string,
+    employeeId: string,
+    inputs: PositionCustomFieldValueInputDto[] | undefined,
+    mode: 'create' | 'update',
+  ): Promise<boolean> {
+    return this.writeScopedValues(
+      tx,
+      companyId,
+      CustomFieldAppliesTo.EMPLOYEE,
+      inputs,
+      mode,
+      {
+        listExisting: () =>
+          tx.employeeCustomFieldValue.findMany({
+            where: { companyId, employeeId },
+          }),
+        deleteById: (id) => tx.employeeCustomFieldValue.delete({ where: { id } }),
+        updateById: (id, columns) =>
+          tx.employeeCustomFieldValue.update({ where: { id }, data: columns }),
+        createValue: (definitionId, columns) =>
+          tx.employeeCustomFieldValue.create({
+            data: { companyId, employeeId, definitionId, ...columns },
+          }),
+      },
     );
-
-    for (const item of submitted) {
-      const definition = defById.get(item.definitionId);
-      if (!definition) {
-        throw new NotFoundException('Custom field definition not found');
-      }
-      if (!definition.active) {
-        throw new BadRequestException('Custom field is not active');
-      }
-    }
-
-    const existingValues = await tx.positionCustomFieldValue.findMany({
-      where: { companyId, positionId },
-    });
-    const existingByDef = new Map(
-      existingValues.map((value) => [value.definitionId, value]),
-    );
-
-    let changed = false;
-    for (const definition of definitions.filter((item) => item.active)) {
-      const item = submittedByDef.get(definition.id);
-      const parsed = parseCustomFieldValue(
-        definition.type,
-        item?.value,
-        definition.required,
-        allowedSelectOptionIds(
-          definition.options,
-          existingByDef.get(definition.id)?.optionId,
-        ),
-      );
-      const existing = existingByDef.get(definition.id);
-      if (parsed.kind === 'empty') {
-        if (existing) {
-          await tx.positionCustomFieldValue.delete({
-            where: { id: existing.id },
-          });
-          changed = true;
-        }
-        continue;
-      }
-
-      const columns = valueColumnsFromParsed(parsed);
-      if (existing) {
-        await tx.positionCustomFieldValue.update({
-          where: { id: existing.id },
-          data: columns,
-        });
-      } else {
-        await tx.positionCustomFieldValue.create({
-          data: {
-            companyId,
-            positionId,
-            definitionId: definition.id,
-            ...columns,
-          },
-        });
-      }
-      changed = true;
-    }
-
-    return changed;
   }
 
   async getSerializedPosition(
@@ -314,6 +309,113 @@ export class PositionCustomFieldsService {
       },
     });
     return rows.map(serializePosition);
+  }
+
+  async getSerializedEmployee(
+    companyId: string,
+    employeeId: string,
+  ): Promise<SerializedEmployee> {
+    await this.integrity.requireEmployee(companyId, employeeId);
+    const row = await this.prisma.employee.findFirst({
+      where: { id: employeeId, companyId, deletedAt: null },
+      include: {
+        customFieldValues: { include: POSITION_CUSTOM_FIELD_VALUE_INCLUDE },
+      },
+    });
+    if (!row) {
+      throw new NotFoundException('Employee not found');
+    }
+    return serializeEmployee(row);
+  }
+
+  private async writeScopedValues(
+    tx: Prisma.TransactionClient,
+    companyId: string,
+    appliesTo: CustomFieldAppliesTo,
+    inputs: PositionCustomFieldValueInputDto[] | undefined,
+    mode: 'create' | 'update',
+    store: {
+      listExisting: () => Promise<
+        Array<{ id: string; definitionId: string; optionId: string | null }>
+      >;
+      deleteById: (id: string) => Promise<unknown>;
+      updateById: (
+        id: string,
+        columns: ReturnType<typeof valueColumnsFromParsed>,
+      ) => Promise<unknown>;
+      createValue: (
+        definitionId: string,
+        columns: ReturnType<typeof valueColumnsFromParsed>,
+      ) => Promise<unknown>;
+    },
+  ): Promise<boolean> {
+    if (mode === 'update' && inputs === undefined) {
+      return false;
+    }
+
+    const submitted = inputs ?? [];
+    const submittedIds = submitted.map((item) => item.definitionId);
+    if (new Set(submittedIds).size !== submittedIds.length) {
+      throw new BadRequestException('Duplicate custom field definitionId');
+    }
+
+    const definitions = await tx.positionCustomFieldDefinition.findMany({
+      where: { companyId, appliesTo },
+      include: { options: true },
+    });
+    const defById = new Map(
+      definitions.map((definition) => [definition.id, definition]),
+    );
+    const submittedByDef = new Map(
+      submitted.map((item) => [item.definitionId, item] as const),
+    );
+
+    for (const item of submitted) {
+      const definition = defById.get(item.definitionId);
+      if (!definition) {
+        throw new NotFoundException('Custom field definition not found');
+      }
+      if (!definition.active) {
+        throw new BadRequestException('Custom field is not active');
+      }
+    }
+
+    const existingValues = await store.listExisting();
+    const existingByDef = new Map(
+      existingValues.map((value) => [value.definitionId, value]),
+    );
+
+    let changed = false;
+    for (const definition of definitions.filter((item) => item.active)) {
+      const item = submittedByDef.get(definition.id);
+      const parsed = parseCustomFieldValue(
+        definition.type,
+        item?.value,
+        definition.required,
+        allowedSelectOptionIds(
+          definition.options,
+          existingByDef.get(definition.id)?.optionId,
+        ),
+      );
+      const existing = existingByDef.get(definition.id);
+      if (parsed.kind === 'empty') {
+        if (existing) {
+          await store.deleteById(existing.id);
+          changed = true;
+        }
+        continue;
+      }
+
+      const columns = valueColumnsFromParsed(parsed);
+      if (existing) {
+        await store.updateById(existing.id, columns);
+      } else {
+        await store.createValue(definition.id, columns);
+      }
+      changed = true;
+    }
+
+    return changed;
   }
 
   private async requireDefinition(

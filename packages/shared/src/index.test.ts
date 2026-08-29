@@ -8,6 +8,11 @@ import {
   createHealthResponse,
   createReadyResponse,
   isCandidateDocumentType,
+  isCompanyHomeRole,
+  isPremiumFeature,
+  mergeCompanyAccess,
+  resolveCompanyHomeRole,
+  splitCompanyAccess,
 } from './index.ts';
 
 test('APP_NAME is defined', () => {
@@ -38,4 +43,54 @@ test('candidate document types use stable codes and Spanish labels', () => {
   assert.equal(candidateDocumentTypeLabel(null), null);
   assert.equal(isCandidateDocumentType('CC'), true);
   assert.equal(isCandidateDocumentType('DNI'), false);
+});
+
+test('premium access can be merged without dropping standard modules', () => {
+  assert.deepEqual(
+    splitCompanyAccess(
+      ['ATS', 'PREMIUM'],
+      ['ats.vacancies', 'premium.pdi', 'premium.interview-recording'],
+    ),
+    {
+      modules: ['ATS'],
+      features: ['ats.vacancies'],
+      premiumFeatures: ['premium.pdi', 'premium.interview-recording'],
+    },
+  );
+  assert.deepEqual(
+    mergeCompanyAccess(
+      ['ATS'],
+      ['ats.vacancies'],
+      ['premium.digital-signature'],
+    ),
+    {
+      enabledModules: ['ATS', 'PREMIUM'],
+      enabledFeatures: ['ats.vacancies', 'premium.digital-signature'],
+    },
+  );
+  assert.equal(isPremiumFeature('premium.pdi'), true);
+  assert.equal(isPremiumFeature('ats.vacancies'), false);
+});
+
+test('resolveCompanyHomeRole follows the product HOME matrix', () => {
+  assert.equal(resolveCompanyHomeRole(['COLLABORATOR'], false), 'COLLABORATOR');
+  assert.equal(resolveCompanyHomeRole(['LEADER'], false), 'LEADER');
+  assert.equal(resolveCompanyHomeRole(['COLLABORATOR'], true), 'LEADER');
+  assert.equal(resolveCompanyHomeRole(['RECRUITER'], false), 'RECRUITER');
+  assert.equal(resolveCompanyHomeRole(['CLIENT_ADMIN'], false), 'CLIENT_ADMIN');
+  assert.equal(
+    resolveCompanyHomeRole(['PERFORMANCE_MANAGER'], false),
+    'PERFORMANCE_MANAGER',
+  );
+  assert.equal(
+    resolveCompanyHomeRole(['CLIENT_ADMIN', 'LEADER', 'RECRUITER'], true),
+    'CLIENT_ADMIN',
+  );
+  assert.equal(
+    resolveCompanyHomeRole(['RECRUITER', 'LEADER'], true),
+    'RECRUITER',
+  );
+  assert.equal(resolveCompanyHomeRole([], false), 'COLLABORATOR');
+  assert.equal(isCompanyHomeRole('LEADER'), true);
+  assert.equal(isCompanyHomeRole('UNKNOWN'), false);
 });

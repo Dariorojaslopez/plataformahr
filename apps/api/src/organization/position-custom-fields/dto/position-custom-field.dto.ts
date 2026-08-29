@@ -1,4 +1,4 @@
-import { PositionCustomFieldType } from '@prisma/client';
+import { CustomFieldAppliesTo, PositionCustomFieldType } from '@prisma/client';
 import { Type } from 'class-transformer';
 import {
   Allow,
@@ -65,6 +65,10 @@ export class CreatePositionCustomFieldDefinitionDto {
 
   @IsEnum(PositionCustomFieldType)
   type!: PositionCustomFieldType;
+
+  @IsOptional()
+  @IsEnum(CustomFieldAppliesTo)
+  appliesTo?: CustomFieldAppliesTo;
 
   @IsOptional()
   @IsBoolean()

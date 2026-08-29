@@ -8,9 +8,11 @@ import {
 import {
   assertActivationWeights,
   assertCycleDates,
+  assertEvaluatorWeights,
   parseDateOnly,
   sumWeights,
 } from './performance.helpers';
+import { PerformanceEvaluationModel } from '@prisma/client';
 
 describe('performance helpers', () => {
   describe('assertCycleDates', () => {
@@ -44,6 +46,29 @@ describe('performance helpers', () => {
         }),
       ).toThrow(BadRequestException);
     });
+
+    it('rejects incomplete extra windows and follow-ups outside the cycle', () => {
+      expect(() =>
+        assertCycleDates({
+          startDate: new Date('2026-01-01T00:00:00.000Z'),
+          endDate: new Date('2026-12-31T00:00:00.000Z'),
+          calibrationStartDate: new Date('2026-06-01T00:00:00.000Z'),
+        }),
+      ).toThrow(BadRequestException);
+
+      expect(() =>
+        assertCycleDates({
+          startDate: new Date('2026-01-01T00:00:00.000Z'),
+          endDate: new Date('2026-06-30T00:00:00.000Z'),
+          followUps: [
+            {
+              startDate: new Date('2026-03-01T00:00:00.000Z'),
+              endDate: new Date('2026-08-01T00:00:00.000Z'),
+            },
+          ],
+        }),
+      ).toThrow(BadRequestException);
+    });
   });
 
   describe('assertActivationWeights', () => {
@@ -70,6 +95,35 @@ describe('performance helpers', () => {
 
       expect(() =>
         assertActivationWeights([new Prisma.Decimal(100), null]),
+      ).toThrow(BadRequestException);
+    });
+  });
+
+  describe('assertEvaluatorWeights', () => {
+    it('accepts 90° self+manager and 180° with peers', () => {
+      expect(() =>
+        assertEvaluatorWeights({
+          selfEvaluationWeight: 30,
+          managerEvaluationWeight: 70,
+        }),
+      ).not.toThrow();
+
+      expect(() =>
+        assertEvaluatorWeights({
+          evaluationModel: PerformanceEvaluationModel.DEGREE_180,
+          selfEvaluationWeight: 20,
+          managerEvaluationWeight: 50,
+          peerEvaluationWeight: 30,
+        }),
+      ).not.toThrow();
+
+      expect(() =>
+        assertEvaluatorWeights({
+          evaluationModel: PerformanceEvaluationModel.DEGREE_180,
+          selfEvaluationWeight: 30,
+          managerEvaluationWeight: 70,
+          peerEvaluationWeight: 10,
+        }),
       ).toThrow(BadRequestException);
     });
   });

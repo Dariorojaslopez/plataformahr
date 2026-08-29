@@ -29,6 +29,7 @@ describe('VacancyApprovalWorkflowService', () => {
       } as never,
       { create: jest.fn() } as never,
       {} as never,
+      {} as never,
     );
 
     const result = await service.get(companyId);
@@ -43,6 +44,7 @@ describe('VacancyApprovalWorkflowService', () => {
     const service = new VacancyApprovalWorkflowService(
       {} as never,
       { create: jest.fn() } as never,
+      {} as never,
       {} as never,
     );
     await expect(
@@ -63,6 +65,7 @@ describe('VacancyApprovalWorkflowService', () => {
       {} as never,
       { create: jest.fn() } as never,
       { requireEmployee } as never,
+      {} as never,
     );
 
     await expect(

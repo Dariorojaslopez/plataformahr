@@ -180,6 +180,15 @@ export function CandidateDetailPageClient() {
             >
               Editar
             </Button>
+            {candidate.cvFileName ? (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => void downloadCandidateCv(candidate.id)}
+              >
+                Descargar hoja de vida
+              </Button>
+            ) : null}
             <Button
               type="button"
               onClick={() => {
@@ -210,6 +219,10 @@ export function CandidateDetailPageClient() {
         <Field label="Estado/Provincia">{candidate.state ?? "—"}</Field>
         <Field label="Ciudad">{candidate.city ?? "—"}</Field>
         <Field label="Fuente">{candidate.source ?? "—"}</Field>
+        <Field label="Hoja de vida">
+          {candidate.cvOriginalName ||
+            (candidate.cvFileName ? "Cargada" : "Sin hoja de vida")}
+        </Field>
       </div>
 
       <section className="space-y-3">
@@ -345,4 +358,18 @@ function Field({
       <div className="text-sm">{children}</div>
     </div>
   );
+}
+
+async function downloadCandidateCv(candidateId: string) {
+  try {
+    const file = await atsApi.downloadCandidateCv(candidateId);
+    const url = URL.createObjectURL(file.blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = file.filename || "hoja-de-vida";
+    anchor.click();
+    URL.revokeObjectURL(url);
+  } catch (error) {
+    notifyError(error, "No se pudo descargar la hoja de vida.");
+  }
 }

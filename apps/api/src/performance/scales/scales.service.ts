@@ -9,6 +9,7 @@ import {
   PerformanceCycleStatus,
   Prisma,
   type CompetencyScale,
+  CompetencyScaleKind,
 } from '@prisma/client';
 import { AuditService } from '../../core/audit/audit.service';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -18,7 +19,8 @@ import {
   MAX_LIMIT,
   PERFORMANCE_AUDIT,
 } from '../performance.constants';
-import { emptyToNull } from '../performance.helpers';
+import { decimalToString, emptyToNull } from '../performance.helpers';
+import { hasScaleLayoutInput, normalizeScaleConfig } from './scale-format';
 import type {
   CreateCompetencyScaleDto,
   CreateScaleLevelDto,
@@ -50,6 +52,7 @@ export class ScalesService {
       companyId,
       deletedAt: null,
       ...(query.status ? { status: query.status } : {}),
+      ...(query.kind ? { kind: query.kind } : {}),
       ...(search
         ? {
             OR: [
@@ -82,6 +85,13 @@ export class ScalesService {
         companyId: item.companyId,
         name: item.name,
         description: item.description,
+        kind: item.kind,
+        format: item.format,
+        minValue: decimalToString(item.minValue),
+        maxValue: decimalToString(item.maxValue),
+        likertIcon: item.likertIcon,
+        currencyCode: item.currencyCode,
+        decimalPlaces: item.decimalPlaces,
         status: item.status,
         createdAt: item.createdAt,
         updatedAt: item.updatedAt,
@@ -111,15 +121,51 @@ export class ScalesService {
     userId: string,
     dto: CreateCompetencyScaleDto,
   ) {
+    const kind = dto.kind ?? CompetencyScaleKind.QUALITATIVE;
+    const config = hasScaleLayoutInput(dto)
+      ? normalizeScaleConfig({
+          kind,
+          format: dto.format,
+          minValue: dto.minValue,
+          maxValue: dto.maxValue,
+          likertIcon: dto.likertIcon,
+          currencyCode: dto.currencyCode,
+          decimalPlaces: dto.decimalPlaces,
+          descriptiveLabels: dto.descriptiveLabels,
+        })
+      : null;
+
     try {
-      const created = await this.prisma.competencyScale.create({
-        data: {
-          companyId,
-          name: dto.name.trim(),
-          description: emptyToNull(dto.description) ?? null,
-          status: dto.status ?? OrganizationEntityStatus.ACTIVE,
-        },
-        include: SCALE_INCLUDE,
+      const created = await this.prisma.$transaction(async (tx) => {
+        const scale = await tx.competencyScale.create({
+          data: {
+            companyId,
+            name: dto.name.trim(),
+            description: emptyToNull(dto.description) ?? null,
+            kind,
+            status: dto.status ?? OrganizationEntityStatus.ACTIVE,
+            ...(config
+              ? {
+                  format: config.format,
+                  minValue: config.minValue,
+                  maxValue: config.maxValue,
+                  likertIcon: config.likertIcon,
+                  currencyCode: config.currencyCode,
+                  decimalPlaces: config.decimalPlaces,
+                  levels: {
+                    create: config.levels.map((level) => ({
+                      companyId,
+                      value: level.value,
+                      label: level.label,
+                      order: level.order,
+                    })),
+                  },
+                }
+              : {}),
+          },
+          include: SCALE_INCLUDE,
+        });
+        return scale;
       });
 
       await this.audit.create({
@@ -154,6 +200,19 @@ export class ScalesService {
             ? { description: emptyToNull(dto.description) }
             : {}),
           ...(dto.status !== undefined ? { status: dto.status } : {}),
+          ...(dto.kind !== undefined ? { kind: dto.kind } : {}),
+          ...(dto.format !== undefined ? { format: dto.format } : {}),
+          ...(dto.minValue !== undefined ? { minValue: dto.minValue } : {}),
+          ...(dto.maxValue !== undefined ? { maxValue: dto.maxValue } : {}),
+          ...(dto.likertIcon !== undefined
+            ? { likertIcon: dto.likertIcon }
+            : {}),
+          ...(dto.currencyCode !== undefined
+            ? { currencyCode: dto.currencyCode }
+            : {}),
+          ...(dto.decimalPlaces !== undefined
+            ? { decimalPlaces: dto.decimalPlaces }
+            : {}),
         },
         include: SCALE_INCLUDE,
       });

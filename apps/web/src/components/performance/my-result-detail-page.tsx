@@ -5,6 +5,7 @@ import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { ResultGoalsBreakdown } from "@/components/performance/result-goals-breakdown";
+import { NineBoxGrid } from "@/components/performance/nine-box-grid";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ErrorState } from "@/components/ui/error-state";
@@ -20,6 +21,7 @@ import {
 import { CYCLE_STATUS_LABELS } from "@/lib/performance/cycle-labels";
 import { formatResultCompositionWeightLabel } from "@/lib/performance/result-composition-weights";
 import { formatScorePercentage } from "@/lib/performance/response-workspace";
+import { parseScore, scoresToNineBoxCell } from "@/lib/performance/nine-box";
 import {
   RESULT_STATUS_LABELS,
   managerIncludedLabel,
@@ -115,6 +117,10 @@ export function MyResultDetailPageClient() {
     queryKey: performanceKeys.result(companyId, resultId),
     queryFn: () => performanceApi.getResult(resultId),
   });
+  const nineBoxQuery = useQuery({
+    queryKey: performanceKeys.calibrationConfig(companyId),
+    queryFn: () => performanceApi.getCalibrationConfig(),
+  });
 
   if (detailQuery.isLoading) {
     return (
@@ -172,7 +178,7 @@ export function MyResultDetailPageClient() {
         className={`grid gap-4 ${integrated ? "sm:grid-cols-2 lg:grid-cols-3" : "sm:grid-cols-2"}`}
       >
         <div className="rounded-lg border border-border bg-card p-4">
-          <p className="text-sm text-muted-foreground">Resultado overall</p>
+          <p className="text-sm text-muted-foreground">Resultado global</p>
           <p className="mt-1 text-2xl font-semibold">
             {formatScorePercentage(safe.overallScore)}
           </p>
@@ -180,14 +186,16 @@ export function MyResultDetailPageClient() {
         {integrated ? (
           <>
             <div className="rounded-lg border border-border bg-card p-4">
-              <p className="text-sm text-muted-foreground">Competencias</p>
+              <p className="text-sm text-muted-foreground">
+                Consolidado de competencias
+              </p>
               <p className="mt-1 text-2xl font-semibold">
                 {formatScorePercentage(safe.competencyScore)}
               </p>
             </div>
             <div className="rounded-lg border border-border bg-card p-4">
               <p className="text-sm text-muted-foreground">
-                Cumplimiento de objetivos
+                Consolidado de objetivos
               </p>
               <p className="mt-1 text-2xl font-semibold">
                 {formatScorePercentage(safe.goalsAchievement)}
@@ -242,6 +250,32 @@ export function MyResultDetailPageClient() {
         <section className="space-y-3 rounded-lg border border-border bg-card p-4">
           <h2 className="text-base font-semibold">Tus objetivos</h2>
           <ResultGoalsBreakdown goals={safe.goals} />
+        </section>
+      ) : null}
+
+      {nineBoxQuery.data?.showNineBoxOnMyResults !== false ? (
+        <section className="space-y-3 rounded-lg border border-border bg-card p-4">
+          <h2 className="text-base font-semibold">9Box</h2>
+          {(() => {
+            const placement = scoresToNineBoxCell({
+              overallScore: parseScore(safe.overallScore),
+              competencyScore: parseScore(safe.competencyScore),
+            });
+            if (!placement) {
+              return (
+                <p className="text-sm text-muted-foreground">
+                  Aún no hay puntaje suficiente para ubicar tu posición.
+                </p>
+              );
+            }
+            return (
+              <NineBoxGrid
+                cells={nineBoxQuery.data?.cells ?? []}
+                highlight={placement}
+                highlightLabel="Tu posición"
+              />
+            );
+          })()}
         </section>
       ) : null}
     </div>

@@ -1,13 +1,21 @@
 /**
- * Pure consolidation of SELF/MANAGER individual scores into an overall result.
+ * Pure consolidation of evaluator individual scores into an overall result.
  * Uses persisted PerformanceEvaluation.scorePercentage (08C authority).
  * Never hardcodes 30/70 — configured weights are inputs.
+ * Extra groups (PEER / REPORT / CLIENT) are averaged within type.
  */
 
 import { roundScorePercentage } from './evaluation-score';
 
+export type ConsolidationEvalType =
+  | 'SELF'
+  | 'MANAGER'
+  | 'PEER'
+  | 'REPORT'
+  | 'CLIENT';
+
 export type ConsolidationEvaluationInput = {
-  type: 'SELF' | 'MANAGER';
+  type: ConsolidationEvalType;
   status: 'PENDING' | 'IN_PROGRESS' | 'SUBMITTED';
   scorePercentage: number | string | null;
 };
@@ -15,12 +23,18 @@ export type ConsolidationEvaluationInput = {
 export type ConsolidationInput = {
   configuredSelfWeight: number | string;
   configuredManagerWeight: number | string;
+  configuredPeerWeight?: number | string | null;
+  configuredReportWeight?: number | string | null;
+  configuredClientWeight?: number | string | null;
   evaluations: ConsolidationEvaluationInput[];
 };
 
 export type ConsolidationResult = {
   selfScore: number | null;
   managerScore: number | null;
+  peerScore: number | null;
+  reportScore: number | null;
+  clientScore: number | null;
   overallScore: number;
   configuredSelfWeight: number;
   configuredManagerWeight: number;
@@ -35,7 +49,8 @@ export class ConsolidationError extends Error {
   }
 }
 
-function toWeight(value: number | string): number {
+function toWeight(value: number | string | null | undefined): number {
+  if (value == null || value === '') return 0;
   const n = typeof value === 'number' ? value : Number(value);
   if (!Number.isFinite(n)) {
     throw new ConsolidationError('Invalid evaluator weight');
@@ -52,41 +67,30 @@ function toScore(value: number | string | null): number | null {
   return n;
 }
 
-function assertConfiguredWeights(selfW: number, managerW: number) {
-  if (selfW < 0 || selfW > 100 || managerW < 0 || managerW > 100) {
-    throw new ConsolidationError('Evaluator weights must be between 0 and 100');
+function assertConfiguredWeights(weights: number[]) {
+  for (const w of weights) {
+    if (w < 0 || w > 100) {
+      throw new ConsolidationError(
+        'Evaluator weights must be between 0 and 100',
+      );
+    }
   }
-  if (roundScorePercentage(selfW + managerW) !== 100) {
+  const sum = weights.reduce((a, b) => a + b, 0);
+  if (roundScorePercentage(sum) !== 100) {
     throw new ConsolidationError(
-      'Configured selfEvaluationWeight + managerEvaluationWeight must equal 100',
+      'Configured evaluator weights must equal 100',
     );
   }
 }
 
-/**
- * Consolidate existing evaluations.
- *
- * - Missing evaluation type (e.g. no MANAGER materialization): re-normalize weights.
- * - Existing incomplete evaluation: error (must be SUBMITTED).
- * - Weight 0 evaluations that exist must still be SUBMITTED.
- */
-export function calculatePerformanceResult(
-  input: ConsolidationInput,
-): ConsolidationResult {
-  const configuredSelfWeight = toWeight(input.configuredSelfWeight);
-  const configuredManagerWeight = toWeight(input.configuredManagerWeight);
-  assertConfiguredWeights(configuredSelfWeight, configuredManagerWeight);
+function averageScoreForType(
+  evaluations: ConsolidationEvaluationInput[],
+  type: ConsolidationEvalType,
+): number | null {
+  const ofType = evaluations.filter((e) => e.type === type);
+  if (ofType.length === 0) return null;
 
-  const selfEval = input.evaluations.find((e) => e.type === 'SELF') ?? null;
-  const managerEval =
-    input.evaluations.find((e) => e.type === 'MANAGER') ?? null;
-
-  if (!selfEval && !managerEval) {
-    throw new ConsolidationError('No evaluations exist for this participant');
-  }
-
-  for (const evaluation of [selfEval, managerEval]) {
-    if (!evaluation) continue;
+  for (const evaluation of ofType) {
     if (evaluation.status !== 'SUBMITTED') {
       throw new ConsolidationError(
         `All existing evaluations must be SUBMITTED before consolidation (${evaluation.type} is ${evaluation.status})`,
@@ -99,55 +103,118 @@ export function calculatePerformanceResult(
     }
   }
 
-  const selfScore = selfEval ? toScore(selfEval.scorePercentage) : null;
-  const managerScore = managerEval
-    ? toScore(managerEval.scorePercentage)
-    : null;
+  const total = ofType.reduce(
+    (sum, evaluation) => sum + (toScore(evaluation.scorePercentage) ?? 0),
+    0,
+  );
+  return total / ofType.length;
+}
 
-  let effectiveSelfWeight = selfEval ? configuredSelfWeight : 0;
-  let effectiveManagerWeight = managerEval ? configuredManagerWeight : 0;
-  const denom = effectiveSelfWeight + effectiveManagerWeight;
+/**
+ * Consolidate existing evaluations.
+ *
+ * - Missing evaluation type (e.g. no MANAGER materialization): re-normalize weights.
+ * - Existing incomplete evaluation: error (must be SUBMITTED).
+ * - Multiple PEER/REPORT/CLIENT scores are averaged.
+ */
+export function calculatePerformanceResult(
+  input: ConsolidationInput,
+): ConsolidationResult {
+  const configuredSelfWeight = toWeight(input.configuredSelfWeight);
+  const configuredManagerWeight = toWeight(input.configuredManagerWeight);
+  const configuredPeerWeight = toWeight(input.configuredPeerWeight);
+  const configuredReportWeight = toWeight(input.configuredReportWeight);
+  const configuredClientWeight = toWeight(input.configuredClientWeight);
+  assertConfiguredWeights([
+    configuredSelfWeight,
+    configuredManagerWeight,
+    configuredPeerWeight,
+    configuredReportWeight,
+    configuredClientWeight,
+  ]);
+
+  const selfScore = averageScoreForType(input.evaluations, 'SELF');
+  const managerScore = averageScoreForType(input.evaluations, 'MANAGER');
+  const peerScore = averageScoreForType(input.evaluations, 'PEER');
+  const reportScore = averageScoreForType(input.evaluations, 'REPORT');
+  const clientScore = averageScoreForType(input.evaluations, 'CLIENT');
+
+  const present: Array<{ score: number; configured: number; key: string }> = [];
+  if (selfScore != null) {
+    present.push({ score: selfScore, configured: configuredSelfWeight, key: 'self' });
+  }
+  if (managerScore != null) {
+    present.push({
+      score: managerScore,
+      configured: configuredManagerWeight,
+      key: 'manager',
+    });
+  }
+  if (peerScore != null) {
+    present.push({ score: peerScore, configured: configuredPeerWeight, key: 'peer' });
+  }
+  if (reportScore != null) {
+    present.push({
+      score: reportScore,
+      configured: configuredReportWeight,
+      key: 'report',
+    });
+  }
+  if (clientScore != null) {
+    present.push({
+      score: clientScore,
+      configured: configuredClientWeight,
+      key: 'client',
+    });
+  }
+
+  if (present.length === 0) {
+    throw new ConsolidationError('No evaluations exist for this participant');
+  }
+
+  const denom = present.reduce((sum, row) => sum + row.configured, 0);
   if (denom <= 0) {
     throw new ConsolidationError(
       'Effective evaluator weight total must be greater than zero',
     );
   }
 
-  // Re-normalize among existing evaluation types.
-  effectiveSelfWeight = roundScorePercentage(
-    (effectiveSelfWeight / denom) * 100,
-  );
-  effectiveManagerWeight = roundScorePercentage(
-    (effectiveManagerWeight / denom) * 100,
-  );
-  // Keep sum exactly 100 after rounding edge cases.
-  if (
-    roundScorePercentage(effectiveSelfWeight + effectiveManagerWeight) !== 100
-  ) {
-    if (selfEval && !managerEval) {
-      effectiveSelfWeight = 100;
-      effectiveManagerWeight = 0;
-    } else if (managerEval && !selfEval) {
-      effectiveSelfWeight = 0;
-      effectiveManagerWeight = 100;
-    } else {
-      effectiveManagerWeight = roundScorePercentage(100 - effectiveSelfWeight);
-    }
+  const effective: Record<string, number> = {
+    self: 0,
+    manager: 0,
+    peer: 0,
+    report: 0,
+    client: 0,
+  };
+  for (const row of present) {
+    effective[row.key] = roundScorePercentage((row.configured / denom) * 100);
+  }
+  const effectiveSum = Object.values(effective).reduce((a, b) => a + b, 0);
+  if (roundScorePercentage(effectiveSum) !== 100 && present.length > 0) {
+    const last = present[present.length - 1];
+    const others = present
+      .slice(0, -1)
+      .reduce((sum, row) => sum + effective[row.key], 0);
+    effective[last.key] = roundScorePercentage(100 - others);
   }
 
   const overallScore = roundScorePercentage(
-    ((selfScore ?? 0) * effectiveSelfWeight +
-      (managerScore ?? 0) * effectiveManagerWeight) /
-      100,
+    present.reduce(
+      (sum, row) => sum + row.score * (effective[row.key] / 100),
+      0,
+    ),
   );
 
   return {
     selfScore,
     managerScore,
+    peerScore,
+    reportScore,
+    clientScore,
     overallScore,
     configuredSelfWeight: roundScorePercentage(configuredSelfWeight),
     configuredManagerWeight: roundScorePercentage(configuredManagerWeight),
-    effectiveSelfWeight,
-    effectiveManagerWeight,
+    effectiveSelfWeight: effective.self,
+    effectiveManagerWeight: effective.manager,
   };
 }

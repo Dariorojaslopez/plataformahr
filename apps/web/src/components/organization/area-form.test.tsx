@@ -44,6 +44,15 @@ const sampleArea: Area = {
 };
 
 describe("area form payloads", () => {
+  it("does not send code; the API assigns it", () => {
+    const payload = toCreateAreaPayload({
+      ...emptyAreaForm(),
+      name: "Operaciones",
+      code: "OPS",
+    });
+    expect(payload).not.toHaveProperty("code");
+  });
+
   it("omits businessUnitId on create when empty and never sends a fake id", () => {
     const values = { ...emptyAreaForm(), name: "Operaciones" };
     const payload = toCreateAreaPayload(values);
@@ -116,5 +125,17 @@ describe("AreaForm business unit field", () => {
     expect(
       screen.getByRole("option", { name: "Comercial" }),
     ).toBeInTheDocument();
+  });
+
+  it("does not show the code field", () => {
+    render(
+      <AreaForm
+        values={{ ...emptyAreaForm(), code: "OPS" }}
+        onChange={vi.fn()}
+        businessUnits={[]}
+        parentOptions={[]}
+      />,
+    );
+    expect(screen.queryByLabelText("Código")).not.toBeInTheDocument();
   });
 });

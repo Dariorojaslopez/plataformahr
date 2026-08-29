@@ -214,3 +214,11 @@ export class UpdateInterviewFormTemplateDto {
 }
 
 export class AddTemplateQuestionDto extends TemplateQuestionInputDto {}
+
+export class ApplyProcessInterviewTemplateDto {
+  @IsUUID()
+  vacancyId!: string;
+
+  @IsUUID()
+  templateId!: string;
+}

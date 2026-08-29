@@ -5,6 +5,8 @@ import {
   applyBrandCssProperties,
   brandCssVars,
   companyInitials,
+  contrastForeground,
+  liftBrandForDark,
   normalizeBrandColor,
 } from "@/lib/company/brand-tokens";
 
@@ -50,5 +52,29 @@ describe("brand tokens", () => {
   it("keeps platform default distinct for global login", () => {
     expect(PLATFORM_BRAND_PRIMARY).toBe("#0F5C5A");
     expect(companyInitials("Acme Corp")).toBe("AC");
+  });
+
+  it("picks dark text on mid-light brand colors", () => {
+    expect(contrastForeground("#A78BFA")).toBe("#062322");
+    expect(contrastForeground("#0F5C5A")).toBe("#F4FBFA");
+  });
+
+  it("lifts a dark brand for dark surfaces and keeps a light one", () => {
+    const lifted = liftBrandForDark("#0F5C5A");
+    expect(lifted).not.toBe("#0F5C5A");
+    expect(contrastForeground(lifted)).toBe("#062322");
+    expect(liftBrandForDark("#5ECDC8")).toBe("#5ECDC8");
+  });
+
+  it("applies the lifted surface only when dark is requested", () => {
+    const light = brandCssVars("#0F5C5A") as Record<string, string>;
+    const dark = brandCssVars("#0F5C5A", { dark: true }) as Record<
+      string,
+      string
+    >;
+    expect(light["--primary"]).toBe("#0F5C5A");
+    expect(light["--primary-foreground"]).toBe("#F4FBFA");
+    expect(dark["--primary"]).not.toBe("#0F5C5A");
+    expect(dark["--primary-foreground"]).toBe("#062322");
   });
 });
