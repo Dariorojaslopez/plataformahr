@@ -894,11 +894,6 @@ describe('Goals ↔ Performance integration (09D)', () => {
 
     const unweightedCycleId = await createActivePerfCycle(
       `GP unweighted ${suffix}`,
-      {
-        goalCycleId,
-        competencyResultWeight: 100,
-        goalsResultWeight: 0,
-      },
     );
     const unweightedAssigned = await prepareParticipant(
       unweightedCycleId,
@@ -913,7 +908,7 @@ describe('Goals ↔ Performance integration (09D)', () => {
     expect(unweightedCalc.body).toMatchObject({
       overallScore: '80.00',
       goalsAchievement: null,
-      composition: 'COMPETENCY_AND_GOALS',
+      composition: 'COMPETENCY_ONLY',
     });
 
     const weightedGoalCycleId = await createAndActivateGoalCycle(

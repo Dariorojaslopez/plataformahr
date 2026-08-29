@@ -1752,6 +1752,12 @@ describe('Organization core (e2e)', () => {
           (detail.body as { customFields?: unknown[] }).customFields,
         ),
       ).toBe(true);
+
+      await request(app.getHttpServer())
+        .patch(`/organization/position-custom-fields/${employeeFieldId}`)
+        .set(headersA())
+        .send({ required: false })
+        .expect(200);
     });
   });
 

@@ -83,6 +83,7 @@ describe('Goals completion (09C)', () => {
         name: `GC A ${suffix}`,
         slug: `gc-a-${suffix}`,
         status: CompanyStatus.ACTIVE,
+        goalsCascadeEnabled: true,
       },
     });
     const companyB = await prisma.company.create({

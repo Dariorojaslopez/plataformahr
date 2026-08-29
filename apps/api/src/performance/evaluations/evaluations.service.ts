@@ -688,7 +688,8 @@ export class EvaluationsService {
         locked.cycleId,
         locked.employeeId,
       );
-      if (assignedGoals.length > 0) {
+      const rateableGoals = assignedGoals.filter((goal) => goal.scaleId);
+      if (rateableGoals.length > 0) {
         const ratings = await tx.performanceGoalRating.findMany({
           where: { evaluationId, companyId },
           select: { goalId: true, selectedScaleLevelId: true },
@@ -698,7 +699,7 @@ export class EvaluationsService {
             .filter((row) => row.selectedScaleLevelId)
             .map((row) => row.goalId),
         );
-        const missingGoals = assignedGoals.filter((goal) => !rated.has(goal.id));
+        const missingGoals = rateableGoals.filter((goal) => !rated.has(goal.id));
         if (missingGoals.length > 0) {
           throw new BadRequestException({
             message: 'Debes calificar todos los objetivos',

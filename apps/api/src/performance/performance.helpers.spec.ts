@@ -10,6 +10,7 @@ import {
   assertCycleDates,
   assertEvaluatorWeights,
   parseDateOnly,
+  resolveGoalsCompositionConfig,
   sumWeights,
 } from './performance.helpers';
 import { PerformanceEvaluationModel } from '@prisma/client';
@@ -166,6 +167,34 @@ describe('performance helpers', () => {
       expect(isCycleStructurallyEditable(PerformanceCycleStatus.ACTIVE)).toBe(
         false,
       );
+    });
+  });
+
+  describe('resolveGoalsCompositionConfig', () => {
+    const goalCycleId = '11111111-1111-4111-8111-111111111111';
+
+    it('uses legacy goalsResultWeight when split weights are null', () => {
+      const config = resolveGoalsCompositionConfig({
+        goalCycleId,
+        competencyResultWeight: 70,
+        goalsResultWeight: 30,
+        organizationalGoalsWeight: null,
+        individualGoalsWeight: null,
+      });
+      expect(config.goalCycleId).toBe(goalCycleId);
+      expect(config.competencyResultWeight?.toString()).toBe('70');
+      expect(config.goalsResultWeight?.toString()).toBe('30');
+      expect(config.individualGoalsWeight?.toString()).toBe('30');
+    });
+
+    it('rejects goalCycleId when goals weight is 0', () => {
+      expect(() =>
+        resolveGoalsCompositionConfig({
+          goalCycleId,
+          competencyResultWeight: 100,
+          goalsResultWeight: 0,
+        }),
+      ).toThrow(BadRequestException);
     });
   });
 });

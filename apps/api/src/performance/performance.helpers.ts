@@ -227,12 +227,12 @@ export function resolveResultCompositionConfig(input: {
     'goalsResultWeight',
     evaluationRange,
   );
-  const individualGoalsWeight =
-    input.individualGoalsWeight !== undefined
-      ? individualFromSplit
-      : input.organizationalGoalsWeight !== undefined
-        ? individualFromSplit
-        : individualFromLegacy;
+  const splitProvided =
+    input.individualGoalsWeight != null ||
+    input.organizationalGoalsWeight != null;
+  const individualGoalsWeight = splitProvided
+    ? individualFromSplit
+    : individualFromLegacy;
 
   const competencyN = includeCompetencies
     ? toWeightNumber(competencyResultWeight)

@@ -325,30 +325,22 @@ export class CyclesService {
             : existing.includeCompetencies,
         goalCycleId:
           dto.goalCycleId !== undefined ? dto.goalCycleId : existing.goalCycleId,
-        competencyResultWeight:
-          dto.competencyResultWeight !== undefined
-            ? dto.competencyResultWeight
-            : existing.competencyResultWeight == null
-              ? null
-              : Number(existing.competencyResultWeight.toString()),
-        goalsResultWeight:
-          dto.goalsResultWeight !== undefined
-            ? dto.goalsResultWeight
-            : existing.goalsResultWeight == null
-              ? null
-              : Number(existing.goalsResultWeight.toString()),
-        organizationalGoalsWeight:
-          dto.organizationalGoalsWeight !== undefined
-            ? dto.organizationalGoalsWeight
-            : existing.organizationalGoalsWeight == null
-              ? null
-              : Number(existing.organizationalGoalsWeight.toString()),
-        individualGoalsWeight:
-          dto.individualGoalsWeight !== undefined
-            ? dto.individualGoalsWeight
-            : existing.individualGoalsWeight == null
-              ? null
-              : Number(existing.individualGoalsWeight.toString()),
+        competencyResultWeight: this.existingOptionalWeight(
+          dto.competencyResultWeight,
+          existing.competencyResultWeight,
+        ),
+        goalsResultWeight: this.existingOptionalWeight(
+          dto.goalsResultWeight,
+          existing.goalsResultWeight,
+        ),
+        organizationalGoalsWeight: this.existingOptionalWeight(
+          dto.organizationalGoalsWeight,
+          existing.organizationalGoalsWeight,
+        ),
+        individualGoalsWeight: this.existingOptionalWeight(
+          dto.individualGoalsWeight,
+          existing.individualGoalsWeight,
+        ),
         evaluationRange:
           dto.evaluationRange !== undefined
             ? dto.evaluationRange
@@ -1156,5 +1148,13 @@ export class CyclesService {
         'clientEvaluationWeight',
       ),
     };
+  }
+
+  private existingOptionalWeight(
+    dtoValue: number | null | undefined,
+    existing: Prisma.Decimal | null,
+  ): number | null | undefined {
+    if (dtoValue !== undefined) return dtoValue;
+    return existing == null ? undefined : Number(existing.toString());
   }
 }
