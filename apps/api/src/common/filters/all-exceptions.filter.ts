@@ -11,7 +11,8 @@ import type { Request } from 'express';
 import { writeStructuredLog } from '../../observability/structured-logger';
 import {
   attemptedCodeFromRequestBody,
-  duplicateCompanyCodeMessage,
+  attemptedNameFromRequestBody,
+  duplicateOrgUniqueMessage,
 } from '../prisma/duplicate-company-code';
 
 type RequestWithId = Request & { requestId?: string };
@@ -63,10 +64,10 @@ export class AllExceptionsFilter implements ExceptionFilter {
       if (exception.code === 'P2002') {
         status = HttpStatus.CONFLICT;
         message =
-          duplicateCompanyCodeMessage(
-            exception,
-            attemptedCodeFromRequestBody(request.body),
-          ) ?? 'Resource conflict';
+          duplicateOrgUniqueMessage(exception, {
+            code: attemptedCodeFromRequestBody(request.body),
+            name: attemptedNameFromRequestBody(request.body),
+          }) ?? 'Ya existe un registro con esos datos.';
       } else if (exception.code === 'P2025') {
         status = HttpStatus.NOT_FOUND;
         message = 'Record not found';

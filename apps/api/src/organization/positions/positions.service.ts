@@ -48,32 +48,35 @@ export class PositionsService {
           })
         ).map((row) => row.code),
       );
-    const created = await withDuplicateCompanyCodeConflict(code, () =>
-      this.prisma.$transaction(async (tx) => {
-        const position = await tx.position.create({
-          data: {
+    const created = await withDuplicateCompanyCodeConflict(
+      code,
+      () =>
+        this.prisma.$transaction(async (tx) => {
+          const position = await tx.position.create({
+            data: {
+              companyId,
+              areaId: dto.areaId,
+              jobLevelId: dto.jobLevelId ?? null,
+              name: dto.name.trim(),
+              code,
+              mission: emptyToNull(dto.mission) ?? null,
+              responsibilities: emptyToNull(dto.responsibilities) ?? null,
+              requiredExperience: emptyToNull(dto.requiredExperience) ?? null,
+              requiredEducation: emptyToNull(dto.requiredEducation) ?? null,
+              headcount: dto.headcount ?? 1,
+              status: dto.status ?? OrganizationEntityStatus.ACTIVE,
+            },
+          });
+          await this.customFields.writePositionValues(
+            tx,
             companyId,
-            areaId: dto.areaId,
-            jobLevelId: dto.jobLevelId ?? null,
-            name: dto.name.trim(),
-            code,
-            mission: emptyToNull(dto.mission) ?? null,
-            responsibilities: emptyToNull(dto.responsibilities) ?? null,
-            requiredExperience: emptyToNull(dto.requiredExperience) ?? null,
-            requiredEducation: emptyToNull(dto.requiredEducation) ?? null,
-            headcount: dto.headcount ?? 1,
-            status: dto.status ?? OrganizationEntityStatus.ACTIVE,
-          },
-        });
-        await this.customFields.writePositionValues(
-          tx,
-          companyId,
-          position.id,
-          dto.customFields,
-          'create',
-        );
-        return position;
-      }),
+            position.id,
+            dto.customFields,
+            'create',
+          );
+          return position;
+        }),
+      dto.name.trim(),
     );
 
     await this.audit.create({
@@ -108,44 +111,50 @@ export class PositionsService {
       await this.integrity.requireJobLevel(companyId, dto.jobLevelId);
     }
 
-    await withDuplicateCompanyCodeConflict(dto.code, () =>
-      this.prisma.$transaction(async (tx) => {
-        await tx.position.update({
-          where: { id },
-          data: {
-            ...(dto.name !== undefined ? { name: dto.name.trim() } : {}),
-            ...(dto.areaId !== undefined ? { areaId: dto.areaId } : {}),
-            ...(dto.jobLevelId !== undefined
-              ? { jobLevelId: dto.jobLevelId }
-              : {}),
-            ...(dto.code !== undefined ? { code: emptyToNull(dto.code) } : {}),
-            ...(dto.mission !== undefined
-              ? { mission: emptyToNull(dto.mission) }
-              : {}),
-            ...(dto.responsibilities !== undefined
-              ? { responsibilities: emptyToNull(dto.responsibilities) }
-              : {}),
-            ...(dto.requiredExperience !== undefined
-              ? { requiredExperience: emptyToNull(dto.requiredExperience) }
-              : {}),
-            ...(dto.requiredEducation !== undefined
-              ? { requiredEducation: emptyToNull(dto.requiredEducation) }
-              : {}),
-            ...(dto.headcount !== undefined
-              ? { headcount: dto.headcount }
-              : {}),
-            ...(dto.status !== undefined ? { status: dto.status } : {}),
-          },
-        });
-        const customFieldsChanged = await this.customFields.writePositionValues(
-          tx,
-          companyId,
-          id,
-          dto.customFields,
-          'update',
-        );
-        return customFieldsChanged;
-      }),
+    await withDuplicateCompanyCodeConflict(
+      dto.code,
+      () =>
+        this.prisma.$transaction(async (tx) => {
+          await tx.position.update({
+            where: { id },
+            data: {
+              ...(dto.name !== undefined ? { name: dto.name.trim() } : {}),
+              ...(dto.areaId !== undefined ? { areaId: dto.areaId } : {}),
+              ...(dto.jobLevelId !== undefined
+                ? { jobLevelId: dto.jobLevelId }
+                : {}),
+              ...(dto.code !== undefined
+                ? { code: emptyToNull(dto.code) }
+                : {}),
+              ...(dto.mission !== undefined
+                ? { mission: emptyToNull(dto.mission) }
+                : {}),
+              ...(dto.responsibilities !== undefined
+                ? { responsibilities: emptyToNull(dto.responsibilities) }
+                : {}),
+              ...(dto.requiredExperience !== undefined
+                ? { requiredExperience: emptyToNull(dto.requiredExperience) }
+                : {}),
+              ...(dto.requiredEducation !== undefined
+                ? { requiredEducation: emptyToNull(dto.requiredEducation) }
+                : {}),
+              ...(dto.headcount !== undefined
+                ? { headcount: dto.headcount }
+                : {}),
+              ...(dto.status !== undefined ? { status: dto.status } : {}),
+            },
+          });
+          const customFieldsChanged =
+            await this.customFields.writePositionValues(
+              tx,
+              companyId,
+              id,
+              dto.customFields,
+              'update',
+            );
+          return customFieldsChanged;
+        }),
+      dto.name?.trim(),
     );
 
     await this.audit.create({

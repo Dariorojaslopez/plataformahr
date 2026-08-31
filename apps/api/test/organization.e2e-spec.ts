@@ -776,7 +776,7 @@ describe('Organization core (e2e)', () => {
       })
       .expect(409);
     expect((nameClash.body as { message: string }).message).toBe(
-      'Resource conflict',
+      `Ya existe un área con el nombre Area keep updated ${suffix}.`,
     );
     expect((nameClash.body as { message: string }).message).not.toMatch(
       /código/i,

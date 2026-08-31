@@ -2,7 +2,9 @@ import { ConflictException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import {
   duplicateCompanyCodeMessage,
+  duplicateOrgUniqueMessage,
   formatDuplicateCompanyCodeMessage,
+  formatDuplicateCompanyNameMessage,
   resolveDuplicateCompanyCodeModel,
   rethrowDuplicateCompanyCodeConflict,
 } from './duplicate-company-code';
@@ -73,14 +75,48 @@ describe('duplicate company code conflicts', () => {
     expect(duplicateCompanyCodeMessage(membership)).toBeNull();
   });
 
-  it('rethrows non-code P2002 unchanged', () => {
+  it('maps companyId+name uniqueness to a Spanish message', () => {
+    const nameConflict = p2002({
+      modelName: 'Position',
+      target: ['companyId', 'name'],
+    });
+    expect(
+      duplicateOrgUniqueMessage(nameConflict, { name: 'Gerente de talento' }),
+    ).toBe('Ya existe un cargo con el nombre Gerente de talento.');
+    expect(
+      duplicateOrgUniqueMessage(
+        p2002({ target: 'positions_companyId_name_key' }),
+        { name: 'Gerente' },
+      ),
+    ).toBe('Ya existe un cargo con el nombre Gerente.');
+    expect(formatDuplicateCompanyNameMessage('Area', 'Finanzas')).toBe(
+      'Ya existe un área con el nombre Finanzas.',
+    );
+  });
+
+  it('maps job level rank uniqueness', () => {
+    expect(
+      duplicateOrgUniqueMessage(
+        p2002({ modelName: 'JobLevel', target: ['companyId', 'rank'] }),
+      ),
+    ).toBe('Ya existe un nivel de cargo con ese rango.');
+  });
+
+  it('rethrows name P2002 as ConflictException', () => {
     const nameConflict = p2002({
       modelName: 'Area',
       target: ['companyId', 'name'],
     });
     expect(() =>
-      rethrowDuplicateCompanyCodeConflict(nameConflict, 'FIN'),
-    ).toThrow(nameConflict);
+      rethrowDuplicateCompanyCodeConflict(nameConflict, 'FIN', 'Operaciones'),
+    ).toThrow(ConflictException);
+    try {
+      rethrowDuplicateCompanyCodeConflict(nameConflict, 'FIN', 'Operaciones');
+    } catch (caught) {
+      expect((caught as ConflictException).message).toBe(
+        'Ya existe un área con el nombre Operaciones.',
+      );
+    }
   });
 
   it('throws ConflictException for a known code unique', () => {
