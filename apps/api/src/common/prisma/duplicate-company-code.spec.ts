@@ -102,7 +102,17 @@ describe('duplicate company code conflicts', () => {
     ).toBe('Ya existe un nivel de cargo con ese rango.');
   });
 
-  it('rethrows name P2002 as ConflictException', () => {
+  it('lets name P2002 bubble when the attempted name is unknown', () => {
+    const nameConflict = p2002({
+      modelName: 'Area',
+      target: ['companyId', 'name'],
+    });
+    expect(() =>
+      rethrowDuplicateCompanyCodeConflict(nameConflict, 'FIN'),
+    ).toThrow(nameConflict);
+  });
+
+  it('rethrows name P2002 as ConflictException when the name is known', () => {
     const nameConflict = p2002({
       modelName: 'Area',
       target: ['companyId', 'name'],

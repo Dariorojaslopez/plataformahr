@@ -200,12 +200,18 @@ export function rethrowDuplicateCompanyCodeConflict(
   attemptedCode?: string | null,
   attemptedName?: string | null,
 ): never {
-  const message = duplicateOrgUniqueMessage(error, {
-    code: attemptedCode,
-    name: attemptedName,
-  });
-  if (message) {
-    throw new ConflictException(message);
+  const codeMessage = duplicateCompanyCodeMessage(error, attemptedCode);
+  if (codeMessage) {
+    throw new ConflictException(codeMessage);
+  }
+  if (attemptedName) {
+    const unique = duplicateOrgUniqueMessage(error, {
+      code: attemptedCode,
+      name: attemptedName,
+    });
+    if (unique) {
+      throw new ConflictException(unique);
+    }
   }
   throw error;
 }
