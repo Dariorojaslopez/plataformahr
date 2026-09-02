@@ -3,6 +3,7 @@ import { HttpAdapterHost } from '@nestjs/core';
 import cookieParser from 'cookie-parser';
 import {
   json,
+  raw,
   text,
   urlencoded,
   type NextFunction,
@@ -12,7 +13,10 @@ import {
 import helmet from 'helmet';
 import { AllExceptionsFilter } from '../common/filters/all-exceptions.filter';
 import { requestIdMiddleware } from '../observability/request-id.middleware';
-import { ORG_IMPORT_MAX_BYTES } from '../organization/import/import.constants';
+import {
+  ORG_IMPORT_MAX_BYTES,
+  XLSX_MIME,
+} from '../organization/import/import.constants';
 import {
   isAllowedCorsOrigin,
   type SecurityRuntimeConfig,
@@ -43,6 +47,12 @@ export function configureApp(
   app.use(
     text({
       type: ['text/csv', 'text/plain'],
+      limit: ORG_IMPORT_MAX_BYTES,
+    }),
+  );
+  app.use(
+    raw({
+      type: [XLSX_MIME],
       limit: ORG_IMPORT_MAX_BYTES,
     }),
   );

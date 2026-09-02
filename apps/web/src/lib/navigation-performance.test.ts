@@ -35,12 +35,17 @@ describe("performance navigation", () => {
         disabled: undefined,
       },
       {
+        label: "9Box",
+        href: "/performance/9box",
+        disabled: undefined,
+      },
+      {
         label: "Calibración",
         href: "/performance/calibration",
         disabled: undefined,
       },
     ]);
-    expect(items).toHaveLength(7);
+    expect(items).toHaveLength(8);
   });
 
   it("places competencias under Organización", () => {
@@ -107,6 +112,7 @@ describe("performance navigation", () => {
       "Seleccionar población a evaluar",
     );
     expect(resolvePageTitle("/performance/calibration")).toBe("Calibración");
+    expect(resolvePageTitle("/performance/9box")).toBe("9Box");
     expect(resolvePageTitle("/organization/settings")).toBe(
       "Ajustes de resultados",
     );

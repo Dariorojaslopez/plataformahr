@@ -100,8 +100,7 @@ export const VACANCY_APPROVAL_ERRORS = {
 
 export const POSITION_OCCUPANT_ERRORS = {
   POSITION_REQUIRED: 'Selecciona un cargo.',
-  NO_OCCUPANTS:
-    'El cargo no tiene ocupantes activos con usuario en la compañía.',
+  NO_OCCUPANTS: 'El cargo no tiene colaboradores activos en la compañía.',
   SELECT_OCCUPANT:
     'El cargo tiene más de un ocupante. Selecciona el nombre.',
   OCCUPANT_NOT_IN_POSITION:

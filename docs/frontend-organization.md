@@ -26,17 +26,19 @@ The scale form asks for name, description, status, kind (cualitativa / cuantitat
 
 ## Assigned codes
 
-**Código** on unidades de negocio, áreas, niveles, descripciones de cargo, and competencias is assigned by the API (`001`, `002`, …) when the client omits it. Create/edit forms do not show the field. Lists may still display the code. Import CSV still requires codes as match keys.
+**Código** on unidades de negocio, áreas, niveles, descripciones de cargo, and competencias is assigned by the API (`001`, `002`, …) when the client omits it. Create/edit forms do not show the field. Lists may still display the code. Import Excel/CSV never asks for a code: structure is matched by name and the next sequential code is assigned on create.
 
 ## Custom fields
 
 **Campos personalizados** (`/organization/position-fields`) lists company field definitions. Admins name the field, pick **Dónde aparece** (**Formulario de descripciones de cargo** or **Formulario de personas**), pick a type (texto, número, sí/no, fecha, lista), mark required, add SELECT options, reorder, and deactivate. The technical `key` is generated from the name and is not shown. `key` and `appliesTo` are locked after create.
 
-Create/edit **Descripciones de cargo** renders active `POSITION` definitions. Create/edit **Personas** (colaboradores) renders active `EMPLOYEE` definitions. Inactive fields with stored values appear as read-only `Etiqueta: Valor`. IDs and keys are not shown on the forms.
+Create/edit **Descripciones de cargo** includes optional **Cargo al que reporta** (another cargo in the company) and renders active `POSITION` definitions. Create/edit **Personas** (colaboradores) renders active `EMPLOYEE` definitions. Inactive fields with stored values appear as read-only `Etiqueta: Valor`. IDs and keys are not shown on the forms. **Estado civil** is a dropdown (`Soltero/a`, `Casado/a`, `Unión libre`, `Separado/a`, `Divorciado/a`, `Viudo/a`) on the collaborator form and the home profile editor. Historical free text still displays; common variants like “casado” map onto the list.
 
 ## Organigrama
 
-**Organigrama** (`/organization/org-chart`) is a read-only chart of DIRECT reports. Cards show name (link to `/organization/employees/:id`), position, area, optional business unit, and job level when present. Inactive status is badged only when the include-inactive toggle is on.
+**Organigrama** (`/organization/org-chart`) is a read-only chart of people. Cards show name (link to `/organization/employees/:id`), position, area, optional business unit, and job level when present. Inactive status is badged only when the include-inactive toggle is on.
+
+A DIRECT reporting line on the collaborator always wins. If they have none, the chart uses the unique occupant of **Cargo al que reporta** on their job description (gerente / vice / jefe). Several people in that parent cargo, or a vacant one, leaves the collaborator as a root.
 
 The company name is a visual root only. Several employees without a visible manager appear as sibling roots under that node. CSS connectors draw the reporting lines in the interactive tree; PNG/PDF export still uses the SVG layout.
 
@@ -46,7 +48,7 @@ Zoom/pan live in the viewport (no diagram library). PNG/PDF export uses an in-br
 
 ## Importación masiva
 
-**Importación masiva** (`/organization/import`) downloads a CSV template, validates it (preview), then applies only if there are no blocking errors. The apply button stays disabled while the preview has errors. Results are summarized per entity (created / updated). Row errors are shown as `Fila N · campo: mensaje`.
+**Importación masiva** (`/organization/import`) downloads an Excel template (structured table on hoja Datos), validates it (preview), then applies only if there are no blocking errors. CSV UTF-8 with the same headers is still accepted. The apply button stays disabled while the preview has errors. Results are summarized per entity (created / updated). Row errors are shown as `Fila N · campo: mensaje`.
 
 ## Apariencia de compañía
 

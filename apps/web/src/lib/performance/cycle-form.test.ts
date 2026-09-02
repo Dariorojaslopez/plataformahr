@@ -88,6 +88,21 @@ describe("cycle form payloads", () => {
     });
   });
 
+  it("omits goalCycleId on create so the API can provision the period", () => {
+    const payload = buildCreateCyclePayload({
+      ...integratedForm,
+      goalCycleId: "",
+      competencyResultWeight: "50",
+      organizationalGoalsWeight: "24.99",
+      individualGoalsWeight: "25",
+    });
+    expect(payload.goalCycleId).toBeUndefined();
+    expect(payload.competencyResultWeight).toBe(50);
+    expect(payload.organizationalGoalsWeight).toBe(24.99);
+    expect(payload.individualGoalsWeight).toBe(25);
+    expect(payload.goalsResultWeight).toBe(49.99);
+  });
+
   it("includes 180° peer weight and follow-ups", () => {
     const payload = buildCreateCyclePayload({
       ...baseForm,
@@ -211,14 +226,14 @@ describe("cycle form payloads", () => {
     });
   });
 
-  it("validates goals composition requires cycle and stays within range", () => {
+  it("validates goals composition stays within range without a goal cycle", () => {
     expect(cycleGoalsCompositionIsValid(baseForm)).toBe(true);
     expect(
       cycleGoalsCompositionIsValid({
         ...integratedForm,
         goalCycleId: "",
       }),
-    ).toBe(false);
+    ).toBe(true);
     expect(
       cycleGoalsCompositionIsValid({
         ...integratedForm,

@@ -1,8 +1,5 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
-import {
-  EmployeeStatus,
-  MembershipStatus,
-} from '@prisma/client';
+import { EmployeeStatus } from '@prisma/client';
 import { OrganizationIntegrityService } from '../../organization/organization-integrity.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { POSITION_OCCUPANT_ERRORS } from '../ats.constants';
@@ -56,34 +53,15 @@ export class PositionOccupantsService {
     companyId: string,
     positionId: string,
   ): Promise<OccupantCandidate[]> {
-    const employees = await this.prisma.employee.findMany({
+    return this.prisma.employee.findMany({
       where: {
         companyId,
         positionId,
         deletedAt: null,
         status: EmployeeStatus.ACTIVE,
-        userId: { not: null },
       },
       select: OCCUPANT_SELECT,
       orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }],
     });
-    const userIds = employees
-      .map((item) => item.userId)
-      .filter((id): id is string => Boolean(id));
-    if (userIds.length === 0) {
-      return [];
-    }
-    const memberships = await this.prisma.companyMembership.findMany({
-      where: {
-        companyId,
-        userId: { in: userIds },
-        status: MembershipStatus.ACTIVE,
-      },
-      select: { userId: true },
-    });
-    const activeUsers = new Set(memberships.map((item) => item.userId));
-    return employees.filter(
-      (item) => item.userId && activeUsers.has(item.userId),
-    );
   }
 }

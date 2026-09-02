@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -76,9 +76,9 @@ describe("OrgImportPageClient", () => {
         issues: [
           {
             row: 18,
-            field: "positionCode",
+            field: "positionName",
             level: "error",
-            message: "Fila 18 · positionCode: No existe el cargo ABC.",
+            message: "Fila 18 · positionName: No existe el cargo ABC.",
           },
         ],
       }),
@@ -88,13 +88,25 @@ describe("OrgImportPageClient", () => {
     const file = new File(["recordType,code\n"], "estructura.csv", {
       type: "text/csv",
     });
-    await user.upload(screen.getByLabelText("Archivo CSV"), file);
+    await user.upload(screen.getByLabelText("Archivo Excel o CSV"), file);
     await user.click(screen.getByRole("button", { name: "Validar" }));
 
     expect(
-      await screen.findByText("Fila 18 · positionCode: No existe el cargo ABC."),
+      await screen.findByText("Fila 18 · positionName: No existe el cargo ABC."),
     ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Aplicar importación" })).toBeDisabled();
+  });
+
+  it("rejects a file that is not Excel or CSV", async () => {
+    renderPage();
+    const file = new File(["nope"], "estructura.txt", { type: "text/plain" });
+    fireEvent.change(screen.getByLabelText("Archivo Excel o CSV"), {
+      target: { files: [file] },
+    });
+    expect(
+      await screen.findByText("Solo se admite Excel (.xlsx) o CSV UTF-8."),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Validar" })).toBeDisabled();
   });
 
   it("shows the final summary after a successful apply", async () => {
@@ -110,7 +122,7 @@ describe("OrgImportPageClient", () => {
     const file = new File(["recordType,code\n"], "estructura.csv", {
       type: "text/csv",
     });
-    await user.upload(screen.getByLabelText("Archivo CSV"), file);
+    await user.upload(screen.getByLabelText("Archivo Excel o CSV"), file);
     await user.click(screen.getByRole("button", { name: "Validar" }));
     const apply = await screen.findByRole("button", { name: "Aplicar importación" });
     expect(apply).toBeEnabled();

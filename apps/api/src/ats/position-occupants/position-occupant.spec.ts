@@ -49,4 +49,15 @@ describe('pickOccupant', () => {
       POSITION_OCCUPANT_ERRORS.NO_OCCUPANTS,
     );
   });
+
+  it('accepts an active occupant without a login user', () => {
+    const maria = {
+      id: 'emp-3',
+      firstName: 'María',
+      lastName: 'López',
+      email: 'maria@example.com',
+      userId: null,
+    };
+    expect(pickOccupant([maria])).toEqual(maria);
+  });
 });

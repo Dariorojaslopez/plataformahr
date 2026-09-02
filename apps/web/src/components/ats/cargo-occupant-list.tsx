@@ -85,7 +85,7 @@ function PositionOccupantFields({
       ) : null}
       {row.positionId && occupantsQuery.isSuccess && occupants.length === 0 ? (
         <p className="text-sm text-destructive sm:col-span-2">
-          Este cargo no tiene ocupantes activos con usuario.
+          Este cargo no tiene colaboradores activos.
         </p>
       ) : null}
     </div>

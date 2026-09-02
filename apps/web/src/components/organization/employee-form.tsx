@@ -1,5 +1,9 @@
 "use client";
 
+import {
+  maritalStatusSelectOptions,
+  normalizeEmployeeMaritalStatus,
+} from "@talento/shared";
 import { useMemo, useState } from "react";
 import { NO_BUSINESS_UNIT_LABEL } from "@/components/organization/area-form";
 import { FormSelect } from "@/components/organization/form-select";
@@ -55,7 +59,7 @@ export function employeeToFormValues(employee?: Employee | null): EmployeeFormVa
     country: employee?.country ?? "",
     state: employee?.state ?? "",
     city: employee?.city ?? "",
-    maritalStatus: employee?.maritalStatus ?? "",
+    maritalStatus: normalizeEmployeeMaritalStatus(employee?.maritalStatus),
     childrenCount:
       employee?.childrenCount === null || employee?.childrenCount === undefined
         ? ""
@@ -108,6 +112,7 @@ export function toUpdatePayload(values: EmployeeFormValues): UpdateEmployeeInput
     documentNumber: values.documentNumber.trim() || null,
     hireDate: values.hireDate || null,
     terminationDate: values.terminationDate || null,
+    maritalStatus: values.maritalStatus.trim() || null,
     childrenCount:
       values.childrenCount === "" ? null : Number(values.childrenCount),
   };
@@ -232,14 +237,15 @@ export function EmployeeForm({
               onChange={(e) => setField("birthDate", e.target.value)}
             />
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="emp-marital">Estado civil</Label>
-            <Input
-              id="emp-marital"
-              value={values.maritalStatus}
-              onChange={(e) => setField("maritalStatus", e.target.value)}
-            />
-          </div>
+          <FormSelect
+            id="emp-marital"
+            label="Estado civil"
+            value={values.maritalStatus}
+            onChange={(value) => setField("maritalStatus", value)}
+            allowEmpty
+            emptyLabel="Sin especificar"
+            options={maritalStatusSelectOptions(values.maritalStatus)}
+          />
         </div>
       </section>
 

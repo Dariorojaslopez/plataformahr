@@ -3,6 +3,7 @@ import { buildCsvDocument } from '../../performance/csv-export';
 import { isCsvRowEmpty, parseCsv } from './csv-parse';
 import {
   ORG_IMPORT_HEADERS,
+  ORG_IMPORT_IGNORED_HEADERS,
   ORG_IMPORT_MAX_BYTES,
   ORG_IMPORT_MAX_ROWS,
   ORG_IMPORT_RECORD_TYPES,
@@ -138,12 +139,12 @@ function requireLen(
   return value;
 }
 
-function mapByCode<T extends { code: string | null }>(
+function mapByName<T extends { name: string }>(
   rows: T[],
 ): Map<string, T> {
   const map = new Map<string, T>();
   for (const row of rows) {
-    if (row.code) map.set(row.code, row);
+    map.set(row.name, row);
   }
   return map;
 }
@@ -155,8 +156,8 @@ function live<T extends { deletedAt: Date | null }>(
   return row;
 }
 
-function deletedCodeMessage(label: string, code: string): string {
-  return `El código ${code} pertenece a ${label} eliminada y no se puede reutilizar.`;
+function deletedNameMessage(label: string, name: string): string {
+  return `El nombre ${name} pertenece a ${label} eliminada y no se puede reutilizar.`;
 }
 
 function bump(
@@ -181,13 +182,9 @@ export function buildOrgImportTemplateCsv(): string {
   });
 }
 
-export function buildOrgImportPlan(
-  csvText: string,
-  catalog: OrgImportCatalog,
-): OrgImportPlan {
-  const issues: ImportIssue[] = [];
-  const plan: OrgImportPlan = {
-    issues,
+function newOrgImportPlan(): OrgImportPlan {
+  return {
+    issues: [],
     rowsTotal: 0,
     rowsValid: 0,
     rowsInvalid: 0,
@@ -201,16 +198,27 @@ export function buildOrgImportPlan(
     employees: [],
     reportingLines: [],
   };
+}
 
+function failFile(message: string): OrgImportPlan {
+  const plan = newOrgImportPlan();
+  issue(plan.issues, 1, 'archivo', message);
+  return plan;
+}
+
+export function orgImportFileError(message: string): OrgImportPlan {
+  return failFile(message);
+}
+
+export function buildOrgImportPlan(
+  csvText: string,
+  catalog: OrgImportCatalog,
+): OrgImportPlan {
   const bytes = Buffer.byteLength(csvText, 'utf8');
   if (bytes > ORG_IMPORT_MAX_BYTES) {
-    issue(
-      issues,
-      1,
-      'archivo',
+    return failFile(
       `El archivo supera el máximo de ${ORG_IMPORT_MAX_BYTES} bytes.`,
     );
-    return plan;
   }
 
   let table: string[][];
@@ -219,9 +227,17 @@ export function buildOrgImportPlan(
   } catch (error) {
     const message =
       error instanceof Error ? error.message : 'No se pudo leer el CSV.';
-    issue(issues, 1, 'archivo', message);
-    return plan;
+    return failFile(message);
   }
+  return buildOrgImportPlanFromTable(table, catalog);
+}
+
+export function buildOrgImportPlanFromTable(
+  table: string[][],
+  catalog: OrgImportCatalog,
+): OrgImportPlan {
+  const plan = newOrgImportPlan();
+  const issues = plan.issues;
 
   if (table.length === 0) {
     issue(issues, 1, 'archivo', 'El archivo está vacío.');
@@ -234,7 +250,12 @@ export function buildOrgImportPlan(
     return plan;
   }
 
-  const unknown = headerCells.filter((h) => h.length > 0 && !HEADER_SET.has(h));
+  const unknown = headerCells.filter(
+    (h) =>
+      h.length > 0 &&
+      !HEADER_SET.has(h) &&
+      !ORG_IMPORT_IGNORED_HEADERS.has(h),
+  );
   for (const header of unknown) {
     issue(issues, 1, header, `Encabezado desconocido (${header}).`);
   }
@@ -268,33 +289,17 @@ export function buildOrgImportPlan(
     return plan;
   }
 
-  const buByCode = mapByCode(catalog.businessUnits);
-  const areaByCode = mapByCode(catalog.areas);
-  const levelByCode = mapByCode(catalog.jobLevels);
-  const positionByCode = mapByCode(catalog.positions);
+  const buByName = mapByName(catalog.businessUnits);
+  const areaByName = mapByName(catalog.areas);
+  const levelByName = mapByName(catalog.jobLevels);
+  const positionByName = mapByName(catalog.positions);
   const employeeByEmail = new Map(
     catalog.employees.map((row) => [row.email.toLowerCase(), row]),
-  );
-  const nameBu = new Map(
-    catalog.businessUnits.filter((r) => !r.deletedAt).map((r) => [r.name, r]),
-  );
-  const nameArea = new Map(
-    catalog.areas.filter((r) => !r.deletedAt).map((r) => [r.name, r]),
-  );
-  const nameLevel = new Map(
-    catalog.jobLevels.filter((r) => !r.deletedAt).map((r) => [r.name, r]),
-  );
-  const namePosition = new Map(
-    catalog.positions.filter((r) => !r.deletedAt).map((r) => [r.name, r]),
   );
   const rankLevel = new Map(
     catalog.jobLevels.filter((r) => !r.deletedAt).map((r) => [r.rank, r]),
   );
 
-  const fileBuCodes = new Map<string, number>();
-  const fileAreaCodes = new Map<string, number>();
-  const fileLevelCodes = new Map<string, number>();
-  const filePositionCodes = new Map<string, number>();
   const fileEmails = new Map<string, number>();
   const fileBuNames = new Map<string, number>();
   const fileAreaNames = new Map<string, number>();
@@ -337,28 +342,22 @@ export function buildOrgImportPlan(
     if (type === 'businessUnit') {
       plan.businessUnits.push(
         planBusinessUnit(rowNumber, mapped, issues, {
-          buByCode,
-          nameBu,
-          fileBuCodes,
+          buByName,
           fileBuNames,
         }),
       );
     } else if (type === 'area') {
       plan.areas.push(
         planArea(rowNumber, mapped, issues, {
-          areaByCode,
-          nameArea,
-          fileAreaCodes,
+          areaByName,
           fileAreaNames,
         }),
       );
     } else if (type === 'jobLevel') {
       plan.jobLevels.push(
         planJobLevel(rowNumber, mapped, issues, {
-          levelByCode,
-          nameLevel,
+          levelByName,
           rankLevel,
-          fileLevelCodes,
           fileLevelNames,
           fileRanks,
         }),
@@ -366,9 +365,7 @@ export function buildOrgImportPlan(
     } else if (type === 'position') {
       plan.positions.push(
         planPosition(rowNumber, mapped, issues, {
-          positionByCode,
-          namePosition,
-          filePositionCodes,
+          positionByName,
           filePositionNames,
         }),
       );
@@ -387,10 +384,10 @@ export function buildOrgImportPlan(
   }
 
   resolveReferences(plan, catalog, issues, {
-    buByCode,
-    areaByCode,
-    levelByCode,
-    positionByCode,
+    buByName,
+    areaByName,
+    levelByName,
+    positionByName,
     employeeByEmail,
   });
   planReporting(plan, catalog, issues, employeeByEmail);
@@ -429,19 +426,34 @@ export function buildOrgImportPlan(
   return plan;
 }
 
+function trackFileName(
+  fileNames: Map<string, number>,
+  name: string,
+  row: number,
+  issues: ImportIssue[],
+): void {
+  const dupName = fileNames.get(name);
+  if (dupName) {
+    issue(
+      issues,
+      row,
+      'name',
+      `Nombre duplicado en el archivo (también en fila ${dupName}).`,
+    );
+  } else {
+    fileNames.set(name, row);
+  }
+}
+
 function planBusinessUnit(
   row: number,
   mapped: CellMap,
   issues: ImportIssue[],
   ctx: {
-    buByCode: Map<string, CatalogBusinessUnit>;
-    nameBu: Map<string, CatalogBusinessUnit>;
-    fileBuCodes: Map<string, number>;
+    buByName: Map<string, CatalogBusinessUnit>;
     fileBuNames: Map<string, number>;
   },
 ): PlannedBusinessUnit {
-  const code =
-    requireLen(cell(mapped, 'code'), row, 'code', 50, issues, true) ?? '';
   const name =
     requireLen(cell(mapped, 'name'), row, 'name', 120, issues, true) ?? '';
   const descriptionRaw = requireLen(
@@ -452,13 +464,13 @@ function planBusinessUnit(
     issues,
     false,
   );
-  const existing = code ? ctx.buByCode.get(code) : undefined;
+  const existing = name ? ctx.buByName.get(name) : undefined;
   if (existing?.deletedAt) {
     issue(
       issues,
       row,
-      'code',
-      deletedCodeMessage('una unidad de negocio', code),
+      'name',
+      deletedNameMessage('una unidad de negocio', name),
     );
   }
   const liveExisting = live(existing);
@@ -469,40 +481,8 @@ function planBusinessUnit(
     issues,
     liveExisting?.status ?? OrganizationEntityStatus.ACTIVE,
   );
-  if (code) {
-    const dup = ctx.fileBuCodes.get(code);
-    if (dup) {
-      issue(
-        issues,
-        row,
-        'code',
-        `Código duplicado en el archivo (también en fila ${dup}).`,
-      );
-    } else {
-      ctx.fileBuCodes.set(code, row);
-    }
-  }
   if (name) {
-    const dupName = ctx.fileBuNames.get(name);
-    if (dupName) {
-      issue(
-        issues,
-        row,
-        'name',
-        `Nombre duplicado en el archivo (también en fila ${dupName}).`,
-      );
-    } else {
-      ctx.fileBuNames.set(name, row);
-    }
-    const named = ctx.nameBu.get(name);
-    if (named && named.code !== code) {
-      issue(
-        issues,
-        row,
-        'name',
-        `Ya existe una unidad de negocio con el nombre ${name}.`,
-      );
-    }
+    trackFileName(ctx.fileBuNames, name, row, issues);
   }
   const description =
     descriptionRaw === ''
@@ -511,7 +491,6 @@ function planBusinessUnit(
   let action: ImportAction = liveExisting ? 'update' : 'create';
   if (
     liveExisting &&
-    liveExisting.name === name &&
     sameText(liveExisting.description, description) &&
     liveExisting.status === status
   ) {
@@ -521,7 +500,6 @@ function planBusinessUnit(
     row,
     action,
     existingId: liveExisting?.id ?? null,
-    code,
     name,
     description,
     status: status ?? OrganizationEntityStatus.ACTIVE,
@@ -533,14 +511,10 @@ function planArea(
   mapped: CellMap,
   issues: ImportIssue[],
   ctx: {
-    areaByCode: Map<string, CatalogArea>;
-    nameArea: Map<string, CatalogArea>;
-    fileAreaCodes: Map<string, number>;
+    areaByName: Map<string, CatalogArea>;
     fileAreaNames: Map<string, number>;
   },
 ): PlannedArea {
-  const code =
-    requireLen(cell(mapped, 'code'), row, 'code', 50, issues, true) ?? '';
   const name =
     requireLen(cell(mapped, 'name'), row, 'name', 120, issues, true) ?? '';
   const descriptionRaw = requireLen(
@@ -551,9 +525,9 @@ function planArea(
     issues,
     false,
   );
-  const existing = code ? ctx.areaByCode.get(code) : undefined;
+  const existing = name ? ctx.areaByName.get(name) : undefined;
   if (existing?.deletedAt) {
-    issue(issues, row, 'code', deletedCodeMessage('un área', code));
+    issue(issues, row, 'name', deletedNameMessage('un área', name));
   }
   const liveExisting = live(existing);
   const status = parseOrgStatus(
@@ -563,42 +537,15 @@ function planArea(
     issues,
     liveExisting?.status ?? OrganizationEntityStatus.ACTIVE,
   );
-  if (code) {
-    const dup = ctx.fileAreaCodes.get(code);
-    if (dup) {
-      issue(
-        issues,
-        row,
-        'code',
-        `Código duplicado en el archivo (también en fila ${dup}).`,
-      );
-    } else {
-      ctx.fileAreaCodes.set(code, row);
-    }
-  }
   if (name) {
-    const dupName = ctx.fileAreaNames.get(name);
-    if (dupName) {
-      issue(
-        issues,
-        row,
-        'name',
-        `Nombre duplicado en el archivo (también en fila ${dupName}).`,
-      );
-    } else {
-      ctx.fileAreaNames.set(name, row);
-    }
-    const named = ctx.nameArea.get(name);
-    if (named && named.code !== code) {
-      issue(issues, row, 'name', `Ya existe un área con el nombre ${name}.`);
-    }
+    trackFileName(ctx.fileAreaNames, name, row, issues);
   }
-  const parentAreaCode = cell(mapped, 'parentAreaCode') || null;
-  if (parentAreaCode && parentAreaCode === code) {
+  const parentAreaName = cell(mapped, 'parentAreaName') || null;
+  if (parentAreaName && parentAreaName === name) {
     issue(
       issues,
       row,
-      'parentAreaCode',
+      'parentAreaName',
       'Un área no puede ser su propio padre.',
     );
   }
@@ -606,18 +553,17 @@ function planArea(
     descriptionRaw === ''
       ? (liveExisting?.description ?? null)
       : (descriptionRaw ?? null);
-  const businessUnitCode = cell(mapped, 'businessUnitCode') || null;
+  const businessUnitName = cell(mapped, 'businessUnitName') || null;
   const action: ImportAction = liveExisting ? 'update' : 'create';
   return {
     row,
     action,
     existingId: liveExisting?.id ?? null,
-    code,
     name,
     description,
     status: status ?? OrganizationEntityStatus.ACTIVE,
-    businessUnitCode,
-    parentAreaCode,
+    businessUnitName,
+    parentAreaName,
   };
 }
 
@@ -626,21 +572,17 @@ function planJobLevel(
   mapped: CellMap,
   issues: ImportIssue[],
   ctx: {
-    levelByCode: Map<string, CatalogJobLevel>;
-    nameLevel: Map<string, CatalogJobLevel>;
+    levelByName: Map<string, CatalogJobLevel>;
     rankLevel: Map<number, CatalogJobLevel>;
-    fileLevelCodes: Map<string, number>;
     fileLevelNames: Map<string, number>;
     fileRanks: Map<number, number>;
   },
 ): PlannedJobLevel {
-  const code =
-    requireLen(cell(mapped, 'code'), row, 'code', 50, issues, true) ?? '';
   const name =
     requireLen(cell(mapped, 'name'), row, 'name', 120, issues, true) ?? '';
-  const existing = code ? ctx.levelByCode.get(code) : undefined;
+  const existing = name ? ctx.levelByName.get(name) : undefined;
   if (existing?.deletedAt) {
-    issue(issues, row, 'code', deletedCodeMessage('un nivel', code));
+    issue(issues, row, 'name', deletedNameMessage('un nivel', name));
   }
   const liveExisting = live(existing);
   const rank = parseNonNegInt(
@@ -658,35 +600,8 @@ function planJobLevel(
     issues,
     liveExisting?.status ?? OrganizationEntityStatus.ACTIVE,
   );
-  if (code) {
-    const dup = ctx.fileLevelCodes.get(code);
-    if (dup) {
-      issue(
-        issues,
-        row,
-        'code',
-        `Código duplicado en el archivo (también en fila ${dup}).`,
-      );
-    } else {
-      ctx.fileLevelCodes.set(code, row);
-    }
-  }
   if (name) {
-    const dupName = ctx.fileLevelNames.get(name);
-    if (dupName) {
-      issue(
-        issues,
-        row,
-        'name',
-        `Nombre duplicado en el archivo (también en fila ${dupName}).`,
-      );
-    } else {
-      ctx.fileLevelNames.set(name, row);
-    }
-    const named = ctx.nameLevel.get(name);
-    if (named && named.code !== code) {
-      issue(issues, row, 'name', `Ya existe un nivel con el nombre ${name}.`);
-    }
+    trackFileName(ctx.fileLevelNames, name, row, issues);
   }
   const dupRank = ctx.fileRanks.get(resolvedRank);
   if (dupRank) {
@@ -700,7 +615,7 @@ function planJobLevel(
     ctx.fileRanks.set(resolvedRank, row);
   }
   const ranked = ctx.rankLevel.get(resolvedRank);
-  if (ranked && ranked.code !== code) {
+  if (ranked && ranked.name !== name) {
     issue(
       issues,
       row,
@@ -711,7 +626,6 @@ function planJobLevel(
   let action: ImportAction = liveExisting ? 'update' : 'create';
   if (
     liveExisting &&
-    liveExisting.name === name &&
     liveExisting.rank === resolvedRank &&
     liveExisting.status === status
   ) {
@@ -721,7 +635,6 @@ function planJobLevel(
     row,
     action,
     existingId: liveExisting?.id ?? null,
-    code,
     name,
     rank: resolvedRank,
     status: status ?? OrganizationEntityStatus.ACTIVE,
@@ -733,23 +646,20 @@ function planPosition(
   mapped: CellMap,
   issues: ImportIssue[],
   ctx: {
-    positionByCode: Map<string, CatalogPosition>;
-    namePosition: Map<string, CatalogPosition>;
-    filePositionCodes: Map<string, number>;
+    positionByName: Map<string, CatalogPosition>;
     filePositionNames: Map<string, number>;
   },
 ): PlannedPosition {
-  const code =
-    requireLen(cell(mapped, 'code'), row, 'code', 50, issues, true) ?? '';
   const name =
     requireLen(cell(mapped, 'name'), row, 'name', 120, issues, true) ?? '';
-  const areaCode =
-    requireLen(cell(mapped, 'areaCode'), row, 'areaCode', 50, issues, true) ??
+  const areaName =
+    requireLen(cell(mapped, 'areaName'), row, 'areaName', 120, issues, true) ??
     '';
-  const jobLevelCode = cell(mapped, 'jobLevelCode') || null;
-  const existing = code ? ctx.positionByCode.get(code) : undefined;
+  const jobLevelName = cell(mapped, 'jobLevelName') || null;
+  const parentPositionName = cell(mapped, 'parentPositionName') || null;
+  const existing = name ? ctx.positionByName.get(name) : undefined;
   if (existing?.deletedAt) {
-    issue(issues, row, 'code', deletedCodeMessage('un cargo', code));
+    issue(issues, row, 'name', deletedNameMessage('un cargo', name));
   }
   const liveExisting = live(existing);
   const headcount = parseNonNegInt(
@@ -767,44 +677,25 @@ function planPosition(
     issues,
     liveExisting?.status ?? OrganizationEntityStatus.ACTIVE,
   );
-  if (code) {
-    const dup = ctx.filePositionCodes.get(code);
-    if (dup) {
-      issue(
-        issues,
-        row,
-        'code',
-        `Código duplicado en el archivo (también en fila ${dup}).`,
-      );
-    } else {
-      ctx.filePositionCodes.set(code, row);
-    }
-  }
   if (name) {
-    const dupName = ctx.filePositionNames.get(name);
-    if (dupName) {
-      issue(
-        issues,
-        row,
-        'name',
-        `Nombre duplicado en el archivo (también en fila ${dupName}).`,
-      );
-    } else {
-      ctx.filePositionNames.set(name, row);
-    }
-    const named = ctx.namePosition.get(name);
-    if (named && named.code !== code) {
-      issue(issues, row, 'name', `Ya existe un cargo con el nombre ${name}.`);
-    }
+    trackFileName(ctx.filePositionNames, name, row, issues);
+  }
+  if (parentPositionName && parentPositionName === name) {
+    issue(
+      issues,
+      row,
+      'parentPositionName',
+      'Un cargo no puede reportar a sí mismo.',
+    );
   }
   return {
     row,
     action: liveExisting ? 'update' : 'create',
     existingId: liveExisting?.id ?? null,
-    code,
     name,
-    areaCode,
-    jobLevelCode,
+    areaName,
+    jobLevelName,
+    parentPositionName,
     headcount: resolvedHeadcount,
     status: status ?? OrganizationEntityStatus.ACTIVE,
   };
@@ -843,19 +734,19 @@ function planEmployee(
   const lastName =
     requireLen(cell(mapped, 'lastName'), row, 'lastName', 100, issues, true) ??
     '';
-  const areaCode =
-    requireLen(cell(mapped, 'areaCode'), row, 'areaCode', 50, issues, true) ??
+  const areaName =
+    requireLen(cell(mapped, 'areaName'), row, 'areaName', 120, issues, true) ??
     '';
-  const positionCode =
+  const positionName =
     requireLen(
-      cell(mapped, 'positionCode'),
+      cell(mapped, 'positionName'),
       row,
-      'positionCode',
-      50,
+      'positionName',
+      120,
       issues,
       true,
     ) ?? '';
-  const businessUnitCode = cell(mapped, 'businessUnitCode') || null;
+  const businessUnitName = cell(mapped, 'businessUnitName') || null;
   const managerEmailRaw = cell(mapped, 'managerEmail');
   if (
     managerEmailRaw &&
@@ -909,9 +800,9 @@ function planEmployee(
     email,
     firstName,
     lastName,
-    areaCode,
-    positionCode,
-    businessUnitCode,
+    areaName,
+    positionName,
+    businessUnitName,
     status: status ?? EmployeeStatus.ACTIVE,
     managerEmail,
   };
@@ -922,78 +813,80 @@ function resolveReferences(
   catalog: OrgImportCatalog,
   issues: ImportIssue[],
   maps: {
-    buByCode: Map<string, CatalogBusinessUnit>;
-    areaByCode: Map<string, CatalogArea>;
-    levelByCode: Map<string, CatalogJobLevel>;
-    positionByCode: Map<string, CatalogPosition>;
+    buByName: Map<string, CatalogBusinessUnit>;
+    areaByName: Map<string, CatalogArea>;
+    levelByName: Map<string, CatalogJobLevel>;
+    positionByName: Map<string, CatalogPosition>;
     employeeByEmail: Map<string, CatalogEmployee>;
   },
 ): void {
-  const fileBu = new Set(plan.businessUnits.map((item) => item.code));
-  const fileArea = new Set(plan.areas.map((item) => item.code));
-  const fileLevel = new Set(plan.jobLevels.map((item) => item.code));
-  const filePosition = new Set(plan.positions.map((item) => item.code));
+  const fileBu = new Set(plan.businessUnits.map((item) => item.name));
+  const fileArea = new Set(plan.areas.map((item) => item.name));
+  const fileLevel = new Set(plan.jobLevels.map((item) => item.name));
+  const filePosition = new Set(plan.positions.map((item) => item.name));
 
-  function hasBu(code: string): boolean {
-    return fileBu.has(code) || Boolean(live(maps.buByCode.get(code)));
+  function hasBu(name: string): boolean {
+    return fileBu.has(name) || Boolean(live(maps.buByName.get(name)));
   }
-  function hasArea(code: string): boolean {
-    return fileArea.has(code) || Boolean(live(maps.areaByCode.get(code)));
+  function hasArea(name: string): boolean {
+    return fileArea.has(name) || Boolean(live(maps.areaByName.get(name)));
   }
-  function hasLevel(code: string): boolean {
-    return fileLevel.has(code) || Boolean(live(maps.levelByCode.get(code)));
+  function hasLevel(name: string): boolean {
+    return fileLevel.has(name) || Boolean(live(maps.levelByName.get(name)));
   }
-  function hasPosition(code: string): boolean {
+  function hasPosition(name: string): boolean {
     return (
-      filePosition.has(code) || Boolean(live(maps.positionByCode.get(code)))
+      filePosition.has(name) || Boolean(live(maps.positionByName.get(name)))
     );
   }
 
+  const parentNameByName = new Map<string, string | null>();
+  for (const current of catalog.areas.filter((item) => !item.deletedAt)) {
+    const parent = current.parentAreaId
+      ? catalog.areas.find((item) => item.id === current.parentAreaId)
+      : undefined;
+    parentNameByName.set(current.name, parent?.name ?? null);
+  }
+  for (const planned of plan.areas) {
+    parentNameByName.set(planned.name, planned.parentAreaName);
+  }
+
   for (const area of plan.areas) {
-    if (area.businessUnitCode && !hasBu(area.businessUnitCode)) {
+    if (area.businessUnitName && !hasBu(area.businessUnitName)) {
       issue(
         issues,
         area.row,
-        'businessUnitCode',
-        `No existe la unidad de negocio ${area.businessUnitCode}.`,
+        'businessUnitName',
+        `No existe la unidad de negocio ${area.businessUnitName}.`,
       );
     }
-    if (area.parentAreaCode && !hasArea(area.parentAreaCode)) {
+    if (area.parentAreaName && !hasArea(area.parentAreaName)) {
       issue(
         issues,
         area.row,
-        'parentAreaCode',
-        `No existe el área padre ${area.parentAreaCode}.`,
+        'parentAreaName',
+        `No existe el área padre ${area.parentAreaName}.`,
       );
     }
-    const existing = live(maps.areaByCode.get(area.code));
-    const parentIdByCode = new Map<string, string | null>();
-    for (const current of catalog.areas.filter(
-      (item) => !item.deletedAt && item.code,
-    )) {
-      const parent = current.parentAreaId
-        ? catalog.areas.find((item) => item.id === current.parentAreaId)
-        : undefined;
-      parentIdByCode.set(current.code as string, parent?.code ?? null);
-    }
-    for (const planned of plan.areas) {
-      parentIdByCode.set(planned.code, planned.parentAreaCode);
-    }
-    if (area.parentAreaCode && area.code) {
+    if (area.parentAreaName && area.name) {
       if (
-        wouldCreateParentCycle(area.code, area.parentAreaCode, parentIdByCode)
+        wouldCreateParentCycle(
+          area.name,
+          area.parentAreaName,
+          parentNameByName,
+        )
       ) {
         issue(
           issues,
           area.row,
-          'parentAreaCode',
+          'parentAreaName',
           'La jerarquía de áreas formaría un ciclo.',
         );
       }
     }
+    const existing = live(maps.areaByName.get(area.name));
     if (
       existing &&
-      existing.name === area.name &&
       sameText(existing.description, area.description) &&
       existing.status === area.status
     ) {
@@ -1004,32 +897,67 @@ function resolveReferences(
         (item) => item.id === existing.parentAreaId,
       );
       if (
-        (existingBu?.code ?? null) === area.businessUnitCode &&
-        (existingParent?.code ?? null) === area.parentAreaCode
+        (existingBu?.name ?? null) === area.businessUnitName &&
+        (existingParent?.name ?? null) === area.parentAreaName
       ) {
         area.action = 'omit';
       }
     }
   }
 
+  const parentNameByPosition = new Map<string, string | null>();
+  for (const current of catalog.positions.filter((item) => !item.deletedAt)) {
+    const parent = current.parentPositionId
+      ? catalog.positions.find((item) => item.id === current.parentPositionId)
+      : undefined;
+    parentNameByPosition.set(current.name, parent?.name ?? null);
+  }
+  for (const planned of plan.positions) {
+    parentNameByPosition.set(planned.name, planned.parentPositionName);
+  }
+
   for (const position of plan.positions) {
-    if (position.areaCode && !hasArea(position.areaCode)) {
+    if (position.areaName && !hasArea(position.areaName)) {
       issue(
         issues,
         position.row,
-        'areaCode',
-        `No existe el área ${position.areaCode}.`,
+        'areaName',
+        `No existe el área ${position.areaName}.`,
       );
     }
-    if (position.jobLevelCode && !hasLevel(position.jobLevelCode)) {
+    if (position.jobLevelName && !hasLevel(position.jobLevelName)) {
       issue(
         issues,
         position.row,
-        'jobLevelCode',
-        `No existe el nivel ${position.jobLevelCode}.`,
+        'jobLevelName',
+        `No existe el nivel ${position.jobLevelName}.`,
       );
     }
-    const existing = live(maps.positionByCode.get(position.code));
+    if (position.parentPositionName && !hasPosition(position.parentPositionName)) {
+      issue(
+        issues,
+        position.row,
+        'parentPositionName',
+        `No existe el cargo ${position.parentPositionName}.`,
+      );
+    }
+    if (position.parentPositionName && position.name) {
+      if (
+        wouldCreateParentCycle(
+          position.name,
+          position.parentPositionName,
+          parentNameByPosition,
+        )
+      ) {
+        issue(
+          issues,
+          position.row,
+          'parentPositionName',
+          'La jerarquía de cargos formaría un ciclo.',
+        );
+      }
+    }
+    const existing = live(maps.positionByName.get(position.name));
     if (existing) {
       const existingArea = catalog.areas.find(
         (item) => item.id === existing.areaId,
@@ -1037,12 +965,15 @@ function resolveReferences(
       const existingLevel = catalog.jobLevels.find(
         (item) => item.id === existing.jobLevelId,
       );
+      const existingParent = catalog.positions.find(
+        (item) => item.id === existing.parentPositionId,
+      );
       if (
-        existing.name === position.name &&
         existing.headcount === position.headcount &&
         existing.status === position.status &&
-        (existingArea?.code ?? null) === position.areaCode &&
-        (existingLevel?.code ?? null) === position.jobLevelCode
+        (existingArea?.name ?? null) === position.areaName &&
+        (existingLevel?.name ?? null) === position.jobLevelName &&
+        (existingParent?.name ?? null) === position.parentPositionName
       ) {
         position.action = 'omit';
       }
@@ -1050,28 +981,28 @@ function resolveReferences(
   }
 
   for (const employee of plan.employees) {
-    if (employee.areaCode && !hasArea(employee.areaCode)) {
+    if (employee.areaName && !hasArea(employee.areaName)) {
       issue(
         issues,
         employee.row,
-        'areaCode',
-        `No existe el área ${employee.areaCode}.`,
+        'areaName',
+        `No existe el área ${employee.areaName}.`,
       );
     }
-    if (employee.positionCode && !hasPosition(employee.positionCode)) {
+    if (employee.positionName && !hasPosition(employee.positionName)) {
       issue(
         issues,
         employee.row,
-        'positionCode',
-        `No existe el cargo ${employee.positionCode}.`,
+        'positionName',
+        `No existe el cargo ${employee.positionName}.`,
       );
     }
-    if (employee.businessUnitCode && !hasBu(employee.businessUnitCode)) {
+    if (employee.businessUnitName && !hasBu(employee.businessUnitName)) {
       issue(
         issues,
         employee.row,
-        'businessUnitCode',
-        `No existe la unidad de negocio ${employee.businessUnitCode}.`,
+        'businessUnitName',
+        `No existe la unidad de negocio ${employee.businessUnitName}.`,
       );
     }
     const existing = live(maps.employeeByEmail.get(employee.email));
@@ -1089,9 +1020,9 @@ function resolveReferences(
         existing.firstName === employee.firstName &&
         existing.lastName === employee.lastName &&
         existing.status === employee.status &&
-        (existingArea?.code ?? null) === employee.areaCode &&
-        (existingPosition?.code ?? null) === employee.positionCode &&
-        (existingBu?.code ?? null) === employee.businessUnitCode
+        (existingArea?.name ?? null) === employee.areaName &&
+        (existingPosition?.name ?? null) === employee.positionName &&
+        (existingBu?.name ?? null) === employee.businessUnitName
       ) {
         employee.action = 'omit';
       }

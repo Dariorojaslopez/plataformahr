@@ -26,7 +26,6 @@ import {
 } from "@/components/ui/table";
 import { useCompanyId } from "@/hooks/use-company-id";
 import { getErrorMessage } from "@/lib/api/errors";
-import { goalsApi, goalKeys } from "@/lib/api/goals";
 import { performanceApi, performanceKeys } from "@/lib/api/performance";
 import { canEditCycleMetadata } from "@/lib/performance/activation";
 import {
@@ -89,19 +88,6 @@ export function CyclesPageClient() {
     queryKey: performanceKeys.cycles(companyId, params),
     queryFn: () => performanceApi.listCycles(params),
   });
-
-  const goalCyclesQuery = useQuery({
-    queryKey: goalKeys.cycles(companyId, { limit: 100 }),
-    queryFn: () => goalsApi.listCycles({ limit: 100 }),
-    enabled: open,
-  });
-
-  const goalCycleOptions = (goalCyclesQuery.data?.items ?? []).map(
-    (cycle) => ({
-      value: cycle.id,
-      label: `${cycle.name} (${cycle.startDate} → ${cycle.endDate})`,
-    }),
-  );
 
   const saveMutation = useMutation({
     mutationFn: async () => {
@@ -352,8 +338,6 @@ export function CyclesPageClient() {
           <CycleFormFields
             form={form}
             setForm={setForm}
-            goalCycleOptions={goalCycleOptions}
-            goalCyclesLoading={goalCyclesQuery.isLoading}
             idPrefix="cycles"
             lockStartDate={editing != null}
           />

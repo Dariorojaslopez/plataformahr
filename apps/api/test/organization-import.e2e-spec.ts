@@ -8,6 +8,7 @@ import {
   RoleScope,
   UserStatus,
 } from '@prisma/client';
+import ExcelJS from 'exceljs';
 import { join } from 'node:path';
 import request from 'supertest';
 import { App } from 'supertest/types';
@@ -15,7 +16,10 @@ import { AppModule } from '../src/app.module';
 import { PasswordHashingService } from '../src/auth/password-hashing.service';
 import { configureApp } from '../src/config/configure-app';
 import { validateSecurityEnv } from '../src/config/security.config';
-import { ORG_IMPORT_HEADERS } from '../src/organization/import/import.constants';
+import {
+  ORG_IMPORT_HEADERS,
+  XLSX_MIME,
+} from '../src/organization/import/import.constants';
 import { loadOptionalEnvFile } from './load-env';
 
 loadOptionalEnvFile(join(__dirname, '../.env'));
@@ -44,6 +48,18 @@ function csv(
     }).join(','),
   );
   return `${header}\n${lines.join('\n')}\n`;
+}
+
+async function xlsxFromRows(
+  rows: Array<Partial<Record<(typeof ORG_IMPORT_HEADERS)[number], string>>>,
+): Promise<Buffer> {
+  const workbook = new ExcelJS.Workbook();
+  const sheet = workbook.addWorksheet('Datos');
+  sheet.addRow([...ORG_IMPORT_HEADERS]);
+  for (const row of rows) {
+    sheet.addRow(ORG_IMPORT_HEADERS.map((key) => row[key] ?? ''));
+  }
+  return Buffer.from(await workbook.xlsx.writeBuffer());
 }
 
 describe('Organization import (e2e)', () => {
@@ -170,44 +186,62 @@ describe('Organization import (e2e)', () => {
       [...tag].reduce((sum, char) => sum + char.charCodeAt(0), 0),
     );
     return [
-      { recordType: 'jobLevel', code: `JL-${tag}`, name: `Nivel ${tag}`, rank },
-      { recordType: 'area', code: `AR-${tag}`, name: `Area ${tag}` },
+      { recordType: 'jobLevel', name: `Nivel ${tag}`, rank },
+      { recordType: 'area', name: `Area ${tag}` },
       {
         recordType: 'position',
-        code: `PO-${tag}`,
         name: `Cargo ${tag}`,
-        areaCode: `AR-${tag}`,
-        jobLevelCode: `JL-${tag}`,
+        areaName: `Area ${tag}`,
+        jobLevelName: `Nivel ${tag}`,
       },
       {
         recordType: 'employee',
         email: `root-${tag}@example.com`,
         firstName: 'Root',
         lastName: tag,
-        areaCode: `AR-${tag}`,
-        positionCode: `PO-${tag}`,
+        areaName: `Area ${tag}`,
+        positionName: `Cargo ${tag}`,
       },
       {
         recordType: 'employee',
         email: `leaf-${tag}@example.com`,
         firstName: 'Leaf',
         lastName: tag,
-        areaCode: `AR-${tag}`,
-        positionCode: `PO-${tag}`,
+        areaName: `Area ${tag}`,
+        positionName: `Cargo ${tag}`,
         managerEmail: `root-${tag}@example.com`,
       },
     ];
   };
 
-  it('downloads a UTF-8 CSV template', async () => {
-    const res = await request(app.getHttpServer())
+  it('downloads an xlsx template by default and CSV on demand', async () => {
+    const xlsxRes = await request(app.getHttpServer())
       .get('/organization/import/template')
       .set('Authorization', `Bearer ${adminAToken}`)
       .set('X-Company-Id', companyAId)
+      .buffer(true)
+      .parse((res, callback) => {
+        const chunks: Buffer[] = [];
+        res.on('data', (chunk: Buffer) => chunks.push(chunk));
+        res.on('end', () => callback(null, Buffer.concat(chunks)));
+      })
       .expect(200);
-    expect(res.headers['content-type']).toMatch(/text\/csv/);
-    expect(String(res.text)).toContain('recordType');
-    expect(String(res.text)).toContain('managerEmail');
+    expect(xlsxRes.headers['content-type']).toMatch(/spreadsheetml/);
+    expect(xlsxRes.headers['content-disposition']).toMatch(
+      /plantilla-organizacion\.xlsx/,
+    );
+    expect((xlsxRes.body as Buffer).subarray(0, 2).toString()).toBe('PK');
+
+    const csvRes = await request(app.getHttpServer())
+      .get('/organization/import/template?format=csv')
+      .set('Authorization', `Bearer ${adminAToken}`)
+      .set('X-Company-Id', companyAId)
+      .expect(200);
+    expect(csvRes.headers['content-type']).toMatch(/text\/csv/);
+    const csvHeader = String(csvRes.text).split('\n')[0] ?? '';
+    expect(csvHeader).toContain('recordType');
+    expect(csvHeader).toContain('managerEmail');
+    expect(csvHeader.split(',')).not.toContain('code');
   });
 
   it('previews a valid file without writing', async () => {
@@ -218,6 +252,25 @@ describe('Organization import (e2e)', () => {
       .post('/organization/import/preview')
       .set(headersA())
       .send(csv(validRows(`pv-${suffix}`)))
+      .expect(200);
+    expect((res.body as ImportBody).canApply).toBe(true);
+    expect((res.body as ImportBody).summary?.employees.create).toBe(2);
+    const after = await prisma.area.count({ where: { companyId: companyAId } });
+    expect(after).toBe(before);
+  });
+
+  it('previews a valid xlsx without writing', async () => {
+    const before = await prisma.area.count({
+      where: { companyId: companyAId },
+    });
+    const res = await request(app.getHttpServer())
+      .post('/organization/import/preview')
+      .set({
+        Authorization: `Bearer ${adminAToken}`,
+        'X-Company-Id': companyAId,
+        'Content-Type': XLSX_MIME,
+      })
+      .send(await xlsxFromRows(validRows(`xl-${suffix}`)))
       .expect(200);
     expect((res.body as ImportBody).canApply).toBe(true);
     expect((res.body as ImportBody).summary?.employees.create).toBe(2);
@@ -237,9 +290,10 @@ describe('Organization import (e2e)', () => {
     expect((res.body as ImportBody).summary?.reportingLines.create).toBe(1);
 
     const area = await prisma.area.findFirst({
-      where: { companyId: companyAId, code: `AR-${tag}` },
+      where: { companyId: companyAId, name: `Area ${tag}` },
     });
     expect(area?.businessUnitId).toBeNull();
+    expect(area?.code).toMatch(/^\d+$/);
     const leaf = await prisma.employee.findFirst({
       where: { companyId: companyAId, email: `leaf-${tag}@example.com` },
     });
@@ -263,17 +317,17 @@ describe('Organization import (e2e)', () => {
         csv([
           {
             recordType: 'area',
-            code: `AR-${tag}`,
-            name: `Area ${tag} 2`,
+            name: `Area ${tag}`,
+            description: 'Actualizada',
           },
         ]),
       )
       .expect(201);
     expect((res.body as ImportBody).summary?.areas.update).toBe(1);
     const area = await prisma.area.findFirst({
-      where: { companyId: companyAId, code: `AR-${tag}` },
+      where: { companyId: companyAId, name: `Area ${tag}` },
     });
-    expect(area?.name).toBe(`Area ${tag} 2`);
+    expect(area?.description).toBe('Actualizada');
   });
 
   it('rejects apply with row errors and does not write', async () => {
@@ -285,14 +339,14 @@ describe('Organization import (e2e)', () => {
       .set(headersA())
       .send(
         csv([
-          { recordType: 'businessUnit', code: 'BU-FAIL', name: 'Temp' },
+          { recordType: 'businessUnit', name: 'Temp' },
           {
             recordType: 'employee',
             email: 'bad',
             firstName: 'X',
             lastName: 'Y',
-            areaCode: 'NOPE',
-            positionCode: 'NOPE',
+            areaName: 'NOPE',
+            positionName: 'NOPE',
           },
         ]),
       )
@@ -307,12 +361,12 @@ describe('Organization import (e2e)', () => {
     expect(after).toBe(before);
     expect(
       await prisma.businessUnit.findFirst({
-        where: { companyId: companyAId, code: 'BU-FAIL' },
+        where: { companyId: companyAId, name: 'Temp' },
       }),
     ).toBeNull();
   });
 
-  it('rejects invalid format, 403 without manage, and cross-tenant codes', async () => {
+  it('rejects invalid format, 403 without manage, and cross-tenant names', async () => {
     await request(app.getHttpServer())
       .post('/organization/import/preview')
       .set(headersA())
@@ -345,9 +399,8 @@ describe('Organization import (e2e)', () => {
         csv([
           {
             recordType: 'position',
-            code: 'PO-X',
             name: 'X',
-            areaCode: `AR-ok-${suffix}`,
+            areaName: `Area ok-${suffix}`,
           },
         ]),
       )
@@ -358,7 +411,7 @@ describe('Organization import (e2e)', () => {
     );
   });
 
-  it('keeps a single winner when two applies race on the same new codes', async () => {
+  it('keeps a single winner when two applies race on the same new names', async () => {
     const tag = `race-${suffix}`;
     const body = csv(validRows(tag));
     const [first, second] = await Promise.all([
@@ -374,7 +427,7 @@ describe('Organization import (e2e)', () => {
     const statuses = [first.status, second.status].sort();
     expect(statuses[0] === 201 || statuses[1] === 201).toBe(true);
     const areas = await prisma.area.count({
-      where: { companyId: companyAId, code: `AR-${tag}` },
+      where: { companyId: companyAId, name: `Area ${tag}` },
     });
     expect(areas).toBe(1);
   });

@@ -25,7 +25,7 @@ describe('OrgChartService', () => {
         status: EmployeeStatus.ACTIVE,
         businessUnit: null,
         area: { id: 'a1', name: 'Ops' },
-        position: { id: 'p1', name: 'Analista', jobLevel: null },
+        position: { id: 'p1', name: 'Analista', parentPositionId: null, jobLevel: null },
         reportingTo: [],
       },
     ]);

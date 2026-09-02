@@ -56,7 +56,7 @@ export function formatEntityCounts(
 
 export function OrgImportPageClient() {
   const [fileName, setFileName] = useState<string | null>(null);
-  const [csv, setCsv] = useState<string | null>(null);
+  const [payload, setPayload] = useState<string | ArrayBuffer | null>(null);
   const [localError, setLocalError] = useState<string | null>(null);
   const [preview, setPreview] = useState<OrgImportPreview | null>(null);
   const [result, setResult] = useState<OrgImportApplyResult | null>(null);
@@ -64,12 +64,13 @@ export function OrgImportPageClient() {
   const templateMutation = useMutation({
     mutationFn: () => organizationApi.downloadImportTemplate(),
     onSuccess: ({ blob, filename }) => {
-      downloadBlob(filename ?? "plantilla-organizacion.csv", blob);
+      downloadBlob(filename ?? "plantilla-organizacion.xlsx", blob);
     },
   });
 
   const previewMutation = useMutation({
-    mutationFn: (content: string) => organizationApi.previewImport(content),
+    mutationFn: (content: string | ArrayBuffer) =>
+      organizationApi.previewImport(content),
     onSuccess: (data) => {
       setPreview(data);
       setResult(null);
@@ -77,7 +78,8 @@ export function OrgImportPageClient() {
   });
 
   const applyMutation = useMutation({
-    mutationFn: (content: string) => organizationApi.applyImport(content),
+    mutationFn: (content: string | ArrayBuffer) =>
+      organizationApi.applyImport(content),
     onSuccess: (data) => {
       setResult(data);
       setPreview(data);
@@ -92,21 +94,31 @@ export function OrgImportPageClient() {
     setLocalError(null);
     setPreview(null);
     setResult(null);
-    setCsv(null);
+    setPayload(null);
     setFileName(null);
     if (!file) return;
-    if (!file.name.toLowerCase().endsWith(".csv")) {
-      setLocalError("Solo se admite un archivo CSV UTF-8.");
+    const name = file.name.toLowerCase();
+    const isCsv = name.endsWith(".csv");
+    const isXlsx = name.endsWith(".xlsx");
+    if (!isCsv && !isXlsx) {
+      setLocalError("Solo se admite Excel (.xlsx) o CSV UTF-8.");
       return;
     }
     if (file.size > MAX_BYTES) {
       setLocalError("El archivo supera el máximo de 6 MB.");
       return;
     }
+    if (isXlsx) {
+      void file.arrayBuffer().then((buffer) => {
+        setPayload(buffer);
+        setFileName(file.name);
+      });
+      return;
+    }
     const reader = new FileReader();
     reader.onload = () => {
       const text = String(reader.result ?? "");
-      setCsv(text);
+      setPayload(text);
       setFileName(file.name);
     };
     reader.readAsText(file, "UTF-8");
@@ -114,13 +126,13 @@ export function OrgImportPageClient() {
 
   const blockingErrors = preview?.issues.filter((item) => item.level === "error") ?? [];
   const warnings = preview?.issues.filter((item) => item.level === "warning") ?? [];
-  const canApply = Boolean(csv && preview?.canApply && blockingErrors.length === 0);
+  const canApply = Boolean(payload && preview?.canApply && blockingErrors.length === 0);
 
   return (
     <div>
       <PageHeader
         title="Importación masiva"
-        description="Carga la estructura y los colaboradores con un CSV. Primero se valida; nada se escribe hasta que confirmes."
+        description="Carga la estructura y los colaboradores con Excel (.xlsx) o CSV. Primero se valida; nada se escribe hasta que confirmes."
         actions={
           <Button
             type="button"
@@ -137,15 +149,15 @@ export function OrgImportPageClient() {
       <div className="space-y-6">
         <label className="flex cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed border-border px-6 py-10 text-center">
           <Upload className="mb-2 h-6 w-6 text-muted-foreground" />
-          <span className="text-sm font-medium">Seleccionar archivo CSV</span>
+          <span className="text-sm font-medium">Seleccionar archivo Excel o CSV</span>
           <span className="mt-1 text-xs text-muted-foreground">
-            UTF-8, máximo 6 MB y 4.000 filas. {fileName ?? "Ningún archivo"}
+            .xlsx o CSV UTF-8, máximo 6 MB y 4.000 filas. {fileName ?? "Ningún archivo"}
           </span>
           <input
             type="file"
-            accept=".csv,text/csv"
+            accept=".xlsx,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv"
             className="sr-only"
-            aria-label="Archivo CSV"
+            aria-label="Archivo Excel o CSV"
             onChange={(event) => onFile(event.target.files?.[0])}
           />
         </label>
@@ -160,15 +172,15 @@ export function OrgImportPageClient() {
           <Button
             type="button"
             variant="outline"
-            disabled={!csv || previewMutation.isPending}
-            onClick={() => csv && previewMutation.mutate(csv)}
+            disabled={!payload || previewMutation.isPending}
+            onClick={() => payload && previewMutation.mutate(payload)}
           >
             Validar
           </Button>
           <Button
             type="button"
             disabled={!canApply || applyMutation.isPending}
-            onClick={() => csv && applyMutation.mutate(csv)}
+            onClick={() => payload && applyMutation.mutate(payload)}
           >
             Aplicar importación
           </Button>
@@ -223,7 +235,7 @@ export function OrgImportPageClient() {
             ) : (
               <EmptyState
                 title="Sin errores bloqueantes"
-                description="Puedes aplicar la importación. Los registros se crean o actualizan por código (email en colaboradores)."
+                description="Puedes aplicar la importación. Unidad, área, nivel y cargo se identifican por nombre; el código lo asigna el sistema. Los colaboradores se identifican por email."
               />
             )}
 

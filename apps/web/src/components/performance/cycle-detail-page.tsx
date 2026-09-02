@@ -30,7 +30,6 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useCompanyId } from "@/hooks/use-company-id";
 import { getErrorMessage } from "@/lib/api/errors";
-import { goalsApi, goalKeys } from "@/lib/api/goals";
 import { performanceApi, performanceKeys } from "@/lib/api/performance";
 import {
   canActivateCycle,
@@ -121,19 +120,6 @@ export function CycleDetailPageClient() {
         limit: 100,
       }),
   });
-
-  const goalCyclesQuery = useQuery({
-    queryKey: goalKeys.cycles(companyId, { limit: 100 }),
-    queryFn: () => goalsApi.listCycles({ limit: 100 }),
-    enabled: metaOpen,
-  });
-
-  const goalCycleOptions = (goalCyclesQuery.data?.items ?? []).map(
-    (gc) => ({
-      value: gc.id,
-      label: `${gc.name} (${gc.startDate} → ${gc.endDate})`,
-    }),
-  );
 
   const cycle = cycleQuery.data;
   const assignments = useMemo(
@@ -699,8 +685,6 @@ export function CycleDetailPageClient() {
                     : updater;
                 });
               }}
-              goalCycleOptions={goalCycleOptions}
-              goalCyclesLoading={goalCyclesQuery.isLoading}
               idPrefix="meta"
               lockStartDate
             />

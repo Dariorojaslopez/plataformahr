@@ -113,7 +113,7 @@ function DefaultEvaluatorsForm({
     <div className="space-y-6">
       <PageHeader
         title="Evaluadores por defecto"
-        description="Se copian al enviar un proceso de selección. Si el cargo tiene más de un ocupante, elige el nombre."
+        description="Se copian al enviar un proceso de selección. Usa el colaborador activo del cargo; si hay más de uno, elige el nombre."
       />
       <CargoOccupantListEditor
         rows={rows}

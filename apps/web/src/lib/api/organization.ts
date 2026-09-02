@@ -41,6 +41,23 @@ function toQuery(params: Record<string, string | number | undefined>): string {
   return qs ? `?${qs}` : "";
 }
 
+const XLSX_MIME =
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+
+function importBody(
+  content: string | ArrayBuffer,
+  contentType?: string,
+): { rawBody: string | ArrayBuffer; headers: Record<string, string> } {
+  const isXlsx = content instanceof ArrayBuffer;
+  return {
+    rawBody: content,
+    headers: {
+      "Content-Type":
+        contentType ?? (isXlsx ? XLSX_MIME : "text/csv; charset=utf-8"),
+    },
+  };
+}
+
 export const organizationApi = {
   listBusinessUnits: () =>
     apiRequest<BusinessUnit[]>("/organization/business-units"),
@@ -157,16 +174,16 @@ export const organizationApi = {
   downloadImportTemplate: () =>
     apiRequestBlob("/organization/import/template"),
 
-  previewImport: (csv: string) =>
+  previewImport: (content: string | ArrayBuffer, contentType?: string) =>
     apiRequest<OrgImportPreview>("/organization/import/preview", {
       method: "POST",
-      rawBody: csv,
+      ...importBody(content, contentType),
     }),
 
-  applyImport: (csv: string) =>
+  applyImport: (content: string | ArrayBuffer, contentType?: string) =>
     apiRequest<OrgImportApplyResult>("/organization/import/apply", {
       method: "POST",
-      rawBody: csv,
+      ...importBody(content, contentType),
     }),
 
   createEmployee: (body: CreateEmployeeInput) =>

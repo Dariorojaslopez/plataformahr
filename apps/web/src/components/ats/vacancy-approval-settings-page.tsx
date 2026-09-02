@@ -134,7 +134,7 @@ function DefaultApprovalLevelsForm({
     <div className="space-y-6">
       <PageHeader
         title="Niveles de aprobación por defecto"
-        description="Estos niveles se aplican a las solicitudes de proceso de selección. Si un cargo tiene más de un ocupante, elige el nombre."
+        description="Estos niveles se aplican a las solicitudes de proceso de selección. Usa el colaborador activo del cargo; si hay más de uno, elige el nombre."
       />
       {hasLegacySteps ? (
         <p className="text-sm text-muted-foreground">

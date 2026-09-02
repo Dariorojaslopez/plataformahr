@@ -59,6 +59,7 @@ describe("home view by role", () => {
     expect(hrefs("CLIENT_ADMIN")).toContain("/performance/cycles");
     expect(hrefs("CLIENT_ADMIN")).toContain("/performance/population");
     expect(hrefs("CLIENT_ADMIN")).toContain("/performance/calibration");
+    expect(hrefs("CLIENT_ADMIN")).toContain("/performance/9box");
     expect(hrefs("CLIENT_ADMIN")).toContain("/organization/settings");
     expect(hrefs("CLIENT_ADMIN")).not.toContain("/ats/pipeline");
     expect(hrefs("CLIENT_ADMIN")).toContain("/settings/branding");

@@ -46,6 +46,16 @@ describe("employee form mappers", () => {
     expect(create.businessUnitId).toBeUndefined();
   });
 
+  it("maps marital status aliases onto the catalog", () => {
+    const values = employeeToFormValues({
+      ...sample,
+      maritalStatus: "casado",
+    });
+    expect(values.maritalStatus).toBe("Casado/a");
+    expect(toCreatePayload(values).maritalStatus).toBe("Casado/a");
+    expect(toUpdatePayload(employeeToFormValues(sample)).maritalStatus).toBeNull();
+  });
+
   it("maps nullables for update payload", () => {
     const values = employeeToFormValues(sample);
     const update = toUpdatePayload(values);

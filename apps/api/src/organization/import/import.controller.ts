@@ -3,6 +3,7 @@ import {
   Get,
   HttpCode,
   Post,
+  Query,
   Req,
   Res,
   UseGuards,
@@ -16,18 +17,40 @@ import { RequirePermissions } from '../../rbac/decorators/require-permissions.de
 import { PermissionGuard } from '../../rbac/guards/permission.guard';
 import { CurrentTenant } from '../../tenant/decorators/current-tenant.decorator';
 import { CompanyContextGuard } from '../../tenant/guards/company-context.guard';
+import { XLSX_MIME } from './import.constants';
 import { OrgImportService } from './import.service';
+import type { OrgImportPayload } from './import.types';
 
-function readCsvBody(req: Request): string {
+function isXlsxBuffer(buffer: Buffer): boolean {
+  return buffer.length >= 2 && buffer[0] === 0x50 && buffer[1] === 0x4b;
+}
+
+function readImportPayload(req: Request): OrgImportPayload {
   const body = req.body as unknown;
+  const contentType = String(req.headers['content-type'] ?? '')
+    .split(';')[0]
+    .trim()
+    .toLowerCase();
+
+  if (contentType === XLSX_MIME) {
+    if (!Buffer.isBuffer(body) || body.length === 0) {
+      throw new BadRequestException('El archivo Excel está vacío.');
+    }
+    return { xlsx: body };
+  }
+
   if (typeof body === 'string') {
-    return body;
+    return { csv: body };
   }
   if (Buffer.isBuffer(body)) {
-    return body.toString('utf8');
+    if (isXlsxBuffer(body)) {
+      return { xlsx: body };
+    }
+    return { csv: body.toString('utf8') };
   }
+
   throw new BadRequestException(
-    'El archivo debe enviarse como CSV UTF-8 (Content-Type: text/csv).',
+    'El archivo debe enviarse como Excel (.xlsx) o CSV UTF-8.',
   );
 }
 
@@ -38,18 +61,35 @@ export class OrgImportController {
 
   @Get('template')
   @RequirePermissions('organization.manage')
-  template(@Res() res: Response) {
-    const { csv, filename } = this.orgImportService.template();
-    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+  async template(
+    @Query('format') format: string | undefined,
+    @Res() res: Response,
+  ) {
+    if (format === 'csv') {
+      const { csv, filename } = this.orgImportService.templateCsv();
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader(
+        'Content-Disposition',
+        `attachment; filename="${filename}"`,
+      );
+      res.send(csv);
+      return;
+    }
+
+    const { buffer, filename } = await this.orgImportService.templateXlsx();
+    res.setHeader('Content-Type', XLSX_MIME);
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-    res.send(csv);
+    res.send(buffer);
   }
 
   @Post('preview')
   @HttpCode(200)
   @RequirePermissions('organization.manage')
   preview(@CurrentTenant() tenant: TenantContext, @Req() req: Request) {
-    return this.orgImportService.preview(tenant.companyId, readCsvBody(req));
+    return this.orgImportService.preview(
+      tenant.companyId,
+      readImportPayload(req),
+    );
   }
 
   @Post('apply')
@@ -63,7 +103,7 @@ export class OrgImportController {
     const result = await this.orgImportService.apply(
       tenant.companyId,
       user.userId,
-      readCsvBody(req),
+      readImportPayload(req),
     );
     if (!result.applied) {
       res.status(400).json({

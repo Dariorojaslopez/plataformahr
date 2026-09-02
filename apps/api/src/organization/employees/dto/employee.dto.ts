@@ -14,8 +14,8 @@ import {
   MinLength,
   ValidateNested,
 } from 'class-validator';
+import { Transform, Type } from 'class-transformer';
 import { EmployeeStatus } from '@prisma/client';
-import { Type } from 'class-transformer';
 import {
   DEFAULT_LIMIT,
   DEFAULT_PAGE,
@@ -23,6 +23,10 @@ import {
 } from '../../organization.constants';
 import { PositionCustomFieldValueInputDto } from '../../position-custom-fields/dto/position-custom-field.dto';
 import { MAX_CUSTOM_FIELDS } from '../../position-custom-fields/position-custom-fields.validation';
+
+function trimString({ value }: { value: unknown }): unknown {
+  return typeof value === 'string' ? value.trim() : value;
+}
 
 export class CreateEmployeeDto {
   @IsString()
@@ -78,6 +82,7 @@ export class CreateEmployeeDto {
   city?: string;
 
   @IsOptional()
+  @Transform(trimString)
   @IsString()
   @MaxLength(50)
   maritalStatus?: string;
@@ -190,6 +195,7 @@ export class UpdateEmployeeDto {
   city?: string;
 
   @IsOptional()
+  @Transform(trimString)
   @IsString()
   @MaxLength(50)
   maritalStatus?: string;

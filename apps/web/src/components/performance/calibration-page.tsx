@@ -49,13 +49,19 @@ function fromDatetimeLocal(value: string): string | null {
   return date.toISOString();
 }
 
-export function CalibrationPageClient() {
+export function CalibrationPageClient({
+  view = "session",
+}: {
+  view?: "session" | "nine-box";
+}) {
   const companyId = useCompanyId();
   const queryClient = useQueryClient();
   const isAdmin = (useSession().companyAccess?.roleCodes ?? []).includes(
     "CLIENT_ADMIN",
   );
   const [selectedId, setSelectedId] = useState<string | null>(null);
+
+  const isNineBox = view === "nine-box";
 
   const sessionsQuery = useQuery({
     queryKey: performanceKeys.calibrationSessions(companyId),
@@ -106,8 +112,12 @@ export function CalibrationPageClient() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Calibración"
-        description="Etiquetas y colores del 9Box, invitados, líderes y ventana de la sesión. Solo el administrador puede modificar."
+        title={isNineBox ? "9Box" : "Calibración"}
+        description={
+          isNineBox
+            ? "Cuadrante de potencial y desempeño. Configura etiquetas y colores, y ubica a las personas de la sesión."
+            : "Invitados, líderes y ventana de la sesión. El 9Box se abre en el menú 9Box."
+        }
         actions={
           isAdmin ? (
             <Button
@@ -138,10 +148,12 @@ export function CalibrationPageClient() {
 
       {!activeId ? (
         <EmptyState
-          title="Sin sesión de calibración"
+          title={isNineBox ? "Sin 9Box" : "Sin sesión de calibración"}
           description={
             isAdmin
-              ? "Crea una sesión para configurar el 9Box y los invitados."
+              ? isNineBox
+                ? "Crea una sesión para ver el 9Box y configurar etiquetas."
+                : "Crea una sesión para invitar personas y definir la ventana."
               : "El administrador aún no configuró una sesión."
           }
         />
@@ -159,6 +171,7 @@ export function CalibrationPageClient() {
           companyId={companyId}
           isAdmin={isAdmin}
           session={sessionQuery.data}
+          view={view}
         />
       )}
     </div>
@@ -169,10 +182,12 @@ function CalibrationSessionEditor({
   companyId,
   isAdmin,
   session,
+  view,
 }: {
   companyId: string;
   isAdmin: boolean;
   session: CalibrationSession;
+  view: "session" | "nine-box";
 }) {
   const queryClient = useQueryClient();
   const [name, setName] = useState(session.name);
@@ -216,23 +231,27 @@ function CalibrationSessionEditor({
         page: employeePage,
         limit: 20,
       }),
+    enabled: view === "session",
   });
 
   const saveMutation = useMutation({
     mutationFn: () =>
-      performanceApi.updateCalibrationSession(session.id, {
-        name: name.trim(),
-        opensAt: fromDatetimeLocal(opensAt),
-        closesAt: fromDatetimeLocal(closesAt),
-        cells,
-        inviteeEmployeeIds: inviteeIds,
-        leaderEmployeeIds: leaderIds,
-      }),
+      view === "nine-box"
+        ? performanceApi.updateCalibrationSession(session.id, { cells })
+        : performanceApi.updateCalibrationSession(session.id, {
+            name: name.trim(),
+            opensAt: fromDatetimeLocal(opensAt),
+            closesAt: fromDatetimeLocal(closesAt),
+            inviteeEmployeeIds: inviteeIds,
+            leaderEmployeeIds: leaderIds,
+          }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({
         queryKey: performanceKeys.all(companyId),
       });
-      notifySuccess("Calibración guardada");
+      notifySuccess(
+        view === "nine-box" ? "9Box guardado" : "Calibración guardada",
+      );
     },
     onError: (error) => notifyError(error, "No se pudo guardar."),
   });
@@ -276,9 +295,12 @@ function CalibrationSessionEditor({
   });
 
   const employees = employeesQuery.data?.items ?? [];
+  const isNineBox = view === "nine-box";
 
   return (
     <>
+      {isNineBox ? null : (
+        <>
           <section className="grid gap-4 rounded-lg border border-border bg-card p-4 sm:grid-cols-3">
             <div className="space-y-2 sm:col-span-3">
               <Label htmlFor="cal-name">Nombre</Label>
@@ -308,62 +330,6 @@ function CalibrationSessionEditor({
                 onChange={(e) => setClosesAt(e.target.value)}
                 disabled={!isAdmin}
               />
-            </div>
-          </section>
-
-          <section className="space-y-3">
-            <h2 className="text-lg font-semibold">Etiquetas y colores 9Box</h2>
-            <div className="grid gap-3 sm:grid-cols-3">
-              {[2, 1, 0].flatMap((row) =>
-                [0, 1, 2].map((col) => {
-                  const index = cells.findIndex(
-                    (cell) => cell.row === row && cell.col === col,
-                  );
-                  const cell = cells[index] ?? {
-                    row,
-                    col,
-                    label: "",
-                    color: "#64748b",
-                  };
-                  return (
-                    <div
-                      key={`${row}:${col}`}
-                      className="space-y-2 rounded-lg border p-3"
-                    >
-                      <Label htmlFor={`cell-${row}-${col}`}>
-                        Fila {row + 1}, col {col + 1}
-                      </Label>
-                      <Input
-                        id={`cell-${row}-${col}`}
-                        value={cell.label}
-                        disabled={!isAdmin}
-                        onChange={(e) => {
-                          const next = cells.map((item) =>
-                            item.row === row && item.col === col
-                              ? { ...item, label: e.target.value }
-                              : item,
-                          );
-                          setCells(next);
-                        }}
-                      />
-                      <Input
-                        type="color"
-                        value={cell.color}
-                        disabled={!isAdmin}
-                        aria-label={`Color ${cell.label}`}
-                        onChange={(e) => {
-                          const next = cells.map((item) =>
-                            item.row === row && item.col === col
-                              ? { ...item, color: e.target.value }
-                              : item,
-                          );
-                          setCells(next);
-                        }}
-                      />
-                    </div>
-                  );
-                }),
-              )}
             </div>
           </section>
 
@@ -403,66 +369,132 @@ function CalibrationSessionEditor({
             total={employeesQuery.data?.total ?? 0}
             onPageChange={setEmployeePage}
           />
+        </>
+      )}
 
-          {isAdmin ? (
-            <Button
-              type="button"
-              onClick={() => saveMutation.mutate()}
-              disabled={saveMutation.isPending}
-            >
-              {saveMutation.isPending ? "Guardando…" : "Guardar calibración"}
-            </Button>
-          ) : null}
-
+      {isNineBox ? (
+        <>
           <section className="space-y-3">
             <h2 className="text-lg font-semibold">9Box de la sesión</h2>
             {placementsQuery.isLoading ? (
               <Skeleton className="h-64 w-full" />
             ) : (
               <>
-              <NineBoxGrid
-                cells={cells}
-                peopleByCell={peopleByCell}
-                onDropPerson={(personId, row, col) => {
-                  const item = placementsQuery.data?.items.find(
-                    (rowItem) => rowItem.employee.id === personId,
-                  );
-                  setPendingMove({
-                    employeeId: personId,
-                    label: item
-                      ? employeeLabel(item.employee)
-                      : personId,
-                    row,
-                    col,
-                  });
-                }}
-              />
-              {unplaced.length > 0 ? (
-                <div className="rounded-lg border border-dashed p-3 text-sm">
-                  <p className="mb-2 text-muted-foreground">Sin ubicar</p>
-                  <ul className="flex flex-wrap gap-2">
-                    {unplaced.map((item) => (
-                      <li
-                        key={item.employee.id}
-                        draggable
-                        onDragStart={(event) => {
-                          event.dataTransfer.setData(
-                            "text/plain",
-                            item.employee.id,
-                          );
-                        }}
-                        className="cursor-grab rounded-md border px-2 py-1"
-                      >
-                        {employeeLabel(item.employee)}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              ) : null}
-            </>
+                <NineBoxGrid
+                  cells={cells}
+                  peopleByCell={peopleByCell}
+                  onDropPerson={(personId, row, col) => {
+                    const item = placementsQuery.data?.items.find(
+                      (rowItem) => rowItem.employee.id === personId,
+                    );
+                    setPendingMove({
+                      employeeId: personId,
+                      label: item ? employeeLabel(item.employee) : personId,
+                      row,
+                      col,
+                    });
+                  }}
+                />
+                {unplaced.length > 0 ? (
+                  <div className="rounded-lg border border-dashed p-3 text-sm">
+                    <p className="mb-2 text-muted-foreground">Sin ubicar</p>
+                    <ul className="flex flex-wrap gap-2">
+                      {unplaced.map((item) => (
+                        <li
+                          key={item.employee.id}
+                          draggable
+                          onDragStart={(event) => {
+                            event.dataTransfer.setData(
+                              "text/plain",
+                              item.employee.id,
+                            );
+                          }}
+                          className="cursor-grab rounded-md border px-2 py-1"
+                        >
+                          {employeeLabel(item.employee)}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
+              </>
             )}
           </section>
 
+          <section className="space-y-3">
+            <h2 className="text-lg font-semibold">Etiquetas y colores 9Box</h2>
+            <div className="grid gap-3 sm:grid-cols-3">
+              {[2, 1, 0].flatMap((row) =>
+                [0, 1, 2].map((col) => {
+                  const cell = cells.find(
+                    (item) => item.row === row && item.col === col,
+                  ) ?? {
+                    row,
+                    col,
+                    label: "",
+                    color: "#64748b",
+                  };
+                  return (
+                    <div
+                      key={`${row}:${col}`}
+                      className="space-y-2 rounded-lg border p-3"
+                    >
+                      <Label htmlFor={`cell-${row}-${col}`}>
+                        Fila {row + 1}, col {col + 1}
+                      </Label>
+                      <Input
+                        id={`cell-${row}-${col}`}
+                        value={cell.label}
+                        disabled={!isAdmin}
+                        onChange={(e) => {
+                          setCells((prev) =>
+                            prev.map((item) =>
+                              item.row === row && item.col === col
+                                ? { ...item, label: e.target.value }
+                                : item,
+                            ),
+                          );
+                        }}
+                      />
+                      <Input
+                        type="color"
+                        value={cell.color}
+                        disabled={!isAdmin}
+                        aria-label={`Color ${cell.label}`}
+                        onChange={(e) => {
+                          setCells((prev) =>
+                            prev.map((item) =>
+                              item.row === row && item.col === col
+                                ? { ...item, color: e.target.value }
+                                : item,
+                            ),
+                          );
+                        }}
+                      />
+                    </div>
+                  );
+                }),
+              )}
+            </div>
+          </section>
+        </>
+      ) : null}
+
+      {isAdmin ? (
+        <Button
+          type="button"
+          onClick={() => saveMutation.mutate()}
+          disabled={saveMutation.isPending}
+        >
+          {saveMutation.isPending
+            ? "Guardando…"
+            : isNineBox
+              ? "Guardar 9Box"
+              : "Guardar calibración"}
+        </Button>
+      ) : null}
+
+      {isNineBox ? (
       <Dialog
         open={Boolean(pendingMove)}
         onOpenChange={(open) => {
@@ -507,6 +539,7 @@ function CalibrationSessionEditor({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      ) : null}
     </>
   );
 }

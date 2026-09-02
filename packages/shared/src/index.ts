@@ -51,6 +51,83 @@ export function candidateDocumentTypeLabel(
   return match?.label ?? code;
 }
 
+/**
+ * Canonical marital-status labels stored on Employee.maritalStatus.
+ * Historical free text is still readable; forms offer this catalog as a select.
+ */
+export const EMPLOYEE_MARITAL_STATUSES = [
+  'Soltero/a',
+  'Casado/a',
+  'Unión libre',
+  'Separado/a',
+  'Divorciado/a',
+  'Viudo/a',
+] as const;
+
+export type EmployeeMaritalStatus =
+  (typeof EMPLOYEE_MARITAL_STATUSES)[number];
+
+export const EMPLOYEE_MARITAL_STATUS_VALUES: EmployeeMaritalStatus[] = [
+  ...EMPLOYEE_MARITAL_STATUSES,
+];
+
+const EMPLOYEE_MARITAL_STATUS_SET = new Set<string>(
+  EMPLOYEE_MARITAL_STATUS_VALUES,
+);
+
+const EMPLOYEE_MARITAL_STATUS_ALIASES: Record<string, EmployeeMaritalStatus> = {
+  soltero: 'Soltero/a',
+  soltera: 'Soltero/a',
+  'soltero/a': 'Soltero/a',
+  casado: 'Casado/a',
+  casada: 'Casado/a',
+  'casado/a': 'Casado/a',
+  'union libre': 'Unión libre',
+  'unión libre': 'Unión libre',
+  'union marital de hecho': 'Unión libre',
+  'unión marital de hecho': 'Unión libre',
+  separado: 'Separado/a',
+  separada: 'Separado/a',
+  'separado/a': 'Separado/a',
+  divorciado: 'Divorciado/a',
+  divorciada: 'Divorciado/a',
+  'divorciado/a': 'Divorciado/a',
+  viudo: 'Viudo/a',
+  viuda: 'Viudo/a',
+  'viudo/a': 'Viudo/a',
+};
+
+export function isEmployeeMaritalStatus(
+  value: string,
+): value is EmployeeMaritalStatus {
+  return EMPLOYEE_MARITAL_STATUS_SET.has(value);
+}
+
+/** Maps common free-text variants onto the catalog; other values stay as-is. */
+export function normalizeEmployeeMaritalStatus(
+  value: string | null | undefined,
+): string {
+  if (!value) return '';
+  const trimmed = value.trim();
+  if (!trimmed) return '';
+  if (isEmployeeMaritalStatus(trimmed)) return trimmed;
+  return EMPLOYEE_MARITAL_STATUS_ALIASES[trimmed.toLowerCase()] ?? trimmed;
+}
+
+export function maritalStatusSelectOptions(
+  current?: string | null,
+): Array<{ value: string; label: string }> {
+  const options = EMPLOYEE_MARITAL_STATUSES.map((status) => ({
+    value: status,
+    label: status,
+  }));
+  const normalized = normalizeEmployeeMaritalStatus(current);
+  if (normalized && !isEmployeeMaritalStatus(normalized)) {
+    options.push({ value: normalized, label: normalized });
+  }
+  return options;
+}
+
 export const COMPANY_ACCESS_CATALOG = [
   {
     code: 'ORGANIZATION',

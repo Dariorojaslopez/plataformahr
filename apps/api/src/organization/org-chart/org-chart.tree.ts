@@ -10,6 +10,7 @@ export type OrgChartEmployeeRow = {
   position: {
     id: string;
     name: string;
+    parentPositionId: string | null;
     jobLevel: { id: string; name: string; rank: number } | null;
   };
   reportingTo: Array<{ managerEmployeeId: string }>;
@@ -34,6 +35,35 @@ function displayName(row: OrgChartEmployeeRow): string {
 
 function directManagerId(row: OrgChartEmployeeRow): string | null {
   return row.reportingTo[0]?.managerEmployeeId ?? null;
+}
+
+/**
+ * When a collaborator has no DIRECT manager, nest them under the unique
+ * occupant of the parent cargo (cargo al que reporta). Explicit reporting
+ * lines always win. 0 or 2+ occupants of the parent cargo: leave as a root.
+ */
+export function applyPositionReportingFallback(
+  rows: OrgChartEmployeeRow[],
+): OrgChartEmployeeRow[] {
+  const occupantsByPosition = new Map<string, OrgChartEmployeeRow[]>();
+  for (const row of rows) {
+    const list = occupantsByPosition.get(row.position.id) ?? [];
+    list.push(row);
+    occupantsByPosition.set(row.position.id, list);
+  }
+
+  return rows.map((row) => {
+    if (row.reportingTo.length > 0) return row;
+    const parentId = row.position.parentPositionId;
+    if (!parentId) return row;
+    const occupants = occupantsByPosition.get(parentId) ?? [];
+    if (occupants.length !== 1) return row;
+    if (occupants[0].id === row.id) return row;
+    return {
+      ...row,
+      reportingTo: [{ managerEmployeeId: occupants[0].id }],
+    };
+  });
 }
 
 function toNode(
@@ -82,10 +112,11 @@ function toNode(
 export function buildOrgChartForest(
   rows: OrgChartEmployeeRow[],
 ): OrgChartNode[] {
-  const byId = new Map(rows.map((row) => [row.id, row]));
+  const resolved = applyPositionReportingFallback(rows);
+  const byId = new Map(resolved.map((row) => [row.id, row]));
   const childrenByManager = new Map<string, OrgChartEmployeeRow[]>();
 
-  for (const row of rows) {
+  for (const row of resolved) {
     const managerId = directManagerId(row);
     if (!managerId || !byId.has(managerId)) {
       continue;
@@ -97,7 +128,7 @@ export function buildOrgChartForest(
 
   const visited = new Set<string>();
   const roots: OrgChartNode[] = [];
-  const naturalRoots = rows
+  const naturalRoots = resolved
     .filter((row) => {
       const managerId = directManagerId(row);
       return !managerId || !byId.has(managerId);
@@ -108,7 +139,7 @@ export function buildOrgChartForest(
     roots.push(toNode(row, childrenByManager, new Set(), visited));
   }
 
-  const leftovers = rows
+  const leftovers = resolved
     .filter((row) => !visited.has(row.id))
     .sort((a, b) => displayName(a).localeCompare(displayName(b)));
   for (const row of leftovers) {

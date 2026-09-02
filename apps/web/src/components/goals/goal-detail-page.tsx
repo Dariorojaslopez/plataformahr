@@ -5,6 +5,7 @@ import { ArrowLeft, Plus, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useState } from "react";
+import { useSession } from "@/components/auth/session-provider";
 import { CheckInDialog } from "@/components/goals/check-in-dialog";
 import { CheckInHistoryList } from "@/components/goals/check-in-history";
 import { GoalProgressBar } from "@/components/goals/progress-bar";
@@ -33,6 +34,7 @@ import {
   buildActivationChecklist,
   canActivateFromChecklist,
 } from "@/lib/goals/activation";
+import { canManageOrganizationalGoals } from "@/lib/goals/organizational-form";
 import {
   DIRECTION_LABELS,
   GOAL_STATUS_LABELS,
@@ -63,6 +65,10 @@ import {
 
 export function GoalDetailPageClient() {
   const companyId = useCompanyId();
+  const { companyAccess } = useSession();
+  const canManageOrgGoals = canManageOrganizationalGoals(
+    companyAccess?.roleCodes,
+  );
   const queryClient = useQueryClient();
   const params = useParams<{ id: string }>();
   const goalId = params.id;
@@ -234,12 +240,13 @@ export function GoalDetailPageClient() {
 
   const goal = goalQuery.data!;
   const draft = goal.status === "DRAFT";
+  const structureLocked =
+    goal.type === "COMPANY" && !canManageOrgGoals;
   const checks = buildActivationChecklist({
     goal,
     cycleStatus: goal.cycle.status,
   });
   const assignedIds = new Set(goal.assignments.map((a) => a.employeeId));
-  const organizationalReadOnly = goal.type === "COMPANY";
   const employeeOptions = (employeesQuery.data?.items ?? [])
     .filter((e) => !assignedIds.has(e.id))
     .map((e) => ({
@@ -261,7 +268,7 @@ export function GoalDetailPageClient() {
         title={goal.title}
         description={`${GOAL_TYPE_LABELS[goal.type]} · ${goal.cycle.name}`}
         actions={
-          organizationalReadOnly ? undefined : (
+          structureLocked ? undefined : (
           <div className="flex flex-wrap gap-2">
             {draft ? (
               <Button
@@ -304,8 +311,9 @@ export function GoalDetailPageClient() {
         <section className="space-y-4" aria-label="Seguimiento">
           <h2 className="text-lg font-semibold">Seguimiento</h2>
           <p className="text-sm text-muted-foreground">
-            Progreso operacional derivado de check-ins. No es score final ni
-            rating de desempeño.
+            {goal.type === "COMPANY"
+              ? "Carga de resultados: registra el valor actual contra la meta. No es el score de desempeño."
+              : "Progreso operacional derivado de check-ins. No es score final ni rating de desempeño."}
           </p>
           <GoalProgressBar value={goal.progress.progressPercentage} />
           <ul className="space-y-4">
@@ -334,7 +342,7 @@ export function GoalDetailPageClient() {
                 </p>
                 <GoalProgressBar value={kr.progressPercentage} label="KR" />
                 <div className="flex flex-wrap gap-2">
-                  {goal.canCheckIn && !organizationalReadOnly ? (
+                  {goal.canCheckIn ? (
                     <Button size="sm" onClick={() => setActiveKr(kr)}>
                       Registrar avance
                     </Button>
@@ -380,7 +388,7 @@ export function GoalDetailPageClient() {
               onSubmit={(body) => checkInMutation.mutate(body)}
             />
           ) : null}
-          {goal.canRequestCompletion && !organizationalReadOnly ? (
+          {goal.canRequestCompletion ? (
             <Button size="sm" variant="secondary" onClick={() => setRequestOpen(true)}>
               Solicitar cierre
             </Button>
@@ -525,7 +533,7 @@ export function GoalDetailPageClient() {
                   <TableHead>Métrica</TableHead>
                   <TableHead>Target</TableHead>
                   <TableHead>Peso</TableHead>
-                    {draft && !organizationalReadOnly ? <TableHead /> : null}
+                    {draft && !structureLocked ? <TableHead /> : null}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -540,7 +548,7 @@ export function GoalDetailPageClient() {
                     </TableCell>
                     <TableCell>{formatKeyResultTarget(kr)}</TableCell>
                     <TableCell>{kr.weight ?? "—"}</TableCell>
-                    {draft && !organizationalReadOnly ? (
+                    {draft && !structureLocked ? (
                       <TableCell className="text-right">
                         <Button
                           type="button"
@@ -560,7 +568,7 @@ export function GoalDetailPageClient() {
           </div>
         )}
 
-        {draft && !organizationalReadOnly ? (
+        {draft && !structureLocked ? (
           <div className="space-y-3 rounded-lg border p-4">
             <p className="font-medium">Agregar Key Result</p>
             <div className="grid gap-3 sm:grid-cols-2">
@@ -738,7 +746,7 @@ export function GoalDetailPageClient() {
                 <span>
                   {a.employee.firstName} {a.employee.lastName}
                 </span>
-                {draft && !organizationalReadOnly ? (
+                {draft && !structureLocked ? (
                   <Button
                     type="button"
                     variant="ghost"
@@ -753,7 +761,7 @@ export function GoalDetailPageClient() {
             ))}
           </ul>
         )}
-        {draft && !organizationalReadOnly ? (
+        {draft && !structureLocked ? (
           <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
             <FormSelect
               id="assign-emp"

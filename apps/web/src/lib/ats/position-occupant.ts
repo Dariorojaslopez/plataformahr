@@ -2,6 +2,7 @@ export type OccupantOption = {
   id: string;
   firstName: string;
   lastName: string;
+  userId?: string | null;
 };
 
 export function occupantNeedsSelection(occupants: OccupantOption[]): boolean {
@@ -9,7 +10,8 @@ export function occupantNeedsSelection(occupants: OccupantOption[]): boolean {
 }
 
 export function occupantLabel(occupant: OccupantOption): string {
-  return `${occupant.firstName} ${occupant.lastName}`.trim();
+  const name = `${occupant.firstName} ${occupant.lastName}`.trim();
+  return occupant.userId ? name : `${name} (sin acceso)`;
 }
 
 export type CargoOccupantRow = {

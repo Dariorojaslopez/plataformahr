@@ -5,24 +5,35 @@ import {
   PayloadTooLargeException,
 } from '@nestjs/common';
 import { Prisma, ReportingLineType, type PrismaClient } from '@prisma/client';
-import { duplicateCompanyCodeMessage } from '../../common/prisma/duplicate-company-code';
+import { nextSequentialCode } from '../../common/sequential-code';
+import { duplicateOrgUniqueMessage } from '../../common/prisma/duplicate-company-code';
 import { PrismaService } from '../../prisma/prisma.service';
 import {
   ORG_IMPORT_AUDIT,
   ORG_IMPORT_MAX_BYTES,
   ORG_IMPORT_TEMPLATE_FILENAME,
+  ORG_IMPORT_TEMPLATE_XLSX_FILENAME,
 } from './import.constants';
 import {
   buildOrgImportPlan,
+  buildOrgImportPlanFromTable,
   buildOrgImportTemplateCsv,
+  orgImportFileError,
   toPreviewDto,
 } from './import.plan';
 import type {
   OrgImportApplyResponse,
   OrgImportCatalog,
+  OrgImportPayload,
   OrgImportPlan,
   PlannedArea,
+  PlannedPosition,
 } from './import.types';
+import {
+  buildOrgImportTemplateXlsx,
+  parseOrgImportXlsx,
+  XlsxParseError,
+} from './xlsx-workbook';
 
 type Tx = Prisma.TransactionClient | PrismaClient;
 
@@ -30,31 +41,38 @@ type Tx = Prisma.TransactionClient | PrismaClient;
 export class OrgImportService {
   constructor(private readonly prisma: PrismaService) {}
 
-  template(): { csv: string; filename: string } {
+  templateCsv(): { csv: string; filename: string } {
     return {
       csv: buildOrgImportTemplateCsv(),
       filename: ORG_IMPORT_TEMPLATE_FILENAME,
     };
   }
 
-  async preview(companyId: string, csvText: string) {
-    this.assertCsvSize(csvText);
+  async templateXlsx(): Promise<{ buffer: Buffer; filename: string }> {
+    return {
+      buffer: await buildOrgImportTemplateXlsx(),
+      filename: ORG_IMPORT_TEMPLATE_XLSX_FILENAME,
+    };
+  }
+
+  async preview(companyId: string, payload: OrgImportPayload) {
+    this.assertPayloadSize(payload);
     const catalog = await this.loadCatalog(this.prisma, companyId);
-    return toPreviewDto(buildOrgImportPlan(csvText, catalog));
+    return toPreviewDto(await this.planFromPayload(payload, catalog));
   }
 
   async apply(
     companyId: string,
     actorUserId: string,
-    csvText: string,
+    payload: OrgImportPayload,
   ): Promise<OrgImportApplyResponse> {
-    this.assertCsvSize(csvText);
+    this.assertPayloadSize(payload);
 
     try {
       return await this.prisma.$transaction(
         async (tx) => {
           const catalog = await this.loadCatalog(tx, companyId);
-          const plan = buildOrgImportPlan(csvText, catalog);
+          const plan = await this.planFromPayload(payload, catalog);
           if (!plan.canApply) {
             return { ...toPreviewDto(plan), applied: false };
           }
@@ -78,19 +96,42 @@ export class OrgImportService {
         { maxWait: 10_000, timeout: 60_000 },
       );
     } catch (error) {
-      const duplicate = duplicateCompanyCodeMessage(error);
-      if (duplicate) {
-        throw new ConflictException(duplicate);
+      const unique = duplicateOrgUniqueMessage(error);
+      if (unique) {
+        throw new ConflictException(unique);
       }
       throw error;
     }
   }
 
-  private assertCsvSize(csvText: string): void {
-    if (Buffer.byteLength(csvText, 'utf8') > ORG_IMPORT_MAX_BYTES) {
+  private assertPayloadSize(payload: OrgImportPayload): void {
+    const size =
+      'xlsx' in payload
+        ? payload.xlsx.length
+        : Buffer.byteLength(payload.csv, 'utf8');
+    if (size > ORG_IMPORT_MAX_BYTES) {
       throw new PayloadTooLargeException(
         `El archivo supera el máximo de ${ORG_IMPORT_MAX_BYTES} bytes.`,
       );
+    }
+  }
+
+  private async planFromPayload(
+    payload: OrgImportPayload,
+    catalog: OrgImportCatalog,
+  ): Promise<OrgImportPlan> {
+    if ('csv' in payload) {
+      return buildOrgImportPlan(payload.csv, catalog);
+    }
+    try {
+      const table = await parseOrgImportXlsx(payload.xlsx);
+      return buildOrgImportPlanFromTable(table, catalog);
+    } catch (error) {
+      const message =
+        error instanceof XlsxParseError || error instanceof Error
+          ? error.message
+          : 'No se pudo leer el Excel.';
+      return orgImportFileError(message);
     }
   }
 
@@ -149,6 +190,7 @@ export class OrgImportService {
           name: true,
           areaId: true,
           jobLevelId: true,
+          parentPositionId: true,
           headcount: true,
           status: true,
           deletedAt: true,
@@ -194,18 +236,22 @@ export class OrgImportService {
     const levelIds = new Map<string, string>();
     const positionIds = new Map<string, string>();
     const employeeIds = new Map<string, string>();
+    const buCodes = catalog.businessUnits.map((item) => item.code);
+    const areaCodes = catalog.areas.map((item) => item.code);
+    const levelCodes = catalog.jobLevels.map((item) => item.code);
+    const positionCodes = catalog.positions.map((item) => item.code);
 
     for (const item of catalog.businessUnits) {
-      if (item.code && !item.deletedAt) buIds.set(item.code, item.id);
+      if (!item.deletedAt) buIds.set(item.name, item.id);
     }
     for (const item of catalog.areas) {
-      if (item.code && !item.deletedAt) areaIds.set(item.code, item.id);
+      if (!item.deletedAt) areaIds.set(item.name, item.id);
     }
     for (const item of catalog.jobLevels) {
-      if (item.code && !item.deletedAt) levelIds.set(item.code, item.id);
+      if (!item.deletedAt) levelIds.set(item.name, item.id);
     }
     for (const item of catalog.positions) {
-      if (item.code && !item.deletedAt) positionIds.set(item.code, item.id);
+      if (!item.deletedAt) positionIds.set(item.name, item.id);
     }
     for (const item of catalog.employees) {
       if (!item.deletedAt) employeeIds.set(item.email.toLowerCase(), item.id);
@@ -213,7 +259,7 @@ export class OrgImportService {
 
     for (const item of plan.businessUnits) {
       if (item.action === 'omit' && item.existingId) {
-        buIds.set(item.code, item.existingId);
+        buIds.set(item.name, item.existingId);
         continue;
       }
       if (item.action === 'update' && item.existingId) {
@@ -225,24 +271,26 @@ export class OrgImportService {
             status: item.status,
           },
         });
-        buIds.set(item.code, item.existingId);
+        buIds.set(item.name, item.existingId);
         continue;
       }
+      const code = nextSequentialCode(buCodes);
+      buCodes.push(code);
       const created = await tx.businessUnit.create({
         data: {
           companyId,
-          code: item.code,
+          code,
           name: item.name,
           description: item.description,
           status: item.status,
         },
       });
-      buIds.set(item.code, created.id);
+      buIds.set(item.name, created.id);
     }
 
     for (const item of plan.jobLevels) {
       if (item.action === 'omit' && item.existingId) {
-        levelIds.set(item.code, item.existingId);
+        levelIds.set(item.name, item.existingId);
         continue;
       }
       if (item.action === 'update' && item.existingId) {
@@ -250,30 +298,32 @@ export class OrgImportService {
           where: { id: item.existingId },
           data: { name: item.name, rank: item.rank, status: item.status },
         });
-        levelIds.set(item.code, item.existingId);
+        levelIds.set(item.name, item.existingId);
         continue;
       }
+      const code = nextSequentialCode(levelCodes);
+      levelCodes.push(code);
       const created = await tx.jobLevel.create({
         data: {
           companyId,
-          code: item.code,
+          code,
           name: item.name,
           rank: item.rank,
           status: item.status,
         },
       });
-      levelIds.set(item.code, created.id);
+      levelIds.set(item.name, created.id);
     }
 
     for (const item of sortAreas(plan.areas)) {
-      const businessUnitId = item.businessUnitCode
-        ? (buIds.get(item.businessUnitCode) ?? null)
+      const businessUnitId = item.businessUnitName
+        ? (buIds.get(item.businessUnitName) ?? null)
         : null;
-      const parentAreaId = item.parentAreaCode
-        ? (areaIds.get(item.parentAreaCode) ?? null)
+      const parentAreaId = item.parentAreaName
+        ? (areaIds.get(item.parentAreaName) ?? null)
         : null;
       if (item.action === 'omit' && item.existingId) {
-        areaIds.set(item.code, item.existingId);
+        areaIds.set(item.name, item.existingId);
         continue;
       }
       if (item.action === 'update' && item.existingId) {
@@ -287,13 +337,15 @@ export class OrgImportService {
             parentAreaId,
           },
         });
-        areaIds.set(item.code, item.existingId);
+        areaIds.set(item.name, item.existingId);
         continue;
       }
+      const code = nextSequentialCode(areaCodes);
+      areaCodes.push(code);
       const created = await tx.area.create({
         data: {
           companyId,
-          code: item.code,
+          code,
           name: item.name,
           description: item.description,
           status: item.status,
@@ -301,19 +353,22 @@ export class OrgImportService {
           parentAreaId,
         },
       });
-      areaIds.set(item.code, created.id);
+      areaIds.set(item.name, created.id);
     }
 
-    for (const item of plan.positions) {
-      const areaId = areaIds.get(item.areaCode);
+    for (const item of sortPositions(plan.positions)) {
+      const areaId = areaIds.get(item.areaName);
       if (!areaId) {
-        throw new BadRequestException(`No existe el área ${item.areaCode}.`);
+        throw new BadRequestException(`No existe el área ${item.areaName}.`);
       }
-      const jobLevelId = item.jobLevelCode
-        ? (levelIds.get(item.jobLevelCode) ?? null)
+      const jobLevelId = item.jobLevelName
+        ? (levelIds.get(item.jobLevelName) ?? null)
+        : null;
+      const parentPositionId = item.parentPositionName
+        ? (positionIds.get(item.parentPositionName) ?? null)
         : null;
       if (item.action === 'omit' && item.existingId) {
-        positionIds.set(item.code, item.existingId);
+        positionIds.set(item.name, item.existingId);
         continue;
       }
       if (item.action === 'update' && item.existingId) {
@@ -323,37 +378,41 @@ export class OrgImportService {
             name: item.name,
             areaId,
             jobLevelId,
+            parentPositionId,
             headcount: item.headcount,
             status: item.status,
           },
         });
-        positionIds.set(item.code, item.existingId);
+        positionIds.set(item.name, item.existingId);
         continue;
       }
+      const code = nextSequentialCode(positionCodes);
+      positionCodes.push(code);
       const created = await tx.position.create({
         data: {
           companyId,
-          code: item.code,
+          code,
           name: item.name,
           areaId,
           jobLevelId,
+          parentPositionId,
           headcount: item.headcount,
           status: item.status,
         },
       });
-      positionIds.set(item.code, created.id);
+      positionIds.set(item.name, created.id);
     }
 
     for (const item of plan.employees) {
-      const areaId = areaIds.get(item.areaCode);
-      const positionId = positionIds.get(item.positionCode);
+      const areaId = areaIds.get(item.areaName);
+      const positionId = positionIds.get(item.positionName);
       if (!areaId || !positionId) {
         throw new BadRequestException(
           `No se pudo resolver área/cargo para ${item.email}.`,
         );
       }
-      const businessUnitId = item.businessUnitCode
-        ? (buIds.get(item.businessUnitCode) ?? null)
+      const businessUnitId = item.businessUnitName
+        ? (buIds.get(item.businessUnitName) ?? null)
         : null;
       if (item.action === 'omit' && item.existingId) {
         employeeIds.set(item.email, item.existingId);
@@ -421,26 +480,51 @@ export class OrgImportService {
 }
 
 function sortAreas(areas: PlannedArea[]): PlannedArea[] {
-  const byCode = new Map(areas.map((area) => [area.code, area]));
+  const byName = new Map(areas.map((area) => [area.name, area]));
   const visiting = new Set<string>();
   const visited = new Set<string>();
   const ordered: PlannedArea[] = [];
 
-  function visit(code: string) {
-    if (visited.has(code) || !byCode.has(code)) return;
-    if (visiting.has(code)) return;
-    visiting.add(code);
-    const node = byCode.get(code);
-    if (node?.parentAreaCode) {
-      visit(node.parentAreaCode);
+  function visit(name: string) {
+    if (visited.has(name) || !byName.has(name)) return;
+    if (visiting.has(name)) return;
+    visiting.add(name);
+    const node = byName.get(name);
+    if (node?.parentAreaName) {
+      visit(node.parentAreaName);
     }
-    visiting.delete(code);
-    visited.add(code);
+    visiting.delete(name);
+    visited.add(name);
     if (node) ordered.push(node);
   }
 
   for (const area of areas) {
-    visit(area.code);
+    visit(area.name);
+  }
+  return ordered;
+}
+
+function sortPositions(positions: PlannedPosition[]): PlannedPosition[] {
+  const byName = new Map(positions.map((position) => [position.name, position]));
+  const visiting = new Set<string>();
+  const visited = new Set<string>();
+  const ordered: PlannedPosition[] = [];
+
+  function visit(name: string) {
+    if (visited.has(name) || !byName.has(name)) return;
+    if (visiting.has(name)) return;
+    visiting.add(name);
+    const node = byName.get(name);
+    if (node?.parentPositionName) {
+      visit(node.parentPositionName);
+    }
+    visiting.delete(name);
+    visited.add(name);
+    if (node) ordered.push(node);
+  }
+
+  for (const position of positions) {
+    visit(position.name);
   }
   return ordered;
 }

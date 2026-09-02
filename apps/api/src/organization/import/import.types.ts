@@ -62,6 +62,7 @@ export type CatalogPosition = {
   name: string;
   areaId: string;
   jobLevelId: string | null;
+  parentPositionId: string | null;
   headcount: number;
   status: OrganizationEntityStatus;
   deletedAt: Date | null;
@@ -97,7 +98,6 @@ export type PlannedBusinessUnit = {
   row: number;
   action: ImportAction;
   existingId: string | null;
-  code: string;
   name: string;
   description: string | null;
   status: OrganizationEntityStatus;
@@ -107,19 +107,17 @@ export type PlannedArea = {
   row: number;
   action: ImportAction;
   existingId: string | null;
-  code: string;
   name: string;
   description: string | null;
   status: OrganizationEntityStatus;
-  businessUnitCode: string | null;
-  parentAreaCode: string | null;
+  businessUnitName: string | null;
+  parentAreaName: string | null;
 };
 
 export type PlannedJobLevel = {
   row: number;
   action: ImportAction;
   existingId: string | null;
-  code: string;
   name: string;
   rank: number;
   status: OrganizationEntityStatus;
@@ -129,10 +127,10 @@ export type PlannedPosition = {
   row: number;
   action: ImportAction;
   existingId: string | null;
-  code: string;
   name: string;
-  areaCode: string;
-  jobLevelCode: string | null;
+  areaName: string;
+  jobLevelName: string | null;
+  parentPositionName: string | null;
   headcount: number;
   status: OrganizationEntityStatus;
 };
@@ -144,9 +142,9 @@ export type PlannedEmployee = {
   email: string;
   firstName: string;
   lastName: string;
-  areaCode: string;
-  positionCode: string;
-  businessUnitCode: string | null;
+  areaName: string;
+  positionName: string;
+  businessUnitName: string | null;
   status: EmployeeStatus;
   managerEmail: string | null;
 };
@@ -202,6 +200,8 @@ export function emptyImportSummary(): ImportSummary {
     reportingLines: emptyEntityCounts(),
   };
 }
+
+export type OrgImportPayload = { csv: string } | { xlsx: Buffer };
 
 export function emptyCatalog(): OrgImportCatalog {
   return {

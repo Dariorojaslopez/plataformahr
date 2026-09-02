@@ -223,4 +223,20 @@ describe("organizationApi", () => {
       | undefined;
     expect(headers?.["Content-Type"]).toMatch(/text\/csv/);
   });
+
+  it("posts organization import xlsx as binary", async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      new Response(JSON.stringify({ canApply: true, issues: [] }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+    const bytes = new Uint8Array([0x50, 0x4b, 0x03, 0x04]).buffer;
+    await organizationApi.previewImport(bytes);
+    const headers = vi.mocked(fetch).mock.calls[0]?.[1]?.headers as
+      | Record<string, string>
+      | undefined;
+    expect(headers?.["Content-Type"]).toMatch(/spreadsheetml/);
+    expect(vi.mocked(fetch).mock.calls[0]?.[1]?.body).toBe(bytes);
+  });
 });

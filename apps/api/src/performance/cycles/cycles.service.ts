@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import {
+  GoalCycleStatus,
   OrganizationEntityStatus,
   PerformanceCycleStatus,
   PerformanceEvaluationModel,
@@ -37,6 +38,7 @@ import {
   parseWeight,
   resolveGoalsCompositionConfig,
   sameUtcDay,
+  type ResultCompositionConfig,
 } from '../performance.helpers';
 import {
   modelIncludesClient,
@@ -178,19 +180,23 @@ export class CyclesService {
       ...extraWeights,
     });
 
-    const goalsComposition = resolveGoalsCompositionConfig({
-      includeCompetencies: dto.includeCompetencies,
-      goalCycleId: dto.goalCycleId,
-      competencyResultWeight: dto.competencyResultWeight,
-      goalsResultWeight: dto.goalsResultWeight,
-      organizationalGoalsWeight: dto.organizationalGoalsWeight,
-      individualGoalsWeight: dto.individualGoalsWeight,
-      evaluationRange: dto.evaluationRange,
-      maxObjectives: dto.maxObjectives,
+    const goalsComposition = await this.ensureGoalCycleForComposition({
+      companyId,
+      userId,
+      name: dto.name.trim(),
+      startDate,
+      endDate,
+      composition: resolveGoalsCompositionConfig({
+        includeCompetencies: dto.includeCompetencies,
+        goalCycleId: dto.goalCycleId,
+        competencyResultWeight: dto.competencyResultWeight,
+        goalsResultWeight: dto.goalsResultWeight,
+        organizationalGoalsWeight: dto.organizationalGoalsWeight,
+        individualGoalsWeight: dto.individualGoalsWeight,
+        evaluationRange: dto.evaluationRange,
+        maxObjectives: dto.maxObjectives,
+      }),
     });
-    if (goalsComposition.goalCycleId) {
-      await this.requireGoalCycle(companyId, goalsComposition.goalCycleId);
-    }
 
     const created = await this.prisma.performanceCycle.create({
       data: {
@@ -318,41 +324,47 @@ export class CyclesService {
       typeof resolveGoalsCompositionConfig
     > | null = null;
     if (goalsCompositionTouched) {
-      goalsComposition = resolveGoalsCompositionConfig({
-        includeCompetencies:
-          dto.includeCompetencies !== undefined
-            ? dto.includeCompetencies
-            : existing.includeCompetencies,
-        goalCycleId:
-          dto.goalCycleId !== undefined ? dto.goalCycleId : existing.goalCycleId,
-        competencyResultWeight: this.existingOptionalWeight(
-          dto.competencyResultWeight,
-          existing.competencyResultWeight,
-        ),
-        goalsResultWeight: this.existingOptionalWeight(
-          dto.goalsResultWeight,
-          existing.goalsResultWeight,
-        ),
-        organizationalGoalsWeight: this.existingOptionalWeight(
-          dto.organizationalGoalsWeight,
-          existing.organizationalGoalsWeight,
-        ),
-        individualGoalsWeight: this.existingOptionalWeight(
-          dto.individualGoalsWeight,
-          existing.individualGoalsWeight,
-        ),
-        evaluationRange:
-          dto.evaluationRange !== undefined
-            ? dto.evaluationRange
-            : existing.evaluationRange,
-        maxObjectives:
-          dto.maxObjectives !== undefined
-            ? dto.maxObjectives
-            : existing.maxObjectives,
+      goalsComposition = await this.ensureGoalCycleForComposition({
+        companyId,
+        userId,
+        name: (dto.name ?? existing.name).trim(),
+        startDate,
+        endDate,
+        composition: resolveGoalsCompositionConfig({
+          includeCompetencies:
+            dto.includeCompetencies !== undefined
+              ? dto.includeCompetencies
+              : existing.includeCompetencies,
+          goalCycleId:
+            dto.goalCycleId !== undefined
+              ? dto.goalCycleId
+              : existing.goalCycleId,
+          competencyResultWeight: this.existingOptionalWeight(
+            dto.competencyResultWeight,
+            existing.competencyResultWeight,
+          ),
+          goalsResultWeight: this.existingOptionalWeight(
+            dto.goalsResultWeight,
+            existing.goalsResultWeight,
+          ),
+          organizationalGoalsWeight: this.existingOptionalWeight(
+            dto.organizationalGoalsWeight,
+            existing.organizationalGoalsWeight,
+          ),
+          individualGoalsWeight: this.existingOptionalWeight(
+            dto.individualGoalsWeight,
+            existing.individualGoalsWeight,
+          ),
+          evaluationRange:
+            dto.evaluationRange !== undefined
+              ? dto.evaluationRange
+              : existing.evaluationRange,
+          maxObjectives:
+            dto.maxObjectives !== undefined
+              ? dto.maxObjectives
+              : existing.maxObjectives,
+        }),
       });
-      if (goalsComposition.goalCycleId) {
-        await this.requireGoalCycle(companyId, goalsComposition.goalCycleId);
-      }
     }
 
     const updated = await this.prisma.$transaction(async (tx) => {
@@ -491,6 +503,16 @@ export class CyclesService {
       });
       if (updated.count !== 1) {
         throw new ConflictException('Cycle status changed concurrently; retry');
+      }
+      if (cycle.goalCycleId) {
+        await tx.goalCycle.updateMany({
+          where: {
+            id: cycle.goalCycleId,
+            companyId,
+            status: GoalCycleStatus.DRAFT,
+          },
+          data: { status: GoalCycleStatus.ACTIVE },
+        });
       }
       return tx.performanceCycle.findFirstOrThrow({
         where: { id, companyId },
@@ -817,6 +839,39 @@ export class CyclesService {
     const row = await this.requireActiveScale(companyId, id);
     assertQualitativeCompetencyScale(row.kind);
     return row;
+  }
+
+  private async ensureGoalCycleForComposition(params: {
+    companyId: string;
+    userId: string;
+    name: string;
+    startDate: Date;
+    endDate: Date;
+    composition: ResultCompositionConfig;
+  }): Promise<ResultCompositionConfig> {
+    const { composition } = params;
+    const goalsWeight = composition.goalsResultWeight
+      ? Number(composition.goalsResultWeight.toString())
+      : 0;
+    if (goalsWeight <= 0) {
+      return composition;
+    }
+    if (composition.goalCycleId) {
+      await this.requireGoalCycle(params.companyId, composition.goalCycleId);
+      return composition;
+    }
+    const created = await this.prisma.goalCycle.create({
+      data: {
+        companyId: params.companyId,
+        name: params.name,
+        description: 'Periodo de objetivos del ciclo de desempeño',
+        startDate: params.startDate,
+        endDate: params.endDate,
+        createdByUserId: params.userId,
+      },
+      select: { id: true },
+    });
+    return { ...composition, goalCycleId: created.id };
   }
 
   private async requireGoalCycle(companyId: string, goalCycleId: string) {

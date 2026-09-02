@@ -1,11 +1,15 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { OrganizationEntityStatus } from '@prisma/client';
 import { withDuplicateCompanyCodeConflict } from '../../common/prisma/duplicate-company-code';
 import { nextSequentialCode } from '../../common/sequential-code';
 import { AuditService } from '../../core/audit/audit.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ORG_AUDIT } from '../organization.constants';
-import { emptyToNull } from '../organization.helpers';
+import {
+  assertNoCycle,
+  emptyToNull,
+  wouldCreateParentCycle,
+} from '../organization.helpers';
 import { OrganizationIntegrityService } from '../organization-integrity.service';
 import { PositionCustomFieldsService } from '../position-custom-fields/position-custom-fields.service';
 import type { SerializedPosition } from '../position-custom-fields/position-custom-fields.serialize';
@@ -37,6 +41,9 @@ export class PositionsService {
     if (dto.jobLevelId) {
       await this.integrity.requireJobLevel(companyId, dto.jobLevelId);
     }
+    if (dto.parentPositionId) {
+      await this.integrity.requirePosition(companyId, dto.parentPositionId);
+    }
 
     const code =
       emptyToNull(dto.code) ??
@@ -64,6 +71,7 @@ export class PositionsService {
               requiredExperience: emptyToNull(dto.requiredExperience) ?? null,
               requiredEducation: emptyToNull(dto.requiredEducation) ?? null,
               headcount: dto.headcount ?? 1,
+              parentPositionId: dto.parentPositionId ?? null,
               status: dto.status ?? OrganizationEntityStatus.ACTIVE,
             },
           });
@@ -110,6 +118,15 @@ export class PositionsService {
     if (dto.jobLevelId) {
       await this.integrity.requireJobLevel(companyId, dto.jobLevelId);
     }
+    if (dto.parentPositionId) {
+      if (dto.parentPositionId === id) {
+        throw new BadRequestException(
+          'Un cargo no puede reportar a sí mismo.',
+        );
+      }
+      await this.integrity.requirePosition(companyId, dto.parentPositionId);
+      await this.assertPositionParentSafe(companyId, id, dto.parentPositionId);
+    }
 
     await withDuplicateCompanyCodeConflict(
       dto.code,
@@ -140,6 +157,9 @@ export class PositionsService {
                 : {}),
               ...(dto.headcount !== undefined
                 ? { headcount: dto.headcount }
+                : {}),
+              ...(dto.parentPositionId !== undefined
+                ? { parentPositionId: dto.parentPositionId }
                 : {}),
               ...(dto.status !== undefined ? { status: dto.status } : {}),
             },
@@ -184,5 +204,23 @@ export class PositionsService {
     }
 
     return this.customFields.getSerializedPosition(companyId, id);
+  }
+
+  private async assertPositionParentSafe(
+    companyId: string,
+    positionId: string,
+    parentPositionId: string,
+  ): Promise<void> {
+    const positions = await this.prisma.position.findMany({
+      where: { companyId, deletedAt: null },
+      select: { id: true, parentPositionId: true },
+    });
+    const parentsById = new Map(
+      positions.map((position) => [position.id, position.parentPositionId]),
+    );
+    assertNoCycle(
+      wouldCreateParentCycle(positionId, parentPositionId, parentsById),
+      'La jerarquía de cargos formaría un ciclo.',
+    );
   }
 }

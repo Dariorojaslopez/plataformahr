@@ -232,9 +232,15 @@ export const HOME_SHORTCUTS: Record<CompanyHomeRole, HomeShortcut[]> = {
       group: "performance",
     },
     {
+      href: "/performance/9box",
+      title: "9Box",
+      description: "Cuadrante de potencial y desempeño de la sesión.",
+      group: "performance",
+    },
+    {
       href: "/performance/calibration",
       title: "Calibración",
-      description: "Sesiones 9Box, invitados y líderes.",
+      description: "Invitados, líderes y ventana de la sesión.",
       group: "performance",
     },
     {
@@ -267,9 +273,14 @@ export const HOME_SHORTCUTS: Record<CompanyHomeRole, HomeShortcut[]> = {
       description: "Publica y consulta resultados del ciclo.",
     },
     {
+      href: "/performance/9box",
+      title: "9Box",
+      description: "Cuadrante de potencial y desempeño.",
+    },
+    {
       href: "/performance/calibration",
       title: "Calibración",
-      description: "Configura sesiones y el 9Box.",
+      description: "Invitados, líderes y ventana de la sesión.",
     },
     {
       href: "/organization/competencies",

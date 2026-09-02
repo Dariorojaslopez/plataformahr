@@ -15,16 +15,9 @@ import {
   extraEvaluatorRoles,
 } from "@/lib/performance/evaluation-model";
 
-type GoalCycleOption = {
-  value: string;
-  label: string;
-};
-
 type CycleFormFieldsProps = {
   form: CycleFormState;
   setForm: Dispatch<SetStateAction<CycleFormState>>;
-  goalCycleOptions: GoalCycleOption[];
-  goalCyclesLoading?: boolean;
   idPrefix?: string;
   lockStartDate?: boolean;
 };
@@ -85,8 +78,6 @@ function DatePair({
 export function CycleFormFields({
   form,
   setForm,
-  goalCycleOptions,
-  goalCyclesLoading = false,
   idPrefix = "cycle",
   lockStartDate = false,
 }: CycleFormFieldsProps) {
@@ -406,8 +397,6 @@ export function CycleFormFields({
       <CycleCompositionFields
         form={form}
         setForm={setForm}
-        goalCycleOptions={goalCycleOptions}
-        goalCyclesLoading={goalCyclesLoading}
         idPrefix={idPrefix}
       />
     </>

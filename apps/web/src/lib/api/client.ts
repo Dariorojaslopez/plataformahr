@@ -10,7 +10,7 @@ import type { AccessTokenResponse } from "@/types/auth";
 export type ApiRequestOptions = {
   method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
   body?: unknown;
-  rawBody?: string;
+  rawBody?: string | ArrayBuffer;
   formData?: FormData;
   headers?: Record<string, string>;
   auth?: boolean;
@@ -197,7 +197,8 @@ export async function apiRequestBlob(
   const withAccept: ApiRequestOptions = {
     ...options,
     headers: {
-      Accept: "text/csv, application/octet-stream, */*",
+      Accept:
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, text/csv, application/octet-stream, */*",
       ...options.headers,
     },
   };

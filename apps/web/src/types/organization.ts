@@ -133,6 +133,7 @@ export type Position = {
   companyId: string;
   areaId: string;
   jobLevelId: string | null;
+  parentPositionId: string | null;
   name: string;
   code: string | null;
   mission: string | null;
@@ -315,6 +316,7 @@ export type CreatePositionInput = {
   name: string;
   areaId: string;
   jobLevelId?: string;
+  parentPositionId?: string;
   code?: string;
   mission?: string;
   responsibilities?: string;
@@ -329,6 +331,7 @@ export type UpdatePositionInput = {
   name?: string;
   areaId?: string;
   jobLevelId?: string | null;
+  parentPositionId?: string | null;
   code?: string;
   mission?: string;
   responsibilities?: string;
@@ -377,7 +380,7 @@ export type UpdateEmployeeInput = {
   country?: string;
   state?: string;
   city?: string;
-  maritalStatus?: string;
+  maritalStatus?: string | null;
   childrenCount?: number | null;
   housingType?: string;
   emergencyContactName?: string;

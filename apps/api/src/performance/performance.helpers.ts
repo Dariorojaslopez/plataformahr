@@ -177,6 +177,8 @@ function toWeightNumber(value: Prisma.Decimal | null): number {
  * - Competencies optional (includeCompetencies).
  * - Organizational + individual goal weights stored separately; goalsResultWeight = sum.
  * - Weights must not exceed evaluationRange (100 or 120). Need not sum to 100.
+ * - goalCycleId is optional: when goal weights are set without one, the
+ *   cycle service provisions a GoalCycle automatically.
  */
 export function resolveResultCompositionConfig(input: {
   includeCompetencies?: boolean;
@@ -274,12 +276,6 @@ export function resolveResultCompositionConfig(input: {
       evaluationRange,
       maxObjectives: input.maxObjectives ?? null,
     };
-  }
-
-  if (goalCycleId == null) {
-    throw new BadRequestException(
-      'goalCycleId is required when goal weights are set',
-    );
   }
 
   return {

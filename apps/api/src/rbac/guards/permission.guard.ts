@@ -226,6 +226,11 @@ export class PermissionGuard implements CanActivate {
         features: ['performance.calibration', 'performance.my-results'],
       },
       {
+        prefix: '/performance/9box',
+        module: 'PERFORMANCE',
+        features: ['performance.calibration', 'performance.my-results'],
+      },
+      {
         prefix: '/performance/evaluations',
         module: 'PERFORMANCE',
         features: ['performance.cycles', 'performance.my-evaluations'],

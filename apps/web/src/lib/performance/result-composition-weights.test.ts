@@ -19,8 +19,9 @@ describe("result composition weights", () => {
     ).toBe(true);
   });
 
-  it("allows sum below the range when three weights are provided", () => {
+    it("allows sum below the range when three weights are provided", () => {
     expect(resultCompositionWeightsAreValid(70, 10, 10, 100)).toBe(true);
+    expect(resultCompositionWeightsAreValid(50, 24.99, 25, 100)).toBe(true);
     expect(resultCompositionWeightsAreValid(70, 30, 30, 100)).toBe(false);
     expect(resultCompositionWeightsAreValid(70, 20, 30, 120)).toBe(true);
   });

@@ -43,6 +43,7 @@ describe('Organization core (e2e)', () => {
   let areaAId = '';
   let areaBId = '';
   let positionAId = '';
+  let positionBId = '';
   let jobLevelAId = '';
   let businessUnitAId = '';
   let employeeAId = '';
@@ -232,6 +233,7 @@ describe('Organization core (e2e)', () => {
         areaId: areaBId,
       })
       .expect(201);
+    positionBId = (posB.body as { id: string }).id;
 
     const empA = await request(app.getHttpServer())
       .post('/organization/employees')
@@ -568,6 +570,37 @@ describe('Organization core (e2e)', () => {
       .send({
         name: `Bad Parent ${suffix}`,
         parentAreaId: areaBId,
+      })
+      .expect(404);
+  });
+
+  it('detects position reporting cycles and same-company parent cargo', async () => {
+    const child = await request(app.getHttpServer())
+      .post('/organization/positions')
+      .set('Authorization', `Bearer ${adminAToken}`)
+      .set('X-Company-Id', companyAId)
+      .send({
+        name: `Child Position ${suffix}`,
+        areaId: areaAId,
+        parentPositionId: positionAId,
+      })
+      .expect(201);
+
+    await request(app.getHttpServer())
+      .patch(`/organization/positions/${positionAId}`)
+      .set('Authorization', `Bearer ${adminAToken}`)
+      .set('X-Company-Id', companyAId)
+      .send({ parentPositionId: (child.body as { id: string }).id })
+      .expect(400);
+
+    await request(app.getHttpServer())
+      .post('/organization/positions')
+      .set('Authorization', `Bearer ${adminAToken}`)
+      .set('X-Company-Id', companyAId)
+      .send({
+        name: `Bad Parent Position ${suffix}`,
+        areaId: areaAId,
+        parentPositionId: positionBId,
       })
       .expect(404);
   });

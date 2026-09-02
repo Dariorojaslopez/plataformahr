@@ -1,11 +1,13 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Eye, Search } from "lucide-react";
+import { Eye, Plus, Search } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { useSession } from "@/components/auth/session-provider";
+import { EntityEditorShell } from "@/components/organization/entity-editor-shell";
+import { FormSelect } from "@/components/organization/form-select";
 import { PaginationControls } from "@/components/organization/pagination-controls";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -24,13 +26,30 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Textarea } from "@/components/ui/textarea";
 import { useCompanyId } from "@/hooks/use-company-id";
 import { companyApi, companyKeys } from "@/lib/api/company";
 import { getErrorMessage } from "@/lib/api/errors";
 import { goalKeys, goalsApi } from "@/lib/api/goals";
-import { GOAL_STATUS_LABELS, goalStatusVariant } from "@/lib/goals/labels";
+import {
+  DIRECTION_LABELS,
+  GOAL_STATUS_LABELS,
+  METRIC_TYPE_LABELS,
+  goalStatusVariant,
+} from "@/lib/goals/labels";
+import {
+  buildOrganizationalGoalCreate,
+  canManageOrganizationalGoals,
+  emptyOrganizationalGoalForm,
+  type OrganizationalGoalForm,
+} from "@/lib/goals/organizational-form";
 import { notifyError, notifySuccess } from "@/lib/ui/notify";
-import type { GoalStatus, ListGoalsParams } from "@/types/goals";
+import type {
+  GoalMetricDirection,
+  GoalMetricType,
+  GoalStatus,
+  ListGoalsParams,
+} from "@/types/goals";
 
 function useFilters() {
   const searchParams = useSearchParams();
@@ -56,12 +75,16 @@ function useFilters() {
 
 export function GoalsPageClient() {
   const companyId = useCompanyId();
+  const router = useRouter();
   const { companyAccess } = useSession();
-  const canToggleCascade = (companyAccess?.roleCodes ?? []).includes(
-    "CLIENT_ADMIN",
-  );
+  const canManage = canManageOrganizationalGoals(companyAccess?.roleCodes);
   const { params, setParams } = useFilters();
   const [searchInput, setSearchInput] = useState(params.search ?? "");
+  const [open, setOpen] = useState(false);
+  const [form, setForm] = useState<OrganizationalGoalForm>(
+    emptyOrganizationalGoalForm,
+  );
+  const [formError, setFormError] = useState<string | null>(null);
   const queryClient = useQueryClient();
 
   const listQuery = useQuery({
@@ -71,6 +94,11 @@ export function GoalsPageClient() {
   const companyQuery = useQuery({
     queryKey: companyKeys.current(companyId),
     queryFn: () => companyApi.getCurrent(),
+  });
+  const cyclesQuery = useQuery({
+    queryKey: goalKeys.cycles(companyId, { limit: 100 }),
+    queryFn: () => goalsApi.listCycles({ limit: 100 }),
+    enabled: open && canManage,
   });
 
   const cascadeMutation = useMutation({
@@ -87,14 +115,71 @@ export function GoalsPageClient() {
     onError: (error) => notifyError(error, "No se pudo guardar el cascadeo."),
   });
 
+  const createMutation = useMutation({
+    mutationFn: async () => {
+      const payload = buildOrganizationalGoalCreate(form);
+      const cycleId =
+        "id" in payload.cycle
+          ? payload.cycle.id
+          : (
+              await goalsApi.createCycle({
+                name: payload.cycle.name,
+                startDate: payload.cycle.startDate,
+                endDate: payload.cycle.endDate,
+              })
+            ).id;
+      const goal = await goalsApi.createGoal({
+        ...payload.goal,
+        cycleId,
+      });
+      await goalsApi.createKeyResult(goal.id, payload.keyResult);
+      return goal;
+    },
+    onSuccess: async (goal) => {
+      await queryClient.invalidateQueries({ queryKey: goalKeys.all(companyId) });
+      setOpen(false);
+      notifySuccess("Objetivo organizacional creado");
+      router.push(`/goals/${goal.id}`);
+    },
+    onError: (error) => {
+      setFormError(getErrorMessage(error, "No se pudo crear."));
+      notifyError(error, "No se pudo crear el objetivo.");
+    },
+  });
+
   const items = listQuery.data?.items ?? [];
   const cascadeOn = companyQuery.data?.goalsCascadeEnabled === true;
+  const cycleOptions = (cyclesQuery.data?.items ?? [])
+    .filter((cycle) => cycle.status === "DRAFT" || cycle.status === "ACTIVE")
+    .map((cycle) => ({
+      value: cycle.id,
+      label: `${cycle.name} (${cycle.startDate} → ${cycle.endDate})`,
+    }));
 
   return (
     <div className="space-y-6">
       <PageHeader
         title="Objetivos organizacionales"
-        description="Objetivos de compañía en modo consulta para todas las personas."
+        description={
+          canManage
+            ? "Crea objetivos de compañía con método de evaluación y meta. Después carga los resultados en el detalle."
+            : "Objetivos de compañía visibles para todas las personas."
+        }
+        actions={
+          canManage ? (
+            <Button
+              type="button"
+              onClick={() => {
+                setForm(emptyOrganizationalGoalForm());
+                setFormError(null);
+                setOpen(true);
+              }}
+            >
+              <Plus className="h-4 w-4" />
+              Nuevo objetivo
+            </Button>
+          ) : null
+        }
       />
 
       <section className="flex flex-col gap-3 rounded-lg border border-border bg-card p-4 sm:flex-row sm:items-center sm:justify-between">
@@ -108,7 +193,7 @@ export function GoalsPageClient() {
         <Switch
           id="cascade-switch"
           checked={cascadeOn}
-          disabled={!canToggleCascade || cascadeMutation.isPending}
+          disabled={!canManage || cascadeMutation.isPending}
           onCheckedChange={(checked) => cascadeMutation.mutate(checked)}
           aria-label="Activar cascadeo de objetivos organizacionales"
         />
@@ -143,7 +228,11 @@ export function GoalsPageClient() {
       {listQuery.isSuccess && items.length === 0 ? (
         <EmptyState
           title="Sin objetivos organizacionales"
-          description="Cuando existan objetivos de compañía, aparecerán aquí en solo lectura."
+          description={
+            canManage
+              ? "Crea el primero con periodo, método de evaluación y meta."
+              : "Cuando existan objetivos de compañía, aparecerán aquí."
+          }
         />
       ) : null}
 
@@ -209,6 +298,231 @@ export function GoalsPageClient() {
           />
         </>
       ) : null}
+
+      <EntityEditorShell
+        open={open}
+        onOpenChange={setOpen}
+        title="Nuevo objetivo organizacional"
+      >
+        <form
+          className="space-y-4"
+          onSubmit={(event) => {
+            event.preventDefault();
+            setFormError(null);
+            try {
+              buildOrganizationalGoalCreate(form);
+            } catch (error) {
+              setFormError(
+                error instanceof Error ? error.message : "Revisa el formulario.",
+              );
+              return;
+            }
+            createMutation.mutate();
+          }}
+        >
+          <FormSelect
+            id="org-goal-cycle"
+            label="Periodo"
+            value={form.cycleId}
+            onChange={(cycleId) => setForm((f) => ({ ...f, cycleId }))}
+            options={cycleOptions}
+            allowEmpty
+            emptyLabel={
+              cyclesQuery.isLoading ? "Cargando periodos…" : "Crear un periodo nuevo"
+            }
+          />
+          {!form.cycleId ? (
+            <div className="grid gap-3 sm:grid-cols-3">
+              <div className="space-y-2 sm:col-span-3">
+                <Label htmlFor="org-goal-cycle-name">Nombre del periodo</Label>
+                <Input
+                  id="org-goal-cycle-name"
+                  value={form.newCycleName}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, newCycleName: e.target.value }))
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="org-goal-cycle-start">Inicio</Label>
+                <Input
+                  id="org-goal-cycle-start"
+                  type="date"
+                  value={form.newCycleStartDate}
+                  onChange={(e) =>
+                    setForm((f) => ({
+                      ...f,
+                      newCycleStartDate: e.target.value,
+                    }))
+                  }
+                />
+              </div>
+              <div className="space-y-2 sm:col-span-2">
+                <Label htmlFor="org-goal-cycle-end">Cierre</Label>
+                <Input
+                  id="org-goal-cycle-end"
+                  type="date"
+                  value={form.newCycleEndDate}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, newCycleEndDate: e.target.value }))
+                  }
+                />
+              </div>
+            </div>
+          ) : null}
+
+          <div className="space-y-2">
+            <Label htmlFor="org-goal-title">Título *</Label>
+            <Input
+              id="org-goal-title"
+              value={form.title}
+              onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
+              required
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="org-goal-desc">Descripción</Label>
+            <Textarea
+              id="org-goal-desc"
+              value={form.description}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, description: e.target.value }))
+              }
+            />
+          </div>
+
+          <FormSelect
+            id="org-goal-metric"
+            label="Método de evaluación"
+            value={form.metricType}
+            onChange={(metricType) =>
+              setForm((f) => ({
+                ...f,
+                metricType: metricType as GoalMetricType,
+                ...(metricType === "BOOLEAN"
+                  ? { direction: "", targetValue: "", startValue: "" }
+                  : {
+                      direction: f.direction || "INCREASE",
+                      targetBoolean: true,
+                    }),
+              }))
+            }
+            options={Object.entries(METRIC_TYPE_LABELS).map(([value, label]) => ({
+              value,
+              label,
+            }))}
+          />
+
+          {form.metricType === "BOOLEAN" ? (
+            <FormSelect
+              id="org-goal-bool"
+              label="Meta"
+              value={form.targetBoolean ? "yes" : "no"}
+              onChange={(value) =>
+                setForm((f) => ({ ...f, targetBoolean: value === "yes" }))
+              }
+              options={[
+                { value: "yes", label: "Cumplir" },
+                { value: "no", label: "No cumplir" },
+              ]}
+            />
+          ) : (
+            <div className="grid gap-3 sm:grid-cols-2">
+              <FormSelect
+                id="org-goal-direction"
+                label="Sentido"
+                value={form.direction}
+                onChange={(direction) =>
+                  setForm((f) => ({
+                    ...f,
+                    direction: direction as GoalMetricDirection,
+                  }))
+                }
+                options={Object.entries(DIRECTION_LABELS).map(
+                  ([value, label]) => ({ value, label }),
+                )}
+              />
+              <div className="space-y-2">
+                <Label htmlFor="org-goal-target">Meta *</Label>
+                <Input
+                  id="org-goal-target"
+                  type="number"
+                  step="0.01"
+                  value={form.targetValue}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, targetValue: e.target.value }))
+                  }
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="org-goal-start">Valor inicial</Label>
+                <Input
+                  id="org-goal-start"
+                  type="number"
+                  step="0.01"
+                  value={form.startValue}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, startValue: e.target.value }))
+                  }
+                />
+              </div>
+              {form.metricType === "CURRENCY" ? (
+                <div className="space-y-2">
+                  <Label htmlFor="org-goal-currency">Moneda</Label>
+                  <Input
+                    id="org-goal-currency"
+                    value={form.currencyCode}
+                    maxLength={3}
+                    onChange={(e) =>
+                      setForm((f) => ({
+                        ...f,
+                        currencyCode: e.target.value.toUpperCase(),
+                      }))
+                    }
+                  />
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <Label htmlFor="org-goal-unit">Unidad</Label>
+                  <Input
+                    id="org-goal-unit"
+                    value={form.unit}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, unit: e.target.value }))
+                    }
+                    placeholder={
+                      form.metricType === "PERCENTAGE" ? "%" : "Opcional"
+                    }
+                  />
+                </div>
+              )}
+            </div>
+          )}
+
+          <p className="text-xs text-muted-foreground">
+            La carga de resultados se hace en el detalle del objetivo, con el
+            periodo activo: registra el avance contra la meta.
+          </p>
+          {formError ? (
+            <p className="text-sm text-destructive" role="alert">
+              {formError}
+            </p>
+          ) : null}
+          <div className="flex justify-end gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setOpen(false)}
+            >
+              Cancelar
+            </Button>
+            <Button type="submit" disabled={createMutation.isPending}>
+              {createMutation.isPending ? "Creando…" : "Crear"}
+            </Button>
+          </div>
+        </form>
+      </EntityEditorShell>
     </div>
   );
 }

@@ -133,10 +133,12 @@ Listado admin tenant-wide exige `goal.manage` (no filtrar accidentalmente por `r
 
 ## Frontend
 
-- Nav **Objetivos**: Periodos, Objetivos, Mis objetivos
+- Nav **Objetivos**: Periodos, Objetivos organizacionales, Mis objetivos
 - `/goals/cycles`, `/goals/cycles/[id]`, `/goals`, `/goals/[id]`, `/my-goals`
 - Keys: `["goals", companyId, ...]`
-- My Goals read-only + aviso de avances futuros
+- **Objetivos organizacionales** (`/goals`): listado COMPANY. Quien tiene `CLIENT_ADMIN` o `PERFORMANCE_MANAGER` puede **crear** (periodo, método de evaluación = métrica del KR, meta). La carga de resultados es el check-in del detalle con el periodo y el objetivo ACTIVE.
+- Colaboradores ven el listado y el detalle en consulta (sin editar estructura).
+- My Goals: ACTIVE/COMPLETED aplicables + aviso de avances
 
 ## Qué NO hace 09A
 

@@ -21,29 +21,26 @@ describe('buildOrgImportPlan', () => {
       csv([
         {
           recordType: 'jobLevel',
-          code: 'JL1',
           name: 'Junior',
           rank: '1',
         },
         {
           recordType: 'area',
-          code: 'OPS',
           name: 'Operaciones',
         },
         {
           recordType: 'position',
-          code: 'ANL',
           name: 'Analista',
-          areaCode: 'OPS',
-          jobLevelCode: 'JL1',
+          areaName: 'Operaciones',
+          jobLevelName: 'Junior',
         },
         {
           recordType: 'employee',
           email: 'ada@example.com',
           firstName: 'Ada',
           lastName: 'Lovelace',
-          areaCode: 'OPS',
-          positionCode: 'ANL',
+          areaName: 'Operaciones',
+          positionName: 'Analista',
         },
       ]),
       emptyCatalog(),
@@ -58,28 +55,26 @@ describe('buildOrgImportPlan', () => {
   it('creates a full structure and a manager defined after the collaborator', () => {
     const plan = buildOrgImportPlan(
       csv([
-        { recordType: 'businessUnit', code: 'BU1', name: 'Comercial' },
-        { recordType: 'jobLevel', code: 'JL1', name: 'Junior', rank: '1' },
+        { recordType: 'businessUnit', name: 'Comercial' },
+        { recordType: 'jobLevel', name: 'Junior', rank: '1' },
         {
           recordType: 'area',
-          code: 'OPS',
           name: 'Operaciones',
-          businessUnitCode: 'BU1',
+          businessUnitName: 'Comercial',
         },
         {
           recordType: 'position',
-          code: 'ANL',
           name: 'Analista',
-          areaCode: 'OPS',
-          jobLevelCode: 'JL1',
+          areaName: 'Operaciones',
+          jobLevelName: 'Junior',
         },
         {
           recordType: 'employee',
           email: 'luis@example.com',
           firstName: 'Luis',
           lastName: 'Reporte',
-          areaCode: 'OPS',
-          positionCode: 'ANL',
+          areaName: 'Operaciones',
+          positionName: 'Analista',
           managerEmail: 'ana@example.com',
         },
         {
@@ -87,8 +82,8 @@ describe('buildOrgImportPlan', () => {
           email: 'ana@example.com',
           firstName: 'Ana',
           lastName: 'Jefe',
-          areaCode: 'OPS',
-          positionCode: 'ANL',
+          areaName: 'Operaciones',
+          positionName: 'Analista',
         },
       ]),
       emptyCatalog(),
@@ -98,17 +93,17 @@ describe('buildOrgImportPlan', () => {
     expect(plan.summary.reportingLines.create).toBe(1);
   });
 
-  it('updates existing records matched by code or email', () => {
+  it('updates existing records matched by name or email', () => {
     const plan = buildOrgImportPlan(
       csv([
-        { recordType: 'businessUnit', code: 'BU1', name: 'Comercial Norte' },
+        { recordType: 'businessUnit', name: 'Comercial', description: 'Norte' },
         {
           recordType: 'employee',
           email: 'ada@example.com',
           firstName: 'Ada',
           lastName: 'Updated',
-          areaCode: 'OPS',
-          positionCode: 'ANL',
+          areaName: 'Operaciones',
+          positionName: 'Analista',
         },
       ]),
       {
@@ -116,7 +111,7 @@ describe('buildOrgImportPlan', () => {
         businessUnits: [
           {
             id: 'bu1',
-            code: 'BU1',
+            code: '001',
             name: 'Comercial',
             description: null,
             status: 'ACTIVE',
@@ -126,7 +121,7 @@ describe('buildOrgImportPlan', () => {
         areas: [
           {
             id: 'a1',
-            code: 'OPS',
+            code: '001',
             name: 'Operaciones',
             description: null,
             status: 'ACTIVE',
@@ -138,10 +133,11 @@ describe('buildOrgImportPlan', () => {
         positions: [
           {
             id: 'p1',
-            code: 'ANL',
+            code: '001',
             name: 'Analista',
             areaId: 'a1',
             jobLevelId: null,
+            parentPositionId: null,
             headcount: 1,
             status: 'ACTIVE',
             deletedAt: null,
@@ -167,11 +163,11 @@ describe('buildOrgImportPlan', () => {
     expect(plan.summary.employees.update).toBe(1);
   });
 
-  it('rejects duplicate codes in the file', () => {
+  it('rejects duplicate names in the file', () => {
     const plan = buildOrgImportPlan(
       csv([
-        { recordType: 'area', code: 'OPS', name: 'Uno' },
-        { recordType: 'area', code: 'OPS', name: 'Dos' },
+        { recordType: 'area', name: 'Operaciones' },
+        { recordType: 'area', name: 'Operaciones' },
       ]),
       emptyCatalog(),
     );
@@ -189,8 +185,8 @@ describe('buildOrgImportPlan', () => {
           email: 'ada@example.com',
           firstName: 'Ada',
           lastName: 'Lovelace',
-          areaCode: 'OPS',
-          positionCode: 'ABC',
+          areaName: 'Operaciones',
+          positionName: 'ABC',
         },
       ]),
       emptyCatalog(),
@@ -206,20 +202,19 @@ describe('buildOrgImportPlan', () => {
   it('rejects a missing manager', () => {
     const plan = buildOrgImportPlan(
       csv([
-        { recordType: 'area', code: 'OPS', name: 'Ops' },
+        { recordType: 'area', name: 'Ops' },
         {
           recordType: 'position',
-          code: 'ANL',
           name: 'Analista',
-          areaCode: 'OPS',
+          areaName: 'Ops',
         },
         {
           recordType: 'employee',
           email: 'ada@example.com',
           firstName: 'Ada',
           lastName: 'Lovelace',
-          areaCode: 'OPS',
-          positionCode: 'ANL',
+          areaName: 'Ops',
+          positionName: 'Analista',
           managerEmail: 'ghost@example.com',
         },
       ]),
@@ -234,20 +229,19 @@ describe('buildOrgImportPlan', () => {
   it('rejects self-manager', () => {
     const plan = buildOrgImportPlan(
       csv([
-        { recordType: 'area', code: 'OPS', name: 'Ops' },
+        { recordType: 'area', name: 'Ops' },
         {
           recordType: 'position',
-          code: 'ANL',
           name: 'Analista',
-          areaCode: 'OPS',
+          areaName: 'Ops',
         },
         {
           recordType: 'employee',
           email: 'ada@example.com',
           firstName: 'Ada',
           lastName: 'Lovelace',
-          areaCode: 'OPS',
-          positionCode: 'ANL',
+          areaName: 'Ops',
+          positionName: 'Analista',
           managerEmail: 'ada@example.com',
         },
       ]),
@@ -262,20 +256,19 @@ describe('buildOrgImportPlan', () => {
   it('rejects a reporting cycle in the file', () => {
     const plan = buildOrgImportPlan(
       csv([
-        { recordType: 'area', code: 'OPS', name: 'Ops' },
+        { recordType: 'area', name: 'Ops' },
         {
           recordType: 'position',
-          code: 'ANL',
           name: 'Analista',
-          areaCode: 'OPS',
+          areaName: 'Ops',
         },
         {
           recordType: 'employee',
           email: 'a@example.com',
           firstName: 'A',
           lastName: 'A',
-          areaCode: 'OPS',
-          positionCode: 'ANL',
+          areaName: 'Ops',
+          positionName: 'Analista',
           managerEmail: 'c@example.com',
         },
         {
@@ -283,8 +276,8 @@ describe('buildOrgImportPlan', () => {
           email: 'b@example.com',
           firstName: 'B',
           lastName: 'B',
-          areaCode: 'OPS',
-          positionCode: 'ANL',
+          areaName: 'Ops',
+          positionName: 'Analista',
           managerEmail: 'a@example.com',
         },
         {
@@ -292,8 +285,8 @@ describe('buildOrgImportPlan', () => {
           email: 'c@example.com',
           firstName: 'C',
           lastName: 'C',
-          areaCode: 'OPS',
-          positionCode: 'ANL',
+          areaName: 'Ops',
+          positionName: 'Analista',
           managerEmail: 'b@example.com',
         },
       ]),
@@ -308,20 +301,19 @@ describe('buildOrgImportPlan', () => {
   it('rejects an invalid email', () => {
     const plan = buildOrgImportPlan(
       csv([
-        { recordType: 'area', code: 'OPS', name: 'Ops' },
+        { recordType: 'area', name: 'Ops' },
         {
           recordType: 'position',
-          code: 'ANL',
           name: 'Analista',
-          areaCode: 'OPS',
+          areaName: 'Ops',
         },
         {
           recordType: 'employee',
           email: 'not-an-email',
           firstName: 'Ada',
           lastName: 'Lovelace',
-          areaCode: 'OPS',
-          positionCode: 'ANL',
+          areaName: 'Ops',
+          positionName: 'Analista',
         },
       ]),
       emptyCatalog(),
@@ -330,7 +322,7 @@ describe('buildOrgImportPlan', () => {
     expect(plan.issues.some((item) => item.field === 'email')).toBe(true);
   });
 
-  it('rejects unknown headers and companyId', () => {
+  it('rejects unknown headers and companyId, and ignores leftover code columns', () => {
     const withCompany = buildOrgImportPlan(
       'recordType,code,name,companyId\narea,OPS,Ops,secret\n',
       emptyCatalog(),
@@ -345,6 +337,17 @@ describe('buildOrgImportPlan', () => {
       emptyCatalog(),
     );
     expect(unknown.issues.some((item) => item.field === 'salary')).toBe(true);
+
+    const leftoverCode = buildOrgImportPlan(
+      [
+        ['code', ...ORG_IMPORT_HEADERS].join(','),
+        ['IGNORAR', 'area', 'Talento', ...Array(ORG_IMPORT_HEADERS.length - 2).fill('')].join(','),
+        '',
+      ].join('\n'),
+      emptyCatalog(),
+    );
+    expect(leftoverCode.canApply).toBe(true);
+    expect(leftoverCode.summary.areas.create).toBe(1);
   });
 
   it('rejects an oversized payload', () => {
@@ -359,7 +362,7 @@ describe('buildOrgImportPlan', () => {
   it('rejects too many rows', () => {
     const extra = Array.from(
       { length: ORG_IMPORT_MAX_ROWS + 1 },
-      (_, i) => `employee,E${i},N,d,ACTIVE,,, ,OPS,,,ANL,e${i}@x.com,A,B,`,
+      (_, i) => `employee,n${i}`,
     );
     const plan = buildOrgImportPlan(
       `${ORG_IMPORT_HEADERS.join(',')}\n${extra.join('\n')}\n`,
@@ -367,5 +370,50 @@ describe('buildOrgImportPlan', () => {
     );
     expect(plan.canApply).toBe(false);
     expect(plan.issues[0]?.field).toBe('archivo');
+  });
+
+  it('links a cargo to the cargo it reports to', () => {
+    const plan = buildOrgImportPlan(
+      csv([
+        { recordType: 'area', name: 'Ops' },
+        { recordType: 'position', name: 'Gerente', areaName: 'Ops' },
+        {
+          recordType: 'position',
+          name: 'Reclutador',
+          areaName: 'Ops',
+          parentPositionName: 'Gerente',
+        },
+      ]),
+      emptyCatalog(),
+    );
+    expect(plan.canApply).toBe(true);
+    expect(plan.positions.find((item) => item.name === 'Reclutador')?.parentPositionName).toBe(
+      'Gerente',
+    );
+  });
+
+  it('rejects a cargo reporting cycle', () => {
+    const plan = buildOrgImportPlan(
+      csv([
+        { recordType: 'area', name: 'Ops' },
+        {
+          recordType: 'position',
+          name: 'A',
+          areaName: 'Ops',
+          parentPositionName: 'B',
+        },
+        {
+          recordType: 'position',
+          name: 'B',
+          areaName: 'Ops',
+          parentPositionName: 'A',
+        },
+      ]),
+      emptyCatalog(),
+    );
+    expect(plan.canApply).toBe(false);
+    expect(
+      plan.issues.some((item) => item.message.includes('jerarquía de cargos')),
+    ).toBe(true);
   });
 });

@@ -170,7 +170,6 @@ export function cycleGoalsCompositionIsValid(form: CycleFormState): boolean {
   if (competency == null || org == null || individual == null) return false;
   if (!form.includeCompetencies && org + individual <= 0) return false;
   if (form.includeCompetencies && org + individual <= 0) return true;
-  if (!form.goalCycleId.trim()) return false;
   return resultCompositionWeightsAreValid(
     competency,
     org,
@@ -265,9 +264,6 @@ function applyCompositionToPayload<
   }
 
   const goalCycleId = form.goalCycleId.trim();
-  if (!goalCycleId) {
-    throw new Error("Selecciona un ciclo de objetivos.");
-  }
   const competency = form.includeCompetencies
     ? requireCompositionWeight(
         form.competencyResultWeight,
@@ -290,11 +286,13 @@ function applyCompositionToPayload<
     );
   }
 
-  payload.goalCycleId = goalCycleId;
+  if (goalCycleId) {
+    payload.goalCycleId = goalCycleId;
+  }
   payload.competencyResultWeight = competency;
   payload.organizationalGoalsWeight = org;
   payload.individualGoalsWeight = individual;
-  payload.goalsResultWeight = org + individual;
+  payload.goalsResultWeight = Number((org + individual).toFixed(2));
   return payload;
 }
 

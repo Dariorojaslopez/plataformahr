@@ -137,6 +137,7 @@ describe("position custom field payloads", () => {
       companyId: "c1",
       areaId: "a1",
       jobLevelId: null,
+      parentPositionId: null,
       name: "Analista",
       code: null,
       mission: null,

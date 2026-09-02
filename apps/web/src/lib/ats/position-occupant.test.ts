@@ -30,8 +30,11 @@ describe("position occupant helpers", () => {
   });
 
   it("formats occupant names", () => {
+    expect(
+      occupantLabel({ id: "1", firstName: "Ana", lastName: "Pérez", userId: "u1" }),
+    ).toBe("Ana Pérez");
     expect(occupantLabel({ id: "1", firstName: "Ana", lastName: "Pérez" })).toBe(
-      "Ana Pérez",
+      "Ana Pérez (sin acceso)",
     );
   });
 });

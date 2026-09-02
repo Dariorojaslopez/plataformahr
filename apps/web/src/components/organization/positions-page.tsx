@@ -48,6 +48,7 @@ type FormState = {
   code: string;
   areaId: string;
   jobLevelId: string;
+  parentPositionId: string;
   mission: string;
   responsibilities: string;
   requiredExperience: string;
@@ -61,6 +62,7 @@ const emptyForm: FormState = {
   code: "",
   areaId: "",
   jobLevelId: "",
+  parentPositionId: "",
   mission: "",
   responsibilities: "",
   requiredExperience: "",
@@ -108,6 +110,28 @@ export function PositionsPageClient() {
     return map;
   }, [levelsQuery.data]);
 
+  const positionMap = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const position of positionsQuery.data ?? []) {
+      map.set(position.id, position.name);
+    }
+    return map;
+  }, [positionsQuery.data]);
+
+  const parentOptions = useMemo(() => {
+    return (positionsQuery.data ?? [])
+      .filter((position) => position.id !== editing?.id)
+      .filter(
+        (position) =>
+          position.status === "ACTIVE" ||
+          position.id === editing?.parentPositionId,
+      )
+      .map((position) => ({
+        value: position.id,
+        label: position.name,
+      }));
+  }, [positionsQuery.data, editing?.id]);
+
   const saveMutation = useMutation({
     mutationFn: async () => {
       const headcount = Number(form.headcount);
@@ -129,12 +153,14 @@ export function PositionsPageClient() {
         return organizationApi.updatePosition(editing.id, {
           ...base,
           jobLevelId: form.jobLevelId || null,
+          parentPositionId: form.parentPositionId || null,
           customFields: toCustomFieldsPayload(activeFields, customValues),
         });
       }
       return organizationApi.createPosition({
         ...base,
         jobLevelId: form.jobLevelId || undefined,
+        parentPositionId: form.parentPositionId || undefined,
         customFields: toCustomFieldsPayload(activeFields, customValues),
       });
     },
@@ -168,6 +194,7 @@ export function PositionsPageClient() {
       code: position.code ?? "",
       areaId: position.areaId,
       jobLevelId: position.jobLevelId ?? "",
+      parentPositionId: position.parentPositionId ?? "",
       mission: position.mission ?? "",
       responsibilities: position.responsibilities ?? "",
       requiredExperience: position.requiredExperience ?? "",
@@ -221,6 +248,7 @@ export function PositionsPageClient() {
                 <TableHead>Cargo</TableHead>
                 <TableHead>Área</TableHead>
                 <TableHead>Nivel</TableHead>
+                <TableHead>Reporta a</TableHead>
                 <TableHead>
                   <span className="inline-flex items-center gap-1">
                     Plazas
@@ -254,6 +282,11 @@ export function PositionsPageClient() {
                   <TableCell>
                     {position.jobLevelId
                       ? (levelMap.get(position.jobLevelId) ?? "—")
+                      : "—"}
+                  </TableCell>
+                  <TableCell>
+                    {position.parentPositionId
+                      ? (positionMap.get(position.parentPositionId) ?? "—")
                       : "—"}
                   </TableCell>
                   <TableCell>{position.headcount}</TableCell>
@@ -326,6 +359,18 @@ export function PositionsPageClient() {
               value: level.id,
               label: `${level.name} (rank ${level.rank})`,
             }))}
+          />
+          <FormSelect
+            id="pos-parent"
+            label="Cargo al que reporta"
+            value={form.parentPositionId}
+            onChange={(value) =>
+              setForm((f) => ({ ...f, parentPositionId: value }))
+            }
+            allowEmpty
+            emptyLabel="Ninguno (cargo raíz)"
+            hint="Si la persona no tiene jefe directo, el organigrama usa a quien ocupa este cargo."
+            options={parentOptions}
           />
           <div className="space-y-2">
             <Label htmlFor="pos-headcount">Plazas</Label>

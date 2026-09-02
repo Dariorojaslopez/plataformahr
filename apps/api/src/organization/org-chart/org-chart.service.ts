@@ -14,6 +14,7 @@ export const ORG_CHART_EMPLOYEE_SELECT = {
     select: {
       id: true,
       name: true,
+      parentPositionId: true,
       jobLevel: { select: { id: true, name: true, rank: true } },
     },
   },

@@ -1,6 +1,11 @@
 "use client";
 
-import { CANDIDATE_DOCUMENT_TYPES, candidateDocumentTypeLabel } from "@talento/shared";
+import {
+  CANDIDATE_DOCUMENT_TYPES,
+  candidateDocumentTypeLabel,
+  maritalStatusSelectOptions,
+  normalizeEmployeeMaritalStatus,
+} from "@talento/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus } from "lucide-react";
 import Link from "next/link";
@@ -355,7 +360,7 @@ function ProfileSection({ profile }: { profile: HomeProfile | null }) {
       country: profile.country ?? "",
       state: profile.state ?? "",
       city: profile.city ?? "",
-      maritalStatus: profile.maritalStatus ?? "",
+      maritalStatus: normalizeEmployeeMaritalStatus(profile.maritalStatus),
       childrenCount: profile.childrenCount,
       housingType: profile.housingType ?? "",
       emergencyContactName: profile.emergencyContactName ?? "",
@@ -438,13 +443,16 @@ function ProfileSection({ profile }: { profile: HomeProfile | null }) {
                 value={form.city ?? ""}
                 onChange={(city) => setForm((current) => ({ ...current, city }))}
               />
-              <EditableField
+              <FormSelect
                 id="home-marital"
                 label="Estado civil"
                 value={form.maritalStatus ?? ""}
                 onChange={(maritalStatus) =>
                   setForm((current) => ({ ...current, maritalStatus }))
                 }
+                allowEmpty
+                emptyLabel="Sin especificar"
+                options={maritalStatusSelectOptions(form.maritalStatus)}
               />
               <EditableField
                 id="home-emergency-name"

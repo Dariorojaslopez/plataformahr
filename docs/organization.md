@@ -13,6 +13,8 @@ They are intentionally separate:
 
 An `Employee` always belongs to one `Company`. `userId` is optional. When set, that user must have an active membership in the same company, and a user may have at most one employee record per company (but may have employees in different companies).
 
+`Employee.maritalStatus` is optional free text in the database. The collaborator form and home profile editor offer a shared dropdown catalog (`Soltero/a`, `Casado/a`, `Unión libre`, `Separado/a`, `Divorciado/a`, `Viudo/a`). Common aliases (`casado`, `soltera`, …) are normalized on write; other historical values still display.
+
 ## Structure
 
 | Entity | Role |
@@ -21,7 +23,7 @@ An `Employee` always belongs to one `Company`. `userId` is optional. When set, t
 | `Area` | Hierarchical unit (`parentAreaId`). `businessUnitId` is optional (`null` is valid). |
 | `JobLevel` | Ranked career/organizational level for positions. May have zero or more competencies. |
 | `JobLevelCompetency` | Tenant-scoped many-to-many: a job level ↔ catalog `Competency`. Unique `(jobLevelId, competencyId)`. |
-| `Position` | Job/role definition (not the occupant). Optional `jobLevelId` pointing at `JobLevel`. |
+| `Position` | Job/role definition (not the occupant). Optional `jobLevelId` pointing at `JobLevel`. Optional `parentPositionId`: the cargo this role reports to in the job structure (gerente, vice, jefe). |
 | `Employee` | Occupant of a position in an area. `businessUnitId` is optional. |
 | `EmployeeReportingLine` | Leadership links (`DIRECT` / `INDIRECT`) |
 
@@ -55,6 +57,7 @@ Live `JobLevelCompetency` rows are **not** historical. Performance still evaluat
 ## Anti-cycle logic
 
 - Areas: walk ancestor chain when assigning `parentAreaId`.
+- Positions: walk ancestor chain when assigning `parentPositionId` (cargo al que reporta).
 - Reporting: treat edges as employee → manager and DFS from the proposed manager.
 
 ## Permissions
@@ -166,9 +169,9 @@ Read-only forest of **people**, not a second org structure.
 
 ### Source of truth
 
-Hierarchy comes from `EmployeeReportingLine` where `type = DIRECT` (`employeeId` → `managerEmployeeId`). There is no `Employee.managerId` column.
+Hierarchy comes from `EmployeeReportingLine` where `type = DIRECT` (`employeeId` → `managerEmployeeId`). There is no `Employee.managerId` column. An explicit DIRECT line always wins.
 
-Do **not** infer who reports to whom from BusinessUnit → Area → JobLevel → Position. Those entities are context on each node (`Employee` → `Position` → optional `JobLevel` → `Area` → optional `BusinessUnit`).
+If a collaborator has **no** DIRECT manager, the chart may nest them under the unique visible occupant of their cargo's `parentPositionId` (the cargo they report to). 0 or 2+ occupants of that parent cargo: they stay a root. Do **not** infer from BusinessUnit → Area → JobLevel.
 
 `INDIRECT` (dotted-line) reporting is out of scope and is not drawn.
 
@@ -214,22 +217,23 @@ Drag-and-drop, editing managers from the chart, vacant seats, dotted-line, tempo
 
 ## Bulk organization import
 
-Administrative two-phase CSV import. Preview never writes. Apply re-validates inside a single Prisma transaction (60s timeout) and rolls back on failure.
+Administrative two-phase import (Excel or CSV). Preview never writes. Apply re-validates inside a single Prisma transaction (60s timeout) and rolls back on failure.
 
 ### Format
 
-- UTF-8 CSV (BOM allowed). No XLSX, macros, or formulas.
+- UTF-8 CSV (BOM allowed) **or** `.xlsx` (first sheet / hoja `Datos`, Excel Table). Macros are ignored; formula cells without a cached result are treated as empty.
 - One file, discriminator `recordType`: `businessUnit` | `area` | `jobLevel` | `position` | `employee`.
-- Structure and people share a stable header so Excel can fill one sheet without a ZIP.
-- `companyId` is forbidden. Codes resolve only in the current tenant.
+- Structure and people share a stable header so Excel can fill one structured table.
+- Default template is `plantilla-organizacion.xlsx` (table + sheet Instrucciones). CSV remains at `GET /organization/import/template?format=csv`.
+- `companyId` is forbidden. Names and emails resolve only in the current tenant.
 
-Headers: `recordType,code,name,description,status,rank,headcount,businessUnitCode,areaCode,parentAreaCode,jobLevelCode,positionCode,email,firstName,lastName,managerEmail`.
+Headers: `recordType,name,description,status,rank,headcount,businessUnitName,areaName,parentAreaName,jobLevelName,positionName,parentPositionName,email,firstName,lastName,managerEmail`. Leftover `code` / `*Code` columns from older templates are ignored.
 
 ### Identifiers (create/update)
 
 | Entity | Match | Notes |
 |--------|--------|------|
-| BusinessUnit / Area / JobLevel / Position | `code` (required in the file) | Create/edit forms do not show a code field: the API assigns the next numeric value (`001`, `002`, …) when omitted. Import still matches by the file code. |
+| BusinessUnit / Area / JobLevel / Position | `name` (unique per company) | No code column. On create the API assigns the next numeric value (`001`, `002`, …), same as the forms. Updates keep the existing code. |
 | Employee | `email` (normalized) | There is no `employeeNumber`. Email is the existing unique key. |
 
 No deletes. Missing file rows are left untouched.
@@ -244,7 +248,7 @@ BusinessUnits → JobLevels → Areas (parents first) → Positions → Employee
 
 ### BusinessUnit optional
 
-Area without `businessUnitCode` is valid. A specified unknown BU is an error.
+Area without `businessUnitName` is valid. A specified unknown BU is an error.
 
 ### Custom fields / competencies
 
@@ -252,7 +256,7 @@ Deferred. Dynamic `cf:*` columns and competency catalogs would make the v1 contr
 
 ### Limits and security
 
-6 MB, 4 000 data rows, `text/csv` or `text/plain`, no permanent file storage. Template cells are formula-sanitized (`=`, `+`, `-`, `@`). Permission: `organization.manage` including preview. Audit: one `ORGANIZATION_IMPORTED` row with counts, not the file.
+6 MB, 4 000 data rows, `text/csv`, `text/plain`, or Excel MIME, no permanent file storage. Template cells are formula-sanitized (`=`, `+`, `-`, `@`) on CSV; Excel formulas are not executed. Permission: `organization.manage` including preview. Audit: one `ORGANIZATION_IMPORTED` row with counts, not the file.
 
 ### Reporting
 

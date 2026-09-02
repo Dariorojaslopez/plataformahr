@@ -522,6 +522,7 @@ model Position {
   requiredExperience String?
   requiredEducation  String?
   headcount          Int                      @default(1)
+  parentPositionId   String?                  @db.Uuid
   status             OrganizationEntityStatus @default(ACTIVE)
   createdAt          DateTime                 @default(now())
   updatedAt          DateTime                 @updatedAt
@@ -530,6 +531,8 @@ model Position {
   company                         Company                          @relation(fields: [companyId], references: [id], onDelete: Restrict)
   area                            Area                             @relation(fields: [areaId], references: [id], onDelete: Restrict)
   jobLevel                        JobLevel?                        @relation(fields: [jobLevelId], references: [id], onDelete: Restrict)
+  parentPosition                  Position?                        @relation("PositionReportsTo", fields: [parentPositionId], references: [id], onDelete: Restrict)
+  childPositions                  Position[]                       @relation("PositionReportsTo")
   employees                       Employee[]
   vacancyRequests                 VacancyRequest[]
   vacancyApprovalWorkflowSteps    VacancyApprovalWorkflowStep[]
@@ -545,6 +548,7 @@ model Position {
   @@index([companyId])
   @@index([areaId])
   @@index([jobLevelId])
+  @@index([parentPositionId])
   @@map("positions")
 }
 

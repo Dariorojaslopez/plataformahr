@@ -197,9 +197,14 @@ export const APP_NAV: NavSection[] = [
         icon: Target,
       },
       {
+        label: "9Box",
+        href: "/performance/9box",
+        icon: LayoutGrid,
+      },
+      {
         label: "Calibración",
         href: "/performance/calibration",
-        icon: LayoutGrid,
+        icon: Users,
       },
     ],
   },
@@ -242,6 +247,7 @@ const NAV_FEATURE_BY_HREF: Record<string, CompanyFeatureCode> = {
   "/performance/my-results": "performance.my-results",
   "/performance/results": "performance.results",
   "/performance/calibration": "performance.calibration",
+  "/performance/9box": "performance.calibration",
   "/performance/competencies": "performance.competencies",
   "/performance/scales": "performance.scales",
   "/goals/cycles": "goals.cycles",
@@ -376,6 +382,7 @@ export function resolvePageTitle(pathname: string): string {
     return "Seleccionar población a evaluar";
   if (pathname === "/performance/calibration") return "Calibración";
   if (pathname.startsWith("/performance/calibration/")) return "Calibración";
+  if (pathname === "/performance/9box") return "9Box";
   if (pathname === "/organization/settings") return "Ajustes de resultados";
   if (pathname === "/my-goals") return "Mis objetivos";
   if (pathname === "/select-company") return "Seleccionar compañía";

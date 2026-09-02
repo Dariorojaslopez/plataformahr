@@ -9,6 +9,7 @@ import {
   MaxLength,
   Min,
   MinLength,
+  ValidateIf,
   ValidateNested,
 } from 'class-validator';
 import { OrganizationEntityStatus } from '@prisma/client';
@@ -28,6 +29,10 @@ export class CreatePositionDto {
   @IsOptional()
   @IsUUID()
   jobLevelId?: string;
+
+  @IsOptional()
+  @IsUUID()
+  parentPositionId?: string;
 
   @IsOptional()
   @IsString()
@@ -84,8 +89,14 @@ export class UpdatePositionDto {
   areaId?: string;
 
   @IsOptional()
+  @ValidateIf((_, value: unknown) => value !== null)
   @IsUUID()
   jobLevelId?: string | null;
+
+  @IsOptional()
+  @ValidateIf((_, value: unknown) => value !== null)
+  @IsUUID()
+  parentPositionId?: string | null;
 
   @IsOptional()
   @IsString()

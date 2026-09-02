@@ -7,10 +7,14 @@ import {
   candidateDocumentTypeLabel,
   createHealthResponse,
   createReadyResponse,
+  EMPLOYEE_MARITAL_STATUSES,
   isCandidateDocumentType,
   isCompanyHomeRole,
+  isEmployeeMaritalStatus,
   isPremiumFeature,
+  maritalStatusSelectOptions,
   mergeCompanyAccess,
+  normalizeEmployeeMaritalStatus,
   resolveCompanyHomeRole,
   splitCompanyAccess,
 } from './index.ts';
@@ -43,6 +47,26 @@ test('candidate document types use stable codes and Spanish labels', () => {
   assert.equal(candidateDocumentTypeLabel(null), null);
   assert.equal(isCandidateDocumentType('CC'), true);
   assert.equal(isCandidateDocumentType('DNI'), false);
+});
+
+test('employee marital statuses are a Spanish select catalog', () => {
+  assert.deepEqual(
+    [...EMPLOYEE_MARITAL_STATUSES],
+    [
+      'Soltero/a',
+      'Casado/a',
+      'Unión libre',
+      'Separado/a',
+      'Divorciado/a',
+      'Viudo/a',
+    ],
+  );
+  assert.equal(normalizeEmployeeMaritalStatus('casado'), 'Casado/a');
+  assert.equal(normalizeEmployeeMaritalStatus('Soltero/a'), 'Soltero/a');
+  assert.equal(normalizeEmployeeMaritalStatus('otro'), 'otro');
+  assert.equal(isEmployeeMaritalStatus('Unión libre'), true);
+  assert.equal(isEmployeeMaritalStatus('otro'), false);
+  assert.equal(maritalStatusSelectOptions('otro').at(-1)?.value, 'otro');
 });
 
 test('premium access can be merged without dropping standard modules', () => {

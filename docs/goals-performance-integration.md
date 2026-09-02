@@ -25,15 +25,15 @@ competencyScore + goalsAchievement (weighted)
 
 | Field | Semantics |
 | --- | --- |
-| `goalCycleId` | Optional FK to `GoalCycle` (same company). `null` = competency-only (08D). |
+| `goalCycleId` | FK to `GoalCycle` (same company). `null` = competency-only (08D). If the cycle has goal weights and no id, create/update **provisions** a GoalCycle with the same name and dates. The form no longer asks the user to pick one. |
 | `competencyResultWeight` | Weight of competencyScore in overall (required when linked). |
 | `goalsResultWeight` | Weight of goalsAchievement in overall (required when linked). |
 
 Rules:
 
 - Editable only while cycle is `DRAFT`.
-- When `goalCycleId` is set: both weights required, 0–100, sum = 100.
-- When `goalCycleId` is null: both weights must be null.
+- When goal weights are set: competency/org/individual weights 0–range, sum **must not exceed** the evaluation range (need not equal it). A GoalCycle is required internally; if `goalCycleId` is omitted the API creates one.
+- When `goalCycleId` is null and goal weights are 0: competency-only.
 - Cross-tenant GoalCycle → 404.
 - GoalCycle may continue evolving; at **calculate** time only frozen `GoalResult` data is used.
 

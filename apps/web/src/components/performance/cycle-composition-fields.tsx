@@ -11,24 +11,15 @@ import {
   sumResultCompositionWeights,
 } from "@/lib/performance/result-composition-weights";
 
-type GoalCycleOption = {
-  value: string;
-  label: string;
-};
-
 type CycleCompositionFieldsProps = {
   form: CycleFormState;
   setForm: Dispatch<SetStateAction<CycleFormState>>;
-  goalCycleOptions: GoalCycleOption[];
-  goalCyclesLoading?: boolean;
   idPrefix?: string;
 };
 
 export function CycleCompositionFields({
   form,
   setForm,
-  goalCycleOptions,
-  goalCyclesLoading = false,
   idPrefix = "cycle",
 }: CycleCompositionFieldsProps) {
   const range = form.evaluationRange === "120" ? 120 : 100;
@@ -40,20 +31,12 @@ export function CycleCompositionFields({
     form.organizationalGoalsWeight,
     form.individualGoalsWeight,
   );
-  const hasGoals =
-    (Number(form.organizationalGoalsWeight) || 0) +
-      (Number(form.individualGoalsWeight) || 0) >
-    0;
-  const compositionValid =
-    (!form.includeCompetencies && !hasGoals) === false &&
-    (!hasGoals ||
-      (form.goalCycleId.trim() !== "" &&
-        resultCompositionWeightsAreValid(
-          competencyWeight,
-          form.organizationalGoalsWeight,
-          form.individualGoalsWeight,
-          range,
-        )));
+  const weightsValid = resultCompositionWeightsAreValid(
+    competencyWeight,
+    form.organizationalGoalsWeight,
+    form.individualGoalsWeight,
+    range,
+  );
 
   return (
     <div className="space-y-4 rounded-md border border-border p-3">
@@ -63,8 +46,9 @@ export function CycleCompositionFields({
         </p>
         <p className="text-xs text-muted-foreground">
           Define cómo se combinan competencias y objetivos. La suma no puede
-          superar el rango total de evaluación. La ponderación de evaluadores
-          aplica solo a competencias.
+          superar el rango total de evaluación; no hace falta que llegue
+          exactamente a {range}%. La ponderación de evaluadores aplica solo a
+          competencias.
         </p>
       </div>
 
@@ -164,26 +148,17 @@ export function CycleCompositionFields({
             />
           </div>
         </div>
-        {compositionSum != null && !compositionValid ? (
+        {compositionSum != null && compositionSum - range >= 0.001 ? (
           <p className="mt-2 text-xs text-destructive">
             La suma no puede superar {range}% (actual: {compositionSum.toFixed(2)}
             %).
           </p>
+        ) : compositionSum != null && weightsValid ? (
+          <p className="mt-2 text-xs text-muted-foreground">
+            Suma actual: {compositionSum.toFixed(2)}% de {range}%.
+          </p>
         ) : null}
       </div>
-
-      {hasGoals ? (
-        <FormSelect
-          id={`${idPrefix}-goal-cycle`}
-          label="Ciclo de objetivos"
-          required
-          disabled={goalCyclesLoading}
-          value={form.goalCycleId}
-          onChange={(goalCycleId) => setForm((f) => ({ ...f, goalCycleId }))}
-          options={goalCycleOptions}
-          emptyLabel={goalCyclesLoading ? "Cargando…" : "Selecciona un ciclo"}
-        />
-      ) : null}
 
       <div className="space-y-2">
         <Label htmlFor={`${idPrefix}-max-objectives`}>

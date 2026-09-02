@@ -94,6 +94,8 @@ describe("resolveActiveNavHref", () => {
       "/ats/settings/evaluators",
       "/ats/settings/active-processes",
       "/performance/cycles/c-1",
+      "/performance/9box",
+      "/performance/calibration",
       "/performance/results/r-1",
       "/performance/my-results/r-1",
       "/organization/employees/emp-1",

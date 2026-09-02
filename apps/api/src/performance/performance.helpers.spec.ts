@@ -196,5 +196,15 @@ describe('performance helpers', () => {
         }),
       ).toThrow(BadRequestException);
     });
+
+    it('allows missing goalCycleId when goal weights are set', () => {
+      const config = resolveGoalsCompositionConfig({
+        competencyResultWeight: 50,
+        organizationalGoalsWeight: 24.99,
+        individualGoalsWeight: 25,
+      });
+      expect(config.goalCycleId).toBeNull();
+      expect(config.goalsResultWeight?.toString()).toBe('49.99');
+    });
   });
 });

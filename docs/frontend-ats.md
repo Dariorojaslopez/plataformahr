@@ -6,8 +6,8 @@ UI de Vacancy Requests, Vacancies, Candidates, Applications y Pipeline sobre la 
 
 - Solicitudes de vacante (**Crear proceso de selección** / **Mis procesos de selección** para el líder): listado, create/edit (DRAFT), submit, approve/reject, detalle + flujo. En el front del líder la página muestra solo los procesos creados por ese líder y una sección aparte de solicitudes donde es aprobador. El checkbox “Pendientes de mi aprobación” se eliminó. El formulario (Administrador en `/ats/vacancy-requests` y Líder en Inicio) muestra los niveles globales bloqueados, permite agregar/editar/eliminar extras de esa solicitud y ya no incluye el checkbox de Gerencia General.
 - Configuración ATS:
-  - **Niveles de aprobación por defecto** (`/ats/settings/approvals`) — cargo + ocupante por nivel
-  - **Evaluadores por defecto** (`/ats/settings/evaluators`)
+  - **Niveles de aprobación por defecto** (`/ats/settings/approvals`) — cargo + colaborador activo del cargo (si hay más de uno, se elige el nombre)
+  - **Evaluadores por defecto** (`/ats/settings/evaluators`) — igual: no hace falta que el colaborador tenga usuario de acceso para guardar; si no lo tiene, el nombre muestra “(sin acceso)”
   - **Procesos activos** (`/ats/settings/active-processes`) — editar niveles/evaluadores de un proceso en curso si aún no decidieron o evaluaron
 - Vacantes: listado (el reclutador solo ve procesos asignados), detalle, transiciones de estado (PATCH), **Publicar**, etiqueta publicada/no publicada y **Preview** (`/ats/vacancies/:id/preview`) de la página pública con datos del cargo.
 - Página pública de vacante: información del cargo + formulario con **carga de CV** y prellenado de datos.

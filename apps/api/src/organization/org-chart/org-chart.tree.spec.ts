@@ -11,6 +11,8 @@ function row(
       managerId?: string | null;
       areaName?: string;
       positionName?: string;
+      positionId?: string;
+      parentPositionId?: string | null;
       businessUnitName?: string | null;
       jobLevelName?: string | null;
     },
@@ -25,8 +27,9 @@ function row(
       : null,
     area: { id: `area-${partial.id}`, name: partial.areaName ?? 'Área' },
     position: {
-      id: `pos-${partial.id}`,
+      id: partial.positionId ?? `pos-${partial.id}`,
       name: partial.positionName ?? 'Cargo',
+      parentPositionId: partial.parentPositionId ?? null,
       jobLevel: partial.jobLevelName
         ? { id: `jl-${partial.id}`, name: partial.jobLevelName, rank: 1 }
         : null,
@@ -134,5 +137,78 @@ describe('buildOrgChartForest', () => {
       ]),
     );
     expect(json).not.toMatch(/email|phone|birthDate|salary|address/i);
+  });
+
+  it('nests under the unique occupant of the parent cargo when there is no DIRECT manager', () => {
+    const forest = buildOrgChartForest([
+      row({
+        id: 'boss',
+        firstName: 'Ana',
+        lastName: 'Jefe',
+        positionId: 'gerente',
+        positionName: 'Gerente',
+      }),
+      row({
+        id: 'emp',
+        firstName: 'Luis',
+        lastName: 'Recluta',
+        positionId: 'reclutador',
+        positionName: 'Reclutador',
+        parentPositionId: 'gerente',
+      }),
+    ]);
+    expect(forest).toHaveLength(1);
+    expect(forest[0].employeeId).toBe('boss');
+    expect(forest[0].children[0].employeeId).toBe('emp');
+    expect(forest[0].children[0].managerId).toBe('boss');
+  });
+
+  it('keeps an explicit DIRECT manager over the parent cargo', () => {
+    const forest = buildOrgChartForest([
+      row({
+        id: 'boss',
+        firstName: 'Ana',
+        lastName: 'Jefe',
+        positionId: 'gerente',
+      }),
+      row({
+        id: 'other',
+        firstName: 'Sol',
+        lastName: 'Otra',
+      }),
+      row({
+        id: 'emp',
+        firstName: 'Luis',
+        lastName: 'Recluta',
+        parentPositionId: 'gerente',
+        managerId: 'other',
+      }),
+    ]);
+    const other = forest.find((node) => node.employeeId === 'other');
+    expect(other?.children.map((child) => child.employeeId)).toEqual(['emp']);
+  });
+
+  it('does not infer a manager when the parent cargo has several occupants', () => {
+    const forest = buildOrgChartForest([
+      row({
+        id: 'b1',
+        firstName: 'Ana',
+        lastName: 'Uno',
+        positionId: 'gerente',
+      }),
+      row({
+        id: 'b2',
+        firstName: 'Bea',
+        lastName: 'Dos',
+        positionId: 'gerente',
+      }),
+      row({
+        id: 'emp',
+        firstName: 'Luis',
+        lastName: 'Recluta',
+        parentPositionId: 'gerente',
+      }),
+    ]);
+    expect(forest.some((node) => node.employeeId === 'emp')).toBe(true);
   });
 });

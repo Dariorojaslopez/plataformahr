@@ -33,7 +33,7 @@ Supported approver types (deterministic with the current domain):
 
 | Type | Resolution |
 |------|------------|
-| `POSITION` | Cargo (`positionId`) → ocupantes ACTIVE con usuario y membresía. Si hay más de uno, hay que elegir `specificEmployeeId`. Si hay uno, se usa ese. |
+| `POSITION` | Cargo (`positionId`) → colaboradores ACTIVE en ese cargo. Si hay más de uno, hay que elegir `specificEmployeeId`. Si hay uno, se usa ese. No exige usuario de acceso para guardar el nivel; para aprobar o evaluar sí hace falta que ese colaborador tenga usuario. |
 | `MANAGER_OF_REQUESTER` | `requestedByEmployeeId` → `EmployeeReportingLine` `DIRECT` → manager `Employee`. The manager must have `userId` and an **active** membership in the company. Otherwise submit fails with an explicit 400. |
 | `SPECIFIC_EMPLOYEE` | Employee in the same company, with `userId` and active membership. Cross-tenant IDs return `Employee not found`. |
 | `ROLE` | Existing **COMPANY** role code (e.g. `CLIENT_ADMIN`). Anyone with that membership role and `ats.vacancy.approve` can decide the current step. |
@@ -152,7 +152,7 @@ Migration `vacancy_approval_workflows` is additive: new workflow tables, `label`
 | POST | `/ats/vacancy-requests/:id/approve\|reject` | approve |
 | GET | `/ats/vacancy-approval-workflow` | read (feature `ats.approvals` or `ats.vacancy-requests`) |
 | PUT | `/ats/vacancy-approval-workflow` | manage |
-| GET | `/ats/position-occupants?positionId=` | read |
+| GET | `/ats/position-occupants?positionId=` | read (colaboradores ACTIVE del cargo; no exige `userId`) |
 | GET/PUT | `/ats/evaluator-defaults` | read / manage |
 | GET | `/ats/active-processes` | read |
 | GET/PUT | `/ats/active-processes/:id/approvals` | read / manage |

@@ -49,6 +49,7 @@ const position: Position = {
   companyId: "c1",
   areaId: areaWithoutBu.id,
   jobLevelId: null,
+  parentPositionId: null,
   name: "Analista",
   code: null,
   mission: null,
