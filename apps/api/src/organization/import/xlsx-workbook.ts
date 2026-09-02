@@ -20,10 +20,13 @@ function addListValidation(
   range: string,
   validation: ExcelJS.DataValidation,
 ): void {
-  const validations = sheet.dataValidations as {
-    add: (addr: string, item: ExcelJS.DataValidation) => void;
+  // exceljs runtime exposes dataValidations; public typings omit it.
+  const withValidations = sheet as ExcelJS.Worksheet & {
+    dataValidations: {
+      add: (addr: string, item: ExcelJS.DataValidation) => void;
+    };
   };
-  validations.add(range, validation);
+  withValidations.dataValidations.add(range, validation);
 }
 
 function isZip(buffer: Buffer): boolean {
@@ -92,7 +95,10 @@ export async function parseOrgImportXlsx(buffer: Buffer): Promise<string[][]> {
 
   const workbook = new ExcelJS.Workbook();
   try {
-    await workbook.xlsx.load(buffer);
+    // exceljs pins an older Buffer shape than current @types/node.
+    await workbook.xlsx.load(
+      buffer as unknown as Parameters<ExcelJS.Xlsx['load']>[0],
+    );
   } catch {
     throw new XlsxParseError(
       'No se pudo leer el Excel. Use la plantilla o un .xlsx sin macros.',
