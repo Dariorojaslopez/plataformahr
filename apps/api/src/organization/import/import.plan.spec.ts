@@ -345,10 +345,7 @@ describe('buildOrgImportPlan', () => {
           'IGNORAR',
           'area',
           'Talento',
-          ...Array.from(
-            { length: ORG_IMPORT_HEADERS.length - 2 },
-            () => '',
-          ),
+          ...Array.from({ length: ORG_IMPORT_HEADERS.length - 2 }, () => ''),
         ].join(','),
         '',
       ].join('\n'),
@@ -395,9 +392,10 @@ describe('buildOrgImportPlan', () => {
       emptyCatalog(),
     );
     expect(plan.canApply).toBe(true);
-    expect(plan.positions.find((item) => item.name === 'Reclutador')?.parentPositionName).toBe(
-      'Gerente',
-    );
+    expect(
+      plan.positions.find((item) => item.name === 'Reclutador')
+        ?.parentPositionName,
+    ).toBe('Gerente');
   });
 
   it('rejects a cargo reporting cycle', () => {
