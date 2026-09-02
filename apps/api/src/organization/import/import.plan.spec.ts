@@ -341,7 +341,15 @@ describe('buildOrgImportPlan', () => {
     const leftoverCode = buildOrgImportPlan(
       [
         ['code', ...ORG_IMPORT_HEADERS].join(','),
-        ['IGNORAR', 'area', 'Talento', ...Array(ORG_IMPORT_HEADERS.length - 2).fill('')].join(','),
+        [
+          'IGNORAR',
+          'area',
+          'Talento',
+          ...Array.from(
+            { length: ORG_IMPORT_HEADERS.length - 2 },
+            () => '',
+          ),
+        ].join(','),
         '',
       ].join('\n'),
       emptyCatalog(),

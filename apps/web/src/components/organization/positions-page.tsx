@@ -130,7 +130,7 @@ export function PositionsPageClient() {
         value: position.id,
         label: position.name,
       }));
-  }, [positionsQuery.data, editing?.id]);
+  }, [positionsQuery.data, editing?.id, editing?.parentPositionId]);
 
   const saveMutation = useMutation({
     mutationFn: async () => {
