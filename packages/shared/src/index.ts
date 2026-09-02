@@ -117,10 +117,11 @@ export function normalizeEmployeeMaritalStatus(
 export function maritalStatusSelectOptions(
   current?: string | null,
 ): Array<{ value: string; label: string }> {
-  const options = EMPLOYEE_MARITAL_STATUSES.map((status) => ({
-    value: status,
-    label: status,
-  }));
+  const options: Array<{ value: string; label: string }> =
+    EMPLOYEE_MARITAL_STATUSES.map((status) => ({
+      value: status,
+      label: status,
+    }));
   const normalized = normalizeEmployeeMaritalStatus(current);
   if (normalized && !isEmployeeMaritalStatus(normalized)) {
     options.push({ value: normalized, label: normalized });
