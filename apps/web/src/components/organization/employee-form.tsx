@@ -1,7 +1,11 @@
 "use client";
 
 import {
+  employeeDocumentTypeSelectOptions,
+  housingTypeSelectOptions,
   maritalStatusSelectOptions,
+  normalizeEmployeeDocumentType,
+  normalizeEmployeeHousingType,
   normalizeEmployeeMaritalStatus,
 } from "@talento/shared";
 import { useMemo, useState } from "react";
@@ -53,7 +57,7 @@ export function employeeToFormValues(employee?: Employee | null): EmployeeFormVa
     lastName: employee?.lastName ?? "",
     email: employee?.email ?? "",
     phone: employee?.phone ?? "",
-    documentType: employee?.documentType ?? "",
+    documentType: normalizeEmployeeDocumentType(employee?.documentType),
     documentNumber: employee?.documentNumber ?? "",
     birthDate: employee?.birthDate?.slice(0, 10) ?? "",
     country: employee?.country ?? "",
@@ -64,7 +68,7 @@ export function employeeToFormValues(employee?: Employee | null): EmployeeFormVa
       employee?.childrenCount === null || employee?.childrenCount === undefined
         ? ""
         : String(employee.childrenCount),
-    housingType: employee?.housingType ?? "",
+    housingType: normalizeEmployeeHousingType(employee?.housingType),
     emergencyContactName: employee?.emergencyContactName ?? "",
     emergencyContactPhone: employee?.emergencyContactPhone ?? "",
     businessUnitId: employee?.businessUnitId ?? "",
@@ -212,14 +216,15 @@ export function EmployeeForm({
               required
             />
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="emp-doc-type">Identificación (tipo)</Label>
-            <Input
-              id="emp-doc-type"
-              value={values.documentType}
-              onChange={(e) => setField("documentType", e.target.value)}
-            />
-          </div>
+          <FormSelect
+            id="emp-doc-type"
+            label="Identificación (tipo)"
+            value={values.documentType}
+            onChange={(value) => setField("documentType", value)}
+            allowEmpty
+            emptyLabel="Sin especificar"
+            options={employeeDocumentTypeSelectOptions(values.documentType)}
+          />
           <div className="space-y-2">
             <Label htmlFor="emp-doc-number">Identificación (número)</Label>
             <Input
@@ -316,14 +321,15 @@ export function EmployeeForm({
               onChange={(e) => setField("childrenCount", e.target.value)}
             />
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="emp-housing">Tipo de vivienda</Label>
-            <Input
-              id="emp-housing"
-              value={values.housingType}
-              onChange={(e) => setField("housingType", e.target.value)}
-            />
-          </div>
+          <FormSelect
+            id="emp-housing"
+            label="Tipo de vivienda"
+            value={values.housingType}
+            onChange={(value) => setField("housingType", value)}
+            allowEmpty
+            emptyLabel="Sin especificar"
+            options={housingTypeSelectOptions(values.housingType)}
+          />
         </div>
       </section>
 

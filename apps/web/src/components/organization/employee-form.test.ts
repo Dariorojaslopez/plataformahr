@@ -46,6 +46,24 @@ describe("employee form mappers", () => {
     expect(create.businessUnitId).toBeUndefined();
   });
 
+  it("maps housing type aliases onto the catalog", () => {
+    const values = employeeToFormValues({
+      ...sample,
+      housingType: "arriendo",
+    });
+    expect(values.housingType).toBe("En arriendo o alquiler");
+    expect(toCreatePayload(values).housingType).toBe("En arriendo o alquiler");
+  });
+
+  it("maps document type aliases onto the catalog", () => {
+    const values = employeeToFormValues({
+      ...sample,
+      documentType: "cedula",
+    });
+    expect(values.documentType).toBe("CC");
+    expect(toCreatePayload(values).documentType).toBe("CC");
+  });
+
   it("maps marital status aliases onto the catalog", () => {
     const values = employeeToFormValues({
       ...sample,

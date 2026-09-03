@@ -52,6 +52,87 @@ export function candidateDocumentTypeLabel(
 }
 
 /**
+ * Canonical document types for Employee writes.
+ * Employee.documentType remains a free String? in Prisma for historical values.
+ */
+export const EMPLOYEE_DOCUMENT_TYPES = [
+  { code: 'CC', label: 'Cédula' },
+  { code: 'TI', label: 'Tarjeta de identidad' },
+  { code: 'CE', label: 'Cédula de extranjería' },
+  { code: 'PA', label: 'Pasaporte' },
+  { code: 'PE', label: 'Permiso especial' },
+] as const;
+
+export type EmployeeDocumentType =
+  (typeof EMPLOYEE_DOCUMENT_TYPES)[number]['code'];
+
+export const EMPLOYEE_DOCUMENT_TYPE_CODES: EmployeeDocumentType[] =
+  EMPLOYEE_DOCUMENT_TYPES.map((item) => item.code);
+
+const EMPLOYEE_DOCUMENT_TYPE_SET = new Set<string>(
+  EMPLOYEE_DOCUMENT_TYPE_CODES,
+);
+
+const EMPLOYEE_DOCUMENT_TYPE_ALIASES: Record<string, EmployeeDocumentType> = {
+  cedula: 'CC',
+  'cédula': 'CC',
+  'cedula de ciudadania': 'CC',
+  'cédula de ciudadanía': 'CC',
+  ti: 'TI',
+  'tarjeta de identidad': 'TI',
+  ce: 'CE',
+  'cedula de extranjeria': 'CE',
+  'cédula de extranjería': 'CE',
+  pa: 'PA',
+  pasaporte: 'PA',
+  passport: 'PA',
+  pe: 'PE',
+  'permiso especial': 'PE',
+  'permiso especial de permanencia': 'PE',
+};
+
+export function isEmployeeDocumentType(
+  value: string,
+): value is EmployeeDocumentType {
+  return EMPLOYEE_DOCUMENT_TYPE_SET.has(value);
+}
+
+export function employeeDocumentTypeLabel(
+  code: string | null | undefined,
+): string | null {
+  if (!code) return null;
+  const match = EMPLOYEE_DOCUMENT_TYPES.find((item) => item.code === code);
+  return match?.label ?? code;
+}
+
+/** Maps common variants onto catalog codes; other values stay as-is. */
+export function normalizeEmployeeDocumentType(
+  value: string | null | undefined,
+): string {
+  if (!value) return '';
+  const trimmed = value.trim();
+  if (!trimmed) return '';
+  const upper = trimmed.toUpperCase();
+  if (isEmployeeDocumentType(upper)) return upper;
+  return EMPLOYEE_DOCUMENT_TYPE_ALIASES[trimmed.toLowerCase()] ?? trimmed;
+}
+
+export function employeeDocumentTypeSelectOptions(
+  current?: string | null,
+): Array<{ value: string; label: string }> {
+  const options: Array<{ value: string; label: string }> =
+    EMPLOYEE_DOCUMENT_TYPES.map((item) => ({
+      value: item.code,
+      label: `${item.code} — ${item.label}`,
+    }));
+  const normalized = normalizeEmployeeDocumentType(current);
+  if (normalized && !isEmployeeDocumentType(normalized)) {
+    options.push({ value: normalized, label: normalized });
+  }
+  return options;
+}
+
+/**
  * Canonical marital-status labels stored on Employee.maritalStatus.
  * Historical free text is still readable; forms offer this catalog as a select.
  */
@@ -124,6 +205,68 @@ export function maritalStatusSelectOptions(
     }));
   const normalized = normalizeEmployeeMaritalStatus(current);
   if (normalized && !isEmployeeMaritalStatus(normalized)) {
+    options.push({ value: normalized, label: normalized });
+  }
+  return options;
+}
+
+/**
+ * Canonical housing-type labels stored on Employee.housingType.
+ */
+export const EMPLOYEE_HOUSING_TYPES = [
+  'Propia',
+  'En arriendo o alquiler',
+  'Familiar',
+] as const;
+
+export type EmployeeHousingType = (typeof EMPLOYEE_HOUSING_TYPES)[number];
+
+export const EMPLOYEE_HOUSING_TYPE_VALUES: EmployeeHousingType[] = [
+  ...EMPLOYEE_HOUSING_TYPES,
+];
+
+const EMPLOYEE_HOUSING_TYPE_SET = new Set<string>(EMPLOYEE_HOUSING_TYPE_VALUES);
+
+const EMPLOYEE_HOUSING_TYPE_ALIASES: Record<string, EmployeeHousingType> = {
+  propia: 'Propia',
+  propio: 'Propia',
+  'vivienda propia': 'Propia',
+  arriendo: 'En arriendo o alquiler',
+  alquiler: 'En arriendo o alquiler',
+  renta: 'En arriendo o alquiler',
+  'en arriendo': 'En arriendo o alquiler',
+  'en alquiler': 'En arriendo o alquiler',
+  familiar: 'Familiar',
+  familia: 'Familiar',
+  'vivienda familiar': 'Familiar',
+};
+
+export function isEmployeeHousingType(
+  value: string,
+): value is EmployeeHousingType {
+  return EMPLOYEE_HOUSING_TYPE_SET.has(value);
+}
+
+export function normalizeEmployeeHousingType(
+  value: string | null | undefined,
+): string {
+  if (!value) return '';
+  const trimmed = value.trim();
+  if (!trimmed) return '';
+  if (isEmployeeHousingType(trimmed)) return trimmed;
+  return EMPLOYEE_HOUSING_TYPE_ALIASES[trimmed.toLowerCase()] ?? trimmed;
+}
+
+export function housingTypeSelectOptions(
+  current?: string | null,
+): Array<{ value: string; label: string }> {
+  const options: Array<{ value: string; label: string }> =
+    EMPLOYEE_HOUSING_TYPES.map((type) => ({
+      value: type,
+      label: type,
+    }));
+  const normalized = normalizeEmployeeHousingType(current);
+  if (normalized && !isEmployeeHousingType(normalized)) {
     options.push({ value: normalized, label: normalized });
   }
   return options;

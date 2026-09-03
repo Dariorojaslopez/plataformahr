@@ -7,13 +7,23 @@ import {
   candidateDocumentTypeLabel,
   createHealthResponse,
   createReadyResponse,
+  EMPLOYEE_DOCUMENT_TYPE_CODES,
+  EMPLOYEE_DOCUMENT_TYPES,
+  EMPLOYEE_HOUSING_TYPES,
+  employeeDocumentTypeLabel,
+  employeeDocumentTypeSelectOptions,
   EMPLOYEE_MARITAL_STATUSES,
+  housingTypeSelectOptions,
   isCandidateDocumentType,
+  isEmployeeDocumentType,
+  isEmployeeHousingType,
   isCompanyHomeRole,
   isEmployeeMaritalStatus,
   isPremiumFeature,
   maritalStatusSelectOptions,
   mergeCompanyAccess,
+  normalizeEmployeeDocumentType,
+  normalizeEmployeeHousingType,
   normalizeEmployeeMaritalStatus,
   resolveCompanyHomeRole,
   splitCompanyAccess,
@@ -47,6 +57,35 @@ test('candidate document types use stable codes and Spanish labels', () => {
   assert.equal(candidateDocumentTypeLabel(null), null);
   assert.equal(isCandidateDocumentType('CC'), true);
   assert.equal(isCandidateDocumentType('DNI'), false);
+});
+
+test('employee document types use stable codes and Spanish labels', () => {
+  assert.deepEqual(
+    EMPLOYEE_DOCUMENT_TYPES.map((item) => item.code),
+    ['CC', 'TI', 'CE', 'PA', 'PE'],
+  );
+  assert.deepEqual(EMPLOYEE_DOCUMENT_TYPE_CODES, ['CC', 'TI', 'CE', 'PA', 'PE']);
+  assert.equal(employeeDocumentTypeLabel('CC'), 'Cédula');
+  assert.equal(employeeDocumentTypeLabel('PA'), 'Pasaporte');
+  assert.equal(normalizeEmployeeDocumentType('cedula'), 'CC');
+  assert.equal(normalizeEmployeeDocumentType('PASSPORT'), 'PA');
+  assert.equal(normalizeEmployeeDocumentType('otro'), 'otro');
+  assert.equal(isEmployeeDocumentType('TI'), true);
+  assert.equal(isEmployeeDocumentType('otro'), false);
+  assert.equal(employeeDocumentTypeSelectOptions('otro').at(-1)?.value, 'otro');
+});
+
+test('employee housing types are a Spanish select catalog', () => {
+  assert.deepEqual(
+    [...EMPLOYEE_HOUSING_TYPES],
+    ['Propia', 'En arriendo o alquiler', 'Familiar'],
+  );
+  assert.equal(normalizeEmployeeHousingType('arriendo'), 'En arriendo o alquiler');
+  assert.equal(normalizeEmployeeHousingType('Propia'), 'Propia');
+  assert.equal(normalizeEmployeeHousingType('otro'), 'otro');
+  assert.equal(isEmployeeHousingType('Familiar'), true);
+  assert.equal(isEmployeeHousingType('otro'), false);
+  assert.equal(housingTypeSelectOptions('otro').at(-1)?.value, 'otro');
 });
 
 test('employee marital statuses are a Spanish select catalog', () => {
