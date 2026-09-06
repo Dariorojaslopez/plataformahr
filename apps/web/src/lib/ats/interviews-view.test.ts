@@ -59,10 +59,8 @@ describe("interviews view", () => {
   });
 
   it("labels the pipeline phase and candidate name", () => {
-    expect(pendingInterviewPhaseLabel("INTERVIEW")).toBe(
-      "Entrevista Equipo de Atracción",
-    );
-    expect(pendingInterviewPhaseLabel("OFFER")).toBe("Entrevista Evaluadores");
+    expect(pendingInterviewPhaseLabel("INTERVIEW")).toBe("Evaluación");
+    expect(pendingInterviewPhaseLabel("OFFER")).toBe("Finalistas");
     expect(pendingCandidateName(pending("Camila", "v1", "Cargo", "INTERVIEW"))).toBe(
       "Camila Pérez",
     );

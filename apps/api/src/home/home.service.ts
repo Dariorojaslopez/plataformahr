@@ -7,9 +7,12 @@ import {
 import {
   ApplicationStage,
   ApplicationStatus,
+  ApprovalStatus,
   CandidateStatus,
+  ContractApprovalStatus,
   EmployeeStatus,
   InterviewStatus,
+  JobOfferStatus,
   Prisma,
   VacancyRequestStatus,
   VacancyStatus,
@@ -35,8 +38,10 @@ import type {
   HomeAssignedVacancy,
   HomeOpenVacancy,
   HomePendingApproval,
+  HomePendingContractApproval,
   HomePendingEvaluation,
   HomeProfile,
+  HomeReadyForOffer,
   InternalJobApplicationDto,
   UpdateHomeProfileDto,
 } from './dto/home.dto';
@@ -60,28 +65,45 @@ export class HomeService {
     const employee = await this.findLinkedEmployee(tenant);
     const actor = await this.resolveActor(tenant, employee?.id ?? null);
 
-    const [openVacancies, pendingApprovals, pendingEvaluations, assigned] =
-      await Promise.all([
-        this.listOpenVacancies(tenant.companyId),
-        this.listPendingApprovals(tenant.companyId, actor),
-        employee
-          ? this.listPendingEvaluations(tenant.companyId, employee.id)
-          : Promise.resolve([]),
-        employee
-          ? this.listAssignedWork(tenant.companyId, employee.id)
-          : Promise.resolve({
-              assignedVacancies: [] as HomeAssignedVacancy[],
-              assignedMetrics: EMPTY_ASSIGNED_METRICS,
-            }),
-      ]);
+    const [
+      openVacancies,
+      pendingApprovals,
+      pendingEvaluations,
+      pendingContractApprovals,
+      readyForOffer,
+      assigned,
+    ] = await Promise.all([
+      this.listOpenVacancies(tenant.companyId),
+      this.listPendingApprovals(tenant.companyId, actor),
+      employee
+        ? this.listPendingEvaluations(tenant.companyId, employee.id)
+        : Promise.resolve([]),
+      employee
+        ? this.listPendingContractApprovals(tenant.companyId, employee.id)
+        : Promise.resolve([] as HomePendingContractApproval[]),
+      employee
+        ? this.listReadyForOffer(tenant.companyId, employee.id)
+        : Promise.resolve([] as HomeReadyForOffer[]),
+      employee
+        ? this.listAssignedWork(tenant.companyId, employee.id)
+        : Promise.resolve({
+            assignedVacancies: [] as HomeAssignedVacancy[],
+            assignedMetrics: EMPTY_ASSIGNED_METRICS,
+          }),
+    ]);
 
     return {
       profile: employee ? this.toProfile(employee) : null,
       openVacancies,
       pendingApprovals,
       pendingEvaluations,
+      pendingContractApprovals,
+      readyForOffer,
       assignedVacancies: assigned.assignedVacancies,
-      assignedMetrics: assigned.assignedMetrics,
+      assignedMetrics: {
+        ...assigned.assignedMetrics,
+        readyForOfferCount: readyForOffer.length,
+      },
     };
   }
 
@@ -408,6 +430,92 @@ export class HomeService {
     }));
   }
 
+  private async listPendingContractApprovals(
+    companyId: string,
+    employeeId: string,
+  ): Promise<HomePendingContractApproval[]> {
+    const rows = await this.prisma.jobOfferContractApproval.findMany({
+      where: {
+        companyId,
+        status: ApprovalStatus.PENDING,
+        approverEmployeeId: employeeId,
+        jobOffer: {
+          status: JobOfferStatus.ACCEPTED,
+          contractApprovalStatus: ContractApprovalStatus.PENDING,
+        },
+      },
+      select: {
+        id: true,
+        sequence: true,
+        jobOfferId: true,
+        jobOffer: {
+          select: {
+            application: {
+              select: {
+                candidate: { select: { firstName: true, lastName: true } },
+                vacancy: { select: { title: true } },
+              },
+            },
+            contractApprovals: {
+              where: { status: ApprovalStatus.PENDING },
+              orderBy: { sequence: 'asc' },
+              take: 1,
+              select: { id: true },
+            },
+          },
+        },
+      },
+      orderBy: { sequence: 'asc' },
+      take: 20,
+    });
+
+    return rows
+      .filter((row) => row.jobOffer.contractApprovals[0]?.id === row.id)
+      .map((row) => ({
+        offerId: row.jobOfferId,
+        stepId: row.id,
+        sequence: row.sequence,
+        candidateName:
+          `${row.jobOffer.application.candidate.firstName} ${row.jobOffer.application.candidate.lastName}`.trim(),
+        vacancyTitle: row.jobOffer.application.vacancy.title,
+      }));
+  }
+
+  private async listReadyForOffer(
+    companyId: string,
+    employeeId: string,
+  ): Promise<HomeReadyForOffer[]> {
+    const rows = await this.prisma.application.findMany({
+      where: {
+        companyId,
+        deletedAt: null,
+        status: ApplicationStatus.ACTIVE,
+        stage: ApplicationStage.OFFER,
+        vacancy: {
+          assignedRecruiterEmployeeId: employeeId,
+          deletedAt: null,
+        },
+      },
+      select: {
+        id: true,
+        lastStageChangedAt: true,
+        candidate: { select: { firstName: true, lastName: true } },
+        vacancy: { select: { id: true, title: true } },
+      },
+      orderBy: { lastStageChangedAt: 'desc' },
+      take: 20,
+    });
+
+    return rows.map((row) => ({
+      applicationId: row.id,
+      candidateName:
+        `${row.candidate.firstName} ${row.candidate.lastName}`.trim(),
+      vacancyId: row.vacancy.id,
+      vacancyTitle: row.vacancy.title,
+      lastStageChangedAt: row.lastStageChangedAt.toISOString(),
+    }));
+  }
+
   private async listAssignedWork(
     companyId: string,
     employeeId: string,
@@ -507,6 +615,7 @@ export class HomeService {
       activeApplicationCount,
       hiredCount,
       pendingInterviewCount,
+      readyForOfferCount: 0,
       filledHeadcount: assignedVacancies.reduce(
         (sum, item) => sum + item.filledCount,
         0,

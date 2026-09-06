@@ -11,6 +11,7 @@ import {
   InterviewFormStatus,
   InterviewQuestionType,
   InterviewStatus,
+  InterviewType,
   Prisma,
   TranscriptSegmentKind,
 } from '@prisma/client';
@@ -25,6 +26,8 @@ import type {
   CreateInterviewDto,
   CreateInterviewFormTemplateDto,
   CreateTranscriptSegmentDto,
+  EvaluatorDecisionDto,
+  AddAdHocInterviewQuestionDto,
   UpdateInterviewDto,
   UpdateInterviewFormTemplateDto,
   UpdateTranscriptSegmentDto,
@@ -480,6 +483,12 @@ export class InterviewsService {
           ...(dto.notes !== undefined
             ? { notes: dto.notes?.trim() || null }
             : {}),
+          ...(dto.strengths !== undefined
+            ? { strengths: dto.strengths?.trim() || null }
+            : {}),
+          ...(dto.improvements !== undefined
+            ? { improvements: dto.improvements?.trim() || null }
+            : {}),
           ...(dto.localRecordingName !== undefined
             ? {
                 localRecordingName: dto.localRecordingName?.trim() || null,
@@ -604,6 +613,294 @@ export class InterviewsService {
     });
 
     return updated;
+  }
+
+  async evaluatorDecision(
+    companyId: string,
+    userId: string,
+    membershipId: string,
+    id: string,
+    dto: EvaluatorDecisionDto,
+  ) {
+    const interview = await this.requireInterview(companyId, id);
+    await this.assertInterviewerOrAdmin(companyId, userId, membershipId, id);
+
+    if (
+      interview.status !== InterviewStatus.IN_PROGRESS &&
+      interview.status !== InterviewStatus.SCHEDULED
+    ) {
+      throw new BadRequestException(
+        `Cannot decide interview in status ${interview.status}`,
+      );
+    }
+
+    const application = await this.requireApplication(
+      companyId,
+      interview.applicationId,
+    );
+    if (application.stage !== ApplicationStage.INTERVIEW) {
+      throw new BadRequestException(
+        'Evaluator decisions apply only while the application is in Evaluación',
+      );
+    }
+
+    const strengths = dto.strengths?.trim() || null;
+    const improvements = dto.improvements?.trim() || null;
+
+    if (dto.decision === 'REJECT') {
+      await this.prisma.interview.update({
+        where: { id },
+        data: {
+          status: InterviewStatus.COMPLETED,
+          completedAt: new Date(),
+          startedAt: interview.startedAt ?? new Date(),
+          strengths,
+          improvements,
+        },
+      });
+      await this.applicationsService.move(companyId, userId, application.id, {
+        stage: ApplicationStage.REJECTED,
+        comment: 'Rechazado por evaluador',
+      });
+      await this.audit.create({
+        action: ATS_AUDIT.EVALUATOR_DECISION_REJECTED,
+        entity: 'Interview',
+        entityId: id,
+        company: { connect: { id: companyId } },
+        user: { connect: { id: userId } },
+        metadata: {
+          interviewId: id,
+          applicationId: application.id,
+          decision: 'REJECT',
+        },
+      });
+      return this.getById(companyId, id);
+    }
+
+    // APPROVE
+    await this.prisma.interview.update({
+      where: { id },
+      data: {
+        status: InterviewStatus.COMPLETED,
+        completedAt: new Date(),
+        startedAt: interview.startedAt ?? new Date(),
+        strengths,
+        improvements,
+      },
+    });
+
+    const vacancy = await this.prisma.vacancy.findFirst({
+      where: { id: application.vacancyId, companyId },
+      select: {
+        id: true,
+        assignedRecruiterEmployeeId: true,
+        vacancyRequest: {
+          select: {
+            evaluators: {
+              orderBy: { sequence: 'asc' },
+              select: { employeeId: true, sequence: true },
+            },
+          },
+        },
+      },
+    });
+    if (!vacancy) {
+      throw new NotFoundException('Vacancy not found');
+    }
+
+    const evaluators = vacancy.vacancyRequest?.evaluators ?? [];
+    const completed = await this.prisma.interview.findMany({
+      where: {
+        companyId,
+        applicationId: application.id,
+        type: InterviewType.HR,
+        status: InterviewStatus.COMPLETED,
+        deletedAt: null,
+      },
+      select: {
+        interviewers: { select: { employeeId: true } },
+      },
+    });
+    const doneEvaluatorIds = new Set(
+      completed.flatMap((item) =>
+        item.interviewers.map((person) => person.employeeId),
+      ),
+    );
+    const nextEvaluator = evaluators.find(
+      (item) => !doneEvaluatorIds.has(item.employeeId),
+    );
+
+    let outcome: 'NEXT_EVALUATOR' | 'READY_FOR_RECRUITER' = 'READY_FOR_RECRUITER';
+
+    if (nextEvaluator) {
+      await this.prisma.$transaction(async (tx) => {
+        await this.applicationsService.createEvaluatorInterview(tx, {
+          companyId,
+          applicationId: application.id,
+          vacancyId: vacancy.id,
+          type: InterviewType.HR,
+          interviewerEmployeeId: nextEvaluator.employeeId,
+        });
+      });
+      outcome = 'NEXT_EVALUATOR';
+    } else {
+      await this.applicationsService.move(companyId, userId, application.id, {
+        stage: ApplicationStage.OFFER,
+        comment: 'Todas las evaluaciones aprobadas',
+      });
+      outcome = 'READY_FOR_RECRUITER';
+    }
+
+    await this.audit.create({
+      action: ATS_AUDIT.EVALUATOR_DECISION_APPROVED,
+      entity: 'Interview',
+      entityId: id,
+      company: { connect: { id: companyId } },
+      user: { connect: { id: userId } },
+      metadata: {
+        interviewId: id,
+        applicationId: application.id,
+        decision: 'APPROVE',
+        outcome,
+        nextEvaluatorEmployeeId: nextEvaluator?.employeeId ?? null,
+      },
+    });
+
+    if (outcome === 'READY_FOR_RECRUITER') {
+      await this.audit.create({
+        action: ATS_AUDIT.RECRUITER_EVALUATION_READY,
+        entity: 'Application',
+        entityId: application.id,
+        company: { connect: { id: companyId } },
+        user: { connect: { id: userId } },
+        metadata: {
+          applicationId: application.id,
+          vacancyId: vacancy.id,
+          assignedRecruiterEmployeeId: vacancy.assignedRecruiterEmployeeId,
+          message:
+            'Evaluaciones completadas: valida candidatos y avanza a contratación',
+        },
+      });
+    }
+
+    return this.getById(companyId, id);
+  }
+
+  async addAdHocQuestion(
+    companyId: string,
+    userId: string,
+    membershipId: string,
+    interviewId: string,
+    dto: AddAdHocInterviewQuestionDto,
+  ) {
+    const interview = await this.requireInterview(companyId, interviewId);
+    await this.assertInterviewerOrAdmin(
+      companyId,
+      userId,
+      membershipId,
+      interviewId,
+    );
+    if (
+      interview.status === InterviewStatus.COMPLETED ||
+      interview.status === InterviewStatus.CANCELLED
+    ) {
+      throw new BadRequestException(
+        `Cannot add questions while interview is ${interview.status}`,
+      );
+    }
+
+    const maxOrder = await this.prisma.interviewQuestion.aggregate({
+      where: { interviewId, companyId },
+      _max: { order: true },
+    });
+    const order = (maxOrder._max.order ?? 0) + 1;
+    const type = dto.type ?? InterviewQuestionType.TEXTAREA;
+
+    const question = await this.prisma.interviewQuestion.create({
+      data: {
+        companyId,
+        interviewId,
+        text: dto.text.trim(),
+        type,
+        required: dto.required ?? false,
+        order,
+        sourceTemplateQuestionId: null,
+      },
+      include: { answers: true },
+    });
+
+    await this.audit.create({
+      action: ATS_AUDIT.INTERVIEW_UPDATED,
+      entity: 'InterviewQuestion',
+      entityId: question.id,
+      company: { connect: { id: companyId } },
+      user: { connect: { id: userId } },
+      metadata: {
+        interviewId,
+        questionId: question.id,
+        via: 'AD_HOC',
+      },
+    });
+
+    return question;
+  }
+
+  async removeAdHocQuestion(
+    companyId: string,
+    userId: string,
+    membershipId: string,
+    interviewId: string,
+    questionId: string,
+  ) {
+    const interview = await this.requireInterview(companyId, interviewId);
+    await this.assertInterviewerOrAdmin(
+      companyId,
+      userId,
+      membershipId,
+      interviewId,
+    );
+    if (
+      interview.status === InterviewStatus.COMPLETED ||
+      interview.status === InterviewStatus.CANCELLED
+    ) {
+      throw new BadRequestException(
+        `Cannot remove questions while interview is ${interview.status}`,
+      );
+    }
+
+    const question = await this.prisma.interviewQuestion.findFirst({
+      where: { id: questionId, interviewId, companyId },
+    });
+    if (!question) {
+      throw new NotFoundException('Question not found');
+    }
+    if (question.sourceTemplateQuestionId) {
+      throw new BadRequestException(
+        'Only ad-hoc questions can be removed from a live interview',
+      );
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.interviewAnswer.deleteMany({
+        where: { interviewQuestionId: questionId, companyId },
+      });
+      await tx.interviewQuestion.delete({ where: { id: questionId } });
+    });
+
+    await this.audit.create({
+      action: ATS_AUDIT.INTERVIEW_UPDATED,
+      entity: 'InterviewQuestion',
+      entityId: questionId,
+      company: { connect: { id: companyId } },
+      user: { connect: { id: userId } },
+      metadata: {
+        interviewId,
+        questionId,
+        via: 'AD_HOC_REMOVED',
+      },
+    });
+
+    return { ok: true };
   }
 
   async cancel(companyId: string, userId: string, id: string) {

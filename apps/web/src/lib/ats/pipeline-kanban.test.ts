@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
   fitLevelFromRatings,
+  finalistCardsForDocs,
   getValidKanbanTargets,
   groupCardsByKanbanColumn,
   hireRequirementChecks,
   interviewPhaseDecisionOptions,
+  KANBAN_COLUMNS,
   kanbanColumnForStage,
   nextStageForInterviewAdvance,
   stageForKanbanColumn,
@@ -19,6 +21,25 @@ describe("pipeline kanban", () => {
     expect(kanbanColumnForStage("OFFER")).toBe("EVALUATORS");
     expect(kanbanColumnForStage("HIRED")).toBe("HIRED");
     expect(kanbanColumnForStage("REJECTED")).toBeNull();
+    expect(
+      [
+        "Aplicantes",
+        "Evaluación",
+        "Finalistas",
+        "a Contratar",
+      ].every((label, index) => KANBAN_COLUMNS[index]?.label === label),
+    ).toBe(true);
+  });
+
+  it("lists only finalist (OFFER) cards for recruiter docs table", () => {
+    expect(
+      finalistCardsForDocs([
+        card("a", "PENDING_REVIEW"),
+        card("b", "OFFER"),
+        card("c", "INTERVIEW"),
+        card("d", "OFFER"),
+      ]).map((item) => item.applicationId),
+    ).toEqual(["b", "d"]);
   });
 
   it("lets a recruiter advance Nuevo to attraction in one drop", () => {
@@ -65,13 +86,28 @@ describe("pipeline kanban", () => {
   });
 
   it("blocks hiring until offer, stage and vacancy capacity are met", () => {
+    const blocked = hireRequirementChecks({
+      stage: "INTERVIEW",
+      offerStatus: null,
+      headcount: 1,
+      filledCount: 1,
+      securityStudyStatus: "PENDING",
+      medicalExamStatus: "PENDING",
+      contractApprovalStatus: "PENDING",
+      hasCompanyOfferLetterTemplate: true,
+      hasSignedOfferLetter: false,
+    });
+    expect(blocked.every((item) => !item.met)).toBe(true);
     expect(
       hireRequirementChecks({
-        stage: "INTERVIEW",
-        offerStatus: null,
-        headcount: 1,
+        stage: "OFFER",
+        offerStatus: "ACCEPTED",
+        headcount: 2,
         filledCount: 1,
-      }).every((item) => !item.met),
+        securityStudyStatus: "APPROVED",
+        medicalExamStatus: "NOT_REQUIRED",
+        contractApprovalStatus: "APPROVED",
+      }).every((item) => item.met),
     ).toBe(true);
     expect(
       hireRequirementChecks({
@@ -79,8 +115,24 @@ describe("pipeline kanban", () => {
         offerStatus: "ACCEPTED",
         headcount: 2,
         filledCount: 1,
-      }).every((item) => item.met),
-    ).toBe(true);
+        securityStudyStatus: "APPROVED",
+        medicalExamStatus: "APPROVED",
+        contractApprovalStatus: "NOT_REQUIRED",
+        hasCompanyOfferLetterTemplate: true,
+        hasSignedOfferLetter: false,
+      }).find((item) => item.id === "SIGNED_OFFER_LETTER")?.met,
+    ).toBe(false);
+    expect(
+      hireRequirementChecks({
+        stage: "OFFER",
+        offerStatus: "ACCEPTED",
+        headcount: 2,
+        filledCount: 1,
+        securityStudyStatus: "PENDING",
+        medicalExamStatus: "APPROVED",
+        contractApprovalStatus: "NOT_REQUIRED",
+      }).find((item) => item.id === "SECURITY_STUDY")?.met,
+    ).toBe(false);
   });
 });
 

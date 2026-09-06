@@ -4,6 +4,7 @@ import {
   IsBoolean,
   IsDateString,
   IsEnum,
+  IsIn,
   IsInt,
   IsOptional,
   IsString,
@@ -82,6 +83,16 @@ export class UpdateInterviewDto {
   @IsString()
   @MaxLength(2000)
   notes?: string | null;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(4000)
+  strengths?: string | null;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(4000)
+  improvements?: string | null;
 
   @IsOptional()
   @IsString()
@@ -221,4 +232,34 @@ export class ApplyProcessInterviewTemplateDto {
 
   @IsUUID()
   templateId!: string;
+}
+
+export class EvaluatorDecisionDto {
+  @IsIn(['APPROVE', 'REJECT'])
+  decision!: 'APPROVE' | 'REJECT';
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(4000)
+  strengths?: string | null;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(4000)
+  improvements?: string | null;
+}
+
+export class AddAdHocInterviewQuestionDto {
+  @IsString()
+  @MinLength(1)
+  @MaxLength(2000)
+  text!: string;
+
+  @IsOptional()
+  @IsEnum(InterviewQuestionType)
+  type?: InterviewQuestionType;
+
+  @IsOptional()
+  @IsBoolean()
+  required?: boolean;
 }

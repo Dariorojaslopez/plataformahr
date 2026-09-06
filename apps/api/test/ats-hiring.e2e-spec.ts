@@ -11,11 +11,13 @@ import {
   InterviewType,
   JobOfferStatus,
   MembershipStatus,
+  PreHireCheckStatus,
   PrismaClient,
   RoleScope,
   SalaryPeriod,
   UserStatus,
   VacancyRequestStatus,
+  VacancyRequestMotive,
   VacancyRequestType,
   VacancyStatus,
 } from '@prisma/client';
@@ -77,6 +79,8 @@ describe('ATS hiring (e2e)', () => {
         companyId: companyAId,
         requestedByEmployeeId: employeeAId,
         type: VacancyRequestType.EXISTING_POSITION,
+        motive: VacancyRequestMotive.REPLACEMENT_RESIGNATION,
+        expectedHiringDate: new Date('2099-06-15'),
         existingPositionId: positionAId,
         requestedHeadcount: headcount,
         justification: `Hiring tests ${tag}`,
@@ -117,6 +121,8 @@ describe('ATS hiring (e2e)', () => {
         vacancyId: targetVacancyId,
         stage: ApplicationStage.CONTACTED,
         status: ApplicationStatus.ACTIVE,
+        securityStudyStatus: PreHireCheckStatus.NOT_REQUIRED,
+        medicalExamStatus: PreHireCheckStatus.NOT_REQUIRED,
       },
     });
     return {
@@ -579,6 +585,78 @@ describe('ATS hiring (e2e)', () => {
     });
     expect(audit).toBeTruthy();
     expect(audit?.entity).toBe('Hiring');
+  });
+
+  it('discards other finalists into the candidate pool on hire', async () => {
+    const winner = await createAcceptedOffer('pool-win');
+    const loser = await createAcceptedOffer('pool-lose');
+
+    await request(app.getHttpServer())
+      .post(`/ats/applications/${winner.applicationId}/hire`)
+      .set(auth(adminToken))
+      .send({ hireDate: '2026-08-02' })
+      .expect(201);
+
+    const loserApp = await prisma.application.findUniqueOrThrow({
+      where: { id: loser.applicationId },
+    });
+    expect(loserApp.stage).toBe(ApplicationStage.REJECTED);
+    expect(loserApp.status).toBe(ApplicationStatus.CLOSED);
+
+    const loserCandidate = await prisma.candidate.findUniqueOrThrow({
+      where: { id: loser.candidateId },
+    });
+    expect(loserCandidate.status).toBe(CandidateStatus.IN_POOL);
+
+    const thankYou = await prisma.auditLog.findFirst({
+      where: {
+        companyId: companyAId,
+        action: 'FINALIST_THANK_YOU_SENT',
+        entityId: loser.candidateId,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+    expect(thankYou).toBeTruthy();
+    const metadata = thankYou?.metadata as {
+      delivery?: string;
+      email?: string;
+    } | null;
+    expect(metadata?.email?.toLowerCase()).toBe(
+      loser.candidateEmail.toLowerCase(),
+    );
+    expect(['SENT', 'SKIPPED', 'FAILED']).toContain(metadata?.delivery);
+  });
+
+  it('rejects hire when pre-hire checklist is still pending', async () => {
+    const seeded = await createAcceptedOffer('prehire-block');
+    await prisma.application.update({
+      where: { id: seeded.applicationId },
+      data: {
+        securityStudyStatus: PreHireCheckStatus.PENDING,
+        medicalExamStatus: PreHireCheckStatus.PENDING,
+      },
+    });
+
+    await request(app.getHttpServer())
+      .post(`/ats/applications/${seeded.applicationId}/hire`)
+      .set(auth(adminToken))
+      .send({ hireDate: '2026-08-02' })
+      .expect(400);
+
+    await request(app.getHttpServer())
+      .patch(`/ats/applications/${seeded.applicationId}/prehire`)
+      .set(auth(adminToken))
+      .send({
+        securityStudyStatus: PreHireCheckStatus.APPROVED,
+        medicalExamStatus: PreHireCheckStatus.NOT_REQUIRED,
+      })
+      .expect(200);
+
+    await request(app.getHttpServer())
+      .post(`/ats/applications/${seeded.applicationId}/hire`)
+      .set(auth(adminToken))
+      .send({ hireDate: '2026-08-02' })
+      .expect(201);
   });
 
   it('rejects hire when offer is only SENT', async () => {

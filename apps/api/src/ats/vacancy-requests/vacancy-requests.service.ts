@@ -11,7 +11,7 @@ import {
   Prisma,
   VacancyApprovalPlanOrigin,
   VacancyApprovalStep,
-  VacancyApproverType,
+  VacancyRequestMotive,
   VacancyRequestStatus,
   VacancyRequestType,
   VacancyStatus,
@@ -26,6 +26,7 @@ import {
   ATS_AUDIT,
   DEFAULT_LIMIT,
   DEFAULT_PAGE,
+  DEFAULT_VACANCY_HIRING_SLA_DAYS,
   MAX_LIMIT,
   MAX_VACANCY_APPROVAL_STEPS,
   PROXY_REQUESTER_ROLE_CODES,
@@ -34,7 +35,6 @@ import {
 import type {
   ApprovalDecisionDto,
   CreateVacancyRequestDto,
-  ExtraApprovalStepDto,
   ListVacancyRequestsQueryDto,
   RejectDecisionDto,
   UpdateVacancyRequestDto,
@@ -47,6 +47,13 @@ import {
 import { VacancyApprovalWorkflowService } from './vacancy-approval-workflow.service';
 import { VacancyEvaluatorDefaultsService } from '../process-defaults/vacancy-evaluator-defaults.service';
 import { PositionOccupantsService } from '../position-occupants/position-occupants.service';
+import {
+  defaultMotiveFromType,
+  isReplacementMotive,
+  minExpectedHiringDate,
+  parseDateOnlyUtc,
+  typeFromMotive,
+} from './vacancy-request-motive';
 
 const PERSON_SELECT = {
   id: true,
@@ -102,6 +109,7 @@ export class VacancyRequestsService {
         ? { status: VacancyRequestStatus.PENDING_APPROVAL }
         : {}),
       ...(query.type ? { type: query.type } : {}),
+      ...(query.motive ? { motive: query.motive } : {}),
       ...(query.requestedByEmployeeId
         ? { requestedByEmployeeId: query.requestedByEmployeeId }
         : {}),
@@ -128,9 +136,14 @@ export class VacancyRequestsService {
       const pending = await this.prisma.vacancyRequest.findMany({
         where,
         include: {
-          existingPosition: { select: { id: true, name: true } },
+          existingPosition: {
+            select: { id: true, name: true, headcount: true },
+          },
           requestedArea: { select: { id: true, name: true } },
           requestedByEmployee: {
+            select: { id: true, firstName: true, lastName: true, email: true },
+          },
+          replacedEmployee: {
             select: { id: true, firstName: true, lastName: true, email: true },
           },
           approvals: APPROVAL_INCLUDE,
@@ -157,9 +170,14 @@ export class VacancyRequestsService {
       this.prisma.vacancyRequest.findMany({
         where,
         include: {
-          existingPosition: { select: { id: true, name: true } },
+          existingPosition: {
+            select: { id: true, name: true, headcount: true },
+          },
           requestedArea: { select: { id: true, name: true } },
           requestedByEmployee: {
+            select: { id: true, firstName: true, lastName: true, email: true },
+          },
+          replacedEmployee: {
             select: { id: true, firstName: true, lastName: true, email: true },
           },
           approvals: APPROVAL_INCLUDE,
@@ -191,6 +209,9 @@ export class VacancyRequestsService {
         requestedByEmployee: {
           select: { id: true, firstName: true, lastName: true, email: true },
         },
+        replacedEmployee: {
+          select: { id: true, firstName: true, lastName: true, email: true },
+        },
         approvals: APPROVAL_INCLUDE,
         approvalPlanSteps: PLAN_INCLUDE,
         vacancy: true,
@@ -211,16 +232,25 @@ export class VacancyRequestsService {
       tenant,
       dto.requestedByEmployeeId,
     );
-    await this.validateRequestShape(tenant.companyId, dto);
+    this.rejectExtraApprovalSteps(dto.extraApprovalSteps);
+    const resolved = this.resolveMotiveAndType(dto.motive, dto.type);
+    await this.validateRequestShape(tenant.companyId, {
+      ...dto,
+      ...resolved,
+      justification: dto.justification ?? '',
+      expectedHiringDate: dto.expectedHiringDate,
+      replacedEmployeeId: dto.replacedEmployeeId,
+    });
 
     const created = await this.prisma.vacancyRequest.create({
-      data: this.toCreateData(tenant.companyId, requestedByEmployeeId, dto),
+      data: this.toCreateData(
+        tenant.companyId,
+        requestedByEmployeeId,
+        dto,
+        resolved,
+      ),
     });
-    await this.seedApprovalPlan(
-      tenant.companyId,
-      created.id,
-      dto.extraApprovalSteps ?? [],
-    );
+    await this.seedApprovalPlan(tenant.companyId, created.id);
 
     await this.audit.create({
       action: ATS_AUDIT.VACANCY_REQUEST_CREATED,
@@ -228,7 +258,12 @@ export class VacancyRequestsService {
       entityId: created.id,
       company: { connect: { id: tenant.companyId } },
       user: { connect: { id: tenant.userId } },
-      metadata: { id: created.id, status: created.status, type: created.type },
+      metadata: {
+        id: created.id,
+        status: created.status,
+        type: created.type,
+        motive: created.motive,
+      },
     });
 
     return created;
@@ -240,10 +275,15 @@ export class VacancyRequestsService {
     dto: UpdateVacancyRequestDto,
   ): Promise<VacancyRequest> {
     const existing = await this.requireDraft(tenant.companyId, id);
+    this.rejectExtraApprovalSteps(dto.extraApprovalSteps);
 
-    const mergedType = dto.type ?? existing.type;
+    const resolved = this.resolveMotiveAndType(
+      dto.motive ?? existing.motive,
+      dto.type ?? existing.type,
+    );
     const shape = {
-      type: mergedType,
+      type: resolved.type,
+      motive: resolved.motive,
       existingPositionId:
         dto.existingPositionId !== undefined
           ? dto.existingPositionId
@@ -260,7 +300,14 @@ export class VacancyRequestsService {
         dto.requestedJobLevelId !== undefined
           ? dto.requestedJobLevelId
           : existing.requestedJobLevelId,
+      replacedEmployeeId:
+        dto.replacedEmployeeId !== undefined
+          ? dto.replacedEmployeeId
+          : existing.replacedEmployeeId,
       requestedHeadcount: dto.requestedHeadcount ?? existing.requestedHeadcount,
+      expectedHiringDate:
+        dto.expectedHiringDate ??
+        existing.expectedHiringDate.toISOString().slice(0, 10),
       justification: dto.justification ?? existing.justification,
       generalManagerApprovalRequired:
         dto.generalManagerApprovalRequired ??
@@ -272,16 +319,20 @@ export class VacancyRequestsService {
     }
     await this.validateRequestShape(tenant.companyId, shape);
 
+    const expectedHiringDate = parseDateOnlyUtc(shape.expectedHiringDate)!;
+
     const updated = await this.prisma.vacancyRequest.update({
       where: { id },
       data: {
-        ...(dto.type !== undefined ? { type: dto.type } : {}),
+        type: resolved.type,
+        motive: resolved.motive,
         ...(dto.requestedByEmployeeId !== undefined
           ? { requestedByEmployeeId: dto.requestedByEmployeeId }
           : {}),
         ...(dto.requestedHeadcount !== undefined
           ? { requestedHeadcount: dto.requestedHeadcount }
           : {}),
+        expectedHiringDate,
         ...(dto.justification !== undefined
           ? { justification: dto.justification.trim() }
           : {}),
@@ -291,29 +342,12 @@ export class VacancyRequestsService {
                 dto.generalManagerApprovalRequired,
             }
           : {}),
-        ...this.shapeFieldsForType(mergedType, shape),
+        replacedEmployeeId: isReplacementMotive(resolved.motive)
+          ? (shape.replacedEmployeeId ?? null)
+          : null,
+        ...this.shapeFieldsForType(resolved.type, shape),
       } satisfies Prisma.VacancyRequestUncheckedUpdateInput,
     });
-
-    if (dto.extraApprovalSteps !== undefined) {
-      const existingPlanCount =
-        await this.prisma.vacancyRequestApprovalPlanStep.count({
-          where: { companyId: tenant.companyId, vacancyRequestId: id },
-        });
-      if (existingPlanCount === 0) {
-        await this.seedApprovalPlan(
-          tenant.companyId,
-          id,
-          dto.extraApprovalSteps,
-        );
-      } else {
-        await this.replaceCustomPlanSteps(
-          tenant.companyId,
-          id,
-          dto.extraApprovalSteps,
-        );
-      }
-    }
 
     await this.audit.create({
       action: ATS_AUDIT.VACANCY_REQUEST_UPDATED,
@@ -331,11 +365,14 @@ export class VacancyRequestsService {
     const request = await this.requireDraft(tenant.companyId, id);
     await this.validateRequestShape(tenant.companyId, {
       type: request.type,
+      motive: request.motive,
       existingPositionId: request.existingPositionId,
       requestedPositionName: request.requestedPositionName,
       requestedAreaId: request.requestedAreaId,
       requestedJobLevelId: request.requestedJobLevelId,
+      replacedEmployeeId: request.replacedEmployeeId,
       requestedHeadcount: request.requestedHeadcount,
+      expectedHiringDate: request.expectedHiringDate.toISOString().slice(0, 10),
       justification: request.justification,
       generalManagerApprovalRequired: request.generalManagerApprovalRequired,
     });
@@ -649,12 +686,14 @@ export class VacancyRequestsService {
         throw new NotFoundException('Existing position not found');
       }
 
-      await tx.position.update({
-        where: { id: position.id },
-        data: {
-          headcount: { increment: request.requestedHeadcount },
-        },
-      });
+      // Replacements fill existing capacity. Only grow structure when the
+      // requested openings exceed the approved headcount (justified excess).
+      if (request.requestedHeadcount > position.headcount) {
+        await tx.position.update({
+          where: { id: position.id },
+          data: { headcount: request.requestedHeadcount },
+        });
+      }
 
       positionId = position.id;
       areaId = position.areaId;
@@ -860,24 +899,70 @@ export class VacancyRequestsService {
     return ownEmployee.id;
   }
 
+  private rejectExtraApprovalSteps(
+    steps: Array<{ positionId: string; employeeId?: string | null }> | undefined,
+  ): void {
+    if (steps && steps.length > 0) {
+      throw new BadRequestException(
+        'Los niveles de aprobación son los preestablecidos; no se pueden agregar extras en la solicitud.',
+      );
+    }
+  }
+
+  private resolveMotiveAndType(
+    motive?: VacancyRequestMotive | null,
+    type?: VacancyRequestType | null,
+  ): { motive: VacancyRequestMotive; type: VacancyRequestType } {
+    if (motive) {
+      const derivedType = typeFromMotive(motive);
+      if (type && type !== derivedType) {
+        throw new BadRequestException(
+          'motive and type are inconsistent',
+        );
+      }
+      return { motive, type: derivedType };
+    }
+    if (type) {
+      return { type, motive: defaultMotiveFromType(type) };
+    }
+    throw new BadRequestException('motive or type is required');
+  }
+
   private async validateRequestShape(
     companyId: string,
     dto: {
       type: VacancyRequestType;
+      motive: VacancyRequestMotive;
       existingPositionId?: string | null;
       requestedPositionName?: string | null;
       requestedAreaId?: string | null;
       requestedJobLevelId?: string | null;
+      replacedEmployeeId?: string | null;
       requestedHeadcount: number;
-      justification: string;
+      expectedHiringDate: string;
+      justification?: string | null;
       generalManagerApprovalRequired?: boolean;
     },
   ): Promise<void> {
     if (dto.requestedHeadcount < 1) {
       throw new BadRequestException('requestedHeadcount must be >= 1');
     }
-    if (!dto.justification?.trim()) {
-      throw new BadRequestException('justification is required');
+
+    const expectedHiringDate = parseDateOnlyUtc(dto.expectedHiringDate);
+    if (!expectedHiringDate) {
+      throw new BadRequestException('expectedHiringDate is invalid');
+    }
+    const company = await this.prisma.company.findFirst({
+      where: { id: companyId, deletedAt: null },
+      select: { vacancyHiringSlaDays: true },
+    });
+    const slaDays =
+      company?.vacancyHiringSlaDays ?? DEFAULT_VACANCY_HIRING_SLA_DAYS;
+    const minDate = minExpectedHiringDate(slaDays);
+    if (expectedHiringDate.getTime() < minDate.getTime()) {
+      throw new BadRequestException(
+        `expectedHiringDate must be on or after ${minDate.toISOString().slice(0, 10)} (SLA ${slaDays} days)`,
+      );
     }
 
     if (dto.type === VacancyRequestType.EXISTING_POSITION) {
@@ -895,13 +980,44 @@ export class VacancyRequestsService {
           'NEW_POSITION fields must be null for EXISTING_POSITION',
         );
       }
-      await this.integrity.requirePosition(companyId, dto.existingPositionId);
+      const position = await this.integrity.requirePosition(
+        companyId,
+        dto.existingPositionId,
+      );
+      if (isReplacementMotive(dto.motive)) {
+        if (!dto.replacedEmployeeId) {
+          throw new BadRequestException(
+            'replacedEmployeeId is required for replacement motives',
+          );
+        }
+        await this.occupants.resolve(
+          companyId,
+          dto.existingPositionId,
+          dto.replacedEmployeeId,
+        );
+      } else if (dto.replacedEmployeeId) {
+        throw new BadRequestException(
+          'replacedEmployeeId must be null for NEW_POSITION',
+        );
+      }
+
+      const exceedsStructure = dto.requestedHeadcount > position.headcount;
+      if (exceedsStructure && !dto.justification?.trim()) {
+        throw new BadRequestException(
+          'justification is required when requestedHeadcount exceeds position headcount',
+        );
+      }
       return;
     }
 
     if (dto.existingPositionId) {
       throw new BadRequestException(
         'existingPositionId must be null for NEW_POSITION',
+      );
+    }
+    if (dto.replacedEmployeeId) {
+      throw new BadRequestException(
+        'replacedEmployeeId must be null for NEW_POSITION',
       );
     }
     if (!dto.requestedPositionName?.trim()) {
@@ -914,6 +1030,11 @@ export class VacancyRequestsService {
         'requestedAreaId is required for NEW_POSITION',
       );
     }
+    if (!dto.justification?.trim()) {
+      throw new BadRequestException(
+        'justification is required for NEW_POSITION',
+      );
+    }
     await this.integrity.requireArea(companyId, dto.requestedAreaId);
     if (dto.requestedJobLevelId) {
       await this.integrity.requireJobLevel(companyId, dto.requestedJobLevelId);
@@ -924,22 +1045,29 @@ export class VacancyRequestsService {
     companyId: string,
     requestedByEmployeeId: string,
     dto: CreateVacancyRequestDto,
+    resolved: { type: VacancyRequestType; motive: VacancyRequestMotive },
   ): Prisma.VacancyRequestCreateInput {
+    const expectedHiringDate = parseDateOnlyUtc(dto.expectedHiringDate)!;
     const base = {
       company: { connect: { id: companyId } },
       requestedByEmployee: { connect: { id: requestedByEmployeeId } },
-      type: dto.type,
+      type: resolved.type,
+      motive: resolved.motive,
       requestedHeadcount: dto.requestedHeadcount,
-      justification: dto.justification.trim(),
+      expectedHiringDate,
+      justification: (dto.justification ?? '').trim(),
       generalManagerApprovalRequired:
         dto.generalManagerApprovalRequired ?? false,
       status: VacancyRequestStatus.DRAFT,
     };
 
-    if (dto.type === VacancyRequestType.EXISTING_POSITION) {
+    if (resolved.type === VacancyRequestType.EXISTING_POSITION) {
       return {
         ...base,
         existingPosition: { connect: { id: dto.existingPositionId! } },
+        ...(dto.replacedEmployeeId
+          ? { replacedEmployee: { connect: { id: dto.replacedEmployeeId } } }
+          : {}),
       };
     }
 
@@ -996,24 +1124,19 @@ export class VacancyRequestsService {
     return request;
   }
 
-  private async seedApprovalPlan(
-    companyId: string,
-    requestId: string,
-    extras: ExtraApprovalStepDto[],
-  ) {
+  private async seedApprovalPlan(companyId: string, requestId: string) {
     const workflow = await this.prisma.vacancyApprovalWorkflow.findUnique({
       where: { companyId },
       include: { steps: { orderBy: { sequence: 'asc' } } },
     });
     const defaults = workflow?.enabled ? workflow.steps : [];
-    const custom = await this.normalizeExtraPlanSteps(companyId, extras);
-    if (defaults.length + custom.length > MAX_VACANCY_APPROVAL_STEPS) {
+    if (defaults.length > MAX_VACANCY_APPROVAL_STEPS) {
       throw new BadRequestException(
         `A workflow can have at most ${MAX_VACANCY_APPROVAL_STEPS} steps`,
       );
     }
-    const rows: Prisma.VacancyRequestApprovalPlanStepCreateManyInput[] = [
-      ...defaults.map((step, index) => ({
+    const rows: Prisma.VacancyRequestApprovalPlanStepCreateManyInput[] =
+      defaults.map((step, index) => ({
         companyId,
         vacancyRequestId: requestId,
         sequence: index + 1,
@@ -1024,87 +1147,9 @@ export class VacancyRequestsService {
         specificEmployeeId: step.specificEmployeeId,
         requiredRoleCode: step.requiredRoleCode,
         updatedAt: new Date(),
-      })),
-      ...custom.map((step, index) => ({
-        companyId,
-        vacancyRequestId: requestId,
-        sequence: defaults.length + index + 1,
-        origin: VacancyApprovalPlanOrigin.CUSTOM,
-        approverType: VacancyApproverType.POSITION,
-        label: null,
-        positionId: step.positionId,
-        specificEmployeeId: step.specificEmployeeId,
-        requiredRoleCode: null,
-        updatedAt: new Date(),
-      })),
-    ];
+      }));
     if (rows.length > 0) {
       await this.prisma.vacancyRequestApprovalPlanStep.createMany({ data: rows });
     }
-  }
-
-  private async replaceCustomPlanSteps(
-    companyId: string,
-    requestId: string,
-    extras: ExtraApprovalStepDto[],
-  ) {
-    const defaults = await this.prisma.vacancyRequestApprovalPlanStep.findMany({
-      where: {
-        companyId,
-        vacancyRequestId: requestId,
-        origin: VacancyApprovalPlanOrigin.DEFAULT,
-      },
-      orderBy: { sequence: 'asc' },
-    });
-    const custom = await this.normalizeExtraPlanSteps(companyId, extras);
-    if (defaults.length + custom.length > MAX_VACANCY_APPROVAL_STEPS) {
-      throw new BadRequestException(
-        `A workflow can have at most ${MAX_VACANCY_APPROVAL_STEPS} steps`,
-      );
-    }
-    await this.prisma.vacancyRequestApprovalPlanStep.deleteMany({
-      where: {
-        companyId,
-        vacancyRequestId: requestId,
-        origin: VacancyApprovalPlanOrigin.CUSTOM,
-      },
-    });
-    if (custom.length === 0) {
-      return;
-    }
-    await this.prisma.vacancyRequestApprovalPlanStep.createMany({
-      data: custom.map((step, index) => ({
-        companyId,
-        vacancyRequestId: requestId,
-        sequence: defaults.length + index + 1,
-        origin: VacancyApprovalPlanOrigin.CUSTOM,
-        approverType: VacancyApproverType.POSITION,
-        label: null,
-        positionId: step.positionId,
-        specificEmployeeId: step.specificEmployeeId,
-        requiredRoleCode: null,
-        updatedAt: new Date(),
-      })),
-    });
-  }
-
-  private async normalizeExtraPlanSteps(
-    companyId: string,
-    extras: ExtraApprovalStepDto[],
-  ) {
-    const custom: Array<{ positionId: string; specificEmployeeId: string }> =
-      [];
-    for (const extra of extras) {
-      const occupant = await this.occupants.resolve(
-        companyId,
-        extra.positionId,
-        extra.employeeId,
-      );
-      custom.push({
-        positionId: extra.positionId,
-        specificEmployeeId: occupant.id,
-      });
-    }
-    return custom;
   }
 }

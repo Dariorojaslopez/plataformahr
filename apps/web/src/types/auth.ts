@@ -122,4 +122,11 @@ export type CurrentCompanyResponse = {
   defaultLanguage: string;
   goalsCascadeEnabled: boolean;
   showNineBoxOnMyResults: boolean;
+  vacancyHiringSlaDays: number;
+  atsThankYouLetterSubject?: string | null;
+  atsThankYouLetterBody?: string | null;
+  offerLetterTemplateOriginalName?: string | null;
+  contractTemplateOriginalName?: string | null;
+  hasOfferLetterTemplate?: boolean;
+  hasContractTemplate?: boolean;
 };

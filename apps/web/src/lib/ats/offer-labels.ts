@@ -1,4 +1,5 @@
 import type {
+  ContractApprovalStatus,
   JobOfferStatus,
   OfferEmploymentType,
   SalaryPeriod,
@@ -19,6 +20,16 @@ export const OFFER_STATUS_LABELS: Record<JobOfferStatus, string> = {
   REJECTED: "Rechazada",
   EXPIRED: "Vencida",
   WITHDRAWN: "Retirada",
+};
+
+export const CONTRACT_APPROVAL_STATUS_LABELS: Record<
+  ContractApprovalStatus,
+  string
+> = {
+  NOT_REQUIRED: "No requerida",
+  PENDING: "Pendiente",
+  APPROVED: "Aprobado",
+  REJECTED: "Rechazado",
 };
 
 export const SALARY_PERIOD_LABELS: Record<SalaryPeriod, string> = {

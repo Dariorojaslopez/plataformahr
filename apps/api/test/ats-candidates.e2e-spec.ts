@@ -14,6 +14,7 @@ import {
   RoleScope,
   UserStatus,
   VacancyRequestStatus,
+  VacancyRequestMotive,
   VacancyRequestType,
   VacancyStatus,
 } from '@prisma/client';
@@ -209,6 +210,8 @@ describe('ATS candidates & applications (e2e)', () => {
           companyId: opts.companyId,
           requestedByEmployeeId: opts.employeeId,
           type: VacancyRequestType.EXISTING_POSITION,
+        motive: VacancyRequestMotive.REPLACEMENT_RESIGNATION,
+        expectedHiringDate: new Date('2099-06-15'),
           existingPositionId: opts.positionId,
           requestedHeadcount: 1,
           justification: `Seed vacancy ${opts.title}`,
@@ -710,7 +713,12 @@ describe('ATS candidates & applications (e2e)', () => {
             a !== null &&
             'applicationId' in a &&
             'candidateName' in a &&
-            'fitLevel' in a,
+            'fitLevel' in a &&
+            'hasCv' in a &&
+            'hasSecurityStudyDoc' in a &&
+            'hasMedicalExamDoc' in a &&
+            'securityStudyStatus' in a &&
+            'medicalExamStatus' in a,
         ),
       ).toBe(true);
 

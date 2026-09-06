@@ -29,6 +29,7 @@ import {
 } from "@/lib/ats/labels";
 import { notifyError, notifySuccess } from "@/lib/ui/notify";
 import type { Vacancy } from "@/types/ats";
+import { VacancyScreeningSection } from "@/components/ats/vacancy-screening-section";
 
 export function VacancyDetailPageClient() {
   const companyId = useCompanyId();
@@ -182,6 +183,8 @@ export function VacancyDetailPageClient() {
           {vacancy.description?.trim() || "Sin descripción."}
         </p>
       </section>
+
+      <VacancyScreeningSection vacancyId={vacancy.id} />
     </div>
   );
 }

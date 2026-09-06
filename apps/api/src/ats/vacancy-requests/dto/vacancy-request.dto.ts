@@ -3,6 +3,7 @@ import {
   ArrayMaxSize,
   IsArray,
   IsBoolean,
+  IsDateString,
   IsEnum,
   IsInt,
   IsOptional,
@@ -15,7 +16,11 @@ import {
   ValidateIf,
   ValidateNested,
 } from 'class-validator';
-import { VacancyRequestStatus, VacancyRequestType } from '@prisma/client';
+import {
+  VacancyRequestMotive,
+  VacancyRequestStatus,
+  VacancyRequestType,
+} from '@prisma/client';
 import {
   DEFAULT_LIMIT,
   DEFAULT_PAGE,
@@ -33,8 +38,13 @@ export class ExtraApprovalStepDto {
 }
 
 export class CreateVacancyRequestDto {
+  @IsOptional()
   @IsEnum(VacancyRequestType)
-  type!: VacancyRequestType;
+  type?: VacancyRequestType;
+
+  @IsOptional()
+  @IsEnum(VacancyRequestMotive)
+  motive?: VacancyRequestMotive;
 
   @IsOptional()
   @IsUUID()
@@ -42,13 +52,8 @@ export class CreateVacancyRequestDto {
 
   @ValidateIf(
     (o: CreateVacancyRequestDto) =>
-      o.type === VacancyRequestType.EXISTING_POSITION,
-  )
-  @IsUUID()
-  existingPositionId?: string;
-
-  @ValidateIf(
-    (o: CreateVacancyRequestDto) => o.type === VacancyRequestType.NEW_POSITION,
+      o.motive === VacancyRequestMotive.NEW_POSITION ||
+      o.type === VacancyRequestType.NEW_POSITION,
   )
   @IsString()
   @MinLength(1)
@@ -56,24 +61,43 @@ export class CreateVacancyRequestDto {
   requestedPositionName?: string;
 
   @ValidateIf(
-    (o: CreateVacancyRequestDto) => o.type === VacancyRequestType.NEW_POSITION,
+    (o: CreateVacancyRequestDto) =>
+      o.motive === VacancyRequestMotive.NEW_POSITION ||
+      o.type === VacancyRequestType.NEW_POSITION,
   )
   @IsUUID()
   requestedAreaId?: string;
 
+  @ValidateIf(
+    (o: CreateVacancyRequestDto) =>
+      !(
+        o.motive === VacancyRequestMotive.NEW_POSITION ||
+        o.type === VacancyRequestType.NEW_POSITION
+      ),
+  )
+  @IsUUID()
+  existingPositionId?: string;
+
   @IsOptional()
   @IsUUID()
   requestedJobLevelId?: string;
+
+  @IsOptional()
+  @IsUUID()
+  replacedEmployeeId?: string | null;
 
   @Type(() => Number)
   @IsInt()
   @Min(1)
   requestedHeadcount!: number;
 
+  @IsDateString()
+  expectedHiringDate!: string;
+
+  @IsOptional()
   @IsString()
-  @MinLength(1)
   @MaxLength(4000)
-  justification!: string;
+  justification?: string;
 
   @IsOptional()
   @IsBoolean()
@@ -91,6 +115,10 @@ export class UpdateVacancyRequestDto {
   @IsOptional()
   @IsEnum(VacancyRequestType)
   type?: VacancyRequestType;
+
+  @IsOptional()
+  @IsEnum(VacancyRequestMotive)
+  motive?: VacancyRequestMotive;
 
   @IsOptional()
   @IsUUID()
@@ -114,14 +142,21 @@ export class UpdateVacancyRequestDto {
   requestedJobLevelId?: string | null;
 
   @IsOptional()
+  @IsUUID()
+  replacedEmployeeId?: string | null;
+
+  @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(1)
   requestedHeadcount?: number;
 
   @IsOptional()
+  @IsDateString()
+  expectedHiringDate?: string;
+
+  @IsOptional()
   @IsString()
-  @MinLength(1)
   @MaxLength(4000)
   justification?: string;
 
@@ -145,6 +180,10 @@ export class ListVacancyRequestsQueryDto {
   @IsOptional()
   @IsEnum(VacancyRequestType)
   type?: VacancyRequestType;
+
+  @IsOptional()
+  @IsEnum(VacancyRequestMotive)
+  motive?: VacancyRequestMotive;
 
   @IsOptional()
   @IsUUID()

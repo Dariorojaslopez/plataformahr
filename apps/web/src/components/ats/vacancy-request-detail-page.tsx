@@ -28,14 +28,15 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { useCompanyId } from "@/hooks/use-company-id";
 import { atsApi, atsKeys } from "@/lib/api/ats";
+import { companyApi, companyKeys } from "@/lib/api/company";
 import { ApiError, getErrorMessage } from "@/lib/api/errors";
 import { organizationApi, orgKeys } from "@/lib/api/organization";
 import {
   approvalStatusVariant,
   formatDate,
   formatEmployeeName,
+  VACANCY_REQUEST_MOTIVE_LABELS,
   VACANCY_REQUEST_STATUS_LABELS,
-  VACANCY_REQUEST_TYPE_LABELS,
   vacancyRequestStatusVariant,
 } from "@/lib/ats/labels";
 import {
@@ -48,6 +49,7 @@ import {
   validateRequesterSelection,
   vacancyRequestSaveError,
 } from "@/lib/ats/vacancy-requester";
+import { DEFAULT_VACANCY_HIRING_SLA_DAYS } from "@/lib/ats/vacancy-request-sla";
 import { notifyError, notifySuccess } from "@/lib/ui/notify";
 
 export function VacancyRequestDetailPageClient() {
@@ -92,6 +94,12 @@ export function VacancyRequestDetailPageClient() {
     queryKey: atsKeys.vacancyApprovalWorkflow(companyId),
     queryFn: () => atsApi.getVacancyApprovalWorkflow(),
   });
+  const companyQuery = useQuery({
+    queryKey: companyKeys.current(companyId),
+    queryFn: () => companyApi.getCurrent(),
+  });
+  const slaDays =
+    companyQuery.data?.vacancyHiringSlaDays ?? DEFAULT_VACANCY_HIRING_SLA_DAYS;
 
   const linkedEmployeeExists = Boolean(
     findLinkedEmployeeId(employeesQuery.data?.items ?? [], user?.id),
@@ -211,7 +219,7 @@ export function VacancyRequestDetailPageClient() {
     <div className="space-y-6">
       <PageHeader
         title={title}
-        description={`Solicitud · ${VACANCY_REQUEST_TYPE_LABELS[request.type]}`}
+        description={`Solicitud · ${VACANCY_REQUEST_MOTIVE_LABELS[request.motive]}`}
         actions={
           <div className="flex flex-wrap gap-2">
             {request.status === "DRAFT" ? (
@@ -269,10 +277,19 @@ export function VacancyRequestDetailPageClient() {
             {VACANCY_REQUEST_STATUS_LABELS[request.status]}
           </Badge>
         </Info>
+        <Info label="Motivo">
+          {VACANCY_REQUEST_MOTIVE_LABELS[request.motive]}
+        </Info>
         <Info label="Solicitante">
           {formatEmployeeName(request.requestedByEmployee)}
         </Info>
+        <Info label="Ocupante a reemplazar">
+          {formatEmployeeName(request.replacedEmployee)}
+        </Info>
         <Info label="Headcount">{request.requestedHeadcount}</Info>
+        <Info label="Fecha esperada de contratación">
+          {formatDate(request.expectedHiringDate)}
+        </Info>
         <Info label="Área">
           {request.requestedArea?.name ??
             request.existingPosition?.name ??
@@ -284,12 +301,14 @@ export function VacancyRequestDetailPageClient() {
         <Info label="Decidida">{formatDate(request.decidedAt)}</Info>
       </section>
 
-      <section className="space-y-2">
-        <h2 className="text-lg font-semibold">Justificación</h2>
-        <p className="whitespace-pre-wrap text-sm text-muted-foreground">
-          {request.justification}
-        </p>
-      </section>
+      {request.justification.trim() ? (
+        <section className="space-y-2">
+          <h2 className="text-lg font-semibold">Justificación</h2>
+          <p className="whitespace-pre-wrap text-sm text-muted-foreground">
+            {request.justification}
+          </p>
+        </section>
+      ) : null}
 
       <section className="space-y-4">
         <h2 className="text-lg font-semibold">Aprobaciones</h2>
@@ -365,6 +384,9 @@ export function VacancyRequestDetailPageClient() {
             value: p.id,
             label: p.name,
           }))}
+          positionHeadcounts={Object.fromEntries(
+            (positionsQuery.data ?? []).map((p) => [p.id, p.headcount]),
+          )}
           areas={(areasQuery.data ?? []).map((a) => ({
             value: a.id,
             label: a.name,
@@ -379,6 +401,7 @@ export function VacancyRequestDetailPageClient() {
           }))}
           linkedEmployeeExists={linkedEmployeeExists}
           canProxyRequester={canProxyRequester}
+          slaDays={slaDays}
           submitLabel="Guardar cambios"
         />
       </EntityEditorShell>

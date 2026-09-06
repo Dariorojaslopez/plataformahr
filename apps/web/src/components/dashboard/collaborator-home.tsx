@@ -43,7 +43,9 @@ import {
   type HomeAssignedVacancy,
   type HomeOpenVacancy,
   type HomePendingApproval,
+  type HomePendingContractApproval,
   type HomeProfile,
+  type HomeReadyForOffer,
   type UpdateHomeProfileInput,
 } from "@/lib/api/home";
 import { FormSelect } from "@/components/organization/form-select";
@@ -135,8 +137,16 @@ export function CollaboratorHome({
       {features.has("ats.vacancy-requests") && feed.pendingApprovals.length > 0 ? (
         <ApprovalsSection items={feed.pendingApprovals} />
       ) : null}
+      {(feed.pendingContractApprovals?.length ?? 0) > 0 ? (
+        <ContractApprovalsHomeSection
+          items={feed.pendingContractApprovals ?? []}
+        />
+      ) : null}
       {features.has("ats.interviews") && feed.pendingEvaluations.length > 0 ? (
         <EvaluationsSection items={feed.pendingEvaluations} />
+      ) : null}
+      {showAssignedWork && (feed.readyForOffer?.length ?? 0) > 0 ? (
+        <ReadyForOfferSection items={feed.readyForOffer ?? []} />
       ) : null}
       {showAssignedWork ? (
         <>
@@ -616,6 +626,40 @@ function ApprovalsSection({ items }: { items: HomePendingApproval[] }) {
   );
 }
 
+function ContractApprovalsHomeSection({
+  items,
+}: {
+  items: HomePendingContractApproval[];
+}) {
+  return (
+    <section className="space-y-3">
+      <div>
+        <h2 className="text-lg font-semibold">Aprobaciones de contrato</h2>
+        <p className="text-sm text-muted-foreground">
+          Te corresponde el siguiente paso del flujo de contrato.
+        </p>
+      </div>
+      <div className="grid gap-3 md:grid-cols-2">
+        {items.map((item) => (
+          <Card key={item.stepId}>
+            <CardHeader>
+              <CardTitle className="text-base">{item.candidateName}</CardTitle>
+              <CardDescription>
+                {item.vacancyTitle} · paso {item.sequence}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button type="button" size="sm" asChild>
+                <Link href={`/ats/offers/${item.offerId}`}>Revisar contrato</Link>
+              </Button>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function EvaluationsSection({
   items,
 }: {
@@ -645,6 +689,42 @@ function EvaluationsSection({
               <Button type="button" size="sm" asChild>
                 <Link href={`/ats/interviews/${item.id}`}>
                   Ir al formulario de evaluación
+                </Link>
+              </Button>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function ReadyForOfferSection({ items }: { items: HomeReadyForOffer[] }) {
+  return (
+    <section className="space-y-3">
+      <div>
+        <h2 className="text-lg font-semibold">Listos para oferta</h2>
+        <p className="text-sm text-muted-foreground">
+          Terminaron las evaluaciones. Puedes continuar con la oferta o
+          contratación.
+        </p>
+      </div>
+      <div className="grid gap-3 md:grid-cols-2">
+        {items.map((item) => (
+          <Card key={item.applicationId}>
+            <CardHeader>
+              <CardTitle className="text-base">{item.candidateName}</CardTitle>
+              <CardDescription>{item.vacancyTitle}</CardDescription>
+            </CardHeader>
+            <CardContent className="flex flex-wrap gap-2">
+              <Button type="button" size="sm" asChild>
+                <Link href={`/ats/applications/${item.applicationId}`}>
+                  Ver postulación
+                </Link>
+              </Button>
+              <Button type="button" size="sm" variant="outline" asChild>
+                <Link href={`/ats/pipeline?vacancyId=${item.vacancyId}`}>
+                  Ir al kanban
                 </Link>
               </Button>
             </CardContent>
@@ -711,6 +791,10 @@ function AssignedMetricsSection({ metrics }: { metrics: HomeAssignedMetrics }) {
     { label: "En proceso", value: metrics.activeApplicationCount },
     { label: "Contratados", value: metrics.hiredCount },
     { label: "Entrevistas pendientes", value: metrics.pendingInterviewCount },
+    {
+      label: "Listos para oferta",
+      value: metrics.readyForOfferCount ?? 0,
+    },
     {
       label: "Plazas cubiertas",
       value: `${metrics.filledHeadcount}/${metrics.requestedHeadcount}`,

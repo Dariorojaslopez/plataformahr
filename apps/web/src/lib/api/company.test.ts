@@ -69,4 +69,35 @@ describe("company branding API and keys", () => {
     expect(init.body).toBeInstanceOf(FormData);
     expect(headers["Content-Type"]).toBeUndefined();
   });
+
+  it("uploads an ATS template as multipart", async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          id: "company-a",
+          name: "Acme",
+          slug: "acme",
+          status: "ACTIVE",
+          defaultLanguage: "ES",
+          goalsCascadeEnabled: false,
+          showNineBoxOnMyResults: true,
+          vacancyHiringSlaDays: 14,
+          hasOfferLetterTemplate: true,
+          offerLetterTemplateOriginalName: "offer.pdf",
+        }),
+        { status: 201, headers: { "Content-Type": "application/json" } },
+      ),
+    );
+    await companyApi.uploadAtsTemplate(
+      "offer-letter",
+      new File(["%PDF"], "offer.pdf", { type: "application/pdf" }),
+    );
+    expect(fetch).toHaveBeenCalledWith(
+      "http://localhost:3001/companies/current/ats-templates/offer-letter",
+      expect.objectContaining({
+        method: "POST",
+        body: expect.any(FormData),
+      }),
+    );
+  });
 });

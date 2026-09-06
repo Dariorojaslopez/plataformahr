@@ -1,108 +1,36 @@
 "use client";
 
+import { useQuery } from "@tanstack/react-query";
 import { CargoOccupantListEditor } from "@/components/ats/cargo-occupant-list";
 import { FormSelect } from "@/components/organization/form-select";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { extraApprovalRows, requestPlanToApprovalRows } from "@/lib/ats/approval-plan";
-import { toPositionOccupantPayload, type CargoOccupantRow } from "@/lib/ats/position-occupant";
+import { useCompanyId } from "@/hooks/use-company-id";
+import { atsApi, atsKeys } from "@/lib/api/ats";
+import { occupantLabel } from "@/lib/ats/position-occupant";
+import {
+  isReplacementMotive,
+  justificationRequired,
+  type VacancyRequestFormValues,
+} from "@/lib/ats/vacancy-request-form";
+import {
+  DEFAULT_VACANCY_HIRING_SLA_DAYS,
+  minExpectedHiringDate,
+  toDateOnlyIso,
+} from "@/lib/ats/vacancy-request-sla";
 import { describeVacancyRequesterField } from "@/lib/ats/vacancy-requester";
-import type {
-  CreateVacancyRequestInput,
-  UpdateVacancyRequestInput,
-  VacancyApprovalWorkflow,
-  VacancyRequest,
-  VacancyRequestType,
-} from "@/types/ats";
+import { VACANCY_REQUEST_MOTIVE_LABELS } from "@/lib/ats/labels";
+import type { VacancyRequestMotive } from "@/types/ats";
 
-export type VacancyRequestFormValues = {
-  type: VacancyRequestType;
-  requestedByEmployeeId: string;
-  existingPositionId: string;
-  requestedPositionName: string;
-  requestedAreaId: string;
-  requestedJobLevelId: string;
-  requestedHeadcount: string;
-  justification: string;
-  approvalSteps: CargoOccupantRow[];
-};
-
-export const emptyVacancyRequestForm = (): VacancyRequestFormValues => ({
-  type: "EXISTING_POSITION",
-  requestedByEmployeeId: "",
-  existingPositionId: "",
-  requestedPositionName: "",
-  requestedAreaId: "",
-  requestedJobLevelId: "",
-  requestedHeadcount: "1",
-  justification: "",
-  approvalSteps: [],
-});
-
-export function vacancyRequestToForm(
-  request: VacancyRequest,
-  workflow?: VacancyApprovalWorkflow,
-): VacancyRequestFormValues {
-  return {
-    type: request.type,
-    requestedByEmployeeId: request.requestedByEmployeeId,
-    existingPositionId: request.existingPositionId ?? "",
-    requestedPositionName: request.requestedPositionName ?? "",
-    requestedAreaId: request.requestedAreaId ?? "",
-    requestedJobLevelId: request.requestedJobLevelId ?? "",
-    requestedHeadcount: String(request.requestedHeadcount),
-    justification: request.justification,
-    approvalSteps: requestPlanToApprovalRows(request, workflow),
-  };
-}
-
-export function toCreateVacancyRequestPayload(
-  values: VacancyRequestFormValues,
-): CreateVacancyRequestInput {
-  const headcount = Number(values.requestedHeadcount);
-  const extras = toPositionOccupantPayload(extraApprovalRows(values.approvalSteps));
-  const base: CreateVacancyRequestInput = {
-    type: values.type,
-    requestedHeadcount: headcount,
-    justification: values.justification.trim(),
-    extraApprovalSteps: extras,
-  };
-  if (values.requestedByEmployeeId) {
-    base.requestedByEmployeeId = values.requestedByEmployeeId;
-  }
-  if (values.type === "EXISTING_POSITION") {
-    base.existingPositionId = values.existingPositionId;
-  } else {
-    base.requestedPositionName = values.requestedPositionName.trim();
-    base.requestedAreaId = values.requestedAreaId;
-    if (values.requestedJobLevelId) {
-      base.requestedJobLevelId = values.requestedJobLevelId;
-    }
-  }
-  return base;
-}
-
-export function toUpdateVacancyRequestPayload(
-  values: VacancyRequestFormValues,
-): UpdateVacancyRequestInput {
-  const created = toCreateVacancyRequestPayload(values);
-  if (values.type === "EXISTING_POSITION") {
-    return {
-      ...created,
-      requestedPositionName: null,
-      requestedAreaId: null,
-      requestedJobLevelId: values.requestedJobLevelId || null,
-      existingPositionId: values.existingPositionId,
-    };
-  }
-  return {
-    ...created,
-    existingPositionId: null,
-    requestedJobLevelId: values.requestedJobLevelId || null,
-  };
-}
+export type { VacancyRequestFormValues } from "@/lib/ats/vacancy-request-form";
+export {
+  emptyVacancyRequestForm,
+  toCreateVacancyRequestPayload,
+  toUpdateVacancyRequestPayload,
+  vacancyRequestToForm,
+} from "@/lib/ats/vacancy-request-form";
 
 type Option = { value: string; label: string };
 
@@ -114,13 +42,21 @@ type VacancyRequestFormProps = {
   submitting?: boolean;
   error?: string | null;
   positions: Option[];
+  positionHeadcounts?: Record<string, number>;
   areas: Option[];
   jobLevels: Option[];
   employees: Option[];
   linkedEmployeeExists: boolean;
   canProxyRequester: boolean;
+  slaDays?: number;
   submitLabel?: string;
 };
+
+const MOTIVE_OPTIONS = (
+  Object.entries(VACANCY_REQUEST_MOTIVE_LABELS) as Array<
+    [VacancyRequestMotive, string]
+  >
+).map(([value, label]) => ({ value, label }));
 
 export function VacancyRequestForm({
   values,
@@ -130,33 +66,60 @@ export function VacancyRequestForm({
   submitting,
   error,
   positions,
+  positionHeadcounts = {},
   areas,
   jobLevels,
   employees,
   linkedEmployeeExists,
   canProxyRequester,
+  slaDays = DEFAULT_VACANCY_HIRING_SLA_DAYS,
   submitLabel = "Guardar",
 }: VacancyRequestFormProps) {
+  const companyId = useCompanyId();
   const requesterField = describeVacancyRequesterField({
     linkedEmployeeExists,
     canProxyRequester,
   });
+  const minHiringDate = toDateOnlyIso(minExpectedHiringDate(slaDays));
+  const headcount = Number(values.requestedHeadcount) || 0;
+  const structureHeadcount = values.existingPositionId
+    ? positionHeadcounts[values.existingPositionId]
+    : undefined;
+  const needsJustification = justificationRequired({
+    motive: values.motive,
+    requestedHeadcount: headcount,
+    positionHeadcount:
+      values.motive === "NEW_POSITION" ? 0 : structureHeadcount,
+  });
 
-  function setType(type: VacancyRequestType) {
-    if (type === "EXISTING_POSITION") {
+  const occupantsQuery = useQuery({
+    queryKey: atsKeys.positionOccupants(companyId, values.existingPositionId),
+    queryFn: () => atsApi.listPositionOccupants(values.existingPositionId),
+    enabled:
+      isReplacementMotive(values.motive) && Boolean(values.existingPositionId),
+  });
+
+  const occupantOptions = (occupantsQuery.data ?? []).map((item) => ({
+    value: item.id,
+    label: occupantLabel(item),
+  }));
+
+  function setMotive(motive: VacancyRequestMotive) {
+    if (motive === "NEW_POSITION") {
       onChange({
         ...values,
-        type,
-        requestedPositionName: "",
-        requestedAreaId: "",
-        requestedJobLevelId: "",
+        motive,
+        existingPositionId: "",
+        replacedEmployeeId: "",
       });
       return;
     }
     onChange({
       ...values,
-      type,
-      existingPositionId: "",
+      motive,
+      requestedPositionName: "",
+      requestedAreaId: "",
+      requestedJobLevelId: "",
     });
   }
 
@@ -169,15 +132,12 @@ export function VacancyRequestForm({
       }}
     >
       <FormSelect
-        id="vr-type"
-        label="Tipo"
+        id="vr-motive"
+        label="Motivo"
         required
-        value={values.type}
-        onChange={(value) => setType(value as VacancyRequestType)}
-        options={[
-          { value: "EXISTING_POSITION", label: "Cargo existente" },
-          { value: "NEW_POSITION", label: "Cargo nuevo" },
-        ]}
+        value={values.motive}
+        onChange={(value) => setMotive(value as VacancyRequestMotive)}
+        options={MOTIVE_OPTIONS}
       />
 
       {requesterField.blocked ? (
@@ -202,18 +162,7 @@ export function VacancyRequestForm({
         />
       ) : null}
 
-      {values.type === "EXISTING_POSITION" ? (
-        <FormSelect
-          id="vr-position"
-          label="Cargo"
-          required
-          value={values.existingPositionId}
-          onChange={(existingPositionId) =>
-            onChange({ ...values, existingPositionId })
-          }
-          options={positions}
-        />
-      ) : (
+      {values.motive === "NEW_POSITION" ? (
         <>
           <div className="space-y-2">
             <Label htmlFor="vr-pos-name">Nombre del cargo *</Label>
@@ -252,6 +201,42 @@ export function VacancyRequestForm({
             emptyLabel="Sin nivel"
           />
         </>
+      ) : (
+        <>
+          <FormSelect
+            id="vr-position"
+            label="Cargo"
+            required
+            value={values.existingPositionId}
+            onChange={(existingPositionId) =>
+              onChange({
+                ...values,
+                existingPositionId,
+                replacedEmployeeId: "",
+              })
+            }
+            options={positions}
+          />
+          <FormSelect
+            id="vr-replaced"
+            label="Ocupante a reemplazar"
+            required
+            value={values.replacedEmployeeId}
+            onChange={(replacedEmployeeId) =>
+              onChange({ ...values, replacedEmployeeId })
+            }
+            options={occupantOptions}
+            hint={
+              !values.existingPositionId
+                ? "Selecciona primero el cargo."
+                : occupantsQuery.isLoading
+                  ? "Cargando ocupantes…"
+                  : occupantOptions.length === 0
+                    ? "No hay colaboradores activos en este cargo."
+                    : undefined
+            }
+          />
+        </>
       )}
 
       <div className="space-y-2">
@@ -267,39 +252,76 @@ export function VacancyRequestForm({
           }
           required
         />
-        <p className="text-xs text-muted-foreground">
-          Número de plazas solicitadas.
-        </p>
+        {structureHeadcount != null && values.motive !== "NEW_POSITION" ? (
+          <p className="text-xs text-muted-foreground">
+            Headcount del cargo en la estructura: {structureHeadcount}.
+          </p>
+        ) : (
+          <p className="text-xs text-muted-foreground">
+            Número de plazas solicitadas.
+          </p>
+        )}
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="vr-justification">Justificación *</Label>
-        <Textarea
-          id="vr-justification"
-          value={values.justification}
+        <Label htmlFor="vr-hiring-date">Fecha esperada de contratación *</Label>
+        <Input
+          id="vr-hiring-date"
+          type="date"
+          min={minHiringDate}
+          value={values.expectedHiringDate}
           onChange={(e) =>
-            onChange({ ...values, justification: e.target.value })
+            onChange({ ...values, expectedHiringDate: e.target.value })
           }
           required
-          rows={4}
-          maxLength={4000}
         />
+        <p className="text-xs text-muted-foreground">
+          Según el SLA de la compañía ({slaDays} días), la fecha mínima es{" "}
+          {minHiringDate}.
+        </p>
       </div>
+
+      {needsJustification ? (
+        <div className="space-y-2">
+          <Label htmlFor="vr-justification">
+            Justificación
+            {values.motive === "NEW_POSITION"
+              ? " *"
+              : " del aumento de headcount *"}
+          </Label>
+          <Textarea
+            id="vr-justification"
+            value={values.justification}
+            onChange={(e) =>
+              onChange({ ...values, justification: e.target.value })
+            }
+            required
+            rows={4}
+            maxLength={4000}
+          />
+          {values.motive !== "NEW_POSITION" ? (
+            <p className="text-xs text-muted-foreground">
+              Obligatoria porque las plazas superan la estructura del cargo.
+            </p>
+          ) : null}
+        </div>
+      ) : null}
 
       <div className="space-y-2">
         <p className="text-sm font-medium">Niveles de aprobación</p>
         <p className="text-xs text-muted-foreground">
-          Los niveles definidos globalmente no se pueden editar. Puedes agregar
-          niveles extra para esta solicitud.
+          Lista preestablecida. No se pueden modificar ni agregar aprobadores
+          desde la solicitud.
         </p>
         <CargoOccupantListEditor
           rows={values.approvalSteps}
-          onChange={(approvalSteps) => onChange({ ...values, approvalSteps })}
+          onChange={() => undefined}
           positions={positions}
           rowLabel={(index) => `Nivel ${index + 1}`}
           addLabel="Agregar nivel"
-          emptyHint="No hay niveles globales. Agrega los que apliquen a esta solicitud."
-          lockedHint="Nivel definido globalmente. No se puede editar ni eliminar."
+          emptyHint="No hay niveles globales configurados. Configúralos en Aprobaciones."
+          lockedHint="Nivel definido globalmente."
+          readOnly
         />
       </div>
 

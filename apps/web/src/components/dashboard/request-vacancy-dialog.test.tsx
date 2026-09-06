@@ -10,6 +10,29 @@ vi.mock("@/hooks/use-company-id", () => ({
   useCompanyId: () => "company-1",
 }));
 
+vi.mock("@/lib/api/company", async () => {
+  const actual = await vi.importActual<typeof import("@/lib/api/company")>(
+    "@/lib/api/company",
+  );
+  return {
+    ...actual,
+    companyApi: {
+      ...actual.companyApi,
+      getCurrent: () =>
+        Promise.resolve({
+          id: "company-1",
+          name: "Acme",
+          slug: "acme",
+          status: "ACTIVE",
+          defaultLanguage: "ES",
+          goalsCascadeEnabled: false,
+          showNineBoxOnMyResults: true,
+          vacancyHiringSlaDays: 14,
+        }),
+    },
+  };
+});
+
 vi.mock("@/lib/api/organization", async () => {
   const actual = await vi.importActual<
     typeof import("@/lib/api/organization")
@@ -19,7 +42,7 @@ vi.mock("@/lib/api/organization", async () => {
     organizationApi: {
       ...actual.organizationApi,
       listPositions: () =>
-        Promise.resolve([{ id: "pos-1", name: "Analista" }]),
+        Promise.resolve([{ id: "pos-1", name: "Analista", headcount: 3 }]),
       listAreas: () =>
         Promise.resolve([{ id: "area-1", name: "Operaciones" }]),
       listJobLevels: () => Promise.resolve([]),
@@ -37,6 +60,16 @@ vi.mock("@/lib/api/ats", async () => {
       ...actual.atsApi,
       getVacancyApprovalWorkflow: () =>
         Promise.resolve({ enabled: true, steps: [], allowedRoles: [] }),
+      listPositionOccupants: () =>
+        Promise.resolve([
+          {
+            id: "emp-1",
+            firstName: "Luis",
+            lastName: "Pérez",
+            email: "luis@example.com",
+            userId: "user-1",
+          },
+        ]),
       createVacancyRequest: (...args: unknown[]) =>
         createVacancyRequest(...args),
     },
@@ -100,35 +133,41 @@ describe("RequestVacancyDialog", () => {
     expect(
       await screen.findByText("Solicitar proceso de selección"),
     ).toBeInTheDocument();
-    expect(
-      await screen.findByLabelText("Justificación *"),
-    ).toBeInTheDocument();
+    expect(await screen.findByText("Niveles de aprobación")).toBeInTheDocument();
+    expect(document.getElementById("vr-motive")).toBeInTheDocument();
+    expect(document.getElementById("vr-hiring-date")).toBeInTheDocument();
     expect(screen.queryByLabelText("Solicitante")).not.toBeInTheDocument();
-    expect(screen.getByText("Niveles de aprobación")).toBeInTheDocument();
     expect(
-      screen.queryByText("Requiere aprobación de Gerencia General"),
-    ).not.toBeInTheDocument();
+      screen.getByText(/No se pueden modificar ni agregar aprobadores/),
+    ).toBeInTheDocument();
   });
 
   it("creates the request as the linked leader", async () => {
     const user = userEvent.setup();
     renderDialog();
-    await screen.findByLabelText("Justificación *");
+    await screen.findByText("Niveles de aprobación");
 
     const positionTrigger = document.getElementById("vr-position");
     expect(positionTrigger).toBeTruthy();
     await user.click(positionTrigger!);
     await user.click(await screen.findByRole("option", { name: "Analista" }));
 
-    await user.type(screen.getByLabelText("Justificación *"), "Cobertura de turno");
+    const replacedTrigger = document.getElementById("vr-replaced");
+    expect(replacedTrigger).toBeTruthy();
+    await user.click(replacedTrigger!);
+    await user.click(
+      await screen.findByRole("option", { name: /Luis Pérez/ }),
+    );
+
     await user.click(screen.getByRole("button", { name: "Crear solicitud" }));
 
     await waitFor(() => {
       expect(createVacancyRequest).toHaveBeenCalledWith(
         expect.objectContaining({
-          type: "EXISTING_POSITION",
+          motive: "REPLACEMENT_RESIGNATION",
           existingPositionId: "pos-1",
-          justification: "Cobertura de turno",
+          replacedEmployeeId: "emp-1",
+          expectedHiringDate: expect.any(String),
         }),
       );
     });

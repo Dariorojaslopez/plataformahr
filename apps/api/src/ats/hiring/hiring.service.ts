@@ -8,16 +8,22 @@ import {
   ApplicationStage,
   ApplicationStatus,
   CandidateStatus,
+  ContractApprovalStatus,
   EmployeeStatus,
   JobOfferStatus,
+  PreHireCheckStatus,
   Prisma,
   VacancyStatus,
 } from '@prisma/client';
 import { AuditService } from '../../core/audit/audit.service';
 import { OrganizationIntegrityService } from '../../organization/organization-integrity.service';
+import { MailService } from '../../mail/mail.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ATS_AUDIT } from '../ats.constants';
+import { HirePdiService } from './hire-pdi.service';
+import { renderThankYouLetter } from './thank-you-letter';
 import type { CreateHiringDto } from './dto/hiring.dto';
+import { isPreHireClear } from './prehire.constants';
 
 const HIRING_INCLUDE = {
   employee: {
@@ -57,6 +63,8 @@ export class HiringService {
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
     private readonly integrity: OrganizationIntegrityService,
+    private readonly mail: MailService,
+    private readonly hirePdi: HirePdiService,
   ) {}
 
   async getByApplication(companyId: string, applicationId: string) {
@@ -110,11 +118,26 @@ export class HiringService {
         if (application.status !== ApplicationStatus.ACTIVE) {
           throw new BadRequestException('Application is not active');
         }
+        if (
+          !isPreHireClear(application.securityStudyStatus) ||
+          !isPreHireClear(application.medicalExamStatus)
+        ) {
+          throw new BadRequestException(
+            'Estudio de seguridad y exámenes médicos deben estar aprobados o no requeridos antes de contratar',
+          );
+        }
 
         const offerRows = await tx.$queryRaw<
-          Array<{ id: string; status: JobOfferStatus; applicationId: string }>
+          Array<{
+            id: string;
+            status: JobOfferStatus;
+            applicationId: string;
+            contractApprovalStatus: ContractApprovalStatus;
+            signedOfferLetterFileName: string | null;
+          }>
         >`
-          SELECT id, status, "applicationId"
+          SELECT id, status, "applicationId", "contractApprovalStatus",
+                 "signedOfferLetterFileName"
           FROM job_offers
           WHERE "applicationId" = ${applicationId}::uuid
             AND "companyId" = ${companyId}::uuid
@@ -127,6 +150,27 @@ export class HiringService {
         if (offer.status !== JobOfferStatus.ACCEPTED) {
           throw new BadRequestException(
             'Job offer must be ACCEPTED before hiring',
+          );
+        }
+        if (
+          offer.contractApprovalStatus !== ContractApprovalStatus.APPROVED &&
+          offer.contractApprovalStatus !== ContractApprovalStatus.NOT_REQUIRED
+        ) {
+          throw new BadRequestException(
+            'El contrato debe estar aprobado (o no requerir aprobación) antes de contratar',
+          );
+        }
+
+        const company = await tx.company.findFirst({
+          where: { id: companyId },
+          select: { offerLetterTemplateFileName: true },
+        });
+        if (
+          company?.offerLetterTemplateFileName &&
+          !offer.signedOfferLetterFileName
+        ) {
+          throw new BadRequestException(
+            'Debes cargar la carta oferta firmada antes de contratar',
           );
         }
 
@@ -293,12 +337,21 @@ export class HiringService {
           include: HIRING_INCLUDE,
         });
 
+        const discarded = await this.discardOtherFinalists(tx, {
+          companyId,
+          vacancyId: vacancy.id,
+          hiredApplicationId: applicationId,
+          userId,
+          vacancyTitle: updatedVacancy.title,
+        });
+
         return {
           hiring,
           candidateId: candidate.id,
           vacancyId: vacancy.id,
           employeeId: employee.id,
           offerId: offer.id,
+          discarded,
         };
       });
     } catch (error: unknown) {
@@ -326,6 +379,7 @@ export class HiringService {
         vacancyId: result.vacancyId,
         employeeId: result.employeeId,
         jobOfferId: result.offerId,
+        discardedFinalistCount: result.discarded.length,
       },
     });
 
@@ -345,7 +399,167 @@ export class HiringService {
       },
     });
 
-    return result.hiring;
+    for (const item of result.discarded) {
+      await this.audit.create({
+        action: ATS_AUDIT.FINALIST_DISCARDED_ON_HIRE,
+        entity: 'Application',
+        entityId: item.applicationId,
+        company: { connect: { id: companyId } },
+        user: { connect: { id: userId } },
+        metadata: {
+          applicationId: item.applicationId,
+          candidateId: item.candidateId,
+          vacancyId: result.vacancyId,
+          hiredApplicationId: applicationId,
+          toStage: ApplicationStage.REJECTED,
+          candidateStatus: CandidateStatus.IN_POOL,
+        },
+      });
+
+      const delivery = await this.mail.sendText({
+        to: item.email,
+        subject: item.thankYou.subject,
+        text: item.thankYou.body,
+      });
+
+      await this.audit.create({
+        action: ATS_AUDIT.FINALIST_THANK_YOU_SENT,
+        entity: 'Candidate',
+        entityId: item.candidateId,
+        company: { connect: { id: companyId } },
+        user: { connect: { id: userId } },
+        metadata: {
+          applicationId: item.applicationId,
+          candidateId: item.candidateId,
+          vacancyId: result.vacancyId,
+          email: item.email,
+          subject: item.thankYou.subject,
+          body: item.thankYou.body,
+          delivery: delivery.status,
+          deliveryReason: delivery.reason ?? null,
+          messageId: delivery.messageId ?? null,
+          error: delivery.error ?? null,
+        },
+      });
+    }
+
+    const pdi = await this.hirePdi.syncOnHire({
+      companyId,
+      userId,
+      applicationId,
+      employeeId: result.employeeId,
+    });
+
+    return { ...result.hiring, pdi };
+  }
+
+  private async discardOtherFinalists(
+    tx: Prisma.TransactionClient,
+    input: {
+      companyId: string;
+      vacancyId: string;
+      hiredApplicationId: string;
+      userId: string;
+      vacancyTitle: string;
+    },
+  ) {
+    const company = await tx.company.findFirstOrThrow({
+      where: { id: input.companyId },
+      select: {
+        name: true,
+        atsThankYouLetterSubject: true,
+        atsThankYouLetterBody: true,
+      },
+    });
+
+    const siblings = await tx.application.findMany({
+      where: {
+        companyId: input.companyId,
+        vacancyId: input.vacancyId,
+        id: { not: input.hiredApplicationId },
+        deletedAt: null,
+        status: ApplicationStatus.ACTIVE,
+        stage: ApplicationStage.OFFER,
+      },
+      select: {
+        id: true,
+        stage: true,
+        candidateId: true,
+        candidate: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            status: true,
+          },
+        },
+      },
+    });
+
+    const discarded: Array<{
+      applicationId: string;
+      candidateId: string;
+      email: string;
+      thankYou: { subject: string; body: string };
+    }> = [];
+
+    for (const sibling of siblings) {
+      await tx.application.update({
+        where: { id: sibling.id },
+        data: {
+          stage: ApplicationStage.REJECTED,
+          status: ApplicationStatus.CLOSED,
+          lastStageChangedAt: new Date(),
+        },
+      });
+      await tx.applicationStageHistory.create({
+        data: {
+          companyId: input.companyId,
+          applicationId: sibling.id,
+          fromStage: sibling.stage,
+          toStage: ApplicationStage.REJECTED,
+          changedByUserId: input.userId,
+          comment:
+            'Descartado automáticamente: otro finalista fue contratado',
+        },
+      });
+      await tx.jobOffer.updateMany({
+        where: {
+          companyId: input.companyId,
+          applicationId: sibling.id,
+          status: {
+            in: [
+              JobOfferStatus.DRAFT,
+              JobOfferStatus.SENT,
+              JobOfferStatus.ACCEPTED,
+            ],
+          },
+        },
+        data: { status: JobOfferStatus.WITHDRAWN },
+      });
+      if (sibling.candidate.status !== CandidateStatus.HIRED) {
+        await tx.candidate.update({
+          where: { id: sibling.candidateId },
+          data: { status: CandidateStatus.IN_POOL },
+        });
+      }
+      discarded.push({
+        applicationId: sibling.id,
+        candidateId: sibling.candidateId,
+        email: sibling.candidate.email,
+        thankYou: renderThankYouLetter({
+          subject: company.atsThankYouLetterSubject,
+          body: company.atsThankYouLetterBody,
+          firstName: sibling.candidate.firstName,
+          lastName: sibling.candidate.lastName,
+          vacancyTitle: input.vacancyTitle,
+          companyName: company.name,
+        }),
+      });
+    }
+
+    return discarded;
   }
 
   private async requireApplication(companyId: string, applicationId: string) {
@@ -371,9 +585,12 @@ export class HiringService {
         vacancyId: string;
         stage: ApplicationStage;
         status: ApplicationStatus;
+        securityStudyStatus: PreHireCheckStatus;
+        medicalExamStatus: PreHireCheckStatus;
       }>
     >`
-      SELECT id, "companyId", "candidateId", "vacancyId", stage, status
+      SELECT id, "companyId", "candidateId", "vacancyId", stage, status,
+             "securityStudyStatus", "medicalExamStatus"
       FROM applications
       WHERE id = ${applicationId}::uuid
         AND "companyId" = ${companyId}::uuid

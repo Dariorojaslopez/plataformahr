@@ -18,6 +18,7 @@ import { AuditService } from '../../core/audit/audit.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ApplicationsService } from '../applications/applications.service';
 import { ATS_AUDIT } from '../ats.constants';
+import { ContractApprovalsService } from './contract-approvals.service';
 import type { CreateJobOfferDto, UpdateJobOfferDto } from './dto/offer.dto';
 import { canTransitionOffer, isOfferExpired } from './offer-transitions';
 
@@ -50,6 +51,15 @@ const OFFER_INCLUDE = {
       },
     },
   },
+  contractApprovals: {
+    orderBy: { sequence: 'asc' as const },
+    include: {
+      position: { select: { id: true, name: true } },
+      approverEmployee: {
+        select: { id: true, firstName: true, lastName: true, email: true },
+      },
+    },
+  },
 } as const;
 
 @Injectable()
@@ -58,6 +68,7 @@ export class OffersService {
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
     private readonly applicationsService: ApplicationsService,
+    private readonly contractApprovals: ContractApprovalsService,
   ) {}
 
   async getByApplication(companyId: string, applicationId: string) {
@@ -346,10 +357,18 @@ export class OffersService {
         throw new ConflictException('Offer status changed concurrently; retry');
       }
 
-      return tx.jobOffer.findFirstOrThrow({
-        where: { id, companyId },
-        include: OFFER_INCLUDE,
-      });
+      const approvalStatus = await this.contractApprovals.startForAcceptedOffer(
+        tx,
+        { companyId, offerId: id },
+      );
+
+      return {
+        offer: await tx.jobOffer.findFirstOrThrow({
+          where: { id, companyId },
+          include: OFFER_INCLUDE,
+        }),
+        approvalStatus,
+      };
     });
 
     await this.audit.create({
@@ -360,15 +379,31 @@ export class OffersService {
       user: { connect: { id: userId } },
       metadata: {
         offerId: id,
-        applicationId: updated.applicationId,
+        applicationId: updated.offer.applicationId,
         fromStatus: JobOfferStatus.SENT,
         toStatus: JobOfferStatus.ACCEPTED,
         administrative: true,
+        contractApprovalStatus: updated.approvalStatus,
       },
     });
 
+    if (updated.approvalStatus === 'PENDING') {
+      await this.audit.create({
+        action: ATS_AUDIT.CONTRACT_APPROVAL_STARTED,
+        entity: 'JobOffer',
+        entityId: id,
+        company: { connect: { id: companyId } },
+        user: { connect: { id: userId } },
+        metadata: {
+          offerId: id,
+          applicationId: updated.offer.applicationId,
+          stepCount: updated.offer.contractApprovals.length,
+        },
+      });
+    }
+
     // Application stays OFFER. No HIRED / Candidate / filledCount / Employee.
-    return updated;
+    return updated.offer;
   }
 
   async reject(companyId: string, userId: string, id: string) {

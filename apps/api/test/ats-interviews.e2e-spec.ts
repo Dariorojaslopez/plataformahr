@@ -14,6 +14,7 @@ import {
   TranscriptSegmentKind,
   UserStatus,
   VacancyRequestStatus,
+  VacancyRequestMotive,
   VacancyRequestType,
   VacancyStatus,
 } from '@prisma/client';
@@ -230,6 +231,8 @@ describe('ATS interviews (e2e)', () => {
         companyId: companyAId,
         requestedByEmployeeId: employeeAId,
         type: VacancyRequestType.EXISTING_POSITION,
+        motive: VacancyRequestMotive.REPLACEMENT_RESIGNATION,
+        expectedHiringDate: new Date('2099-06-15'),
         existingPositionId: positionAId,
         requestedHeadcount: 1,
         justification: 'Interview tests',

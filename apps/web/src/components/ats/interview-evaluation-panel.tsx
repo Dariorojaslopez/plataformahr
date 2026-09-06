@@ -1,12 +1,15 @@
 "use client";
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
+import { InterviewTranscriptPanel } from "@/components/ats/interview-transcript-panel";
 import { FormSelect } from "@/components/organization/form-select";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { useSession } from "@/components/auth/session-provider";
 import { atsApi, atsKeys } from "@/lib/api/ats";
 import { getErrorMessage } from "@/lib/api/errors";
 import { interviewKeys, interviewsApi } from "@/lib/api/interviews";
@@ -34,6 +37,9 @@ type Props = {
   interview: Interview;
   userId: string | undefined;
   applicationStage?: ApplicationStage;
+  /** When true, show transcript as the main capture surface instead of Q&A pairs. */
+  transcriptionEnabled?: boolean;
+  showTranscriptPanel?: boolean;
 };
 
 export function InterviewEvaluationPanel({
@@ -41,25 +47,164 @@ export function InterviewEvaluationPanel({
   interview,
   userId,
   applicationStage,
+  transcriptionEnabled,
+  showTranscriptPanel = true,
 }: Props) {
+  const { companyAccess } = useSession();
+  const hasRecordingFeature = (
+    companyAccess?.enabledFeatures ?? []
+  ).includes("premium.interview-recording");
+  const useTranscription =
+    transcriptionEnabled ?? hasRecordingFeature;
+
   const questions = [...(interview.questions ?? [])].sort(
     (a, b) => a.order - b.order,
   );
   const editable = isAnswerEditableStatus(interview.status);
+  const transcriptEditable =
+    interview.status !== "CANCELLED" && interview.status !== "COMPLETED";
 
   return (
     <div className="space-y-4">
-      <h2 className="text-lg font-semibold">Formulario de entrevista</h2>
-      <InterviewPhaseDecisionField
+      <div>
+        <h2 className="text-lg font-semibold">Formulario de evaluación</h2>
+        <p className="text-sm text-muted-foreground">
+          {useTranscription
+            ? "Transcripción habilitada: registra la entrevista en un solo campo editable y completa el veredicto."
+            : "Transcripción deshabilitada: agrega las preguntas y respuestas que necesites."}
+        </p>
+      </div>
+
+      {useTranscription && showTranscriptPanel ? (
+        <section className="space-y-3">
+          <h3 className="text-sm font-semibold">Entrevista / transcripción</h3>
+          <InterviewTranscriptPanel
+            companyId={companyId}
+            interviewId={interview.id}
+            interviewStatus={interview.status}
+            canEdit={transcriptEditable}
+          />
+          <InterviewNotesField
+            companyId={companyId}
+            interview={interview}
+            editable={editable}
+          />
+        </section>
+      ) : (
+        <AdHocQuestionsSection
+          companyId={companyId}
+          interview={interview}
+          questions={questions}
+          userId={userId}
+          editable={editable}
+        />
+      )}
+
+      <EvaluatorVerdictPanel
         companyId={companyId}
-        applicationId={interview.applicationId}
+        interview={interview}
         stage={applicationStage}
         editable={editable}
       />
+    </div>
+  );
+}
+
+function InterviewNotesField({
+  companyId,
+  interview,
+  editable,
+}: {
+  companyId: string;
+  interview: Interview;
+  editable: boolean;
+}) {
+  const queryClient = useQueryClient();
+  const [notes, setNotes] = useState(interview.notes ?? "");
+  const saveMutation = useMutation({
+    mutationFn: () =>
+      interviewsApi.updateInterview(interview.id, { notes }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: interviewKeys.detail(companyId, interview.id),
+      });
+      notifySuccess("Notas guardadas");
+    },
+    onError: (error) => notifyError(error, "No se pudieron guardar las notas."),
+  });
+
+  return (
+    <div className="space-y-2">
+      <Label htmlFor={`interview-notes-${interview.id}`}>
+        Notas de la entrevista
+      </Label>
+      <Textarea
+        id={`interview-notes-${interview.id}`}
+        rows={4}
+        value={notes}
+        disabled={!editable || saveMutation.isPending}
+        onChange={(event) => setNotes(event.target.value)}
+        maxLength={2000}
+        placeholder="Resumen libre de la conversación (editable junto a la transcripción)."
+      />
+      {editable ? (
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          disabled={saveMutation.isPending}
+          onClick={() => saveMutation.mutate()}
+        >
+          Guardar notas
+        </Button>
+      ) : null}
+    </div>
+  );
+}
+
+function AdHocQuestionsSection({
+  companyId,
+  interview,
+  questions,
+  userId,
+  editable,
+}: {
+  companyId: string;
+  interview: Interview;
+  questions: InterviewQuestion[];
+  userId: string | undefined;
+  editable: boolean;
+}) {
+  const queryClient = useQueryClient();
+  const [draftText, setDraftText] = useState("");
+
+  const addMutation = useMutation({
+    mutationFn: () =>
+      interviewsApi.addAdHocQuestion(interview.id, {
+        text: draftText.trim(),
+        type: "TEXTAREA",
+        required: false,
+      }),
+    onSuccess: async () => {
+      setDraftText("");
+      await queryClient.invalidateQueries({
+        queryKey: interviewKeys.detail(companyId, interview.id),
+      });
+      notifySuccess("Pregunta agregada");
+    },
+    onError: (error) =>
+      notifyError(error, "No se pudo agregar la pregunta."),
+  });
+
+  return (
+    <section className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h3 className="text-sm font-semibold">Preguntas y respuestas</h3>
+      </div>
       {questions.length === 0 ? (
         <p className="text-sm text-muted-foreground">
-          Asigna una plantilla al proceso para precargar las preguntas. El
-          estado del candidato está disponible aunque no haya plantilla.
+          Aún no hay preguntas. Agrega pares pregunta/respuesta según la
+          entrevista.
         </p>
       ) : (
         questions.map((question) => (
@@ -73,6 +218,142 @@ export function InterviewEvaluationPanel({
           />
         ))
       )}
+      {editable ? (
+        <div className="space-y-2 rounded-lg border border-dashed p-3">
+          <Label htmlFor={`adhoc-q-${interview.id}`}>
+            Nueva pregunta
+          </Label>
+          <Textarea
+            id={`adhoc-q-${interview.id}`}
+            rows={2}
+            value={draftText}
+            onChange={(event) => setDraftText(event.target.value)}
+            placeholder="Escribe la pregunta…"
+            maxLength={2000}
+          />
+          <Button
+            type="button"
+            size="sm"
+            disabled={addMutation.isPending || !draftText.trim()}
+            onClick={() => addMutation.mutate()}
+          >
+            <Plus className="size-4" />
+            Agregar pregunta y respuesta
+          </Button>
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+function EvaluatorVerdictPanel({
+  companyId,
+  interview,
+  stage,
+  editable,
+}: {
+  companyId: string;
+  interview: Interview;
+  stage?: ApplicationStage;
+  editable: boolean;
+}) {
+  const queryClient = useQueryClient();
+  const [strengths, setStrengths] = useState(interview.strengths ?? "");
+  const [improvements, setImprovements] = useState(
+    interview.improvements ?? "",
+  );
+  const [error, setError] = useState<string | null>(null);
+
+  const decisionMutation = useMutation({
+    mutationFn: async (decision: "APPROVE" | "REJECT") => {
+      return interviewsApi.evaluatorDecision(interview.id, {
+        decision,
+        strengths,
+        improvements,
+      });
+    },
+    onSuccess: async (_data, decision) => {
+      await queryClient.invalidateQueries({ queryKey: atsKeys.all(companyId) });
+      await queryClient.invalidateQueries({
+        queryKey: interviewKeys.all(companyId),
+      });
+      notifySuccess(
+        decision === "APPROVE"
+          ? stage === "INTERVIEW"
+            ? "Evaluación aprobada"
+            : "Decisión registrada"
+          : "Candidato rechazado",
+      );
+      setError(null);
+    },
+    onError: (err) => {
+      setError(getErrorMessage(err, "No se pudo registrar la decisión."));
+      notifyError(err, "No se pudo registrar la decisión.");
+    },
+  });
+
+  const showEvaluatorActions = stage === "INTERVIEW" && editable;
+
+  return (
+    <div className="space-y-3 rounded-lg border border-border p-3">
+      <div className="space-y-2">
+        <Label htmlFor="eval-strengths">Fortalezas</Label>
+        <Textarea
+          id="eval-strengths"
+          rows={3}
+          value={strengths}
+          disabled={!editable || decisionMutation.isPending}
+          onChange={(event) => setStrengths(event.target.value)}
+          maxLength={4000}
+        />
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="eval-improvements">Oportunidades de mejora</Label>
+        <Textarea
+          id="eval-improvements"
+          rows={3}
+          value={improvements}
+          disabled={!editable || decisionMutation.isPending}
+          onChange={(event) => setImprovements(event.target.value)}
+          maxLength={4000}
+        />
+      </div>
+      {showEvaluatorActions ? (
+        <div className="flex flex-wrap gap-2">
+          <Button
+            type="button"
+            disabled={decisionMutation.isPending}
+            onClick={() => decisionMutation.mutate("APPROVE")}
+          >
+            Aprobar
+          </Button>
+          <Button
+            type="button"
+            variant="destructive"
+            disabled={decisionMutation.isPending}
+            onClick={() => decisionMutation.mutate("REJECT")}
+          >
+            Rechazar
+          </Button>
+        </div>
+      ) : (
+        <InterviewPhaseDecisionField
+          companyId={companyId}
+          applicationId={interview.applicationId}
+          stage={stage}
+          editable={editable}
+        />
+      )}
+      <p className="text-xs text-muted-foreground">
+        Aprobar envía al siguiente evaluador configurado. Si era el último,
+        el candidato pasa a Finalistas para validación del reclutador.
+        Rechazar cierra la postulación.
+      </p>
+      {error ? (
+        <p className="text-sm text-destructive" role="alert">
+          {error}
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -113,7 +394,7 @@ function InterviewPhaseDecisionField({
       });
       notifySuccess(
         result === "hire-hint"
-          ? "Para contratar, muévelo a Contratado en el Pipeline."
+          ? 'Para contratar, muévelo a la columna "a Contratar" en el Pipeline.'
           : "Estado de fase actualizado",
       );
       setError(null);
@@ -178,8 +459,10 @@ function QuestionAnswerCard({
     "idle",
   );
   const [error, setError] = useState<string | null>(null);
+  const isAdHoc = !question.sourceTemplateQuestionId;
 
-  const saveMutation = useMutation({    mutationFn: () =>
+  const saveMutation = useMutation({
+    mutationFn: () =>
       interviewsApi.upsertAnswer(
         interviewId,
         question.id,
@@ -201,19 +484,47 @@ function QuestionAnswerCard({
     },
   });
 
+  const removeMutation = useMutation({
+    mutationFn: () =>
+      interviewsApi.removeAdHocQuestion(interviewId, question.id),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: interviewKeys.detail(companyId, interviewId),
+      });
+      notifySuccess("Pregunta eliminada");
+    },
+    onError: (err) => notifyError(err, "No se pudo eliminar la pregunta."),
+  });
+
   return (
     <article className="space-y-3 rounded-lg border border-border p-4">
-      <div className="space-y-1">
-        <p className="font-medium">
-          {question.text}
-          {question.required ? (
-            <span className="text-destructive"> *</span>
-          ) : null}
-        </p>
-        <p className="text-xs text-muted-foreground">
-          {INTERVIEW_QUESTION_TYPE_LABELS[question.type]}
-          {question.weight != null ? ` · Peso ${question.weight}` : ""}
-        </p>
+      <div className="flex items-start justify-between gap-2">
+        <div className="space-y-1">
+          <p className="font-medium">
+            {question.text}
+            {question.required ? (
+              <span className="text-destructive"> *</span>
+            ) : null}
+          </p>
+          <p className="text-xs text-muted-foreground">
+            {INTERVIEW_QUESTION_TYPE_LABELS[question.type]}
+            {isAdHoc ? " · Ad-hoc" : ""}
+            {question.weight != null ? ` · Peso ${question.weight}` : ""}
+          </p>
+        </div>
+        {editable && isAdHoc ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="size-8 shrink-0"
+            aria-label="Eliminar pregunta"
+            disabled={removeMutation.isPending}
+            onClick={() => removeMutation.mutate()}
+          >
+            <Trash2 className="size-4" />
+          </Button>
+        ) : null}
       </div>
 
       {editable ? (

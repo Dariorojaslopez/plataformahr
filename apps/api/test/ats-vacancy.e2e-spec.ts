@@ -315,6 +315,8 @@ describe('ATS vacancy core (e2e)', () => {
         type: VacancyRequestType.EXISTING_POSITION,
         existingPositionId: positionAId,
         requestedHeadcount: 1,
+        expectedHiringDate: '2099-06-15',
+        replacedEmployeeId: requesterEmployeeId,
         justification: 'Linked collaborator omits requester id',
       })
       .expect(201);
@@ -329,6 +331,8 @@ describe('ATS vacancy core (e2e)', () => {
         type: VacancyRequestType.EXISTING_POSITION,
         existingPositionId: positionAId,
         requestedHeadcount: 1,
+        expectedHiringDate: '2099-06-15',
+        replacedEmployeeId: requesterEmployeeId,
         justification: 'Admin without employee',
       })
       .expect(400);
@@ -344,6 +348,8 @@ describe('ATS vacancy core (e2e)', () => {
         requestedByEmployeeId: requesterEmployeeId,
         existingPositionId: positionAId,
         requestedHeadcount: 1,
+        expectedHiringDate: '2099-06-15',
+        replacedEmployeeId: requesterEmployeeId,
         justification: 'Admin selected a collaborator',
       })
       .expect(201);
@@ -359,6 +365,8 @@ describe('ATS vacancy core (e2e)', () => {
         requestedByEmployeeId: requesterEmployeeId,
         existingPositionId: positionAId,
         requestedHeadcount: 1,
+        expectedHiringDate: '2099-06-15',
+        replacedEmployeeId: requesterEmployeeId,
         justification: 'Recruiter proxy',
       })
       .expect(201);
@@ -375,6 +383,8 @@ describe('ATS vacancy core (e2e)', () => {
         requestedByEmployeeId: managerEmployeeId,
         existingPositionId: positionAId,
         requestedHeadcount: 1,
+        expectedHiringDate: '2099-06-15',
+        replacedEmployeeId: requesterEmployeeId,
         justification: 'Collaborator cannot proxy',
       })
       .expect(403);
@@ -390,6 +400,8 @@ describe('ATS vacancy core (e2e)', () => {
         requestedByEmployeeId: companyBEmployeeId,
         existingPositionId: positionAId,
         requestedHeadcount: 1,
+        expectedHiringDate: '2099-06-15',
+        replacedEmployeeId: requesterEmployeeId,
         justification: 'Other tenant employee',
       })
       .expect(404);
@@ -401,6 +413,8 @@ describe('ATS vacancy core (e2e)', () => {
         type: VacancyRequestType.EXISTING_POSITION,
         existingPositionId: positionAId,
         requestedHeadcount: 1,
+        expectedHiringDate: '2099-06-15',
+        replacedEmployeeId: requesterEmployeeId,
         justification: 'Leader without employee cannot omit requester',
       })
       .expect(400);
@@ -416,6 +430,8 @@ describe('ATS vacancy core (e2e)', () => {
         requestedByEmployeeId: requesterEmployeeId,
         existingPositionId: positionAId,
         requestedHeadcount: 1,
+        expectedHiringDate: '2099-06-15',
+        replacedEmployeeId: requesterEmployeeId,
         justification: 'Leader without proxy cannot impersonate',
       })
       .expect(403);
@@ -430,6 +446,8 @@ describe('ATS vacancy core (e2e)', () => {
         type: VacancyRequestType.EXISTING_POSITION,
         existingPositionId: positionAId,
         requestedHeadcount: 1,
+        expectedHiringDate: '2099-06-15',
+        replacedEmployeeId: requesterEmployeeId,
         justification: 'Leader has linked employee so omit is ok',
       })
       .expect(201);
@@ -448,6 +466,8 @@ describe('ATS vacancy core (e2e)', () => {
         requestedByEmployeeId: requesterEmployeeId,
         existingPositionId: positionAId,
         requestedHeadcount: 2,
+        expectedHiringDate: '2099-06-15',
+        replacedEmployeeId: requesterEmployeeId,
         justification: 'Need more developers',
       })
       .expect(201);
@@ -493,6 +513,8 @@ describe('ATS vacancy core (e2e)', () => {
         requestedByEmployeeId: orphan.id,
         existingPositionId: positionAId,
         requestedHeadcount: 1,
+        expectedHiringDate: '2099-06-15',
+        replacedEmployeeId: requesterEmployeeId,
         justification: 'No manager',
       })
       .expect(201);
@@ -514,6 +536,8 @@ describe('ATS vacancy core (e2e)', () => {
         requestedByEmployeeId: requesterEmployeeId,
         existingPositionId: positionAId,
         requestedHeadcount: 1,
+        expectedHiringDate: '2099-06-15',
+        replacedEmployeeId: requesterEmployeeId,
         justification: 'No GM',
         generalManagerApprovalRequired: false,
       })
@@ -537,6 +561,8 @@ describe('ATS vacancy core (e2e)', () => {
         requestedByEmployeeId: requesterEmployeeId,
         existingPositionId: positionAId,
         requestedHeadcount: 1,
+        expectedHiringDate: '2099-06-15',
+        replacedEmployeeId: requesterEmployeeId,
         justification: 'Needs GM',
         generalManagerApprovalRequired: true,
       })
@@ -563,6 +589,8 @@ describe('ATS vacancy core (e2e)', () => {
         requestedByEmployeeId: requesterEmployeeId,
         existingPositionId: positionAId,
         requestedHeadcount: 2,
+        expectedHiringDate: '2099-06-15',
+        replacedEmployeeId: requesterEmployeeId,
         justification: 'Full flow',
       })
       .expect(201);
@@ -623,7 +651,7 @@ describe('ATS vacancy core (e2e)', () => {
     const after = await prisma.position.findUniqueOrThrow({
       where: { id: positionAId },
     });
-    expect(after.headcount).toBe(before.headcount + 2);
+    expect(after.headcount).toBe(before.headcount);
 
     const vacancies = await prisma.vacancy.findMany({
       where: { vacancyRequestId: id },
@@ -649,6 +677,8 @@ describe('ATS vacancy core (e2e)', () => {
         requestedByEmployeeId: requesterEmployeeId,
         existingPositionId: positionAId,
         requestedHeadcount: 1,
+        expectedHiringDate: '2099-06-15',
+        replacedEmployeeId: requesterEmployeeId,
         justification: 'Reject me',
       })
       .expect(201);
@@ -683,6 +713,7 @@ describe('ATS vacancy core (e2e)', () => {
         requestedPositionName: `New Role ${suffix}`,
         requestedAreaId: areaAId,
         requestedHeadcount: 3,
+        expectedHiringDate: '2099-06-15',
         justification: 'New role needed',
       })
       .expect(201);
@@ -725,6 +756,7 @@ describe('ATS vacancy core (e2e)', () => {
           })
         ).id,
         requestedHeadcount: 1,
+        expectedHiringDate: '2099-06-15',
         justification: 'Cross tenant',
       })
       .expect(404);
@@ -738,6 +770,7 @@ describe('ATS vacancy core (e2e)', () => {
         requestedPositionName: `Cross Area ${suffix}`,
         requestedAreaId: areaBId,
         requestedHeadcount: 1,
+        expectedHiringDate: '2099-06-15',
         justification: 'Cross area',
       })
       .expect(404);

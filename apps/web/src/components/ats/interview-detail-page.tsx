@@ -6,7 +6,6 @@ import { useParams } from "next/navigation";
 import { useState } from "react";
 import { InterviewEvaluationPanel } from "@/components/ats/interview-evaluation-panel";
 import { InterviewTimer } from "@/components/ats/interview-timer";
-import { InterviewTranscriptPanel } from "@/components/ats/interview-transcript-panel";
 import { useSession } from "@/components/auth/session-provider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -20,7 +19,6 @@ import {
 import { ErrorState } from "@/components/ui/error-state";
 import { PageHeader } from "@/components/ui/page-header";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useCompanyId } from "@/hooks/use-company-id";
 import { atsApi, atsKeys } from "@/lib/api/ats";
 import { getErrorMessage } from "@/lib/api/errors";
@@ -39,7 +37,7 @@ import { notifyError, notifySuccess } from "@/lib/ui/notify";
 export function InterviewDetailPageClient() {
   const companyId = useCompanyId();
   const queryClient = useQueryClient();
-  const { user } = useSession();
+  const { user, companyAccess } = useSession();
   const { id } = useParams<{ id: string }>();
 
   const [confirm, setConfirm] = useState<
@@ -160,20 +158,14 @@ export function InterviewDetailPageClient() {
     ? `${application.candidate.firstName} ${application.candidate.lastName}`
     : "Candidato";
   const vacancyTitle = application?.vacancy?.title ?? "Vacante";
-  const missing = missingRequiredQuestions(
-    interview.questions ?? [],
-    user?.id,
-  );
-  const canTranscribe =
-    interview.status !== "CANCELLED" && interview.status !== "COMPLETED"
-      ? true
-      : interview.status === "COMPLETED";
+  const transcriptionEnabled = (
+    companyAccess?.enabledFeatures ?? []
+  ).includes("premium.interview-recording");
+  const missing = transcriptionEnabled
+    ? []
+    : missingRequiredQuestions(interview.questions ?? [], user?.id);
 
   const meetingHref = safeHttpUrl(interview.meetingUrl);
-
-  // Transcript can be viewed when completed; edits blocked in panel via canEdit
-  const transcriptEditable =
-    interview.status !== "CANCELLED" && interview.status !== "COMPLETED";
 
   return (
     <div className="space-y-6">
@@ -272,53 +264,19 @@ export function InterviewDetailPageClient() {
 
       {interview.status === "IN_PROGRESS" ||
       interview.status === "COMPLETED" ? (
-        <>
-          <div className="hidden gap-6 lg:grid lg:grid-cols-2">
-            <InterviewEvaluationPanel
-              companyId={companyId}
-              interview={interview}
-              userId={user?.id}
-              applicationStage={application?.stage}
-            />
-            {canTranscribe || interview.status === "COMPLETED" ? (
-              <InterviewTranscriptPanel
-                companyId={companyId}
-                interviewId={interview.id}
-                interviewStatus={interview.status}
-                canEdit={transcriptEditable}
-              />
-            ) : null}
-          </div>
-
-          <div className="lg:hidden">
-            <Tabs defaultValue="evaluation">
-              <TabsList>
-                <TabsTrigger value="evaluation">Evaluación</TabsTrigger>
-                <TabsTrigger value="transcript">Transcripción</TabsTrigger>
-              </TabsList>
-              <TabsContent value="evaluation" className="mt-4">
-                <InterviewEvaluationPanel
-                  companyId={companyId}
-                  interview={interview}
-                  userId={user?.id}
-                  applicationStage={application?.stage}
-                />
-              </TabsContent>
-              <TabsContent value="transcript" className="mt-4">
-                <InterviewTranscriptPanel
-                  companyId={companyId}
-                  interviewId={interview.id}
-                  interviewStatus={interview.status}
-                  canEdit={transcriptEditable}
-                />
-              </TabsContent>
-            </Tabs>
-          </div>
-        </>
+        <InterviewEvaluationPanel
+          companyId={companyId}
+          interview={interview}
+          userId={user?.id}
+          applicationStage={application?.stage}
+          transcriptionEnabled={transcriptionEnabled}
+        />
       ) : (
         <p className="text-sm text-muted-foreground">
-          Inicia la entrevista para abrir el workspace de evaluación y
-          transcripción.
+          Inicia la entrevista para abrir el formulario de evaluación
+          {transcriptionEnabled
+            ? " con transcripción."
+            : " con preguntas y respuestas."}
           {(interview._count?.questions ?? interview.questions?.length ?? 0) >
           0
             ? ` Hay ${interview.questions?.length ?? interview._count?.questions} pregunta(s) en snapshot.`
@@ -335,6 +293,8 @@ export function InterviewDetailPageClient() {
           interview={interview}
           userId={user?.id}
           applicationStage={application?.stage}
+          transcriptionEnabled={transcriptionEnabled}
+          showTranscriptPanel={false}
         />
       ) : null}
 

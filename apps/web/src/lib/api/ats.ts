@@ -28,6 +28,7 @@ import type {
   UpdateVacancyRequestInput,
   Vacancy,
   VacancyApprovalWorkflow,
+  VacancyScreeningConfig,
   VacancyRequest,
   ActiveProcessApprovals,
   ActiveProcessEvaluators,
@@ -115,6 +116,15 @@ export const atsApi = {
       body,
     }),
 
+  getContractTemplateApprovers: () =>
+    apiRequest<EvaluatorDefaults>("/ats/contract-template-approvers"),
+
+  updateContractTemplateApprovers: (body: ReplacePositionOccupantStepsInput) =>
+    apiRequest<EvaluatorDefaults>("/ats/contract-template-approvers", {
+      method: "PUT",
+      body,
+    }),
+
   listActiveProcesses: () =>
     apiRequest<{ items: ActiveSelectionProcess[] }>("/ats/active-processes"),
 
@@ -155,6 +165,18 @@ export const atsApi = {
     ),
 
   getVacancy: (id: string) => apiRequest<Vacancy>(`/ats/vacancies/${id}`),
+
+  getVacancyScreening: (id: string) =>
+    apiRequest<VacancyScreeningConfig>(`/ats/vacancies/${id}/screening`),
+
+  updateVacancyScreening: (id: string, body: {
+    minCorrect?: number | null;
+    questions: Array<{ prompt: string; correctAnswer: boolean }>;
+  }) =>
+    apiRequest<VacancyScreeningConfig>(`/ats/vacancies/${id}/screening`, {
+      method: "PUT",
+      body,
+    }),
 
   listRecruiters: () =>
     apiRequest<
@@ -266,29 +288,68 @@ export const publicJobsApi = {
     );
   },
 
+  parseLinkedIn: (
+    publicId: string,
+    body: { linkedinUrl?: string; profileText?: string },
+  ) =>
+    apiRequest<ParsedPublicCv>(
+      `/public/jobs/${encodeURIComponent(publicId)}/parse-linkedin`,
+      {
+        method: "POST",
+        body,
+        auth: false,
+        companyId: null,
+      },
+    ),
+
   apply: (
     publicId: string,
     body: PublicJobApplicationInput,
     file?: File,
   ) => {
+    const payload = {
+      ...body,
+      workExperience: body.workExperience,
+      education: body.education,
+      screeningAnswers: body.screeningAnswers
+        .filter((item) => item.answer !== null)
+        .map((item) => ({
+          questionId: item.questionId,
+          answer: Boolean(item.answer),
+        })),
+    };
     if (!file) {
       return apiRequest<{ ok: true }>(
         `/public/jobs/${encodeURIComponent(publicId)}/apply`,
         {
           method: "POST",
-          body,
+          body: payload,
           auth: false,
           companyId: null,
         },
       );
     }
     const formData = new FormData();
-    formData.append("firstName", body.firstName);
-    formData.append("lastName", body.lastName);
-    formData.append("email", body.email);
-    formData.append("phone", body.phone);
-    formData.append("documentType", body.documentType);
-    formData.append("documentNumber", body.documentNumber);
+    formData.append("firstName", payload.firstName);
+    formData.append("lastName", payload.lastName);
+    formData.append("email", payload.email);
+    formData.append("phone", payload.phone);
+    formData.append("documentType", payload.documentType);
+    formData.append("documentNumber", payload.documentNumber);
+    formData.append("birthDate", payload.birthDate);
+    formData.append("country", payload.country);
+    formData.append("state", payload.state);
+    formData.append("city", payload.city);
+    formData.append("professionalProfile", payload.professionalProfile);
+    if (payload.linkedinUrl?.trim()) {
+      formData.append("linkedinUrl", payload.linkedinUrl.trim());
+    }
+    formData.append("workExperience", JSON.stringify(payload.workExperience));
+    formData.append("education", JSON.stringify(payload.education));
+    formData.append(
+      "screeningAnswers",
+      JSON.stringify(payload.screeningAnswers),
+    );
     formData.append("cv", file);
     return apiRequest<{ ok: true }>(
       `/public/jobs/${encodeURIComponent(publicId)}/apply`,
@@ -314,6 +375,8 @@ export const atsKeys = {
     [...atsKeys.all(companyId), "position-occupants", positionId] as const,
   evaluatorDefaults: (companyId: string) =>
     [...atsKeys.all(companyId), "evaluator-defaults"] as const,
+  contractTemplateApprovers: (companyId: string) =>
+    [...atsKeys.all(companyId), "contract-template-approvers"] as const,
   activeProcesses: (companyId: string) =>
     [...atsKeys.all(companyId), "active-processes"] as const,
   activeProcessApprovals: (companyId: string, id: string) =>
@@ -324,6 +387,8 @@ export const atsKeys = {
     [...atsKeys.all(companyId), "vacancies", params] as const,
   vacancy: (companyId: string, id: string) =>
     [...atsKeys.all(companyId), "vacancy", id] as const,
+  vacancyScreening: (companyId: string, id: string) =>
+    [...atsKeys.all(companyId), "vacancy-screening", id] as const,
   vacancyPublicPreview: (companyId: string, id: string) =>
     [...atsKeys.all(companyId), "vacancy-public-preview", id] as const,
   recruiters: (companyId: string) =>

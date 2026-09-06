@@ -28,6 +28,34 @@ export const companyApi = {
       { method: "PATCH", body },
     ),
 
+  updateAtsSettings: (body: {
+    vacancyHiringSlaDays?: number;
+    atsThankYouLetterSubject?: string | null;
+    atsThankYouLetterBody?: string | null;
+  }) =>
+    apiRequest<CurrentCompanyResponse>("/companies/current/ats-settings", {
+      method: "PATCH",
+      body,
+    }),
+
+  uploadAtsTemplate: (kind: "offer-letter" | "contract", file: File) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    return apiRequest<CurrentCompanyResponse>(
+      `/companies/current/ats-templates/${kind}`,
+      { method: "POST", formData },
+    );
+  },
+
+  removeAtsTemplate: (kind: "offer-letter" | "contract") =>
+    apiRequest<CurrentCompanyResponse>(
+      `/companies/current/ats-templates/${kind}`,
+      { method: "DELETE" },
+    ),
+
+  downloadAtsTemplate: (kind: "offer-letter" | "contract") =>
+    apiRequestBlob(`/companies/current/ats-templates/${kind}`),
+
   getBranding: () => apiRequest<CompanyBranding>("/companies/current/branding"),
 
   updateBranding: (body: UpdateCompanyBrandingInput) =>

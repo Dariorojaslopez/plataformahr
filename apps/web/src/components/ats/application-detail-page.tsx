@@ -27,6 +27,7 @@ import { organizationApi, orgKeys } from "@/lib/api/organization";
 import {
   APPLICATION_STAGE_LABELS,
   APPLICATION_STATUS_LABELS,
+  EDUCATION_LEVEL_LABELS,
   applicationStageVariant,
   canScheduleInterviewForStage,
   formatDate,
@@ -181,7 +182,113 @@ export function ApplicationDetailPageClient() {
         <Field label="Último cambio">
           {formatDate(application.lastStageChangedAt)}
         </Field>
+        {application.screeningPassed != null ? (
+          <Field label="Screening">
+            {application.screeningPassed ? "Aprobado" : "No aprobado"} (
+            {application.screeningCorrectCount ?? 0} correctas)
+          </Field>
+        ) : null}
+        {application.profileFitLevel ? (
+          <Field label="Ajuste al perfil">
+            {application.profileFitSummary ?? application.profileFitLevel}
+          </Field>
+        ) : null}
+        {application.candidate?.linkedinUrl ? (
+          <Field label="LinkedIn">
+            <a
+              href={application.candidate.linkedinUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="text-primary underline-offset-2 hover:underline"
+            >
+              Ver perfil
+            </a>
+          </Field>
+        ) : null}
       </div>
+
+      {application.professionalProfile ||
+      (application.workExperiences?.length ?? 0) > 0 ||
+      (application.educations?.length ?? 0) > 0 ||
+      (application.screeningAnswers?.length ?? 0) > 0 ? (
+        <section className="space-y-4">
+          <h2 className="text-lg font-semibold">Perfil de postulación</h2>
+          {application.professionalProfile ? (
+            <div className="space-y-1">
+              <p className="text-sm font-medium">Perfil profesional</p>
+              <p className="whitespace-pre-wrap text-sm text-muted-foreground">
+                {application.professionalProfile}
+              </p>
+            </div>
+          ) : null}
+          {(application.workExperiences?.length ?? 0) > 0 ? (
+            <div className="space-y-2">
+              <p className="text-sm font-medium">Experiencia laboral</p>
+              <ul className="space-y-2">
+                {application.workExperiences!.map((item) => (
+                  <li key={item.id} className="rounded-md border p-3 text-sm">
+                    <p className="font-medium">
+                      {item.positionTitle} · {item.companyName}
+                    </p>
+                    <p className="text-muted-foreground">
+                      {formatDate(item.startDate)} –{" "}
+                      {item.isCurrent
+                        ? "Actual"
+                        : formatDate(item.endDate)}
+                      {item.country ? ` · ${item.country}` : ""}
+                    </p>
+                    {item.functions ? (
+                      <p className="mt-1 whitespace-pre-wrap">{item.functions}</p>
+                    ) : null}
+                    {item.achievements ? (
+                      <p className="mt-1 whitespace-pre-wrap text-muted-foreground">
+                        {item.achievements}
+                      </p>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+          {(application.educations?.length ?? 0) > 0 ? (
+            <div className="space-y-2">
+              <p className="text-sm font-medium">Formación académica</p>
+              <ul className="space-y-2">
+                {application.educations!.map((item) => (
+                  <li key={item.id} className="rounded-md border p-3 text-sm">
+                    <p className="font-medium">
+                      {item.program} · {item.institution}
+                    </p>
+                    <p className="text-muted-foreground">
+                      {EDUCATION_LEVEL_LABELS[item.educationLevel]} ·{" "}
+                      {formatDate(item.startDate)} –{" "}
+                      {item.isStudying
+                        ? "En curso"
+                        : formatDate(item.endDate)}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+          {(application.screeningAnswers?.length ?? 0) > 0 ? (
+            <div className="space-y-2">
+              <p className="text-sm font-medium">Respuestas de screening</p>
+              <ul className="space-y-2">
+                {application.screeningAnswers!.map((item) => (
+                  <li key={item.id} className="rounded-md border p-3 text-sm">
+                    <p>{item.questionPrompt}</p>
+                    <p className="text-muted-foreground">
+                      Respuesta: {item.answer ? "Sí" : "No"} ·{" "}
+                      {item.isCorrect ? "Correcta" : "Incorrecta"}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+        </section>
+      ) : null}
 
       <section className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">

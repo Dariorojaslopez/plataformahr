@@ -43,11 +43,29 @@ export type HomePendingEvaluation = {
   vacancyTitle: string;
 };
 
+export type HomeReadyForOffer = {
+  applicationId: string;
+  candidateName: string;
+  vacancyId: string;
+  vacancyTitle: string;
+  lastStageChangedAt: string;
+};
+
+export type HomePendingContractApproval = {
+  offerId: string;
+  stepId: string;
+  candidateName: string;
+  vacancyTitle: string;
+  sequence: number;
+};
+
 export type CollaboratorHomeFeed = {
   profile: HomeProfile | null;
   openVacancies: HomeOpenVacancy[];
   pendingApprovals: HomePendingApproval[];
   pendingEvaluations: HomePendingEvaluation[];
+  pendingContractApprovals: HomePendingContractApproval[];
+  readyForOffer: HomeReadyForOffer[];
   assignedVacancies: HomeAssignedVacancy[];
   assignedMetrics: HomeAssignedMetrics;
 };
@@ -69,6 +87,7 @@ export type HomeAssignedMetrics = {
   activeApplicationCount: number;
   hiredCount: number;
   pendingInterviewCount: number;
+  readyForOfferCount: number;
   filledHeadcount: number;
   requestedHeadcount: number;
 };
@@ -80,6 +99,7 @@ export const EMPTY_ASSIGNED_METRICS: HomeAssignedMetrics = {
   activeApplicationCount: 0,
   hiredCount: 0,
   pendingInterviewCount: 0,
+  readyForOfferCount: 0,
   filledHeadcount: 0,
   requestedHeadcount: 0,
 };

@@ -28,6 +28,7 @@ import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { PageHeader } from "@/components/ui/page-header";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -183,22 +184,27 @@ export function EmployeesPageClient() {
         }
       />
 
-      <div className="mb-4 grid gap-3 md:grid-cols-5">
+      <div
+        className={`mb-6 grid gap-3 sm:grid-cols-2 ${
+          hasBusinessUnits ? "lg:grid-cols-6" : "lg:grid-cols-5"
+        }`}
+      >
         <form
-          className="md:col-span-2"
+          className="space-y-2 sm:col-span-2"
           onSubmit={(event) => {
             event.preventDefault();
             setParams({ search: searchInput.trim() || undefined, page: 1 });
           }}
         >
+          <Label htmlFor="filter-search">Buscar</Label>
           <div className="relative">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
+              id="filter-search"
               className="pl-9"
               placeholder="Buscar por nombre o email"
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
-              aria-label="Buscar colaboradores"
             />
           </div>
         </form>
@@ -250,8 +256,6 @@ export function EmployeesPageClient() {
             }))}
           />
         ) : null}
-      </div>
-      <div className="mb-6 max-w-sm">
         <FormSelect
           id="filter-position"
           label="Cargo"

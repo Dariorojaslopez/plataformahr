@@ -32,6 +32,41 @@ vi.mock("@/lib/api/ats", () => ({
       phone: "3001234567",
       documentType: "CC",
       documentNumber: "1234567890",
+      professionalProfile: "Desarrolladora full stack.",
+      workExperience: [
+        {
+          companyName: "Acme",
+          country: "",
+          positionTitle: "Dev",
+          startDate: "2020-01-01",
+          endDate: "",
+          isCurrent: true,
+          functions: "APIs",
+          achievements: "",
+        },
+      ],
+      education: [
+        {
+          institution: "UNAL",
+          program: "Sistemas",
+          educationLevel: "PROFESSIONAL",
+          startDate: "2014-01-01",
+          endDate: "2019-01-01",
+          isStudying: false,
+        },
+      ],
+    }),
+    parseLinkedIn: vi.fn().mockResolvedValue({
+      firstName: "Ana",
+      lastName: "Ruiz",
+      email: "ana@acme.test",
+      phone: null,
+      documentType: null,
+      documentNumber: null,
+      professionalProfile: "Perfil LinkedIn",
+      linkedinUrl: "https://www.linkedin.com/in/ana-ruiz",
+      workExperience: [],
+      education: [],
     }),
   },
 }));
@@ -86,10 +121,16 @@ describe("PublicJobPage", () => {
       .toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Experiencia" }))
       .toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Postúlate" }))
+    expect(screen.getByRole("heading", { name: "Formulario de postulación" }))
       .toBeInTheDocument();
-    expect(screen.getByLabelText("Hoja de vida *")).toBeInTheDocument();
+    expect(screen.getByLabelText("Archivo PDF o Word *")).toBeInTheDocument();
     expect(screen.getByLabelText("Correo electrónico *")).toBeInTheDocument();
+    expect(screen.getByLabelText("Fecha de nacimiento *")).toBeInTheDocument();
+    expect(screen.getByText("Experiencia laboral")).toBeInTheDocument();
+    expect(
+      screen.getAllByText(/Solo la primera es obligatoria/).length,
+    ).toBeGreaterThanOrEqual(2);
+    expect(screen.getByText("Formación académica")).toBeInTheDocument();
     expect(screen.queryByText("Dashboard")).not.toBeInTheDocument();
   });
 
@@ -109,7 +150,7 @@ describe("PublicJobPage", () => {
     expect(screen.getByText(/Vista previa de la página pública/))
       .toBeInTheDocument();
     expect(screen.getByText("Atraer talento.")).toBeInTheDocument();
-    expect(screen.queryByRole("heading", { name: "Postúlate" }))
+    expect(screen.queryByRole("heading", { name: "Formulario de postulación" }))
       .not.toBeInTheDocument();
     expect(screen.queryByText(/COP/)).not.toBeInTheDocument();
   });
@@ -125,13 +166,13 @@ describe("PublicJobPage", () => {
       </QueryClientProvider>,
     );
 
-    await screen.findByRole("heading", { name: "Postúlate" });
+    await screen.findByRole("heading", { name: "Formulario de postulación" });
     const file = new File(
       ["Ana Ruiz\nana@acme.test"],
       "cv.txt",
       { type: "text/plain" },
     );
-    await user.upload(screen.getByLabelText("Hoja de vida *"), file);
+    await user.upload(screen.getByLabelText("Archivo PDF o Word *"), file);
 
     expect(publicJobsApi.parseCv).toHaveBeenCalled();
     expect(await screen.findByDisplayValue("Ana")).toBeInTheDocument();

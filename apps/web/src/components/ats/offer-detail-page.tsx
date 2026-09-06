@@ -3,7 +3,13 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useState, type Dispatch, type ReactNode, type SetStateAction } from "react";
+import {
+  useRef,
+  useState,
+  type Dispatch,
+  type ReactNode,
+  type SetStateAction,
+} from "react";
 import { FormSelect } from "@/components/organization/form-select";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -26,6 +32,7 @@ import { ApiError, getErrorMessage } from "@/lib/api/errors";
 import { offerKeys, offersApi } from "@/lib/api/offers";
 import { formatDate, formatDateShort } from "@/lib/ats/labels";
 import {
+  CONTRACT_APPROVAL_STATUS_LABELS,
   formatMoney,
   isOfferExpiredClient,
   OFFER_EMPLOYMENT_TYPE_LABELS,
@@ -33,6 +40,8 @@ import {
   offerStatusVariant,
   SALARY_PERIOD_LABELS,
 } from "@/lib/ats/offer-labels";
+import { APPROVAL_STATUS_LABELS, formatEmployeeName } from "@/lib/ats/labels";
+import { homeApi, homeKeys } from "@/lib/api/home";
 import { notifyError, notifySuccess } from "@/lib/ui/notify";
 import type {
   CreateJobOfferInput,
@@ -378,6 +387,12 @@ export function OfferDetailPageClient() {
         </p>
       </section>
 
+      <OfferLetterPanel offerId={offer.id} />
+
+      {offer.status === "ACCEPTED" ? (
+        <ContractApprovalPanel offerId={offer.id} />
+      ) : null}
+
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
           <DialogHeader>
@@ -716,6 +731,322 @@ function Field({
       </p>
       <div className="text-sm">{children}</div>
     </div>
+  );
+}
+
+function OfferLetterPanel({ offerId }: { offerId: string }) {
+  const companyId = useCompanyId();
+  const queryClient = useQueryClient();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const letterQuery = useQuery({
+    queryKey: offerKeys.letter(companyId, offerId),
+    queryFn: () => offersApi.getLetterStatus(offerId),
+  });
+
+  async function invalidate() {
+    await queryClient.invalidateQueries({
+      queryKey: offerKeys.letter(companyId, offerId),
+    });
+    await queryClient.invalidateQueries({
+      queryKey: offerKeys.detail(companyId, offerId),
+    });
+  }
+
+  const uploadMutation = useMutation({
+    mutationFn: (file: File) => offersApi.uploadSignedLetter(offerId, file),
+    onSuccess: async () => {
+      await invalidate();
+      notifySuccess("Carta oferta firmada cargada");
+    },
+    onError: (error) => {
+      notifyError(error, "No se pudo cargar la carta firmada.");
+    },
+  });
+
+  const removeMutation = useMutation({
+    mutationFn: () => offersApi.removeSignedLetter(offerId),
+    onSuccess: async () => {
+      await invalidate();
+      notifySuccess("Carta firmada eliminada");
+    },
+    onError: (error) => {
+      notifyError(error, "No se pudo eliminar la carta firmada.");
+    },
+  });
+
+  if (letterQuery.isLoading) {
+    return <Skeleton className="h-28 w-full" />;
+  }
+  if (letterQuery.isError || !letterQuery.data) {
+    return null;
+  }
+
+  const data = letterQuery.data;
+
+  return (
+    <section className="space-y-3 rounded-md border border-border p-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 className="text-lg font-semibold">Carta oferta</h2>
+        <Badge variant={data.readyForHire ? "success" : "secondary"}>
+          {data.readyForHire
+            ? data.hasCompanyTemplate
+              ? "Firmada"
+              : "Sin plantilla requerida"
+            : "Pendiente firma"}
+        </Badge>
+      </div>
+      <p className="text-sm text-muted-foreground">
+        Descarga la plantilla de la compañía, completa y firma el documento, y
+        súbelo en PDF o DOCX.
+      </p>
+      <div className="flex flex-wrap gap-2">
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          disabled={!data.hasCompanyTemplate}
+          onClick={async () => {
+            try {
+              const { blob, filename } =
+                await offersApi.downloadLetterTemplate(offerId);
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement("a");
+              a.href = url;
+              a.download =
+                filename || data.companyTemplateName || "carta-oferta";
+              a.click();
+              URL.revokeObjectURL(url);
+            } catch (error) {
+              notifyError(error, "No se pudo descargar la plantilla.");
+            }
+          }}
+        >
+          Descargar plantilla
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          disabled={uploadMutation.isPending}
+          onClick={() => fileInputRef.current?.click()}
+        >
+          {uploadMutation.isPending ? "Subiendo…" : "Subir firmada"}
+        </Button>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+          className="hidden"
+          onChange={(event) => {
+            const file = event.target.files?.[0];
+            event.target.value = "";
+            if (file) uploadMutation.mutate(file);
+          }}
+        />
+      </div>
+      {data.hasSignedLetter ? (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border/70 px-3 py-2 text-sm">
+          <div>
+            <p className="font-medium">{data.signedLetterName ?? "Carta firmada"}</p>
+            <p className="text-muted-foreground">
+              {data.signedLetterUploadedAt
+                ? formatDate(data.signedLetterUploadedAt)
+                : "Cargada"}
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={async () => {
+                try {
+                  const { blob, filename } =
+                    await offersApi.downloadSignedLetter(offerId);
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement("a");
+                  a.href = url;
+                  a.download =
+                    filename || data.signedLetterName || "carta-firmada";
+                  a.click();
+                  URL.revokeObjectURL(url);
+                } catch (error) {
+                  notifyError(error, "No se pudo descargar la carta firmada.");
+                }
+              }}
+            >
+              Descargar
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={removeMutation.isPending}
+              onClick={() => removeMutation.mutate()}
+            >
+              Quitar
+            </Button>
+          </div>
+        </div>
+      ) : data.hasCompanyTemplate ? (
+        <p className="text-sm text-muted-foreground">
+          Plantilla: {data.companyTemplateName ?? "cargada"}. Aún no hay carta
+          firmada.
+        </p>
+      ) : (
+        <p className="text-sm text-muted-foreground">
+          No hay plantilla de carta oferta en la compañía; no se exige archivo
+          firmado para contratar.
+        </p>
+      )}
+    </section>
+  );
+}
+
+function ContractApprovalPanel({ offerId }: { offerId: string }) {
+  const companyId = useCompanyId();
+  const queryClient = useQueryClient();
+  const [comment, setComment] = useState("");
+  const meQuery = useQuery({
+    queryKey: homeKeys.feed(companyId),
+    queryFn: () => homeApi.getFeed(),
+  });
+  const myEmployeeId = meQuery.data?.profile?.id ?? null;
+
+  const approvalsQuery = useQuery({
+    queryKey: offerKeys.contractApprovals(companyId, offerId),
+    queryFn: () => offersApi.getContractApprovals(offerId),
+  });
+
+  async function invalidate() {
+    await queryClient.invalidateQueries({
+      queryKey: offerKeys.contractApprovals(companyId, offerId),
+    });
+    await queryClient.invalidateQueries({
+      queryKey: offerKeys.detail(companyId, offerId),
+    });
+  }
+
+  const approveMutation = useMutation({
+    mutationFn: (stepId: string) =>
+      offersApi.approveContractStep(offerId, stepId, comment || undefined),
+    onSuccess: async () => {
+      await invalidate();
+      setComment("");
+      notifySuccess("Paso de contrato aprobado");
+    },
+    onError: (error) => {
+      notifyError(error, "No se pudo aprobar el paso.");
+    },
+  });
+
+  const rejectMutation = useMutation({
+    mutationFn: (stepId: string) =>
+      offersApi.rejectContractStep(offerId, stepId, comment || undefined),
+    onSuccess: async () => {
+      await invalidate();
+      setComment("");
+      notifySuccess("Paso de contrato rechazado");
+    },
+    onError: (error) => {
+      notifyError(error, "No se pudo rechazar el paso.");
+    },
+  });
+
+  if (approvalsQuery.isLoading) {
+    return <Skeleton className="h-32 w-full" />;
+  }
+  if (approvalsQuery.isError || !approvalsQuery.data) {
+    return null;
+  }
+
+  const data = approvalsQuery.data;
+  const current = data.steps.find((step) => step.status === "PENDING");
+
+  return (
+    <section className="space-y-3 rounded-md border border-border p-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 className="text-lg font-semibold">Aprobación de contrato</h2>
+        <Badge
+          variant={
+            data.contractApprovalStatus === "APPROVED"
+              ? "success"
+              : data.contractApprovalStatus === "REJECTED"
+                ? "destructive"
+                : "secondary"
+          }
+        >
+          {CONTRACT_APPROVAL_STATUS_LABELS[data.contractApprovalStatus]}
+        </Badge>
+      </div>
+      {data.contractApprovalStatus === "NOT_REQUIRED" ? (
+        <p className="text-sm text-muted-foreground">
+          No hay aprobadores de contrato configurados; puedes contratar sin este
+          flujo.
+        </p>
+      ) : (
+        <ul className="space-y-2">
+          {data.steps.map((step) => (
+            <li
+              key={step.id}
+              className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border/70 px-3 py-2 text-sm"
+            >
+              <div>
+                <p className="font-medium">
+                  {step.sequence}. {step.position?.name ?? "Cargo"}
+                </p>
+                <p className="text-muted-foreground">
+                  {formatEmployeeName(step.approverEmployee)} ·{" "}
+                  {APPROVAL_STATUS_LABELS[step.status]}
+                </p>
+              </div>
+              {current?.id === step.id &&
+              myEmployeeId &&
+              step.approverEmployee?.id === myEmployeeId ? (
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    disabled={
+                      approveMutation.isPending || rejectMutation.isPending
+                    }
+                    onClick={() => approveMutation.mutate(step.id)}
+                  >
+                    Aprobar
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    disabled={
+                      approveMutation.isPending || rejectMutation.isPending
+                    }
+                    onClick={() => rejectMutation.mutate(step.id)}
+                  >
+                    Rechazar
+                  </Button>
+                </div>
+              ) : null}
+            </li>
+          ))}
+        </ul>
+      )}
+      {current &&
+      myEmployeeId &&
+      current.approverEmployee?.id === myEmployeeId ? (
+        <div className="space-y-2">
+          <Label htmlFor="contract-approval-comment">
+            Comentario (opcional)
+          </Label>
+          <Textarea
+            id="contract-approval-comment"
+            rows={2}
+            value={comment}
+            onChange={(event) => setComment(event.target.value)}
+          />
+        </div>
+      ) : null}
+    </section>
   );
 }
 

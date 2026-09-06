@@ -19,6 +19,10 @@ import {
 } from '../ats.constants';
 import { CV_ERRORS } from '../public-jobs/cv.constants';
 import { readCvFile, resolveCompanyUploadsDir } from '../public-jobs/cv.storage';
+import {
+  LINKEDIN_ERRORS,
+  normalizeLinkedInProfileUrl,
+} from '../public-jobs/linkedin';
 import type {
   CreateCandidateDto,
   ListCandidatesQueryDto,
@@ -129,6 +133,7 @@ export class CandidatesService {
           state: emptyToNull(dto.state) ?? null,
           city: emptyToNull(dto.city) ?? null,
           source: emptyToNull(dto.source) ?? null,
+          linkedinUrl: this.resolveLinkedInUrl(dto.linkedinUrl),
           status: CandidateStatus.ACTIVE,
         },
       });
@@ -166,7 +171,7 @@ export class CandidatesService {
 
     if (dto.status === CandidateStatus.HIRED) {
       throw new BadRequestException(
-        'Candidate status HIRED is reserved for the future hiring workflow',
+        'Candidate status HIRED is reserved for the hiring workflow',
       );
     }
 
@@ -198,6 +203,9 @@ export class CandidatesService {
           ...(dto.source !== undefined
             ? { source: emptyToNull(dto.source) }
             : {}),
+          ...(dto.linkedinUrl !== undefined
+            ? { linkedinUrl: this.resolveLinkedInUrl(dto.linkedinUrl) }
+            : {}),
           ...(dto.status !== undefined ? { status: dto.status } : {}),
         },
       });
@@ -223,5 +231,17 @@ export class CandidatesService {
       }
       throw error;
     }
+  }
+
+  private resolveLinkedInUrl(
+    value: string | null | undefined,
+  ): string | null {
+    const trimmed = typeof value === 'string' ? value.trim() : '';
+    if (!trimmed) return null;
+    const normalized = normalizeLinkedInProfileUrl(trimmed);
+    if (!normalized) {
+      throw new BadRequestException(LINKEDIN_ERRORS.URL);
+    }
+    return normalized;
   }
 }

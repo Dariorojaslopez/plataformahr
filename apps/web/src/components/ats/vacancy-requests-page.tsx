@@ -34,11 +34,13 @@ import {
 } from "@/components/ui/table";
 import { useCompanyId } from "@/hooks/use-company-id";
 import { atsApi, atsKeys } from "@/lib/api/ats";
+import { companyApi, companyKeys } from "@/lib/api/company";
 import { getErrorMessage } from "@/lib/api/errors";
 import { organizationApi, orgKeys } from "@/lib/api/organization";
 import {
   formatDateShort,
   formatEmployeeName,
+  VACANCY_REQUEST_MOTIVE_LABELS,
   VACANCY_REQUEST_STATUS_LABELS,
   VACANCY_REQUEST_TYPE_LABELS,
   vacancyRequestStatusVariant,
@@ -55,6 +57,7 @@ import {
   isLeaderSelectionProcessView,
   selectionProcessPageTitle,
 } from "@/lib/ats/vacancy-requests-view";
+import { DEFAULT_VACANCY_HIRING_SLA_DAYS } from "@/lib/ats/vacancy-request-sla";
 import type {
   ListVacancyRequestsParams,
   VacancyRequest,
@@ -136,6 +139,12 @@ export function VacancyRequestsPageClient() {
     queryKey: atsKeys.vacancyApprovalWorkflow(companyId),
     queryFn: () => atsApi.getVacancyApprovalWorkflow(),
   });
+  const companyQuery = useQuery({
+    queryKey: companyKeys.current(companyId),
+    queryFn: () => companyApi.getCurrent(),
+  });
+  const slaDays =
+    companyQuery.data?.vacancyHiringSlaDays ?? DEFAULT_VACANCY_HIRING_SLA_DAYS;
 
   const linkedEmployeeId = findLinkedEmployeeId(
     employeesQuery.data?.items ?? [],
@@ -186,6 +195,13 @@ export function VacancyRequestsPageClient() {
       })),
     [positionsQuery.data],
   );
+  const positionHeadcounts = useMemo(() => {
+    const map: Record<string, number> = {};
+    for (const position of positionsQuery.data ?? []) {
+      map[position.id] = position.headcount;
+    }
+    return map;
+  }, [positionsQuery.data]);
   const areaOptions = useMemo(
     () =>
       (areasQuery.data ?? []).map((a) => ({ value: a.id, label: a.name })),
@@ -221,7 +237,7 @@ export function VacancyRequestsPageClient() {
       });
       setOpen(false);
       setEditing(null);
-      setForm(emptyVacancyRequestForm());
+      setForm(emptyVacancyRequestForm(slaDays));
       setFormError(null);
     },
     onError: (error) => {
@@ -245,7 +261,7 @@ export function VacancyRequestsPageClient() {
   function openCreate() {
     setEditing(null);
     setForm({
-      ...emptyVacancyRequestForm(),
+      ...emptyVacancyRequestForm(slaDays),
       approvalSteps: workflowToLockedApprovalRows(workflowQuery.data),
     });
     setFormError(null);
@@ -422,11 +438,13 @@ export function VacancyRequestsPageClient() {
           submitting={saveMutation.isPending}
           error={formError}
           positions={positionOptions}
+          positionHeadcounts={positionHeadcounts}
           areas={areaOptions}
           jobLevels={levelOptions}
           employees={employeeOptions}
           linkedEmployeeExists={linkedEmployeeExists}
           canProxyRequester={canProxyRequester}
+          slaDays={slaDays}
           submitLabel={editing ? "Guardar cambios" : "Crear solicitud"}
         />
       </EntityEditorShell>
@@ -522,7 +540,7 @@ function VacancyRequestList({
                   {requestTitle(request)}
                 </TableCell>
                 <TableCell>
-                  {VACANCY_REQUEST_TYPE_LABELS[request.type]}
+                  {VACANCY_REQUEST_MOTIVE_LABELS[request.motive]}
                 </TableCell>
                 <TableCell>
                   {formatEmployeeName(request.requestedByEmployee)}
@@ -581,7 +599,7 @@ function VacancyRequestList({
               </Badge>
             </div>
             <p className="mt-2 text-sm text-muted-foreground">
-              {VACANCY_REQUEST_TYPE_LABELS[request.type]} ·{" "}
+              {VACANCY_REQUEST_MOTIVE_LABELS[request.motive]} ·{" "}
               {request.requestedHeadcount} ·{" "}
               {formatDateShort(request.createdAt)}
             </p>

@@ -6,6 +6,7 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Put,
   Query,
   UseGuards,
 } from '@nestjs/common';
@@ -18,7 +19,9 @@ import { CurrentTenant } from '../../tenant/decorators/current-tenant.decorator'
 import { CompanyContextGuard } from '../../tenant/guards/company-context.guard';
 import { ListVacanciesQueryDto, UpdateVacancyDto } from './dto/vacancy.dto';
 import { VacanciesService } from './vacancies.service';
+import { VacancyScreeningService } from './vacancy-screening.service';
 import { PublicJobsService } from '../public-jobs/public-jobs.service';
+import { UpdateVacancyScreeningDto } from '../public-jobs/dto/public-job.dto';
 
 @Controller('ats/vacancies')
 @UseGuards(JwtAuthGuard, CompanyContextGuard, PermissionGuard)
@@ -26,6 +29,7 @@ export class VacanciesController {
   constructor(
     private readonly vacanciesService: VacanciesService,
     private readonly publicJobs: PublicJobsService,
+    private readonly screening: VacancyScreeningService,
   ) {}
 
   @Get()
@@ -51,6 +55,25 @@ export class VacanciesController {
   ) {
     await this.vacanciesService.requireVisibleVacancy(tenant, id);
     return this.publicJobs.preview(tenant.companyId, id);
+  }
+
+  @Get(':id/screening')
+  @RequirePermissions('ats.vacancy.read')
+  getScreening(
+    @CurrentTenant() tenant: TenantContext,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.screening.get(tenant, id);
+  }
+
+  @Put(':id/screening')
+  @RequirePermissions('ats.vacancy.manage')
+  updateScreening(
+    @CurrentTenant() tenant: TenantContext,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateVacancyScreeningDto,
+  ) {
+    return this.screening.replace(tenant, id, dto);
   }
 
   @Get(':id')

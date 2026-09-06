@@ -15,10 +15,14 @@ import { InterviewFormTemplatesController } from './interviews/interview-form-te
 import { InterviewsController } from './interviews/interviews.controller';
 import { InterviewsService } from './interviews/interviews.service';
 import { ApplicationOffersController } from './offers/application-offers.controller';
+import { ContractApprovalsService } from './offers/contract-approvals.service';
+import { OfferLetterService } from './offers/offer-letter.service';
 import { OffersController } from './offers/offers.controller';
 import { OffersService } from './offers/offers.service';
 import { ApplicationHiringController } from './hiring/application-hiring.controller';
+import { HirePdiService } from './hiring/hire-pdi.service';
 import { HiringService } from './hiring/hiring.service';
+import { PreHireService } from './hiring/prehire.service';
 import { PipelineController } from './pipeline/pipeline.controller';
 import { VacancyRequestsController } from './vacancy-requests/vacancy-requests.controller';
 import { VacancyRequestsService } from './vacancy-requests/vacancy-requests.service';
@@ -28,10 +32,13 @@ import { PositionOccupantsController } from './position-occupants/position-occup
 import { PositionOccupantsService } from './position-occupants/position-occupants.service';
 import { VacancyEvaluatorDefaultsController } from './process-defaults/vacancy-evaluator-defaults.controller';
 import { VacancyEvaluatorDefaultsService } from './process-defaults/vacancy-evaluator-defaults.service';
+import { ContractTemplateApproversController } from './process-defaults/contract-template-approvers.controller';
+import { ContractTemplateApproversService } from './process-defaults/contract-template-approvers.service';
 import { ActiveProcessesController } from './process-defaults/active-processes.controller';
 import { ActiveProcessesService } from './process-defaults/active-processes.service';
 import { VacanciesController } from './vacancies/vacancies.controller';
 import { VacanciesService } from './vacancies/vacancies.service';
+import { VacancyScreeningService } from './vacancies/vacancy-screening.service';
 import { PublicJobsController } from './public-jobs/public-jobs.controller';
 import { PublicJobsService } from './public-jobs/public-jobs.service';
 
@@ -42,6 +49,7 @@ import { PublicJobsService } from './public-jobs/public-jobs.service';
     VacancyApprovalWorkflowController,
     PositionOccupantsController,
     VacancyEvaluatorDefaultsController,
+    ContractTemplateApproversController,
     ActiveProcessesController,
     VacanciesController,
     PipelineController,
@@ -63,13 +71,19 @@ import { PublicJobsService } from './public-jobs/public-jobs.service';
     VacancyApprovalWorkflowService,
     PositionOccupantsService,
     VacancyEvaluatorDefaultsService,
+    ContractTemplateApproversService,
     ActiveProcessesService,
     VacanciesService,
+    VacancyScreeningService,
     CandidatesService,
     ApplicationsService,
     InterviewsService,
     OffersService,
+    ContractApprovalsService,
+    OfferLetterService,
     HiringService,
+    PreHireService,
+    HirePdiService,
     PublicJobsService,
   ],
 })

@@ -8,6 +8,7 @@ import type {
   InterviewFormQuestion,
   InterviewFormTemplate,
   InterviewListItem,
+  InterviewQuestion,
   InterviewTranscriptSegment,
   PendingInterview,
   UpdateInterviewFormTemplateInput,
@@ -58,6 +59,38 @@ export const interviewsApi = {
     apiRequest<Interview>(`/ats/interviews/${id}/complete`, {
       method: "POST",
     }),
+
+  evaluatorDecision: (
+    id: string,
+    body: {
+      decision: "APPROVE" | "REJECT";
+      strengths?: string | null;
+      improvements?: string | null;
+    },
+  ) =>
+    apiRequest<Interview>(`/ats/interviews/${id}/evaluator-decision`, {
+      method: "POST",
+      body,
+    }),
+
+  addAdHocQuestion: (
+    interviewId: string,
+    body: {
+      text: string;
+      type?: "TEXT" | "TEXTAREA" | "RATING" | "YES_NO";
+      required?: boolean;
+    },
+  ) =>
+    apiRequest<InterviewQuestion>(
+      `/ats/interviews/${interviewId}/questions`,
+      { method: "POST", body },
+    ),
+
+  removeAdHocQuestion: (interviewId: string, questionId: string) =>
+    apiRequest<{ ok: boolean }>(
+      `/ats/interviews/${interviewId}/questions/${questionId}`,
+      { method: "DELETE" },
+    ),
 
   cancelInterview: (id: string) =>
     apiRequest<Interview>(`/ats/interviews/${id}/cancel`, { method: "POST" }),

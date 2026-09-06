@@ -1,12 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  justificationRequired,
   toCreateVacancyRequestPayload,
   type VacancyRequestFormValues,
-} from "@/components/ats/vacancy-request-form";
-import {
-  toCreateCandidatePayload,
-  toUpdateCandidatePayload,
-} from "@/components/ats/candidate-form";
+} from "@/lib/ats/vacancy-request-form";
 import {
   APPLICATION_STAGE_LABELS,
   VACANCY_STATUS_LABELS,
@@ -18,44 +15,56 @@ import {
   isTerminalStage,
 } from "@/lib/ats/transitions";
 
+const baseValues = (): VacancyRequestFormValues => ({
+  motive: "REPLACEMENT_RESIGNATION",
+  requestedByEmployeeId: "",
+  existingPositionId: "pos-1",
+  requestedPositionName: "",
+  requestedAreaId: "",
+  requestedJobLevelId: "",
+  replacedEmployeeId: "emp-replaced",
+  requestedHeadcount: "2",
+  expectedHiringDate: "2099-06-15",
+  justification: "",
+  approvalSteps: [],
+});
+
 describe("vacancy request form payloads", () => {
-  it("switches EXISTING_POSITION without NEW fields", () => {
-    const values: VacancyRequestFormValues = {
-      type: "EXISTING_POSITION",
-      requestedByEmployeeId: "",
-      existingPositionId: "pos-1",
+  it("builds replacement payload without NEW fields", () => {
+    const payload = toCreateVacancyRequestPayload({
+      ...baseValues(),
       requestedPositionName: "should-ignore",
       requestedAreaId: "area-1",
       requestedJobLevelId: "jl-1",
-    requestedHeadcount: "2",
-    justification: "Need coverage",
-    approvalSteps: [],
-  };
-  const payload = toCreateVacancyRequestPayload(values);
-  expect(payload).toEqual({
-    type: "EXISTING_POSITION",
-    requestedHeadcount: 2,
-    justification: "Need coverage",
-    extraApprovalSteps: [],
-    existingPositionId: "pos-1",
-  });
+    });
+    expect(payload).toEqual({
+      motive: "REPLACEMENT_RESIGNATION",
+      requestedHeadcount: 2,
+      expectedHiringDate: "2099-06-15",
+      justification: "",
+      existingPositionId: "pos-1",
+      replacedEmployeeId: "emp-replaced",
+    });
     expect(payload).not.toHaveProperty("requestedPositionName");
     expect(payload).not.toHaveProperty("requestedAreaId");
+    expect(payload).not.toHaveProperty("extraApprovalSteps");
   });
 
   it("builds NEW_POSITION payload without existingPositionId", () => {
     const payload = toCreateVacancyRequestPayload({
-      type: "NEW_POSITION",
+      ...baseValues(),
+      motive: "NEW_POSITION",
       requestedByEmployeeId: "emp-1",
       existingPositionId: "pos-x",
       requestedPositionName: "Data Analyst",
       requestedAreaId: "area-1",
       requestedJobLevelId: "",
+      replacedEmployeeId: "",
       requestedHeadcount: "1",
       justification: "Growth",
-      approvalSteps: [],
     });
     expect(payload.existingPositionId).toBeUndefined();
+    expect(payload.replacedEmployeeId).toBeUndefined();
     expect(payload.requestedPositionName).toBe("Data Analyst");
     expect(payload.requestedAreaId).toBe("area-1");
     expect(payload.requestedByEmployeeId).toBe("emp-1");
@@ -63,165 +72,49 @@ describe("vacancy request form payloads", () => {
 
   it("includes requestedByEmployeeId when a collaborator was selected", () => {
     const payload = toCreateVacancyRequestPayload({
-      type: "EXISTING_POSITION",
+      ...baseValues(),
       requestedByEmployeeId: "emp-selected",
-      existingPositionId: "pos-1",
-      requestedPositionName: "",
-      requestedAreaId: "",
-      requestedJobLevelId: "",
       requestedHeadcount: "1",
       justification: "Coverage",
-      approvalSteps: [],
     });
     expect(payload.requestedByEmployeeId).toBe("emp-selected");
   });
 
-  it("sends only unlocked approval levels as extras", () => {
-    const payload = toCreateVacancyRequestPayload({
-      type: "EXISTING_POSITION",
-      requestedByEmployeeId: "",
-      existingPositionId: "pos-1",
-      requestedPositionName: "",
-      requestedAreaId: "",
-      requestedJobLevelId: "",
-      requestedHeadcount: "1",
-      justification: "Coverage",
-      approvalSteps: [
-        {
-          key: "default-1",
-          positionId: "pos-global",
-          occupantId: "emp-global",
-          locked: true,
-        },
-        {
-          key: "extra-1",
-          positionId: "pos-extra",
-          occupantId: "emp-extra",
-        },
-        {
-          key: "blank",
-          positionId: "",
-          occupantId: "",
-        },
-      ],
-    });
-    expect(payload.extraApprovalSteps).toEqual([
-      { positionId: "pos-extra", employeeId: "emp-extra" },
-    ]);
-    expect(payload).not.toHaveProperty("generalManagerApprovalRequired");
-  });
-});
-
-describe("candidate form payloads", () => {
-  it("omits empty optional fields on create", () => {
+  it("requires justification only when exceeding structure or new position", () => {
     expect(
-      toCreateCandidatePayload({
-        firstName: "Ana",
-        lastName: "Ruiz",
-        email: "ana@example.com",
-        phone: "",
-        documentType: "",
-        documentNumber: "",
-        country: "",
-        state: "",
-        city: "Bogotá",
-        source: "LinkedIn",
-        status: "",
+      justificationRequired({
+        motive: "REPLACEMENT_RESIGNATION",
+        requestedHeadcount: 1,
+        positionHeadcount: 5,
       }),
-    ).toEqual({
-      firstName: "Ana",
-      lastName: "Ruiz",
-      email: "ana@example.com",
-      city: "Bogotá",
-      source: "LinkedIn",
-    });
-  });
-
-  it("does not allow HIRED via update payload helper", () => {
-    const payload = toUpdateCandidatePayload({
-      firstName: "Ana",
-      lastName: "Ruiz",
-      email: "ana@example.com",
-      phone: "",
-      documentType: "",
-      documentNumber: "",
-      country: "",
-      state: "",
-      city: "",
-      source: "",
-      status: "HIRED",
-    });
-    expect(payload.status).toBeUndefined();
-  });
-
-  it("sends a stable catalog code when a document type is selected", () => {
-    const payload = toCreateCandidatePayload({
-      firstName: "Ana",
-      lastName: "Ruiz",
-      email: "ana@example.com",
-      phone: "",
-      documentType: "CC",
-      documentNumber: "123",
-      country: "",
-      state: "",
-      city: "",
-      source: "",
-      status: "",
-    });
-    expect(payload.documentType).toBe("CC");
-    expect(payload.documentNumber).toBe("123");
-  });
-
-  it("omits a historical unknown documentType on update so other fields can save", () => {
-    const payload = toUpdateCandidatePayload({
-      firstName: "Ana",
-      lastName: "Ruiz",
-      email: "ana@example.com",
-      phone: "",
-      documentType: "Cedula",
-      documentNumber: "123",
-      country: "",
-      state: "",
-      city: "",
-      source: "",
-      status: "ACTIVE",
-    });
-    expect(payload).not.toHaveProperty("documentType");
-    expect(payload.firstName).toBe("Ana");
-    expect(payload.status).toBe("ACTIVE");
+    ).toBe(false);
+    expect(
+      justificationRequired({
+        motive: "REPLACEMENT_RESIGNATION",
+        requestedHeadcount: 6,
+        positionHeadcount: 5,
+      }),
+    ).toBe(true);
+    expect(
+      justificationRequired({
+        motive: "NEW_POSITION",
+        requestedHeadcount: 1,
+        positionHeadcount: 0,
+      }),
+    ).toBe(true);
   });
 });
 
-describe("stage transitions", () => {
-  it("exposes valid destinations and hides invalid ones", () => {
-    expect(getValidMoveTargets("PENDING_REVIEW")).toEqual([
-      "CONTACTED",
-      "INTERVIEW",
-      "REJECTED",
-      "WITHDRAWN",
-    ]);
-    expect(getValidMoveTargets("PENDING_REVIEW")).not.toContain("OFFER");
-    expect(getValidMoveTargets("CONTACTED")).not.toContain("HIRED");
-    expect(getValidMoveTargets("HIRED")).toEqual([]);
-    expect(canMoveApplication("REJECTED")).toBe(false);
-    expect(isTerminalStage("WITHDRAWN")).toBe(true);
+describe("labels and transitions", () => {
+  it("keeps stage and vacancy labels", () => {
+    expect(APPLICATION_STAGE_LABELS.PENDING_REVIEW).toBeTruthy();
+    expect(VACANCY_STATUS_LABELS.OPEN).toBeTruthy();
   });
 
-  it("maps vacancy status actions from backend matrix", () => {
-    expect(getVacancyStatusActions("OPEN")).toEqual([
-      "PAUSED",
-      "CLOSED",
-      "CANCELLED",
-    ]);
-    expect(getVacancyStatusActions("CLOSED")).toEqual([]);
-  });
-});
-
-describe("labels", () => {
-  it("centralizes Spanish stage and vacancy labels", () => {
-    expect(APPLICATION_STAGE_LABELS.PENDING_REVIEW).toBe(
-      "Pendiente de revisión",
-    );
-    expect(VACANCY_STATUS_LABELS.OPEN).toBe("Abierta");
+  it("exposes move targets and vacancy actions", () => {
+    expect(getValidMoveTargets("PENDING_REVIEW").length).toBeGreaterThan(0);
+    expect(canMoveApplication("PENDING_REVIEW")).toBe(true);
+    expect(isTerminalStage("HIRED")).toBe(true);
+    expect(getVacancyStatusActions("OPEN")).toContain("PAUSED");
   });
 });

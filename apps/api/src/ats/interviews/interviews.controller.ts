@@ -20,6 +20,8 @@ import { CompanyContextGuard } from '../../tenant/guards/company-context.guard';
 import {
   ApplyProcessInterviewTemplateDto,
   CreateTranscriptSegmentDto,
+  EvaluatorDecisionDto,
+  AddAdHocInterviewQuestionDto,
   UpdateInterviewDto,
   UpdateTranscriptSegmentDto,
   UpsertInterviewAnswerDto,
@@ -104,6 +106,23 @@ export class InterviewsController {
     return this.interviewsService.complete(tenant.companyId, user.userId, id);
   }
 
+  @Post(':id/evaluator-decision')
+  @RequirePermissions('ats.interview.manage')
+  evaluatorDecision(
+    @CurrentTenant() tenant: TenantContext,
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: EvaluatorDecisionDto,
+  ) {
+    return this.interviewsService.evaluatorDecision(
+      tenant.companyId,
+      user.userId,
+      tenant.membershipId,
+      id,
+      dto,
+    );
+  }
+
   @Post(':id/cancel')
   @RequirePermissions('ats.interview.manage')
   cancel(
@@ -112,6 +131,40 @@ export class InterviewsController {
     @Param('id', ParseUUIDPipe) id: string,
   ) {
     return this.interviewsService.cancel(tenant.companyId, user.userId, id);
+  }
+
+  @Post(':id/questions')
+  @RequirePermissions('ats.interview.manage')
+  addAdHocQuestion(
+    @CurrentTenant() tenant: TenantContext,
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: AddAdHocInterviewQuestionDto,
+  ) {
+    return this.interviewsService.addAdHocQuestion(
+      tenant.companyId,
+      user.userId,
+      tenant.membershipId,
+      id,
+      dto,
+    );
+  }
+
+  @Delete(':id/questions/:questionId')
+  @RequirePermissions('ats.interview.manage')
+  removeAdHocQuestion(
+    @CurrentTenant() tenant: TenantContext,
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('questionId', ParseUUIDPipe) questionId: string,
+  ) {
+    return this.interviewsService.removeAdHocQuestion(
+      tenant.companyId,
+      user.userId,
+      tenant.membershipId,
+      id,
+      questionId,
+    );
   }
 
   @Put(':id/questions/:questionId/answer')

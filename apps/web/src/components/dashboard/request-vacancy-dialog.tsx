@@ -12,6 +12,7 @@ import { EntityEditorShell } from "@/components/organization/entity-editor-shell
 import { Skeleton } from "@/components/ui/skeleton";
 import { useCompanyId } from "@/hooks/use-company-id";
 import { atsApi, atsKeys } from "@/lib/api/ats";
+import { companyApi, companyKeys } from "@/lib/api/company";
 import { organizationApi, orgKeys } from "@/lib/api/organization";
 import {
   describeVacancyRequesterField,
@@ -19,6 +20,7 @@ import {
   vacancyRequestSaveError,
 } from "@/lib/ats/vacancy-requester";
 import { workflowToLockedApprovalRows } from "@/lib/ats/approval-plan";
+import { DEFAULT_VACANCY_HIRING_SLA_DAYS } from "@/lib/ats/vacancy-request-sla";
 import { notifyError, notifySuccess } from "@/lib/ui/notify";
 
 type RequestVacancyDialogProps = {
@@ -37,6 +39,11 @@ export function RequestVacancyDialog({
   const [form, setForm] = useState(emptyVacancyRequestForm());
   const [formError, setFormError] = useState<string | null>(null);
 
+  const companyQuery = useQuery({
+    queryKey: companyKeys.current(companyId),
+    queryFn: () => companyApi.getCurrent(),
+    enabled: open,
+  });
   const positionsQuery = useQuery({
     queryKey: orgKeys.positions(companyId),
     queryFn: () => organizationApi.listPositions(),
@@ -58,19 +65,30 @@ export function RequestVacancyDialog({
     enabled: open,
   });
 
+  const slaDays =
+    companyQuery.data?.vacancyHiringSlaDays ?? DEFAULT_VACANCY_HIRING_SLA_DAYS;
+
   const seededRef = useRef(false);
   useEffect(() => {
     if (!open) {
       seededRef.current = false;
       return;
     }
-    if (seededRef.current || workflowQuery.isLoading) return;
+    if (seededRef.current || workflowQuery.isLoading || companyQuery.isLoading) {
+      return;
+    }
     seededRef.current = true;
     setForm({
-      ...emptyVacancyRequestForm(),
+      ...emptyVacancyRequestForm(slaDays),
       approvalSteps: workflowToLockedApprovalRows(workflowQuery.data),
     });
-  }, [open, workflowQuery.isLoading, workflowQuery.data]);
+  }, [
+    open,
+    workflowQuery.isLoading,
+    workflowQuery.data,
+    companyQuery.isLoading,
+    slaDays,
+  ]);
 
   const positionOptions = useMemo(
     () =>
@@ -80,6 +98,13 @@ export function RequestVacancyDialog({
       })),
     [positionsQuery.data],
   );
+  const positionHeadcounts = useMemo(() => {
+    const map: Record<string, number> = {};
+    for (const position of positionsQuery.data ?? []) {
+      map[position.id] = position.headcount;
+    }
+    return map;
+  }, [positionsQuery.data]);
   const areaOptions = useMemo(
     () =>
       (areasQuery.data ?? []).map((area) => ({
@@ -101,12 +126,14 @@ export function RequestVacancyDialog({
     positionsQuery.isLoading ||
     areasQuery.isLoading ||
     levelsQuery.isLoading ||
-    workflowQuery.isLoading;
+    workflowQuery.isLoading ||
+    companyQuery.isLoading;
   const catalogsError =
     positionsQuery.error ||
     areasQuery.error ||
     levelsQuery.error ||
-    workflowQuery.error;
+    workflowQuery.error ||
+    companyQuery.error;
 
   const saveMutation = useMutation({
     mutationFn: (values: VacancyRequestFormValues) =>
@@ -116,7 +143,7 @@ export function RequestVacancyDialog({
       await queryClient.invalidateQueries({
         queryKey: atsKeys.all(companyId),
       });
-      setForm(emptyVacancyRequestForm());
+      setForm(emptyVacancyRequestForm(slaDays));
       setFormError(null);
       onOpenChange(false);
     },
@@ -128,7 +155,7 @@ export function RequestVacancyDialog({
 
   function handleOpenChange(next: boolean) {
     if (!next) {
-      setForm(emptyVacancyRequestForm());
+      setForm(emptyVacancyRequestForm(slaDays));
       setFormError(null);
     }
     onOpenChange(next);
@@ -175,11 +202,13 @@ export function RequestVacancyDialog({
           submitting={saveMutation.isPending}
           error={formError}
           positions={positionOptions}
+          positionHeadcounts={positionHeadcounts}
           areas={areaOptions}
           jobLevels={levelOptions}
           employees={[]}
           linkedEmployeeExists={linkedEmployeeExists}
           canProxyRequester={false}
+          slaDays={slaDays}
           submitLabel="Crear solicitud"
         />
       )}

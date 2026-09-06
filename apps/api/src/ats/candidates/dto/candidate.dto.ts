@@ -76,6 +76,12 @@ export class CreateCandidateDto {
   @IsString()
   @MaxLength(100)
   source?: string;
+
+  @IsOptional()
+  @Transform(blankToUndefined)
+  @IsString()
+  @MaxLength(300)
+  linkedinUrl?: string;
 }
 
 export class UpdateCandidateDto {
@@ -133,6 +139,11 @@ export class UpdateCandidateDto {
   @IsString()
   @MaxLength(100)
   source?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(300)
+  linkedinUrl?: string | null;
 
   @IsOptional()
   @IsEnum(CandidateStatus)

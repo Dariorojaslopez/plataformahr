@@ -45,16 +45,18 @@ import { Textarea } from "@/components/ui/textarea";
 import { useCompanyId } from "@/hooks/use-company-id";
 import { atsApi, atsKeys } from "@/lib/api/ats";
 import { ApiError, getErrorMessage } from "@/lib/api/errors";
-import { hiringApi, hiringKeys } from "@/lib/api/hiring";
+import { hiringApi, hiringKeys, type HirePdiSyncResult } from "@/lib/api/hiring";
 import { offerKeys, offersApi } from "@/lib/api/offers";
 import {
   formatDate,
+  PRE_HIRE_CHECK_STATUS_LABELS,
   vacancyStatusVariant,
   VACANCY_STATUS_LABELS,
 } from "@/lib/ats/labels";
 import {
   FIT_LEVEL_LABELS,
   KANBAN_COLUMNS,
+  finalistCardsForDocs,
   getValidKanbanTargets,
   groupCardsByKanbanColumn,
   hireRequirementChecks,
@@ -65,8 +67,20 @@ import {
 } from "@/lib/ats/pipeline-kanban";
 import { canMoveApplication, moveRequiresComment } from "@/lib/ats/transitions";
 import { notifyError, notifySuccess } from "@/lib/ui/notify";
-import type { ApplicationStage, PipelineCard } from "@/types/ats";
+import type {
+  ApplicationStage,
+  PipelineCard,
+  PreHireDocumentKind,
+} from "@/types/ats";
 import { cn } from "@/lib/utils";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
 type PendingMove = {
   applicationId: string;
@@ -136,7 +150,10 @@ export function PipelinePageClient() {
           throw error;
         }),
       ]);
-      return { application, vacancy, offer };
+      const letter = offer
+        ? await offersApi.getLetterStatus(offer.id).catch(() => null)
+        : null;
+      return { application, vacancy, offer, letter };
     },
     enabled: Boolean(pendingHire && vacancyId),
   });
@@ -167,6 +184,11 @@ export function PipelinePageClient() {
       offerStatus: data.offer?.status ?? null,
       headcount: data.vacancy.headcount,
       filledCount: data.vacancy.filledCount,
+      securityStudyStatus: data.application.securityStudyStatus,
+      medicalExamStatus: data.application.medicalExamStatus,
+      contractApprovalStatus: data.offer?.contractApprovalStatus,
+      hasCompanyOfferLetterTemplate: data.letter?.hasCompanyTemplate,
+      hasSignedOfferLetter: data.letter?.hasSignedLetter,
     });
   }, [hirePrepQuery.data]);
 
@@ -216,7 +238,7 @@ export function PipelinePageClient() {
       hiringApi.hire(applicationId, {
         hireDate: hireDate || undefined,
       }),
-    onSuccess: async () => {
+    onSuccess: async (hiring) => {
       await invalidatePipeline();
       await queryClient.invalidateQueries({
         queryKey: hiringKeys.all(companyId),
@@ -226,11 +248,7 @@ export function PipelinePageClient() {
       });
       setPendingHire(null);
       setHireConfirmed(false);
-      notifySuccess(
-        pdiEnabled
-          ? "Contratación registrada. El PDI se generará cuando el módulo de Performance esté disponible."
-          : "Contratación registrada",
-      );
+      notifySuccess(pipelinePdiHireMessage(hiring.pdi, pdiEnabled));
     },
     onError: (error) => {
       notifyError(error, "No se pudo registrar la contratación.");
@@ -296,6 +314,10 @@ export function PipelinePageClient() {
   const visibleCount = KANBAN_COLUMNS.reduce(
     (sum, column) => sum + kanbanCards[column.id].length,
     0,
+  );
+  const finalistDocsRows = useMemo(
+    () => finalistCardsForDocs(Object.values(kanbanCards).flat()),
+    [kanbanCards],
   );
 
   return (
@@ -389,6 +411,11 @@ export function PipelinePageClient() {
               ) : null}
             </DragOverlay>
           </DndContext>
+
+          <RecruiterDocsTable
+            cards={finalistDocsRows}
+            onOpenDocs={setResumeCard}
+          />
         </div>
       ) : null}
 
@@ -504,8 +531,8 @@ export function PipelinePageClient() {
           ) : null}
           {!canConfirmHire && hirePrepQuery.isSuccess ? (
             <p className="text-sm text-muted-foreground">
-              Completa la oferta y el cupo de la vacante antes de contratar. La
-              contratación formal no se puede saltar.
+              Completa la oferta, el cupo de la vacante y el checklist de seguridad/médicos
+              antes de contratar. La contratación formal no se puede saltar.
             </p>
           ) : null}
           {canConfirmHire ? (
@@ -534,8 +561,8 @@ export function PipelinePageClient() {
               </label>
               {pdiEnabled ? (
                 <p className="text-xs text-muted-foreground">
-                  Al contratar se programará la generación del PDI en
-                  Performance cuando el módulo esté disponible.
+                  Al contratar se genera el PDI desde las entrevistas y, si hay
+                  ciclo Performance activo, se carga automáticamente.
                 </p>
               ) : null}
             </div>
@@ -583,27 +610,62 @@ export function PipelinePageClient() {
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Hoja de vida</DialogTitle>
+            <DialogTitle>Documentos del candidato</DialogTitle>
           </DialogHeader>
-          <p className="text-sm text-muted-foreground">
-            {resumeCard?.hasCv
-              ? `Descarga la hoja de vida de ${resumeCard.candidateName}.`
-              : resumeCard
-                ? `No hay una hoja de vida cargada para ${resumeCard.candidateName}. Puedes revisar el perfil del candidato.`
-                : null}
-          </p>
+          {resumeCard ? (
+            <div className="space-y-3">
+              <p className="text-sm text-muted-foreground">
+                {resumeCard.candidateName} · descargas de HV y pre-contratación.
+              </p>
+              <ul className="space-y-2 text-sm">
+                <DocDownloadRow
+                  label="Hoja de vida"
+                  available={Boolean(resumeCard.hasCv)}
+                  onDownload={() =>
+                    void downloadCandidateCv(resumeCard.candidateId)
+                  }
+                />
+                <DocDownloadRow
+                  label="Estudio de seguridad"
+                  available={Boolean(resumeCard.hasSecurityStudyDoc)}
+                  statusLabel={
+                    resumeCard.securityStudyStatus
+                      ? PRE_HIRE_CHECK_STATUS_LABELS[
+                          resumeCard.securityStudyStatus
+                        ]
+                      : undefined
+                  }
+                  onDownload={() =>
+                    void downloadPreHireDoc(
+                      resumeCard.applicationId,
+                      "SECURITY_STUDY",
+                    )
+                  }
+                />
+                <DocDownloadRow
+                  label="Exámenes médicos"
+                  available={Boolean(resumeCard.hasMedicalExamDoc)}
+                  statusLabel={
+                    resumeCard.medicalExamStatus
+                      ? PRE_HIRE_CHECK_STATUS_LABELS[
+                          resumeCard.medicalExamStatus
+                        ]
+                      : undefined
+                  }
+                  onDownload={() =>
+                    void downloadPreHireDoc(
+                      resumeCard.applicationId,
+                      "MEDICAL_EXAM",
+                    )
+                  }
+                />
+              </ul>
+            </div>
+          ) : null}
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setResumeCard(null)}>
               Cerrar
             </Button>
-            {resumeCard?.hasCv ? (
-              <Button
-                type="button"
-                onClick={() => void downloadCandidateCv(resumeCard.candidateId)}
-              >
-                Descargar HV
-              </Button>
-            ) : null}
             {resumeCard ? (
               <Button asChild>
                 <Link href={`/ats/candidates/${resumeCard.candidateId}`}>
@@ -615,6 +677,164 @@ export function PipelinePageClient() {
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+function RecruiterDocsTable({
+  cards,
+  onOpenDocs,
+}: {
+  cards: PipelineCard[];
+  onOpenDocs: (card: PipelineCard) => void;
+}) {
+  if (cards.length === 0) return null;
+
+  return (
+    <section className="space-y-3 rounded-md border border-border p-4">
+      <div>
+        <h3 className="text-base font-semibold">Documentos · Finalistas</h3>
+        <p className="text-sm text-muted-foreground">
+          HV, estudio de seguridad y exámenes médicos para el reclutador.
+        </p>
+      </div>
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Candidato</TableHead>
+            <TableHead>HV</TableHead>
+            <TableHead>Seguridad</TableHead>
+            <TableHead>Médicos</TableHead>
+            <TableHead className="text-right">Acciones</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {cards.map((card) => (
+            <TableRow key={card.applicationId}>
+              <TableCell>
+                <div className="font-medium">{card.candidateName}</div>
+                <div className="text-xs text-muted-foreground">
+                  {card.candidateEmail}
+                </div>
+              </TableCell>
+              <TableCell>
+                <DocAvailability
+                  available={Boolean(card.hasCv)}
+                  onDownload={() => void downloadCandidateCv(card.candidateId)}
+                />
+              </TableCell>
+              <TableCell>
+                <div className="space-y-1">
+                  <DocAvailability
+                    available={Boolean(card.hasSecurityStudyDoc)}
+                    onDownload={() =>
+                      void downloadPreHireDoc(
+                        card.applicationId,
+                        "SECURITY_STUDY",
+                      )
+                    }
+                  />
+                  {card.securityStudyStatus ? (
+                    <p className="text-[11px] text-muted-foreground">
+                      {PRE_HIRE_CHECK_STATUS_LABELS[card.securityStudyStatus]}
+                    </p>
+                  ) : null}
+                </div>
+              </TableCell>
+              <TableCell>
+                <div className="space-y-1">
+                  <DocAvailability
+                    available={Boolean(card.hasMedicalExamDoc)}
+                    onDownload={() =>
+                      void downloadPreHireDoc(
+                        card.applicationId,
+                        "MEDICAL_EXAM",
+                      )
+                    }
+                  />
+                  {card.medicalExamStatus ? (
+                    <p className="text-[11px] text-muted-foreground">
+                      {PRE_HIRE_CHECK_STATUS_LABELS[card.medicalExamStatus]}
+                    </p>
+                  ) : null}
+                </div>
+              </TableCell>
+              <TableCell className="text-right">
+                <div className="flex flex-wrap justify-end gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => onOpenDocs(card)}
+                  >
+                    Ver docs
+                  </Button>
+                  <Button asChild size="sm" variant="outline">
+                    <Link href={`/ats/applications/${card.applicationId}`}>
+                      Aplicación
+                    </Link>
+                  </Button>
+                </div>
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </section>
+  );
+}
+
+function DocAvailability({
+  available,
+  onDownload,
+}: {
+  available: boolean;
+  onDownload: () => void;
+}) {
+  if (!available) {
+    return <span className="text-xs text-muted-foreground">Sin archivo</span>;
+  }
+  return (
+    <Button type="button" size="sm" variant="outline" onClick={onDownload}>
+      Descargar
+    </Button>
+  );
+}
+
+function DocDownloadRow({
+  label,
+  available,
+  statusLabel,
+  onDownload,
+}: {
+  label: string;
+  available: boolean;
+  statusLabel?: string;
+  onDownload: () => void;
+}) {
+  return (
+    <li className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border/70 px-3 py-2">
+      <div>
+        <p className="font-medium">{label}</p>
+        <p className="text-xs text-muted-foreground">
+          {available
+            ? statusLabel
+              ? `Disponible · ${statusLabel}`
+              : "Disponible"
+            : statusLabel
+              ? `Sin archivo · ${statusLabel}`
+              : "Sin archivo"}
+        </p>
+      </div>
+      <Button
+        type="button"
+        size="sm"
+        variant="outline"
+        disabled={!available}
+        onClick={onDownload}
+      >
+        Descargar
+      </Button>
+    </li>
   );
 }
 
@@ -724,7 +944,7 @@ function PipelineCardView({
             variant="ghost"
             size="icon"
             className="size-8"
-            aria-label="Ver hoja de vida"
+            aria-label="Ver documentos"
             onPointerDown={(e) => e.stopPropagation()}
             onClick={() => onOpenResume(card)}
           >
@@ -764,7 +984,7 @@ function PipelineCardView({
                 </DropdownMenuItem>
               )}
               <DropdownMenuItem onSelect={() => onOpenResume(card)}>
-                Hoja de vida
+                Documentos (HV / prehire)
               </DropdownMenuItem>
               {targets.map((columnId) => (
                 <DropdownMenuItem
@@ -792,22 +1012,58 @@ function PipelineCardView({
 
 function PipelineCardHeader({ card }: { card: PipelineCard }) {
   const fitLevel = card.fitLevel ?? "gray";
+  const showEvaluators =
+    card.stage === "INTERVIEW" && (card.evaluatorStatuses?.length ?? 0) > 0;
   return (
     <div className="min-w-0">
       <div className="flex items-center gap-2">
         <span
           className={cn("size-2.5 shrink-0 rounded-full", FIT_DOT_CLASS[fitLevel])}
-          title={FIT_LEVEL_LABELS[fitLevel]}
-          aria-label={FIT_LEVEL_LABELS[fitLevel]}
+          title={card.fitSummary ?? FIT_LEVEL_LABELS[fitLevel]}
+          aria-label={card.fitSummary ?? FIT_LEVEL_LABELS[fitLevel]}
         />
         <p className="truncate font-medium">{card.candidateName}</p>
       </div>
+      <p className="truncate text-xs text-muted-foreground">
+        {card.fitSummary ?? FIT_LEVEL_LABELS[fitLevel]}
+      </p>
       <p className="truncate text-xs text-muted-foreground">
         {card.candidateEmail}
       </p>
       <p className="mt-1 text-xs text-muted-foreground">
         {formatDate(card.lastStageChangedAt)}
       </p>
+      {showEvaluators ? (
+        <ul className="mt-2 space-y-1">
+          {card.evaluatorStatuses!.map((evaluator) => (
+            <li
+              key={`${evaluator.employeeId ?? evaluator.name}`}
+              className="flex items-center justify-between gap-2 text-[11px]"
+            >
+              <span className="truncate text-muted-foreground">
+                {evaluator.name}
+              </span>
+              <span
+                className={cn(
+                  "shrink-0 rounded px-1.5 py-0.5 font-medium",
+                  evaluator.status === "approved" &&
+                    "bg-emerald-100 text-emerald-800",
+                  evaluator.status === "in_progress" &&
+                    "bg-amber-100 text-amber-800",
+                  evaluator.status === "pending" &&
+                    "bg-muted text-muted-foreground",
+                )}
+              >
+                {evaluator.status === "approved"
+                  ? "Aprobado"
+                  : evaluator.status === "in_progress"
+                    ? "En curso"
+                    : "Pendiente"}
+              </span>
+            </li>
+          ))}
+        </ul>
+      ) : null}
     </div>
   );
 }
@@ -824,4 +1080,50 @@ async function downloadCandidateCv(candidateId: string) {
   } catch (error) {
     notifyError(error, "No se pudo descargar la hoja de vida.");
   }
+}
+
+async function downloadPreHireDoc(
+  applicationId: string,
+  kind: PreHireDocumentKind,
+) {
+  try {
+    const { blob, filename } = await hiringApi.downloadPreHireDocument(
+      applicationId,
+      kind,
+    );
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download =
+      filename ||
+      (kind === "SECURITY_STUDY" ? "estudio-seguridad" : "examenes-medicos");
+    anchor.click();
+    URL.revokeObjectURL(url);
+  } catch (error) {
+    notifyError(
+      error,
+      kind === "SECURITY_STUDY"
+        ? "No se pudo descargar el estudio de seguridad."
+        : "No se pudo descargar los exámenes médicos.",
+    );
+  }
+}
+
+function pipelinePdiHireMessage(
+  pdi: HirePdiSyncResult | undefined,
+  pdiEnabled: boolean,
+): string {
+  if (!pdiEnabled) return "Contratación registrada";
+  if (!pdi || pdi.status === "SKIPPED_NO_FEATURE") {
+    return "Contratación registrada";
+  }
+  if (pdi.status === "SYNCED") {
+    return `Contratación registrada. PDI cargado en Performance${
+      pdi.cycleName ? ` (${pdi.cycleName})` : ""
+    }.`;
+  }
+  if (pdi.status === "SKIPPED_NO_CYCLE") {
+    return "Contratación registrada. PDI listo para descargar; no hay ciclo Performance activo.";
+  }
+  return "Contratación registrada. Sin aportes de entrevista para armar el PDI.";
 }

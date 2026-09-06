@@ -1,5 +1,11 @@
 export type VacancyRequestType = "EXISTING_POSITION" | "NEW_POSITION";
 
+export type VacancyRequestMotive =
+  | "NEW_POSITION"
+  | "REPLACEMENT_RESIGNATION"
+  | "REPLACEMENT_MUTUAL_AGREEMENT"
+  | "REPLACEMENT_TERMINATION_WITHOUT_CAUSE";
+
 export type VacancyRequestStatus =
   | "DRAFT"
   | "PENDING_APPROVAL"
@@ -25,7 +31,7 @@ export type ApprovalStatus = "PENDING" | "APPROVED" | "REJECTED" | "SKIPPED";
 
 export type VacancyStatus = "OPEN" | "PAUSED" | "CLOSED" | "CANCELLED";
 
-export type CandidateStatus = "ACTIVE" | "INACTIVE" | "HIRED";
+export type CandidateStatus = "ACTIVE" | "INACTIVE" | "HIRED" | "IN_POOL";
 
 export type ApplicationStage =
   | "PENDING_REVIEW"
@@ -56,6 +62,7 @@ export type EmployeeRef = {
 export type PositionRef = {
   id: string;
   name: string;
+  headcount?: number;
   areaId?: string;
   mission?: string | null;
   responsibilities?: string | null;
@@ -98,13 +105,16 @@ export type VacancyRequest = {
   id: string;
   companyId: string;
   type: VacancyRequestType;
+  motive: VacancyRequestMotive;
   status: VacancyRequestStatus;
   requestedByEmployeeId: string;
   existingPositionId: string | null;
   requestedPositionName: string | null;
   requestedAreaId: string | null;
   requestedJobLevelId: string | null;
+  replacedEmployeeId: string | null;
   requestedHeadcount: number;
+  expectedHiringDate: string;
   justification: string;
   generalManagerApprovalRequired: boolean;
   submittedAt: string | null;
@@ -115,6 +125,7 @@ export type VacancyRequest = {
   requestedArea?: AreaRef | null;
   requestedJobLevel?: JobLevelRef | null;
   requestedByEmployee?: EmployeeRef | null;
+  replacedEmployee?: EmployeeRef | null;
   approvals?: VacancyApproval[];
   approvalPlanSteps?: VacancyRequestApprovalPlanStep[];
   vacancy?: { id: string; title: string; status: VacancyStatus } | null;
@@ -161,6 +172,7 @@ export type PublicJob = {
   mission?: string | null;
   responsibilities?: string | null;
   requiredExperience?: string | null;
+  requiredEducation?: string | null;
   areaName: string;
   companyName: string;
   brandPrimaryColor: string;
@@ -168,6 +180,46 @@ export type PublicJob = {
   publishedAt: string | null;
   salaryAmount: string | null;
   salaryCurrency: string | null;
+  screeningMinCorrect?: number | null;
+  screeningQuestions?: PublicScreeningQuestion[];
+};
+
+export type PublicScreeningQuestion = {
+  id: string;
+  prompt: string;
+  sortOrder: number;
+};
+
+export type EducationLevel =
+  | "PRIMARY"
+  | "HIGH_SCHOOL"
+  | "TECHNICAL"
+  | "TECHNOLOGICAL"
+  | "PROFESSIONAL"
+  | "SPECIALIZATION"
+  | "MASTER"
+  | "DOCTORATE"
+  | "DIPLOMA"
+  | "COURSE";
+
+export type PublicWorkExperienceInput = {
+  companyName: string;
+  country: string;
+  positionTitle: string;
+  startDate: string;
+  endDate: string;
+  isCurrent: boolean;
+  functions: string;
+  achievements: string;
+};
+
+export type PublicEducationInput = {
+  institution: string;
+  program: string;
+  educationLevel: EducationLevel | "";
+  startDate: string;
+  endDate: string;
+  isStudying: boolean;
 };
 
 export type PublicJobApplicationInput = {
@@ -177,6 +229,25 @@ export type PublicJobApplicationInput = {
   phone: string;
   documentType: string;
   documentNumber: string;
+  birthDate: string;
+  country: string;
+  state: string;
+  city: string;
+  professionalProfile: string;
+  linkedinUrl: string;
+  workExperience: PublicWorkExperienceInput[];
+  education: PublicEducationInput[];
+  screeningAnswers: Array<{ questionId: string; answer: boolean | null }>;
+};
+
+export type VacancyScreeningConfig = {
+  minCorrect: number | null;
+  questions: Array<{
+    id: string;
+    prompt: string;
+    correctAnswer: boolean;
+    sortOrder: number;
+  }>;
 };
 
 export type ParsedPublicCv = {
@@ -186,6 +257,10 @@ export type ParsedPublicCv = {
   phone: string | null;
   documentType: string | null;
   documentNumber: string | null;
+  professionalProfile?: string | null;
+  linkedinUrl?: string | null;
+  workExperience?: PublicWorkExperienceInput[];
+  education?: PublicEducationInput[];
 };
 
 export type Candidate = {
@@ -197,9 +272,12 @@ export type Candidate = {
   phone: string | null;
   documentType: string | null;
   documentNumber: string | null;
+  birthDate?: string | null;
   country: string | null;
   state: string | null;
   city: string | null;
+  professionalProfile?: string | null;
+  linkedinUrl?: string | null;
   source: string | null;
   status: CandidateStatus;
   cvFileName?: string | null;
@@ -216,12 +294,74 @@ export type Application = {
   vacancyId: string;
   stage: ApplicationStage;
   status: ApplicationStatus;
+  professionalProfile?: string | null;
+  screeningCorrectCount?: number | null;
+  screeningPassed?: boolean | null;
+  profileFitLevel?: "green" | "yellow" | "red" | "gray" | null;
+  profileFitSummary?: string | null;
+  securityStudyStatus?: PreHireCheckStatus;
+  medicalExamStatus?: PreHireCheckStatus;
   appliedAt: string;
   lastStageChangedAt: string;
   createdAt: string;
   updatedAt: string;
   candidate?: Candidate | null;
   vacancy?: Pick<Vacancy, "id" | "title" | "status" | "areaId" | "positionId"> | null;
+  workExperiences?: ApplicationWorkExperience[];
+  educations?: ApplicationEducation[];
+  screeningAnswers?: ApplicationScreeningAnswer[];
+  preHireDocuments?: ApplicationPreHireDocument[];
+};
+
+export type PreHireCheckStatus =
+  | "PENDING"
+  | "IN_PROGRESS"
+  | "APPROVED"
+  | "REJECTED"
+  | "NOT_REQUIRED";
+
+export type PreHireDocumentKind = "SECURITY_STUDY" | "MEDICAL_EXAM";
+
+export type ApplicationPreHireDocument = {
+  id: string;
+  kind: PreHireDocumentKind;
+  originalName: string;
+  mimeType: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ApplicationWorkExperience = {
+  id: string;
+  companyName: string;
+  country: string | null;
+  positionTitle: string;
+  startDate: string;
+  endDate: string | null;
+  isCurrent: boolean;
+  functions: string | null;
+  achievements: string | null;
+  sortOrder: number;
+};
+
+export type ApplicationEducation = {
+  id: string;
+  institution: string;
+  program: string;
+  educationLevel: EducationLevel;
+  startDate: string;
+  endDate: string | null;
+  isStudying: boolean;
+  sortOrder: number;
+};
+
+export type ApplicationScreeningAnswer = {
+  id: string;
+  questionPrompt: string;
+  correctAnswer: boolean;
+  answer: boolean;
+  isCorrect: boolean;
+  sortOrder: number;
 };
 
 export type ApplicationStageHistory = {
@@ -239,9 +379,19 @@ export type PipelineCard = {
   candidateName: string;
   candidateEmail: string;
   hasCv?: boolean;
+  hasSecurityStudyDoc?: boolean;
+  hasMedicalExamDoc?: boolean;
+  securityStudyStatus?: PreHireCheckStatus;
+  medicalExamStatus?: PreHireCheckStatus;
   stage: ApplicationStage;
   lastStageChangedAt: string;
   fitLevel?: "green" | "yellow" | "red" | "gray";
+  fitSummary?: string | null;
+  evaluatorStatuses?: Array<{
+    employeeId: string | null;
+    name: string;
+    status: "pending" | "approved" | "in_progress";
+  }>;
 };
 
 export type PipelineColumn = {
@@ -395,14 +545,17 @@ export type ListApplicationsParams = {
 };
 
 export type CreateVacancyRequestInput = {
-  type: VacancyRequestType;
+  type?: VacancyRequestType;
+  motive?: VacancyRequestMotive;
   requestedByEmployeeId?: string;
   existingPositionId?: string;
   requestedPositionName?: string;
   requestedAreaId?: string;
   requestedJobLevelId?: string;
+  replacedEmployeeId?: string | null;
   requestedHeadcount: number;
-  justification: string;
+  expectedHiringDate: string;
+  justification?: string;
   generalManagerApprovalRequired?: boolean;
   extraApprovalSteps?: Array<{
     positionId: string;
@@ -412,12 +565,15 @@ export type CreateVacancyRequestInput = {
 
 export type UpdateVacancyRequestInput = {
   type?: VacancyRequestType;
+  motive?: VacancyRequestMotive;
   requestedByEmployeeId?: string;
   existingPositionId?: string | null;
   requestedPositionName?: string | null;
   requestedAreaId?: string | null;
   requestedJobLevelId?: string | null;
+  replacedEmployeeId?: string | null;
   requestedHeadcount?: number;
+  expectedHiringDate?: string;
   justification?: string;
   generalManagerApprovalRequired?: boolean;
   extraApprovalSteps?: Array<{
@@ -454,6 +610,7 @@ export type CreateCandidateInput = {
   state?: string;
   city?: string;
   source?: string;
+  linkedinUrl?: string;
 };
 
 export type UpdateCandidateInput = {
@@ -467,6 +624,7 @@ export type UpdateCandidateInput = {
   state?: string;
   city?: string;
   source?: string;
+  linkedinUrl?: string | null;
   status?: CandidateStatus;
 };
 

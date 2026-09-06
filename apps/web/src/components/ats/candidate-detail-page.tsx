@@ -219,6 +219,20 @@ export function CandidateDetailPageClient() {
         <Field label="Estado/Provincia">{candidate.state ?? "—"}</Field>
         <Field label="Ciudad">{candidate.city ?? "—"}</Field>
         <Field label="Fuente">{candidate.source ?? "—"}</Field>
+        <Field label="LinkedIn">
+          {candidate.linkedinUrl ? (
+            <a
+              href={candidate.linkedinUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="text-primary underline-offset-2 hover:underline"
+            >
+              Ver perfil
+            </a>
+          ) : (
+            "—"
+          )}
+        </Field>
         <Field label="Hoja de vida">
           {candidate.cvOriginalName ||
             (candidate.cvFileName ? "Cargada" : "Sin hoja de vida")}

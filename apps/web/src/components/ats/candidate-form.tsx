@@ -26,6 +26,7 @@ export type CandidateFormValues = {
   state: string;
   city: string;
   source: string;
+  linkedinUrl: string;
   status: CandidateStatus | "";
 };
 
@@ -40,6 +41,7 @@ export const emptyCandidateForm = (): CandidateFormValues => ({
   state: "",
   city: "",
   source: "",
+  linkedinUrl: "",
   status: "",
 });
 
@@ -55,6 +57,7 @@ export function candidateToForm(candidate: Candidate): CandidateFormValues {
     state: candidate.state ?? "",
     city: candidate.city ?? "",
     source: candidate.source ?? "",
+    linkedinUrl: candidate.linkedinUrl ?? "",
     status: candidate.status,
   };
 }
@@ -78,6 +81,7 @@ export function toCreateCandidatePayload(
     state: optional(values.state),
     city: optional(values.city),
     source: optional(values.source),
+    linkedinUrl: optional(values.linkedinUrl),
   };
 }
 
@@ -85,14 +89,21 @@ export function toUpdateCandidatePayload(
   values: CandidateFormValues,
 ): UpdateCandidateInput {
   const base = toCreateCandidatePayload(values);
-  const payload: UpdateCandidateInput = { ...base };
+  const payload: UpdateCandidateInput = {
+    ...base,
+    linkedinUrl: values.linkedinUrl.trim() || null,
+  };
   if (
     values.documentType &&
     !isCandidateDocumentType(values.documentType)
   ) {
     delete payload.documentType;
   }
-  if (values.status === "ACTIVE" || values.status === "INACTIVE") {
+  if (
+    values.status === "ACTIVE" ||
+    values.status === "INACTIVE" ||
+    values.status === "IN_POOL"
+  ) {
     payload.status = values.status;
   }
   return payload;
@@ -200,6 +211,13 @@ export function CandidateForm({
         value={values.source}
         onChange={(source) => onChange({ ...values, source })}
       />
+      <Field
+        id="c-linkedin"
+        label="LinkedIn"
+        value={values.linkedinUrl}
+        onChange={(linkedinUrl) => onChange({ ...values, linkedinUrl })}
+        placeholder="https://www.linkedin.com/in/…"
+      />
       {allowStatus ? (
         <FormSelect
           id="c-status"
@@ -214,8 +232,9 @@ export function CandidateForm({
           options={[
             { value: "ACTIVE", label: "Activo" },
             { value: "INACTIVE", label: "Inactivo" },
+            { value: "IN_POOL", label: "Pool de candidatos" },
           ]}
-          hint="HIRED no se puede asignar desde esta pantalla."
+          hint="HIRED solo se asigna al contratar."
         />
       ) : null}
       {error ? (
@@ -256,6 +275,7 @@ function Field({
   onChange,
   type = "text",
   required,
+  placeholder,
 }: {
   id: string;
   label: string;
@@ -263,6 +283,7 @@ function Field({
   onChange: (value: string) => void;
   type?: string;
   required?: boolean;
+  placeholder?: string;
 }) {
   return (
     <div className="space-y-2">
@@ -272,6 +293,7 @@ function Field({
         type={type}
         value={value}
         required={required}
+        placeholder={placeholder}
         onChange={(e) => onChange(e.target.value)}
       />
     </div>

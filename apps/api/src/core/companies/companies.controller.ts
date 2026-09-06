@@ -13,6 +13,7 @@ import { PermissionGuard } from '../../rbac/guards/permission.guard';
 import { CurrentTenant } from '../../tenant/decorators/current-tenant.decorator';
 import { CompanyContextGuard } from '../../tenant/guards/company-context.guard';
 import { CompaniesService } from './companies.service';
+import { UpdateCompanyAtsSettingsDto } from './dto/ats-settings.dto';
 import { UpdateCompanyPerformanceSettingsDto } from './dto/performance-settings.dto';
 
 @Controller('companies')
@@ -39,6 +40,16 @@ export class CompaniesController {
     @Body() dto: UpdateCompanyPerformanceSettingsDto,
   ) {
     return this.companiesService.updatePerformanceSettings(tenant.companyId, dto);
+  }
+
+  @Patch('current/ats-settings')
+  @UseGuards(JwtAuthGuard, CompanyContextGuard, PermissionGuard)
+  @RequirePermissions('ats.vacancy.manage')
+  updateAtsSettings(
+    @CurrentTenant() tenant: TenantContext,
+    @Body() dto: UpdateCompanyAtsSettingsDto,
+  ) {
+    return this.companiesService.updateAtsSettings(tenant.companyId, dto);
   }
 
   @Get('current/features')

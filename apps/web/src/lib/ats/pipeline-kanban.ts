@@ -12,25 +12,25 @@ export const KANBAN_COLUMNS: Array<{
 }> = [
   {
     id: "NEW",
-    label: "Nuevo",
+    label: "Aplicantes",
     stages: ["PENDING_REVIEW", "CONTACTED"],
     dropHint: "Arrastra candidatos aquí",
   },
   {
     id: "ATTRACTION",
-    label: "Entrevista Equipo de Atracción",
+    label: "Evaluación",
     stages: ["INTERVIEW"],
     dropHint: "Arrastra candidatos aquí",
   },
   {
     id: "EVALUATORS",
-    label: "Entrevista Evaluadores",
+    label: "Finalistas",
     stages: ["OFFER"],
     dropHint: "Arrastra candidatos aquí",
   },
   {
     id: "HIRED",
-    label: "Contratado",
+    label: "a Contratar",
     stages: ["HIRED"],
     dropHint: "Arrastra candidatos aquí",
   },
@@ -80,9 +80,9 @@ export function fitLevelFromRatings(
 }
 
 export const FIT_LEVEL_LABELS: Record<FitLevel, string> = {
-  green: "Alto ajuste al cargo",
-  yellow: "Ajuste medio al cargo",
-  red: "Bajo ajuste al cargo",
+  green: "Ajuste adecuado",
+  yellow: "Ajuste parcial",
+  red: "No se ajusta",
   gray: "Sin evaluación de ajuste",
 };
 
@@ -128,7 +128,11 @@ export function groupCardsByKanbanColumn(
 export type HireRequirementId =
   | "OFFER_STAGE"
   | "OFFER_ACCEPTED"
-  | "VACANCY_CAPACITY";
+  | "VACANCY_CAPACITY"
+  | "SECURITY_STUDY"
+  | "MEDICAL_EXAM"
+  | "CONTRACT_APPROVAL"
+  | "SIGNED_OFFER_LETTER";
 
 export type HireRequirementCheck = {
   id: HireRequirementId;
@@ -136,16 +140,43 @@ export type HireRequirementCheck = {
   met: boolean;
 };
 
+export function isPreHireClear(status: string | null | undefined): boolean {
+  return status === "APPROVED" || status === "NOT_REQUIRED";
+}
+
+export function isContractApprovalClear(
+  status: string | null | undefined,
+): boolean {
+  return status === "APPROVED" || status === "NOT_REQUIRED" || !status;
+}
+
+export function isSignedOfferLetterClear(input: {
+  hasCompanyOfferLetterTemplate?: boolean | null;
+  hasSignedOfferLetter?: boolean | null;
+}): boolean {
+  return !input.hasCompanyOfferLetterTemplate || Boolean(input.hasSignedOfferLetter);
+}
+
+/** Finalistas (OFFER) for recruiter docs table. */
+export function finalistCardsForDocs(cards: PipelineCard[]): PipelineCard[] {
+  return cards.filter((card) => card.stage === "OFFER");
+}
+
 export function hireRequirementChecks(input: {
   stage: ApplicationStage | string;
   offerStatus: string | null;
   headcount: number;
   filledCount: number;
+  securityStudyStatus?: string | null;
+  medicalExamStatus?: string | null;
+  contractApprovalStatus?: string | null;
+  hasCompanyOfferLetterTemplate?: boolean | null;
+  hasSignedOfferLetter?: boolean | null;
 }): HireRequirementCheck[] {
   return [
     {
       id: "OFFER_STAGE",
-      label: "El candidato está en Entrevista Evaluadores",
+      label: "El candidato está en Finalistas",
       met: input.stage === "OFFER",
     },
     {
@@ -157,6 +188,29 @@ export function hireRequirementChecks(input: {
       id: "VACANCY_CAPACITY",
       label: "Hay cupo disponible en la vacante",
       met: input.headcount - input.filledCount > 0,
+    },
+    {
+      id: "SECURITY_STUDY",
+      label: "Estudio de seguridad aprobado o no requerido",
+      met: isPreHireClear(input.securityStudyStatus),
+    },
+    {
+      id: "MEDICAL_EXAM",
+      label: "Exámenes médicos aprobados o no requeridos",
+      met: isPreHireClear(input.medicalExamStatus),
+    },
+    {
+      id: "CONTRACT_APPROVAL",
+      label: "Contrato aprobado o sin flujo de aprobación",
+      met: isContractApprovalClear(input.contractApprovalStatus),
+    },
+    {
+      id: "SIGNED_OFFER_LETTER",
+      label: "Carta oferta firmada cargada (si hay plantilla)",
+      met: isSignedOfferLetterClear({
+        hasCompanyOfferLetterTemplate: input.hasCompanyOfferLetterTemplate,
+        hasSignedOfferLetter: input.hasSignedOfferLetter,
+      }),
     },
   ];
 }

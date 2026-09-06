@@ -10,6 +10,28 @@ vi.mock("@/hooks/use-company-id", () => ({
   useCompanyId: () => "company-1",
 }));
 
+vi.mock("@/lib/api/ats", () => ({
+  atsApi: {
+    listPositionOccupants: vi.fn().mockResolvedValue([
+      {
+        id: "emp-occ-1",
+        firstName: "Luis",
+        lastName: "Pérez",
+        email: "luis@example.com",
+        userId: "user-1",
+      },
+    ]),
+  },
+  atsKeys: {
+    positionOccupants: (companyId: string, positionId: string) => [
+      "ats",
+      companyId,
+      "position-occupants",
+      positionId,
+    ],
+  },
+}));
+
 beforeAll(() => {
   class ResizeObserverStub {
     observe() {}
@@ -29,25 +51,29 @@ afterEach(() => {
 
 const baseProps: ComponentProps<typeof VacancyRequestForm> = {
   values: {
-    type: "EXISTING_POSITION",
+    motive: "REPLACEMENT_RESIGNATION",
     requestedByEmployeeId: "",
     existingPositionId: "pos-1",
     requestedPositionName: "",
     requestedAreaId: "",
     requestedJobLevelId: "",
+    replacedEmployeeId: "emp-occ-1",
     requestedHeadcount: "1",
-    justification: "Need coverage",
+    expectedHiringDate: "2099-06-15",
+    justification: "",
     approvalSteps: [],
   },
   onChange: vi.fn(),
   onSubmit: vi.fn(),
   onCancel: vi.fn(),
   positions: [{ value: "pos-1", label: "Dev" }],
+  positionHeadcounts: { "pos-1": 3 },
   areas: [],
   jobLevels: [],
   employees: [{ value: "emp-1", label: "Ana Ruiz" }],
   linkedEmployeeExists: true,
   canProxyRequester: true,
+  slaDays: 14,
 };
 
 async function openRequesterSelect() {
@@ -108,15 +134,17 @@ describe("VacancyRequestForm requester field", () => {
     ).toBeInTheDocument();
   });
 
-  it("shows approval levels and hides the general manager checkbox", () => {
+  it("shows read-only approval levels and hiring date", () => {
     renderForm({
       linkedEmployeeExists: true,
       canProxyRequester: true,
     });
     expect(screen.getByText("Niveles de aprobación")).toBeInTheDocument();
     expect(
-      screen.queryByText("Requiere aprobación de Gerencia General"),
-    ).not.toBeInTheDocument();
+      screen.getByText(/No se pueden modificar ni agregar aprobadores/),
+    ).toBeInTheDocument();
+    expect(document.getElementById("vr-hiring-date")).toBeInTheDocument();
+    expect(document.getElementById("vr-motive")).toBeInTheDocument();
   });
 
   it("blocks submit and explains when there is no linked employee and no proxy", () => {

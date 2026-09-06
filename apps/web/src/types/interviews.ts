@@ -86,6 +86,8 @@ export type Interview = {
   location: string | null;
   meetingUrl: string | null;
   notes: string | null;
+  strengths?: string | null;
+  improvements?: string | null;
   localRecordingName: string | null;
   createdAt: string;
   updatedAt: string;
@@ -158,6 +160,8 @@ export type UpdateInterviewInput = {
   location?: string | null;
   meetingUrl?: string | null;
   notes?: string | null;
+  strengths?: string | null;
+  improvements?: string | null;
   localRecordingName?: string | null;
   interviewerEmployeeIds?: string[];
 };

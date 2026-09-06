@@ -1,9 +1,11 @@
-import { apiRequest } from "@/lib/api/client";
 import type {
   CreateJobOfferInput,
   JobOffer,
+  OfferContractApprovals,
+  OfferLetterStatus,
   UpdateJobOfferInput,
 } from "@/types/offers";
+import { apiRequest, apiRequestBlob } from "@/lib/api/client";
 
 export const offersApi = {
   getByApplication: (applicationId: string) =>
@@ -34,6 +36,44 @@ export const offersApi = {
 
   withdraw: (id: string) =>
     apiRequest<JobOffer>(`/ats/offers/${id}/withdraw`, { method: "POST" }),
+
+  getLetterStatus: (id: string) =>
+    apiRequest<OfferLetterStatus>(`/ats/offers/${id}/letter`),
+
+  downloadLetterTemplate: (id: string) =>
+    apiRequestBlob(`/ats/offers/${id}/letter-template`),
+
+  uploadSignedLetter: (id: string, file: File) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    return apiRequest<OfferLetterStatus>(`/ats/offers/${id}/signed-letter`, {
+      method: "POST",
+      formData,
+    });
+  },
+
+  downloadSignedLetter: (id: string) =>
+    apiRequestBlob(`/ats/offers/${id}/signed-letter`),
+
+  removeSignedLetter: (id: string) =>
+    apiRequest<OfferLetterStatus>(`/ats/offers/${id}/signed-letter`, {
+      method: "DELETE",
+    }),
+
+  getContractApprovals: (id: string) =>
+    apiRequest<OfferContractApprovals>(`/ats/offers/${id}/contract-approvals`),
+
+  approveContractStep: (id: string, stepId: string, comment?: string) =>
+    apiRequest<OfferContractApprovals>(
+      `/ats/offers/${id}/contract-approvals/${stepId}/approve`,
+      { method: "POST", body: { comment } },
+    ),
+
+  rejectContractStep: (id: string, stepId: string, comment?: string) =>
+    apiRequest<OfferContractApprovals>(
+      `/ats/offers/${id}/contract-approvals/${stepId}/reject`,
+      { method: "POST", body: { comment } },
+    ),
 };
 
 export const offerKeys = {
@@ -42,4 +82,8 @@ export const offerKeys = {
     [...offerKeys.all(companyId), "application", applicationId] as const,
   detail: (companyId: string, id: string) =>
     [...offerKeys.all(companyId), "detail", id] as const,
+  letter: (companyId: string, id: string) =>
+    [...offerKeys.all(companyId), "letter", id] as const,
+  contractApprovals: (companyId: string, id: string) =>
+    [...offerKeys.all(companyId), "contract-approvals", id] as const,
 };

@@ -98,6 +98,35 @@ describe("atsApi", () => {
       phone: "3001234567",
       documentType: "CC",
       documentNumber: "123",
+      birthDate: "1995-01-01",
+      country: "Colombia",
+      state: "Cundinamarca",
+      city: "Bogotá",
+      professionalProfile: "Perfil",
+      linkedinUrl: "",
+      workExperience: [
+        {
+          companyName: "Acme",
+          country: "Colombia",
+          positionTitle: "Dev",
+          startDate: "2020-01-01",
+          endDate: "",
+          isCurrent: true,
+          functions: "Build",
+          achievements: "Ship",
+        },
+      ],
+      education: [
+        {
+          institution: "UNAL",
+          program: "Sistemas",
+          educationLevel: "PROFESSIONAL",
+          startDate: "2014-01-01",
+          endDate: "2019-01-01",
+          isStudying: false,
+        },
+      ],
+      screeningAnswers: [],
     });
     await publicJobsApi.parseCv(
       "public-1",

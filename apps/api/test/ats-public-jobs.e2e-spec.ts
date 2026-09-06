@@ -7,8 +7,10 @@ import {
   RoleScope,
   UserStatus,
   VacancyRequestStatus,
+  VacancyRequestMotive,
   VacancyRequestType,
   VacancyStatus,
+  EducationLevel,
 } from '@prisma/client';
 import { join } from 'node:path';
 import request from 'supertest';
@@ -79,6 +81,8 @@ describe('ATS public jobs (e2e)', () => {
           companyId: company.id,
           requestedByEmployeeId: requester.id,
           type: VacancyRequestType.EXISTING_POSITION,
+        motive: VacancyRequestMotive.REPLACEMENT_RESIGNATION,
+        expectedHiringDate: new Date('2099-06-15'),
           existingPositionId: position.id,
           requestedHeadcount: 1,
           justification: 'Approved public vacancy fixture',
@@ -151,6 +155,34 @@ describe('ATS public jobs (e2e)', () => {
     phone: '+57 300 000 0000',
     documentType: 'CC',
     documentNumber: `DOC-${email.replace(/[^A-Za-z0-9]/g, '')}`.slice(0, 80),
+    birthDate: '1995-05-15',
+    country: 'Colombia',
+    state: 'Cundinamarca',
+    city: 'Bogotá',
+    professionalProfile: 'Desarrolladora con foco en producto.',
+    workExperience: [
+      {
+        companyName: 'Acme',
+        country: 'Colombia',
+        positionTitle: 'Developer',
+        startDate: '2020-01-01',
+        endDate: null,
+        isCurrent: true,
+        functions: 'Entregar features',
+        achievements: 'Lanzó 3 productos',
+      },
+    ],
+    education: [
+      {
+        institution: 'Universidad Nacional',
+        program: 'Ingeniería de Sistemas',
+        educationLevel: EducationLevel.PROFESSIONAL,
+        startDate: '2014-01-01',
+        endDate: '2019-12-01',
+        isStudying: false,
+      },
+    ],
+    screeningAnswers: [],
   });
   const SAMPLE_CV = `
 Hoja de vida
@@ -158,6 +190,21 @@ Ana María Pérez Gómez
 Correo: ana.perez@example.com
 Teléfono: +57 300 123 4567
 Cédula de ciudadanía: 1.234.567.890
+
+Perfil profesional
+Ingeniera con experiencia en productos digitales.
+
+Experiencia laboral
+Empresa: Acme
+Cargo: Desarrolladora
+Ene 2021 - Actualidad
+Funciones: Construir APIs.
+
+Educación
+Institución: Universidad Nacional
+Programa: Ingeniería de Sistemas
+Profesional
+2014 - 2019
 `;
 
   it('is private by default, publishes explicitly and exposes only public DTO', async () => {
@@ -215,6 +262,22 @@ Cédula de ciudadanía: 1.234.567.890
       email: 'ana.perez@example.com',
       documentType: 'CC',
       documentNumber: '1234567890',
+      professionalProfile:
+        'Ingeniera con experiencia en productos digitales.',
+      workExperience: [
+        expect.objectContaining({
+          companyName: 'Acme',
+          positionTitle: 'Desarrolladora',
+          isCurrent: true,
+        }),
+      ],
+      education: [
+        expect.objectContaining({
+          institution: 'Universidad Nacional',
+          program: 'Ingeniería de Sistemas',
+          educationLevel: 'PROFESSIONAL',
+        }),
+      ],
     });
   });
 

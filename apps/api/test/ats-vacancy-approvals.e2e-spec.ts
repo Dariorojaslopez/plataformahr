@@ -336,6 +336,8 @@ describe('ATS vacancy approval workflows (e2e)', () => {
         requestedByEmployeeId,
         existingPositionId: positionAId,
         requestedHeadcount: 1,
+        expectedHiringDate: '2099-06-15',
+        replacedEmployeeId: requesterEmployeeId,
         justification: `Workflow ${suffix}`,
       })
       .expect(201);

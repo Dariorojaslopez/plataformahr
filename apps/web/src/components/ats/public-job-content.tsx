@@ -18,6 +18,7 @@ export function PublicJobContent({ job }: { job: PublicJob }) {
       <JobSection title="Misión / visión" body={job.mission} />
       <JobSection title="Responsabilidades" body={job.responsibilities} />
       <JobSection title="Experiencia" body={job.requiredExperience} />
+      <JobSection title="Formación" body={job.requiredEducation} />
       {job.description?.trim() ? (
         <JobSection title="Sobre la vacante" body={job.description} />
       ) : null}

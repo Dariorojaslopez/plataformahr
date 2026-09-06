@@ -112,6 +112,13 @@ export class CompaniesService {
       defaultLanguage: company.defaultLanguage,
       goalsCascadeEnabled: company.goalsCascadeEnabled,
       showNineBoxOnMyResults: company.showNineBoxOnMyResults,
+      vacancyHiringSlaDays: company.vacancyHiringSlaDays,
+      atsThankYouLetterSubject: company.atsThankYouLetterSubject,
+      atsThankYouLetterBody: company.atsThankYouLetterBody,
+      offerLetterTemplateOriginalName: company.offerLetterTemplateOriginalName,
+      contractTemplateOriginalName: company.contractTemplateOriginalName,
+      hasOfferLetterTemplate: Boolean(company.offerLetterTemplateFileName),
+      hasContractTemplate: Boolean(company.contractTemplateFileName),
     };
   }
 
@@ -130,6 +137,36 @@ export class CompaniesService {
           : {}),
         ...(data.showNineBoxOnMyResults !== undefined
           ? { showNineBoxOnMyResults: data.showNineBoxOnMyResults }
+          : {}),
+      },
+    });
+    return this.toCurrentResponse(company);
+  }
+
+  async updateAtsSettings(
+    companyId: string,
+    data: {
+      vacancyHiringSlaDays?: number;
+      atsThankYouLetterSubject?: string | null;
+      atsThankYouLetterBody?: string | null;
+    },
+  ) {
+    const company = await this.prisma.company.update({
+      where: { id: companyId },
+      data: {
+        ...(data.vacancyHiringSlaDays !== undefined
+          ? { vacancyHiringSlaDays: data.vacancyHiringSlaDays }
+          : {}),
+        ...(data.atsThankYouLetterSubject !== undefined
+          ? {
+              atsThankYouLetterSubject:
+                data.atsThankYouLetterSubject?.trim() || null,
+            }
+          : {}),
+        ...(data.atsThankYouLetterBody !== undefined
+          ? {
+              atsThankYouLetterBody: data.atsThankYouLetterBody?.trim() || null,
+            }
           : {}),
       },
     });

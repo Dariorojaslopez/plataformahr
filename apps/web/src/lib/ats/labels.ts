@@ -3,8 +3,12 @@ import type {
   ApplicationStatus,
   ApprovalStatus,
   CandidateStatus,
+  EducationLevel,
+  PreHireCheckStatus,
+  PreHireDocumentKind,
   VacancyApprovalStep,
   VacancyApproverType,
+  VacancyRequestMotive,
   VacancyRequestStatus,
   VacancyRequestType,
   VacancyStatus,
@@ -51,6 +55,29 @@ export const VACANCY_REQUEST_TYPE_LABELS: Record<VacancyRequestType, string> = {
   NEW_POSITION: "Cargo nuevo",
 };
 
+export const VACANCY_REQUEST_MOTIVE_LABELS: Record<
+  VacancyRequestMotive,
+  string
+> = {
+  NEW_POSITION: "Nuevo cargo",
+  REPLACEMENT_RESIGNATION: "Reemplazo por renuncia",
+  REPLACEMENT_MUTUAL_AGREEMENT: "Retiro por mutuo acuerdo",
+  REPLACEMENT_TERMINATION_WITHOUT_CAUSE: "Despido sin justa causa",
+};
+
+export const EDUCATION_LEVEL_LABELS: Record<EducationLevel, string> = {
+  PRIMARY: "Primaria",
+  HIGH_SCHOOL: "Bachillerato",
+  TECHNICAL: "Técnico",
+  TECHNOLOGICAL: "Tecnológico",
+  PROFESSIONAL: "Profesional",
+  SPECIALIZATION: "Especialización",
+  MASTER: "Maestría",
+  DOCTORATE: "Doctorado",
+  DIPLOMA: "Diplomado",
+  COURSE: "Curso",
+};
+
 export const APPROVAL_STEP_LABELS: Record<VacancyApprovalStep, string> = {
   DIRECT_MANAGER: "Líder directo",
   HR: "RRHH",
@@ -93,6 +120,7 @@ export const CANDIDATE_STATUS_LABELS: Record<CandidateStatus, string> = {
   ACTIVE: "Activo",
   INACTIVE: "Inactivo",
   HIRED: "Contratado",
+  IN_POOL: "Pool de candidatos",
 };
 
 export const APPLICATION_STAGE_LABELS: Record<ApplicationStage, string> = {
@@ -109,6 +137,20 @@ export const APPLICATION_STATUS_LABELS: Record<ApplicationStatus, string> = {
   ACTIVE: "Activo",
   CLOSED: "Cerrado",
 };
+
+export const PRE_HIRE_CHECK_STATUS_LABELS: Record<PreHireCheckStatus, string> = {
+  PENDING: "Pendiente",
+  IN_PROGRESS: "En proceso",
+  APPROVED: "Aprobado",
+  REJECTED: "Rechazado",
+  NOT_REQUIRED: "No requerido",
+};
+
+export const PRE_HIRE_DOCUMENT_KIND_LABELS: Record<PreHireDocumentKind, string> =
+  {
+    SECURITY_STUDY: "Estudio de seguridad",
+    MEDICAL_EXAM: "Exámenes médicos",
+  };
 
 export function vacancyRequestStatusVariant(
   status: VacancyRequestStatus,
@@ -160,6 +202,8 @@ export function candidateStatusVariant(status: CandidateStatus): BadgeVariant {
       return "success";
     case "HIRED":
       return "default";
+    case "IN_POOL":
+      return "warning";
     case "INACTIVE":
       return "secondary";
     default:

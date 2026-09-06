@@ -6,6 +6,12 @@ export type JobOfferStatus =
   | "EXPIRED"
   | "WITHDRAWN";
 
+export type ContractApprovalStatus =
+  | "NOT_REQUIRED"
+  | "PENDING"
+  | "APPROVED"
+  | "REJECTED";
+
 export type SalaryPeriod = "MONTHLY" | "ANNUAL" | "HOURLY";
 
 export type OfferEmploymentType =
@@ -37,6 +43,21 @@ export type JobOfferApplicationRef = {
   };
 };
 
+export type JobOfferContractApprovalStep = {
+  id: string;
+  sequence: number;
+  status: "PENDING" | "APPROVED" | "REJECTED" | "SKIPPED";
+  comment: string | null;
+  decidedAt: string | null;
+  position?: { id: string; name: string } | null;
+  approverEmployee?: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+  } | null;
+};
+
 export type JobOffer = {
   id: string;
   applicationId: string;
@@ -54,10 +75,35 @@ export type JobOffer = {
   rejectedAt: string | null;
   withdrawnAt: string | null;
   expiredAt: string | null;
+  contractApprovalStatus?: ContractApprovalStatus;
+  contractApprovalStartedAt?: string | null;
+  contractApprovalCompletedAt?: string | null;
   createdByUserId: string;
   createdAt: string;
   updatedAt: string;
   application?: JobOfferApplicationRef;
+  contractApprovals?: JobOfferContractApprovalStep[];
+};
+
+export type OfferContractApprovals = {
+  offerId: string;
+  applicationId: string;
+  offerStatus: JobOfferStatus;
+  contractApprovalStatus: ContractApprovalStatus;
+  contractApprovalStartedAt: string | null;
+  contractApprovalCompletedAt: string | null;
+  readyForHire: boolean;
+  steps: JobOfferContractApprovalStep[];
+};
+
+export type OfferLetterStatus = {
+  offerId: string;
+  hasCompanyTemplate: boolean;
+  companyTemplateName: string | null;
+  hasSignedLetter: boolean;
+  signedLetterName: string | null;
+  signedLetterUploadedAt: string | null;
+  readyForHire: boolean;
 };
 
 export type CreateJobOfferInput = {

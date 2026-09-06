@@ -8,10 +8,14 @@ import {
 
 export type InspectedCv = {
   mime: AllowedCvMime;
-  extension: 'pdf' | 'docx' | 'txt';
+  extension: 'pdf' | 'docx' | 'doc' | 'txt';
   originalName: string;
   buffer: Buffer;
 };
+
+const OLE_MAGIC = Buffer.from([
+  0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1,
+]);
 
 export function inspectCvFile(input: {
   buffer: Buffer;
@@ -45,6 +49,9 @@ export function detectCvMime(
     if (zipHasEntry(buffer, 'word/document.xml')) return CV_MIME.DOCX;
     return null;
   }
+  if (isOleDoc(buffer, mimeHint, originalName)) {
+    return CV_MIME.DOC;
+  }
   const name = (originalName ?? '').toLowerCase();
   const hint = (mimeHint ?? '').toLowerCase();
   const looksText =
@@ -59,6 +66,9 @@ export function extractCvText(inspected: InspectedCv): string {
   }
   if (inspected.mime === CV_MIME.PDF) {
     return extractPdfText(inspected.buffer);
+  }
+  if (inspected.mime === CV_MIME.DOC) {
+    return extractDocText(inspected.buffer);
   }
   return extractDocxText(inspected.buffer);
 }
@@ -94,6 +104,85 @@ export function extractDocxText(buffer: Buffer): string {
     .replace(/&gt;/g, '>')
     .replace(/[^\S\n]+/g, ' ')
     .trim();
+}
+
+/**
+ * Best-effort text from legacy Word .doc (OLE). Prefer WordDocument stream
+ * and fall back to UTF-16LE / ASCII printable runs.
+ */
+export function extractDocText(buffer: Buffer): string {
+  const marker = buffer.indexOf(Buffer.from('WordDocument', 'ascii'));
+  const slice =
+    marker >= 0 ? buffer.subarray(Math.max(0, marker), buffer.length) : buffer;
+  const utf16 = extractUtf16Runs(slice);
+  const ascii = extractAsciiRuns(slice);
+  const merged = [...utf16, ...ascii]
+    .map((item) => item.replace(/[^\S\n]+/g, ' ').trim())
+    .filter((item) => item.length >= 3);
+  return Array.from(new Set(merged)).join('\n').trim();
+}
+
+function isOleDoc(
+  buffer: Buffer,
+  mimeHint?: string,
+  originalName?: string,
+): boolean {
+  if (buffer.length < 8 || !buffer.subarray(0, 8).equals(OLE_MAGIC)) {
+    return false;
+  }
+  const name = (originalName ?? '').toLowerCase();
+  const hint = (mimeHint ?? '').toLowerCase();
+  if (name.endsWith('.doc') || hint.includes('msword') || hint.includes('word')) {
+    return true;
+  }
+  return buffer.includes(Buffer.from('WordDocument', 'ascii'));
+}
+
+function extractUtf16Runs(buffer: Buffer): string[] {
+  const out: string[] = [];
+  let current: number[] = [];
+  for (let i = 0; i + 1 < buffer.length; i += 2) {
+    const code = buffer.readUInt16LE(i);
+    if (code === 0x0a || code === 0x0d) {
+      flushCodePoints(current, out);
+      current = [];
+      continue;
+    }
+    if (code >= 0x20 && code <= 0xffef && code !== 0xfeff) {
+      current.push(code);
+      continue;
+    }
+    flushCodePoints(current, out);
+    current = [];
+  }
+  flushCodePoints(current, out);
+  return out;
+}
+
+function extractAsciiRuns(buffer: Buffer): string[] {
+  const out: string[] = [];
+  let current = '';
+  for (let i = 0; i < buffer.length; i += 1) {
+    const code = buffer[i]!;
+    if (code === 0x0a || code === 0x0d) {
+      if (current.length >= 4) out.push(current);
+      current = '';
+      continue;
+    }
+    if (code >= 0x20 && code <= 0x7e) {
+      current += String.fromCharCode(code);
+      continue;
+    }
+    if (current.length >= 4) out.push(current);
+    current = '';
+  }
+  if (current.length >= 4) out.push(current);
+  return out;
+}
+
+function flushCodePoints(points: number[], out: string[]): void {
+  if (points.length < 4) return;
+  out.push(String.fromCharCode(...points));
 }
 
 function extractPdfLiterals(raw: string): string[] {

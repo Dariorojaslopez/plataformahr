@@ -5,10 +5,13 @@ import { useMemo, useState } from "react";
 import { CargoOccupantListEditor } from "@/components/ats/cargo-occupant-list";
 import { Button } from "@/components/ui/button";
 import { ErrorState } from "@/components/ui/error-state";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { PageHeader } from "@/components/ui/page-header";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useCompanyId } from "@/hooks/use-company-id";
 import { atsApi, atsKeys } from "@/lib/api/ats";
+import { companyApi, companyKeys } from "@/lib/api/company";
 import { getErrorMessage } from "@/lib/api/errors";
 import { organizationApi, orgKeys } from "@/lib/api/organization";
 import {
@@ -16,6 +19,7 @@ import {
   toPositionOccupantPayload,
   type CargoOccupantRow,
 } from "@/lib/ats/position-occupant";
+import { DEFAULT_VACANCY_HIRING_SLA_DAYS } from "@/lib/ats/vacancy-request-sla";
 import { notifyError, notifySuccess } from "@/lib/ui/notify";
 import type { VacancyApprovalWorkflow } from "@/types/ats";
 
@@ -37,12 +41,16 @@ export function VacancyApprovalSettingsPageClient() {
     queryKey: atsKeys.vacancyApprovalWorkflow(companyId),
     queryFn: () => atsApi.getVacancyApprovalWorkflow(),
   });
+  const companyQuery = useQuery({
+    queryKey: companyKeys.current(companyId),
+    queryFn: () => companyApi.getCurrent(),
+  });
   const positionsQuery = useQuery({
     queryKey: orgKeys.positions(companyId),
     queryFn: () => organizationApi.listPositions(),
   });
 
-  if (workflowQuery.isLoading) {
+  if (workflowQuery.isLoading || companyQuery.isLoading) {
     return (
       <div className="space-y-4">
         <Skeleton className="h-10 w-64" />
@@ -65,14 +73,90 @@ export function VacancyApprovalSettingsPageClient() {
   }
 
   return (
-    <DefaultApprovalLevelsForm
-      key={`${companyId}-${workflowQuery.dataUpdatedAt}`}
-      companyId={companyId}
-      workflow={workflowQuery.data}
-      positions={(positionsQuery.data ?? [])
-        .filter((item) => item.status === "ACTIVE")
-        .map((item) => ({ value: item.id, label: item.name }))}
-    />
+    <div className="space-y-10">
+      <HiringSlaForm
+        key={`sla-${companyId}-${companyQuery.dataUpdatedAt}`}
+        companyId={companyId}
+        initialSlaDays={
+          companyQuery.data?.vacancyHiringSlaDays ??
+          DEFAULT_VACANCY_HIRING_SLA_DAYS
+        }
+      />
+      <DefaultApprovalLevelsForm
+        key={`${companyId}-${workflowQuery.dataUpdatedAt}`}
+        companyId={companyId}
+        workflow={workflowQuery.data}
+        positions={(positionsQuery.data ?? [])
+          .filter((item) => item.status === "ACTIVE")
+          .map((item) => ({ value: item.id, label: item.name }))}
+      />
+    </div>
+  );
+}
+
+function HiringSlaForm({
+  companyId,
+  initialSlaDays,
+}: {
+  companyId: string;
+  initialSlaDays: number;
+}) {
+  const queryClient = useQueryClient();
+  const [slaDays, setSlaDays] = useState(String(initialSlaDays));
+  const [formError, setFormError] = useState<string | null>(null);
+
+  const saveMutation = useMutation({
+    mutationFn: async () => {
+      const value = Number(slaDays);
+      if (!Number.isInteger(value) || value < 0 || value > 365) {
+        throw new Error("El SLA debe ser un entero entre 0 y 365.");
+      }
+      return companyApi.updateAtsSettings({ vacancyHiringSlaDays: value });
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: companyKeys.current(companyId),
+      });
+      setFormError(null);
+      notifySuccess("SLA de contratación guardado");
+    },
+    onError: (error) => {
+      setFormError(getErrorMessage(error, "No se pudo guardar el SLA."));
+      notifyError(error, "No se pudo guardar el SLA.");
+    },
+  });
+
+  return (
+    <div className="space-y-4">
+      <PageHeader
+        title="SLA de fecha de contratación"
+        description="Días mínimos desde hoy para la fecha esperada de contratación en las solicitudes del líder."
+      />
+      <div className="max-w-xs space-y-2">
+        <Label htmlFor="hiring-sla-days">Días de SLA</Label>
+        <Input
+          id="hiring-sla-days"
+          type="number"
+          min={0}
+          max={365}
+          step={1}
+          value={slaDays}
+          onChange={(event) => setSlaDays(event.target.value)}
+        />
+      </div>
+      <Button
+        type="button"
+        disabled={saveMutation.isPending}
+        onClick={() => saveMutation.mutate()}
+      >
+        {saveMutation.isPending ? "Guardando…" : "Guardar SLA"}
+      </Button>
+      {formError ? (
+        <p className="text-sm text-destructive" role="alert">
+          {formError}
+        </p>
+      ) : null}
+    </div>
   );
 }
 
