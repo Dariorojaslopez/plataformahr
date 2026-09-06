@@ -1,6 +1,21 @@
 import type { Metadata } from "next";
+import { DM_Sans, Plus_Jakarta_Sans } from "next/font/google";
 import { LoginForm } from "@/components/auth/login-form";
 import { PLATFORM_BRAND_PRIMARY } from "@/lib/company/brand-tokens";
+import { LoginLightTheme } from "./login-light-theme";
+import "./login.css";
+
+const loginDisplay = Plus_Jakarta_Sans({
+  subsets: ["latin"],
+  variable: "--font-login-display",
+  weight: ["500", "600", "700", "800"],
+});
+
+const loginBody = DM_Sans({
+  subsets: ["latin"],
+  variable: "--font-login-body",
+  weight: ["400", "500", "600", "700"],
+});
 
 export const metadata: Metadata = {
   title: "Iniciar sesión",
@@ -8,50 +23,65 @@ export const metadata: Metadata = {
 
 export default function LoginPage() {
   return (
-    <div className="grid min-h-screen lg:grid-cols-2">
-      <section
-        className="relative hidden overflow-hidden text-white lg:flex lg:flex-col lg:justify-between lg:p-12"
-        style={{ backgroundColor: PLATFORM_BRAND_PRIMARY }}
+    <LoginLightTheme>
+      <div
+        className={`${loginDisplay.variable} ${loginBody.variable} login-shell grid min-h-screen lg:grid-cols-[1.15fr_0.85fr]`}
       >
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(255,255,255,0.12),transparent_45%),radial-gradient(circle_at_80%_0%,rgba(255,255,255,0.08),transparent_35%)]" />
-        <div className="relative">
-          <p className="text-sm font-medium tracking-wide text-white/80">
-            Talento
-          </p>
-        </div>
-        <div className="relative max-w-md space-y-4">
-          <h1 className="text-4xl font-semibold tracking-tight">
-            Gestiona el ciclo de talento con claridad.
-          </h1>
-          <p className="text-base leading-relaxed text-white/80">
-            Organización, selección y performance en una experiencia sobria
-            pensada para equipos de RRHH.
-          </p>
-        </div>
-        <p className="relative text-xs text-white/60">
-          Acceso seguro por compañía · Multi-tenant
-        </p>
-      </section>
+        <section className="login-hero login-hero-sheen relative hidden overflow-hidden text-white lg:flex lg:flex-col lg:justify-between lg:p-12 xl:p-16">
+          <div className="login-hero-grid absolute inset-0" aria-hidden />
+          <div className="login-hero-slash absolute inset-0" aria-hidden />
 
-      <section className="flex items-center justify-center px-6 py-12">
-        <div className="w-full max-w-md space-y-8">
-          <div className="space-y-2 lg:hidden">
-            <p className="text-sm font-medium text-primary">Talento</p>
-            <h1 className="text-2xl font-semibold tracking-tight">
-              Inicia sesión
+          <p className="login-brand login-rise relative max-w-[95%] text-[clamp(1.75rem,4.2vw,2.85rem)] font-semibold leading-none tracking-[-0.02em]">
+            Talentgrowthos
+          </p>
+
+          <div className="relative max-w-xl space-y-5">
+            <h1 className="login-rise login-rise-delay-1 text-[clamp(1.85rem,3.1vw,2.75rem)] font-semibold leading-[1.12] tracking-[-0.02em]">
+              Contrata más rápido.
+              <span className="block text-white/70">Evalúa con criterio.</span>
             </h1>
-          </div>
-          <div className="hidden space-y-2 lg:block">
-            <h1 className="text-2xl font-semibold tracking-tight">
-              Bienvenido de nuevo
-            </h1>
-            <p className="text-sm text-muted-foreground">
-              Ingresa con tu email corporativo para continuar.
+            <p className="login-rise login-rise-delay-2 max-w-md text-base leading-relaxed text-white/75 sm:text-lg">
+              La plataforma de RRHH que ordena organización, selección y
+              performance para equipos que venden resultados, no procesos.
             </p>
           </div>
-          <LoginForm />
-        </div>
-      </section>
-    </div>
+
+          <p className="login-rise login-rise-delay-3 relative text-xs font-medium uppercase tracking-[0.16em] text-white/45">
+            Multi-tenant · Acceso seguro por compañía
+          </p>
+        </section>
+
+        <section className="login-panel relative flex items-center justify-center px-6 py-12 sm:px-10">
+          <div className="relative w-full max-w-[26rem] space-y-8">
+            <div className="space-y-3 lg:hidden">
+              <p className="login-brand text-2xl font-semibold tracking-[-0.02em] text-[var(--login-ink)] sm:text-3xl">
+                Talentgrowthos
+              </p>
+              <h1 className="text-2xl font-semibold tracking-tight text-[var(--login-ink)]">
+                Entra y opera
+              </h1>
+            </div>
+
+            <div className="hidden space-y-3 lg:block">
+              <p
+                className="text-xs font-semibold uppercase tracking-[0.18em]"
+                style={{ color: PLATFORM_BRAND_PRIMARY }}
+              >
+                Acceso
+              </p>
+              <h1 className="text-3xl font-semibold tracking-[-0.02em] text-[var(--login-ink)]">
+                Bienvenido de nuevo
+              </h1>
+              <p className="text-[0.95rem] leading-relaxed text-black/55">
+                Usa tu email corporativo. En segundos estás dentro del ciclo de
+                talento.
+              </p>
+            </div>
+
+            <LoginForm aggressive />
+          </div>
+        </section>
+      </div>
+    </LoginLightTheme>
   );
 }

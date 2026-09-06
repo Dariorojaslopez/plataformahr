@@ -3,6 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTheme } from "next-themes";
 import { useEffect, useMemo, useState } from "react";
+import { BrandPalettePicker } from "@/components/company/brand-palette-picker";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -149,7 +150,7 @@ function CompanyBrandingForm({
     <div className="space-y-8">
       <PageHeader
         title="Apariencia"
-        description="Identidad visual de esta compañía. No cambia el tema de otras compañías ni los colores de error, alerta o éxito."
+        description="Identidad visual de esta compañía: paleta institucional, color a medida y logo. No cambia el tema de otras compañías ni los colores de error, alerta o éxito."
       />
 
       <div
@@ -192,7 +193,7 @@ function CompanyBrandingForm({
       </div>
 
       <form
-        className="max-w-xl space-y-6"
+        className="max-w-3xl space-y-6"
         onSubmit={(event) => {
           event.preventDefault();
           saveMutation.mutate();
@@ -215,7 +216,14 @@ function CompanyBrandingForm({
 
         <div className="space-y-2">
           <Label htmlFor="company-brand-color">Color principal</Label>
-          <div className="flex items-center gap-3">
+          <BrandPalettePicker
+            value={color}
+            onChange={(next) => {
+              setColor(next);
+              setColorTouched(true);
+            }}
+          />
+          <div className="flex items-center gap-3 pt-2">
             <input
               id="company-brand-color-picker"
               type="color"
@@ -225,7 +233,7 @@ function CompanyBrandingForm({
                 setColorTouched(true);
               }}
               className="h-10 w-12 cursor-pointer rounded border border-border bg-card"
-              aria-label="Selector de color"
+              aria-label="Selector de color personalizado"
             />
             <Input
               id="company-brand-color"
@@ -239,7 +247,8 @@ function CompanyBrandingForm({
             />
           </div>
           <p className="text-xs text-muted-foreground">
-            Formato #RRGGBB. Usa restaurar para volver al color de Plataforma HR.
+            Elige una paleta o un hex #RRGGBB a medida. Restaurar vuelve al color
+            de Talentgrowthos.
           </p>
         </div>
 

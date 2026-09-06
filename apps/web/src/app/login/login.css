@@ -1,0 +1,119 @@
+@keyframes login-rise {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes login-drift {
+  from {
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    transform: translate3d(-2.5%, 1.5%, 0);
+  }
+}
+
+@keyframes login-sheen {
+  0% {
+    transform: translateX(-120%) skewX(-18deg);
+  }
+  100% {
+    transform: translateX(220%) skewX(-18deg);
+  }
+}
+
+.login-shell {
+  --login-ink: #041110;
+  --login-ink-soft: #0a2422;
+  --login-teal: #0f5c5a;
+  --login-teal-hot: #17a39a;
+  --login-sand: #f3f1eb;
+  --login-display: var(--font-login-display), ui-sans-serif, system-ui, sans-serif;
+  --login-body: var(--font-login-body), ui-sans-serif, system-ui, sans-serif;
+  font-family: var(--login-body);
+}
+
+.login-shell h1,
+.login-shell .login-brand {
+  font-family: var(--login-display);
+}
+
+.login-hero {
+  background:
+    radial-gradient(ellipse 80% 60% at 10% 90%, rgba(23, 163, 154, 0.35), transparent 55%),
+    radial-gradient(ellipse 70% 50% at 90% 0%, rgba(15, 92, 90, 0.55), transparent 50%),
+    linear-gradient(155deg, var(--login-ink) 0%, var(--login-ink-soft) 48%, #0d3d3a 100%);
+}
+
+.login-hero-grid {
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+  background-size: 56px 56px;
+  mask-image: radial-gradient(ellipse 85% 75% at 40% 50%, #000 20%, transparent 75%);
+  animation: login-drift 22s linear infinite alternate;
+}
+
+.login-hero-slash {
+  background: linear-gradient(
+    115deg,
+    transparent 0%,
+    transparent 42%,
+    rgba(23, 163, 154, 0.22) 42.5%,
+    rgba(23, 163, 154, 0.08) 58%,
+    transparent 58.5%
+  );
+}
+
+.login-hero-sheen::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  width: 35%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.08),
+    transparent
+  );
+  animation: login-sheen 7.5s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.login-rise {
+  animation: login-rise 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.login-rise-delay-1 {
+  animation-delay: 0.08s;
+}
+
+.login-rise-delay-2 {
+  animation-delay: 0.16s;
+}
+
+.login-rise-delay-3 {
+  animation-delay: 0.24s;
+}
+
+.login-panel {
+  background:
+    radial-gradient(circle at 100% 0%, rgba(15, 92, 90, 0.08), transparent 40%),
+    linear-gradient(180deg, #faf9f6 0%, var(--login-sand) 100%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .login-hero-grid,
+  .login-hero-sheen::after,
+  .login-rise,
+  .login-rise-delay-1,
+  .login-rise-delay-2,
+  .login-rise-delay-3 {
+    animation: none !important;
+  }
+}

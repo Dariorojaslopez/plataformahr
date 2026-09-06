@@ -19,8 +19,8 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: {
-    default: "Talento",
-    template: "%s · Talento",
+    default: "Talentgrowthos",
+    template: "%s · Talentgrowthos",
   },
   description: "Plataforma de talento: organización, ATS y performance.",
 };

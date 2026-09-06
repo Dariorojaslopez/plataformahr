@@ -125,6 +125,33 @@ export function resetManagedCompanyAdminPasswordRequest(
   );
 }
 
+export function updateManagedCompanyAccessWindowRequest(
+  id: string,
+  body: { accessStartsAt?: string | null; accessEndsAt?: string | null },
+): Promise<{
+  id: string;
+  accessStartsAt: string | null;
+  accessEndsAt: string | null;
+  accessOpen: boolean;
+}> {
+  return apiRequest(`/platform/admin/companies/${id}/access-window`, {
+    method: "PATCH",
+    body,
+    companyId: null,
+  });
+}
+
+export function updateManagedCompanyBrandingRequest(
+  id: string,
+  body: { brandPrimaryColor?: string | null },
+): Promise<{ id: string; brandPrimaryColor: string | null }> {
+  return apiRequest(`/platform/admin/companies/${id}/branding`, {
+    method: "PATCH",
+    body,
+    companyId: null,
+  });
+}
+
 export function changePasswordRequest(
   currentPassword: string,
   newPassword: string,
@@ -132,6 +159,17 @@ export function changePasswordRequest(
   return apiRequest("/auth/change-password", {
     method: "POST",
     body: { currentPassword, newPassword },
+    companyId: null,
+  });
+}
+
+export function forgotPasswordRequest(
+  email: string,
+): Promise<{ ok: true }> {
+  return apiRequest<{ ok: true }>("/auth/forgot-password", {
+    method: "POST",
+    body: { email },
+    auth: false,
     companyId: null,
   });
 }

@@ -2,6 +2,7 @@ import { Transform } from 'class-transformer';
 import {
   ArrayUnique,
   IsArray,
+  IsDateString,
   IsEmail,
   IsEnum,
   IsOptional,
@@ -10,6 +11,7 @@ import {
   Matches,
   MaxLength,
   MinLength,
+  ValidateIf,
 } from 'class-validator';
 import { CompanyStatus } from '@prisma/client';
 import {
@@ -69,6 +71,27 @@ export class CreatePlatformCompanyDto {
   @MaxLength(256)
   initialPassword?: string;
 
+  /** YYYY-MM-DD. Empty/omitted = available immediately. */
+  @IsOptional()
+  @ValidateIf((_, value) => value !== '' && value != null)
+  @IsDateString({ strict: true })
+  accessStartsAt?: string | null;
+
+  /** YYYY-MM-DD. Empty/omitted/null = no expiry until you set one. */
+  @IsOptional()
+  @ValidateIf((_, value) => value !== '' && value != null)
+  @IsDateString({ strict: true })
+  accessEndsAt?: string | null;
+
+  /** Institutional primary #RRGGBB. Omitted/null = platform default. */
+  @IsOptional()
+  @ValidateIf((_, value) => value !== '' && value != null)
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.trim().toUpperCase() : value,
+  )
+  @Matches(/^#[0-9A-F]{6}$/)
+  brandPrimaryColor?: string | null;
+
   @IsArray()
   @ArrayUnique()
   @IsIn(COMPANY_MODULE_CODES, { each: true })
@@ -78,6 +101,30 @@ export class CreatePlatformCompanyDto {
   @ArrayUnique()
   @IsIn(COMPANY_FEATURE_CODES, { each: true })
   enabledFeatures!: CompanyFeatureCode[];
+}
+
+export class UpdatePlatformCompanyBrandingDto {
+  @IsOptional()
+  @ValidateIf((_, value) => value !== '' && value != null)
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.trim().toUpperCase() : value,
+  )
+  @Matches(/^#[0-9A-F]{6}$/)
+  brandPrimaryColor?: string | null;
+}
+
+export class UpdatePlatformCompanyAccessWindowDto {
+  /** YYYY-MM-DD or null to clear. */
+  @IsOptional()
+  @ValidateIf((_, value) => value !== '' && value != null)
+  @IsDateString({ strict: true })
+  accessStartsAt?: string | null;
+
+  /** YYYY-MM-DD or null for open-ended access. */
+  @IsOptional()
+  @ValidateIf((_, value) => value !== '' && value != null)
+  @IsDateString({ strict: true })
+  accessEndsAt?: string | null;
 }
 
 export class UpdatePlatformCompanyStatusDto {

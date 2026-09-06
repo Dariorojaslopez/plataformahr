@@ -14,6 +14,7 @@ import {
   type TenantContext,
 } from '../../auth/auth.types';
 import { PrismaService } from '../../prisma/prisma.service';
+import { isCompanyAccessWindowOpen } from '../../platform/company-access-window';
 
 type RequestWithAuth = Request & {
   user?: AuthenticatedUser;
@@ -70,6 +71,16 @@ export class CompanyContextGuard implements CanActivate {
         throw new ForbiddenException('Company is not available');
       }
 
+      // Platform owners may enter expired demos to extend access / support.
+      if (
+        !membership.user.isPlatformOwner &&
+        !isCompanyAccessWindowOpen(membership.company)
+      ) {
+        throw new ForbiddenException(
+          'El acceso de esta compañía está fuera de la ventana de demo/contrato.',
+        );
+      }
+
       request.tenantContext = {
         userId: user.userId,
         companyId: membership.companyId,
@@ -103,6 +114,7 @@ export class CompanyContextGuard implements CanActivate {
       throw new ForbiddenException('Company is not available');
     }
 
+    // Platform owners may enter expired demos to extend access / support.
     request.tenantContext = {
       userId: user.userId,
       companyId: company.id,

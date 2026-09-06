@@ -19,6 +19,8 @@ import { PlatformService } from './platform.service';
 import {
   CreatePlatformCompanyDto,
   ResetPlatformCompanyAdminPasswordDto,
+  UpdatePlatformCompanyAccessWindowDto,
+  UpdatePlatformCompanyBrandingDto,
   UpdatePlatformCompanyStatusDto,
   UpdatePlatformCompanyFeaturesDto,
 } from './dto/platform-company.dto';
@@ -137,6 +139,28 @@ export class PlatformController {
     @Body() dto: UpdatePlatformCompanyStatusDto,
   ) {
     return this.platformService.updateStatus(user.userId, id, dto);
+  }
+
+  @Patch('admin/companies/:id/access-window')
+  @UseGuards(JwtAuthGuard, PlatformOwnerGuard)
+  @PlatformOwnerOnly()
+  updateCompanyAccessWindow(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdatePlatformCompanyAccessWindowDto,
+  ) {
+    return this.platformService.updateAccessWindow(user.userId, id, dto);
+  }
+
+  @Patch('admin/companies/:id/branding')
+  @UseGuards(JwtAuthGuard, PlatformOwnerGuard)
+  @PlatformOwnerOnly()
+  updateCompanyBranding(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdatePlatformCompanyBrandingDto,
+  ) {
+    return this.platformService.updateCompanyBranding(user.userId, id, dto);
   }
 
   @Post('admin/companies/:id/initial-admin/reset-password')

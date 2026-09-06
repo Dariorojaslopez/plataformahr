@@ -216,7 +216,7 @@ export function PublicJobPage({
     return (
       <main className="flex min-h-screen items-center justify-center px-6">
         <div className="max-w-md space-y-3 text-center">
-          <p className="text-sm font-medium text-primary">Talento</p>
+          <p className="text-sm font-medium text-primary">Talentgrowthos</p>
           <h1 className="text-2xl font-semibold">Vacante no disponible</h1>
           <p className="text-sm text-muted-foreground">
             La vacante no existe, fue despublicada o ya no recibe postulaciones.

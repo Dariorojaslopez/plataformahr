@@ -49,6 +49,10 @@ export type ManagedCompany = {
   slug: string;
   status: "ACTIVE" | "INACTIVE" | "SUSPENDED";
   createdAt: string;
+  accessStartsAt: string | null;
+  accessEndsAt: string | null;
+  accessOpen: boolean;
+  brandPrimaryColor: string | null;
   membershipCount: number;
   enabledModules: CompanyModuleCode[];
   enabledFeatures: CompanyFeatureCode[];
@@ -68,6 +72,9 @@ export type CreateManagedCompanyInput = {
   adminLastName: string;
   adminEmail: string;
   initialPassword?: string;
+  accessStartsAt?: string;
+  accessEndsAt?: string;
+  brandPrimaryColor?: string;
   enabledModules: CompanyModuleCode[];
   enabledFeatures: CompanyFeatureCode[];
 };
@@ -87,6 +94,7 @@ export type CreateManagedCompanyResponse = {
   company: Pick<ManagedCompany, "id" | "name" | "legalName" | "slug" | "status">;
   initialAdmin: NonNullable<ManagedCompany["initialAdmin"]>;
   temporaryPassword: string;
+  passwordEmailed?: boolean;
 };
 
 export type ManagedPlatformOwner = {

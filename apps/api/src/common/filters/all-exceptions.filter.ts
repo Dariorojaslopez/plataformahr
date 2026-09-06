@@ -81,6 +81,11 @@ export class AllExceptionsFilter implements ExceptionFilter {
         requestId,
         errorName: exception.code,
         context: AllExceptionsFilter.name,
+        details: {
+          prismaCode: exception.code,
+          prismaMessage: exception.message.slice(0, 500),
+          prismaMeta: exception.meta ?? null,
+        },
       });
     } else if (isMulterFileTooLarge(exception)) {
       status = HttpStatus.PAYLOAD_TOO_LARGE;

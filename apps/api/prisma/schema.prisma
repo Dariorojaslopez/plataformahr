@@ -136,6 +136,9 @@ model Company {
   showNineBoxOnMyResults          Boolean       @default(true)
   /// Minimum days from today before an expected hiring date can be selected.
   vacancyHiringSlaDays            Int           @default(14)
+  /// Commercial / demo access window. Null end = no automatic expiry.
+  accessStartsAt                  DateTime?
+  accessEndsAt                    DateTime?
   /// Thank-you letter sent when other finalists are discarded after a hire.
   atsThankYouLetterSubject        String?
   atsThankYouLetterBody           String?

@@ -59,7 +59,7 @@ export function CompanyBrandingProvider({ children }: { children: ReactNode }) {
     };
   }, [logoQuery.data]);
 
-  const name = branding?.name ?? activeCompany?.name ?? "Talento";
+  const name = branding?.name ?? activeCompany?.name ?? "Talentgrowthos";
   const view: CompanyBrandingView = {
     companyId: activeCompanyId,
     name,

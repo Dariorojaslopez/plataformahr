@@ -10,12 +10,14 @@ import {
   type Company,
   type User,
 } from '@prisma/client';
-import { randomUUID } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 import { AuditService } from '../core/audit/audit.service';
+import { MailService } from '../mail/mail.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { AUTH_AUDIT } from './auth.types';
 import { PasswordHashingService } from './password-hashing.service';
 import { TokenService } from './token.service';
+import { isCompanyAccessWindowOpen } from '../platform/company-access-window';
 
 export type PublicUser = {
   id: string;
@@ -52,6 +54,7 @@ export class AuthService {
     private readonly passwordHashing: PasswordHashingService,
     private readonly tokens: TokenService,
     private readonly audit: AuditService,
+    private readonly mail: MailService,
   ) {}
 
   async login(
@@ -293,6 +296,106 @@ export class AuthService {
     };
   }
 
+  /**
+   * Always returns the same payload to avoid account enumeration.
+   * If the account is eligible, generates a temporary password, emails it,
+   * forces mustChangePassword, and revokes sessions. Rolls back if mail fails.
+   */
+  async forgotPassword(
+    email: string,
+    meta?: { ipAddress?: string; userAgent?: string },
+  ): Promise<{ ok: true }> {
+    const normalizedEmail = email.trim().toLowerCase();
+    const generic = { ok: true as const };
+
+    const user = await this.prisma.user.findUnique({
+      where: { email: normalizedEmail },
+    });
+    if (
+      !user ||
+      user.deletedAt !== null ||
+      user.status !== UserStatus.ACTIVE ||
+      user.passwordHash === null
+    ) {
+      return generic;
+    }
+
+    const temporaryPassword = randomBytes(18).toString('base64url');
+    const passwordHash = await this.passwordHashing.hash(temporaryPassword);
+    const previousHash = user.passwordHash;
+    const previousMustChange = user.mustChangePassword;
+
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: { passwordHash, mustChangePassword: true },
+    });
+    await this.prisma.userSession.updateMany({
+      where: { userId: user.id, revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
+
+    const firstName = user.firstName.trim() || 'hola';
+    const mailResult = await this.mail.sendText({
+      to: user.email,
+      subject: 'Nueva contraseña temporal · Talentgrowthos',
+      text: [
+        `Hola ${firstName},`,
+        '',
+        'Recibimos una solicitud para restablecer tu contraseña en Talentgrowthos.',
+        '',
+        `Tu contraseña temporal es: ${temporaryPassword}`,
+        '',
+        'Inicia sesión con ella y cámbiala de inmediato. Si no pediste este cambio, contacta a tu administrador.',
+        '',
+        '— Talentgrowthos',
+      ].join('\n'),
+      html: [
+        `<p>Hola ${escapeHtml(firstName)},</p>`,
+        '<p>Recibimos una solicitud para restablecer tu contraseña en <strong>Talentgrowthos</strong>.</p>',
+        `<p>Tu contraseña temporal es:</p>`,
+        `<p style="font-size:18px;font-weight:700;letter-spacing:0.04em"><code>${escapeHtml(temporaryPassword)}</code></p>`,
+        '<p>Inicia sesión con ella y cámbiala de inmediato. Si no pediste este cambio, contacta a tu administrador.</p>',
+        '<p>— Talentgrowthos</p>',
+      ].join(''),
+    });
+
+    if (mailResult.status !== 'SENT') {
+      await this.prisma.user.update({
+        where: { id: user.id },
+        data: {
+          passwordHash: previousHash,
+          mustChangePassword: previousMustChange,
+        },
+      });
+      await this.audit.create({
+        action: AUTH_AUDIT.PASSWORD_RESET_REQUESTED,
+        entity: 'User',
+        entityId: user.id,
+        user: { connect: { id: user.id } },
+        ipAddress: meta?.ipAddress,
+        userAgent: meta?.userAgent,
+        metadata: {
+          delivered: false,
+          mailStatus: mailResult.status,
+          mailReason: mailResult.reason ?? null,
+        },
+      });
+      return generic;
+    }
+
+    await this.audit.create({
+      action: AUTH_AUDIT.PASSWORD_RESET_REQUESTED,
+      entity: 'User',
+      entityId: user.id,
+      user: { connect: { id: user.id } },
+      ipAddress: meta?.ipAddress,
+      userAgent: meta?.userAgent,
+      metadata: { delivered: true },
+    });
+
+    return generic;
+  }
+
   async getMe(userId: string): Promise<{
     id: string;
     email: string;
@@ -334,9 +437,9 @@ export class AuthService {
       },
     });
 
-    return memberships.map((membership) =>
-      this.toPublicCompany(membership.company),
-    );
+    return memberships
+      .filter((membership) => isCompanyAccessWindowOpen(membership.company))
+      .map((membership) => this.toPublicCompany(membership.company));
   }
 
   private toPublicUser(user: User): PublicUser {
@@ -357,4 +460,13 @@ export class AuthService {
       slug: company.slug,
     };
   }
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
 }

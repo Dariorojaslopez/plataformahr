@@ -109,6 +109,7 @@ export function configureApp(
       req.method !== 'HEAD' &&
       req.method !== 'OPTIONS' &&
       (path === '/auth/login' ||
+        path === '/auth/forgot-password' ||
         path === '/auth/refresh' ||
         path === '/auth/logout');
     if (!isAuthMutation) {

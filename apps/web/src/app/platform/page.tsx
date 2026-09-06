@@ -19,9 +19,15 @@ import {
 } from "@talento/shared";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useState,
+  type FormEvent,
+} from "react";
 import { AuthGuard } from "@/components/auth/auth-guard";
 import { useSession } from "@/components/auth/session-provider";
+import { BrandPalettePicker } from "@/components/company/brand-palette-picker";
 import { PlatformBillingSection } from "@/components/platform/platform-billing-section";
 import { PlatformConfigShortcuts } from "@/components/platform/platform-config-shortcuts";
 import { PlatformPremiumSection } from "@/components/platform/platform-premium-section";
@@ -52,11 +58,15 @@ import {
   grantPlatformTenantAccessRequest,
   managedCompaniesRequest,
   platformCompaniesRequest,
+  updateManagedCompanyAccessWindowRequest,
+  updateManagedCompanyBrandingRequest,
   updateManagedCompanyStatusRequest,
   updateManagedCompanyFeaturesRequest,
   resetManagedCompanyAdminPasswordRequest,
 } from "@/lib/api/auth";
 import { getErrorMessage } from "@/lib/api/errors";
+import { findBrandPaletteByPrimary } from "@/lib/company/brand-palettes";
+import { PLATFORM_BRAND_PRIMARY } from "@/lib/company/brand-tokens";
 import { notifyError, notifySuccess } from "@/lib/ui/notify";
 import type {
   CreateManagedCompanyInput,
@@ -72,6 +82,9 @@ const emptyForm: CreateManagedCompanyInput = {
   adminLastName: "",
   adminEmail: "",
   initialPassword: "",
+  accessStartsAt: new Date().toISOString().slice(0, 10),
+  accessEndsAt: "",
+  brandPrimaryColor: PLATFORM_BRAND_PRIMARY,
   enabledModules: [],
   enabledFeatures: [],
 };
@@ -90,9 +103,6 @@ function PlatformAdministration() {
   const [companies, setCompanies] = useState<ManagedCompany[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [form, setForm] = useState(emptyForm);
-  const [pending, setPending] = useState(false);
   const [credentials, setCredentials] =
     useState<CreateManagedCompanyResponse | null>(null);
 
@@ -127,27 +137,6 @@ function PlatformAdministration() {
       cancelled = true;
     };
   }, []);
-
-  async function createCompany(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setPending(true);
-    try {
-      const created = await createManagedCompanyRequest({
-        ...form,
-        legalName: form.legalName?.trim() || undefined,
-        initialPassword: form.initialPassword?.trim() || undefined,
-      });
-      setCredentials(created);
-      setForm(emptyForm);
-      setDialogOpen(false);
-      await refreshCompanies();
-      notifySuccess("Compañía y administrador creados");
-    } catch (err) {
-      notifyError(err, "No se pudo crear la compañía.");
-    } finally {
-      setPending(false);
-    }
-  }
 
   async function refreshCompanies() {
     const [managed, active] = await Promise.all([
@@ -210,115 +199,17 @@ function PlatformAdministration() {
                   Superadministradores
                 </Link>
               </Button>
-              <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-                <DialogTrigger asChild>
-                  <Button>
-                    <Plus className="size-4" />
-                    Nueva compañía
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="max-h-[90vh] overflow-hidden p-0">
-                  <form
-                    onSubmit={createCompany}
-                    className="flex max-h-[90vh] min-h-0 flex-col"
-                  >
-                    <DialogHeader className="mb-0 shrink-0 px-6 pb-4 pt-6 pr-12">
-                    <DialogTitle>Crear compañía</DialogTitle>
-                    <p className="text-sm text-muted-foreground">
-                      Se creará también el administrador inicial y una contraseña temporal.
-                    </p>
-                  </DialogHeader>
-                    <div className="min-h-0 flex-1 overflow-y-auto px-6 py-1">
-                      <div className="grid gap-4 sm:grid-cols-2">
-                        <Field
-                          id="company-name"
-                          label="Nombre comercial"
-                          value={form.name}
-                          onChange={(name) => setForm((v) => ({ ...v, name }))}
-                        />
-                        <Field
-                          id="company-legal-name"
-                          label="Razón social"
-                          required={false}
-                          value={form.legalName ?? ""}
-                          onChange={(legalName) =>
-                            setForm((v) => ({ ...v, legalName }))
-                          }
-                        />
-                        <Field
-                          id="company-slug"
-                          label="Identificador"
-                          value={form.slug}
-                          pattern="[a-z0-9]+(?:-[a-z0-9]+)*"
-                          onChange={(slug) =>
-                            setForm((v) => ({
-                              ...v,
-                              slug: slug.toLowerCase().replace(/\s+/g, "-"),
-                            }))
-                          }
-                        />
-                        <Field
-                          id="admin-email"
-                          label="Email administrador"
-                          type="email"
-                          value={form.adminEmail}
-                          onChange={(adminEmail) =>
-                            setForm((v) => ({ ...v, adminEmail }))
-                          }
-                        />
-                        <Field
-                          id="admin-first-name"
-                          label="Nombres administrador"
-                          value={form.adminFirstName}
-                          onChange={(adminFirstName) =>
-                            setForm((v) => ({ ...v, adminFirstName }))
-                          }
-                        />
-                        <Field
-                          id="admin-last-name"
-                          label="Apellidos administrador"
-                          value={form.adminLastName}
-                          onChange={(adminLastName) =>
-                            setForm((v) => ({ ...v, adminLastName }))
-                          }
-                        />
-                      </div>
-                      <div className="mt-4">
-                        <PasswordControl
-                          id="initial-password"
-                          label="Contraseña inicial"
-                          value={form.initialPassword ?? ""}
-                          onChange={(initialPassword) =>
-                            setForm((value) => ({
-                              ...value,
-                              initialPassword,
-                            }))
-                          }
-                          help="Puedes escribirla o generar una segura. Si queda vacía, el servidor generará una."
-                        />
-                      </div>
-                      <div className="my-5">
-                        <AccessSelector
-                          enabledModules={form.enabledModules}
-                          enabledFeatures={form.enabledFeatures}
-                          onChange={(enabledModules, enabledFeatures) =>
-                            setForm((value) => ({
-                              ...value,
-                              enabledModules,
-                              enabledFeatures,
-                            }))
-                          }
-                        />
-                      </div>
-                    </div>
-                    <DialogFooter className="mt-0 shrink-0 border-t bg-card px-6 pb-6 pt-4">
-                    <Button type="submit" disabled={pending}>
-                      {pending ? "Creando…" : "Crear compañía"}
-                    </Button>
-                  </DialogFooter>
-                </form>
-                </DialogContent>
-              </Dialog>
+              <CreateCompanyDialog
+                onCreated={async (created) => {
+                  setCredentials(created);
+                  await refreshCompanies();
+                  notifySuccess(
+                    created.passwordEmailed
+                      ? "Compañía creada. Contraseña enviada al administrador."
+                      : "Compañía creada. Copia la contraseña (el correo no se pudo enviar).",
+                  );
+                }}
+              />
             </div>
           }
         />
@@ -328,7 +219,9 @@ function PlatformAdministration() {
             <CardHeader>
               <CardTitle className="text-base">Acceso inicial generado</CardTitle>
               <CardDescription>
-                Copia la contraseña ahora. No volverá a mostrarse y deberá cambiarse al iniciar sesión.
+                {credentials.passwordEmailed
+                  ? "También enviamos la contraseña al email del administrador. Cópiala por si no llega el correo; deberá cambiarla al iniciar sesión."
+                  : "Copia la contraseña ahora. No se pudo enviar por correo (revisa SMTP). Deberá cambiarse al iniciar sesión."}
               </CardDescription>
             </CardHeader>
             <CardContent className="flex flex-col gap-3 sm:flex-row sm:items-end">
@@ -421,6 +314,36 @@ function PlatformAdministration() {
                     {company.membershipCount} membresías
                   </p>
                   <p className="text-xs text-muted-foreground">
+                    Acceso:{" "}
+                    {company.accessStartsAt
+                      ? `desde ${company.accessStartsAt}`
+                      : "inmediato"}
+                    {" · "}
+                    {company.accessEndsAt
+                      ? `hasta ${company.accessEndsAt}`
+                      : "sin vencimiento"}
+                    {!company.accessOpen ? " · vencido/pendiente" : ""}
+                  </p>
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <span
+                      className="inline-block size-3.5 rounded-sm border border-border"
+                      style={{
+                        background:
+                          company.brandPrimaryColor ?? PLATFORM_BRAND_PRIMARY,
+                      }}
+                      aria-hidden
+                    />
+                    <span>
+                      {findBrandPaletteByPrimary(
+                        company.brandPrimaryColor ?? PLATFORM_BRAND_PRIMARY,
+                      )?.name ?? "Color personalizado"}
+                      {" · "}
+                      <span className="font-mono">
+                        {company.brandPrimaryColor ?? PLATFORM_BRAND_PRIMARY}
+                      </span>
+                    </span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
                     {company.enabledModules.length} módulos activos
                   </p>
                   <div className="flex flex-wrap gap-2">
@@ -432,6 +355,14 @@ function PlatformAdministration() {
                       <LogIn className="size-4" />
                       Entrar como administrador
                     </Button>
+                    <CompanyAccessWindowDialog
+                      company={company}
+                      onSaved={refreshCompanies}
+                    />
+                    <CompanyBrandingDialog
+                      company={company}
+                      onSaved={refreshCompanies}
+                    />
                     <CompanyAccessDialog
                       company={company}
                       onSaved={refreshCompanies}
@@ -452,6 +383,241 @@ function PlatformAdministration() {
         )}
       </main>
     </div>
+  );
+}
+
+function CreateCompanyDialog({
+  onCreated,
+}: {
+  onCreated: (created: CreateManagedCompanyResponse) => Promise<void>;
+}) {
+  const [open, setOpen] = useState(false);
+  const [form, setForm] = useState(emptyForm);
+  const [pending, setPending] = useState(false);
+  /** Defer heavy sections so the dialog paints first. */
+  const [sectionsReady, setSectionsReady] = useState(false);
+
+  useEffect(() => {
+    if (!open) {
+      setSectionsReady(false);
+      return;
+    }
+    const id = window.requestAnimationFrame(() => setSectionsReady(true));
+    return () => window.cancelAnimationFrame(id);
+  }, [open]);
+
+  async function createCompany(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setPending(true);
+    try {
+      const created = await createManagedCompanyRequest({
+        ...form,
+        legalName: form.legalName?.trim() || undefined,
+        initialPassword: form.initialPassword?.trim() || undefined,
+        accessStartsAt: form.accessStartsAt?.trim() || undefined,
+        accessEndsAt: form.accessEndsAt?.trim() || undefined,
+        brandPrimaryColor: form.brandPrimaryColor?.trim() || undefined,
+      });
+      setForm(emptyForm);
+      setOpen(false);
+      await onCreated(created);
+    } catch (err) {
+      notifyError(err, "No se pudo crear la compañía.");
+    } finally {
+      setPending(false);
+    }
+  }
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next);
+        if (!next) setForm(emptyForm);
+      }}
+    >
+      <DialogTrigger asChild>
+        <Button>
+          <Plus className="size-4" />
+          Nueva compañía
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-h-[90vh] overflow-hidden p-0">
+        <form
+          onSubmit={(event) => void createCompany(event)}
+          className="flex max-h-[90vh] min-h-0 flex-col"
+        >
+          <DialogHeader className="mb-0 shrink-0 px-6 pb-4 pt-6 pr-12">
+            <DialogTitle>Crear compañía</DialogTitle>
+            <p className="text-sm text-muted-foreground">
+              Se creará también el administrador inicial y una contraseña
+              temporal.
+            </p>
+          </DialogHeader>
+          <div className="min-h-0 flex-1 overflow-y-auto px-6 py-1">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field
+                id="company-name"
+                label="Nombre comercial"
+                value={form.name}
+                onChange={(name) => setForm((v) => ({ ...v, name }))}
+              />
+              <Field
+                id="company-legal-name"
+                label="Razón social"
+                required={false}
+                value={form.legalName ?? ""}
+                onChange={(legalName) =>
+                  setForm((v) => ({ ...v, legalName }))
+                }
+              />
+              <Field
+                id="company-slug"
+                label="Identificador"
+                value={form.slug}
+                pattern="[a-z0-9]+(?:-[a-z0-9]+)*"
+                onChange={(slug) =>
+                  setForm((v) => ({
+                    ...v,
+                    slug: slug.toLowerCase().replace(/\s+/g, "-"),
+                  }))
+                }
+              />
+              <Field
+                id="admin-email"
+                label="Email administrador"
+                type="email"
+                value={form.adminEmail}
+                onChange={(adminEmail) =>
+                  setForm((v) => ({ ...v, adminEmail }))
+                }
+              />
+              <Field
+                id="admin-first-name"
+                label="Nombres administrador"
+                value={form.adminFirstName}
+                onChange={(adminFirstName) =>
+                  setForm((v) => ({ ...v, adminFirstName }))
+                }
+              />
+              <Field
+                id="admin-last-name"
+                label="Apellidos administrador"
+                value={form.adminLastName}
+                onChange={(adminLastName) =>
+                  setForm((v) => ({ ...v, adminLastName }))
+                }
+              />
+              <Field
+                id="access-starts"
+                label="Acceso desde"
+                type="date"
+                required={false}
+                value={form.accessStartsAt ?? ""}
+                onChange={(accessStartsAt) =>
+                  setForm((v) => ({ ...v, accessStartsAt }))
+                }
+                help="Vacío = disponible de inmediato."
+              />
+              <Field
+                id="access-ends"
+                label="Acceso hasta"
+                type="date"
+                required={false}
+                value={form.accessEndsAt ?? ""}
+                onChange={(accessEndsAt) =>
+                  setForm((v) => ({ ...v, accessEndsAt }))
+                }
+                help="Vacío = sin vencimiento. Para demo, p. ej. +30 días."
+              />
+            </div>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  const start = new Date();
+                  const end = new Date();
+                  end.setUTCDate(end.getUTCDate() + 30);
+                  setForm((v) => ({
+                    ...v,
+                    accessStartsAt: start.toISOString().slice(0, 10),
+                    accessEndsAt: end.toISOString().slice(0, 10),
+                  }));
+                }}
+              >
+                Demo 30 días
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() =>
+                  setForm((v) => ({
+                    ...v,
+                    accessStartsAt: new Date().toISOString().slice(0, 10),
+                    accessEndsAt: "",
+                  }))
+                }
+              >
+                Sin vencimiento
+              </Button>
+            </div>
+            <div className="mt-4">
+              <PasswordControl
+                id="initial-password"
+                label="Contraseña inicial"
+                value={form.initialPassword ?? ""}
+                onChange={(initialPassword) =>
+                  setForm((value) => ({
+                    ...value,
+                    initialPassword,
+                  }))
+                }
+                help="Puedes escribirla o generar una segura. Si queda vacía, el servidor generará una y la enviará al email del administrador."
+              />
+            </div>
+            {sectionsReady ? (
+              <>
+                <div className="mt-4 rounded-md border border-border p-3">
+                  <BrandPalettePicker
+                    compact
+                    value={form.brandPrimaryColor ?? PLATFORM_BRAND_PRIMARY}
+                    onChange={(brandPrimaryColor) =>
+                      setForm((v) => ({ ...v, brandPrimaryColor }))
+                    }
+                  />
+                </div>
+                <div className="my-5">
+                  <AccessSelector
+                    enabledModules={form.enabledModules}
+                    enabledFeatures={form.enabledFeatures}
+                    onChange={(enabledModules, enabledFeatures) =>
+                      setForm((value) => ({
+                        ...value,
+                        enabledModules,
+                        enabledFeatures,
+                      }))
+                    }
+                  />
+                </div>
+              </>
+            ) : (
+              <div className="my-5 space-y-2">
+                <Skeleton className="h-24 w-full" />
+                <Skeleton className="h-40 w-full" />
+              </div>
+            )}
+          </div>
+          <DialogFooter className="mt-0 shrink-0 border-t bg-card px-6 pb-6 pt-4">
+            <Button type="submit" disabled={pending}>
+              {pending ? "Creando…" : "Crear compañía"}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -538,6 +704,184 @@ function ResetAdminPasswordDialog({ company }: { company: ManagedCompany }) {
             onClick={() => void save()}
           >
             {saving ? "Guardando…" : "Restablecer contraseña"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function CompanyBrandingDialog({
+  company,
+  onSaved,
+}: {
+  company: ManagedCompany;
+  onSaved: () => Promise<void>;
+}) {
+  const [open, setOpen] = useState(false);
+  const [color, setColor] = useState(
+    company.brandPrimaryColor ?? PLATFORM_BRAND_PRIMARY,
+  );
+  const [saving, setSaving] = useState(false);
+
+  async function save() {
+    setSaving(true);
+    try {
+      await updateManagedCompanyBrandingRequest(company.id, {
+        brandPrimaryColor: color,
+      });
+      await onSaved();
+      setOpen(false);
+      notifySuccess("Paleta institucional actualizada");
+    } catch (err) {
+      notifyError(err, "No se pudo actualizar la paleta.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next);
+        if (next) {
+          setColor(company.brandPrimaryColor ?? PLATFORM_BRAND_PRIMARY);
+        }
+      }}
+    >
+      <DialogTrigger asChild>
+        <Button size="sm" variant="outline">
+          Paleta
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>Paleta de {company.name}</DialogTitle>
+          <p className="text-sm text-muted-foreground">
+            Define el color institucional. El admin del tenant también puede
+            cambiarlo en Apariencia.
+          </p>
+        </DialogHeader>
+        <BrandPalettePicker
+          value={color}
+          onChange={(next) => setColor(next)}
+        />
+        <DialogFooter>
+          <Button disabled={saving} onClick={() => void save()}>
+            {saving ? "Guardando…" : "Guardar paleta"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function CompanyAccessWindowDialog({
+  company,
+  onSaved,
+}: {
+  company: ManagedCompany;
+  onSaved: () => Promise<void>;
+}) {
+  const [open, setOpen] = useState(false);
+  const [accessStartsAt, setAccessStartsAt] = useState(
+    company.accessStartsAt ?? "",
+  );
+  const [accessEndsAt, setAccessEndsAt] = useState(company.accessEndsAt ?? "");
+  const [saving, setSaving] = useState(false);
+
+  async function save() {
+    setSaving(true);
+    try {
+      await updateManagedCompanyAccessWindowRequest(company.id, {
+        accessStartsAt: accessStartsAt.trim() || null,
+        accessEndsAt: accessEndsAt.trim() || null,
+      });
+      await onSaved();
+      setOpen(false);
+      notifySuccess("Ventana de acceso actualizada");
+    } catch (err) {
+      notifyError(err, "No se pudo actualizar la ventana de acceso.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next);
+        if (next) {
+          setAccessStartsAt(company.accessStartsAt ?? "");
+          setAccessEndsAt(company.accessEndsAt ?? "");
+        }
+      }}
+    >
+      <DialogTrigger asChild>
+        <Button size="sm" variant="outline">
+          Ventana de acceso
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Acceso de {company.name}</DialogTitle>
+          <p className="text-sm text-muted-foreground">
+            Fuera de esta ventana los usuarios del tenant no pueden entrar. Los
+            platform owners sí.
+          </p>
+        </DialogHeader>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field
+            id={`edit-access-starts-${company.id}`}
+            label="Acceso desde"
+            type="date"
+            required={false}
+            value={accessStartsAt}
+            onChange={setAccessStartsAt}
+            help="Vacío = disponible de inmediato."
+          />
+          <Field
+            id={`edit-access-ends-${company.id}`}
+            label="Acceso hasta"
+            type="date"
+            required={false}
+            value={accessEndsAt}
+            onChange={setAccessEndsAt}
+            help="Vacío = sin vencimiento."
+          />
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              const start = new Date();
+              const end = new Date();
+              end.setUTCDate(end.getUTCDate() + 30);
+              setAccessStartsAt(start.toISOString().slice(0, 10));
+              setAccessEndsAt(end.toISOString().slice(0, 10));
+            }}
+          >
+            Demo 30 días
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              setAccessStartsAt(new Date().toISOString().slice(0, 10));
+              setAccessEndsAt("");
+            }}
+          >
+            Sin vencimiento
+          </Button>
+        </div>
+        <DialogFooter>
+          <Button disabled={saving} onClick={() => void save()}>
+            {saving ? "Guardando…" : "Guardar ventana"}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -773,14 +1117,16 @@ function Field({
   type = "text",
   required = true,
   pattern,
+  help,
 }: {
   id: string;
   label: string;
   value: string;
   onChange: (value: string) => void;
-  type?: "text" | "email";
+  type?: "text" | "email" | "date";
   required?: boolean;
   pattern?: string;
+  help?: string;
 }) {
   return (
     <div className="space-y-2">
@@ -792,11 +1138,12 @@ function Field({
         id={id}
         type={type}
         required={required}
-        maxLength={type === "email" ? 255 : 160}
+        maxLength={type === "email" ? 255 : type === "date" ? undefined : 160}
         pattern={pattern}
         value={value}
         onChange={(event) => onChange(event.target.value)}
       />
+      {help ? <p className="text-xs text-muted-foreground">{help}</p> : null}
     </div>
   );
 }

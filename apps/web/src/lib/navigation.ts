@@ -379,5 +379,5 @@ export function resolvePageTitle(pathname: string): string {
   if (pathname === "/select-company") return "Seleccionar compañía";
   if (pathname === "/platform") return "Platform";
   if (pathname === "/settings/branding") return "Apariencia";
-  return "Talento";
+  return "Talentgrowthos";
 }

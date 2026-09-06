@@ -20,6 +20,7 @@ import type { SecurityRuntimeConfig } from '../config/security.config';
 import { CurrentUser } from './decorators/current-user.decorator';
 import { LoginDto } from './dto/login.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { AuthService } from './auth.service';
 import type { AuthenticatedUser } from './auth.types';
@@ -117,6 +118,13 @@ export class AuthController {
       body.newPassword,
       requestMeta(req),
     );
+  }
+
+  @Post('forgot-password')
+  @UseGuards(ThrottlerGuard)
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  forgotPassword(@Body() body: ForgotPasswordDto, @Req() req: Request) {
+    return this.authService.forgotPassword(body.email, requestMeta(req));
   }
 
   @Get('me')

@@ -22,13 +22,22 @@ import {
 import { randomBytes } from 'node:crypto';
 import { PasswordHashingService } from '../auth/password-hashing.service';
 import { AuditService } from '../core/audit/audit.service';
+import { MailService } from '../mail/mail.service';
 import { PrismaService } from '../prisma/prisma.service';
 import type {
   CreatePlatformCompanyDto,
   ResetPlatformCompanyAdminPasswordDto,
+  UpdatePlatformCompanyAccessWindowDto,
+  UpdatePlatformCompanyBrandingDto,
   UpdatePlatformCompanyStatusDto,
   UpdatePlatformCompanyFeaturesDto,
 } from './dto/platform-company.dto';
+import {
+  isCompanyAccessWindowOpen,
+  parseAccessDateInput,
+  toAccessDateInput,
+} from './company-access-window';
+import { normalizeBrandPrimaryColor } from '../core/companies/branding/branding.color';
 import type {
   UpdatePlatformCompanyBillingDto,
   UpdatePlatformCompanyPremiumDto,
@@ -61,6 +70,8 @@ export const PLATFORM_AUDIT = {
   COMPANY_PREMIUM_UPDATED: 'PLATFORM_COMPANY_PREMIUM_UPDATED',
   COMPANY_BILLING_UPDATED: 'PLATFORM_COMPANY_BILLING_UPDATED',
   COMPANY_ADMIN_PASSWORD_RESET: 'PLATFORM_COMPANY_ADMIN_PASSWORD_RESET',
+  COMPANY_ACCESS_WINDOW_UPDATED: 'PLATFORM_COMPANY_ACCESS_WINDOW_UPDATED',
+  COMPANY_BRANDING_UPDATED: 'PLATFORM_COMPANY_BRANDING_UPDATED',
 } as const;
 
 @Injectable()
@@ -69,6 +80,7 @@ export class PlatformService {
     private readonly prisma: PrismaService,
     private readonly passwords: PasswordHashingService,
     private readonly audit: AuditService,
+    private readonly mail: MailService,
   ) {}
 
   async listActiveCompanies(): Promise<PlatformCompanyListItem[]> {
@@ -131,6 +143,10 @@ export class PlatformService {
       slug: company.slug,
       status: company.status,
       createdAt: company.createdAt,
+      accessStartsAt: toAccessDateInput(company.accessStartsAt),
+      accessEndsAt: toAccessDateInput(company.accessEndsAt),
+      accessOpen: isCompanyAccessWindowOpen(company),
+      brandPrimaryColor: company.brandPrimaryColor,
       membershipCount: company._count.memberships,
       enabledModules: company.modules.map(({ module }) => module),
       enabledFeatures: company.features.map(({ feature }) => feature),
@@ -141,8 +157,41 @@ export class PlatformService {
     }));
   }
 
+  private resolveAccessWindow(input: {
+    accessStartsAt?: string | null;
+    accessEndsAt?: string | null;
+  }): { accessStartsAt: Date | null; accessEndsAt: Date | null } {
+    let accessStartsAt: Date | null;
+    let accessEndsAt: Date | null;
+    try {
+      accessStartsAt = parseAccessDateInput(input.accessStartsAt, 'start');
+      accessEndsAt = parseAccessDateInput(input.accessEndsAt, 'end');
+    } catch {
+      throw new BadRequestException(
+        'Las fechas de acceso deben ser YYYY-MM-DD.',
+      );
+    }
+    if (
+      accessStartsAt &&
+      accessEndsAt &&
+      accessEndsAt.getTime() < accessStartsAt.getTime()
+    ) {
+      throw new BadRequestException(
+        'La fecha final de acceso no puede ser anterior a la inicial.',
+      );
+    }
+    return { accessStartsAt, accessEndsAt };
+  }
+
   async createCompany(actorUserId: string, dto: CreatePlatformCompanyDto) {
     this.validateFeatureConfiguration(dto.enabledModules, dto.enabledFeatures);
+    const { accessStartsAt, accessEndsAt } = this.resolveAccessWindow({
+      accessStartsAt: dto.accessStartsAt,
+      accessEndsAt: dto.accessEndsAt,
+    });
+    const brandPrimaryColor = this.resolveBrandPrimaryColor(
+      dto.brandPrimaryColor,
+    );
     const temporaryPassword =
       dto.initialPassword ?? randomBytes(18).toString('base64url');
     const passwordHash = await this.passwords.hash(temporaryPassword);
@@ -163,6 +212,9 @@ export class PlatformService {
             legalName: dto.legalName?.trim() || null,
             slug: dto.slug.trim().toLowerCase(),
             status: CompanyStatus.ACTIVE,
+            accessStartsAt,
+            accessEndsAt,
+            brandPrimaryColor,
           },
         });
         const admin = await tx.user.create({
@@ -222,7 +274,40 @@ export class PlatformService {
         metadata: {
           companyId: created.company.id,
           adminUserId: created.admin.id,
+          brandPrimaryColor: created.company.brandPrimaryColor,
         },
+      });
+
+      const accessNote = accessEndsAt
+        ? `Acceso de demo hasta el ${toAccessDateInput(accessEndsAt)}.`
+        : 'Acceso sin fecha de vencimiento (hasta que se asigne una).';
+
+      const mailResult = await this.mail.sendText({
+        to: created.admin.email,
+        subject: `Acceso inicial · ${created.company.name} · Talentgrowthos`,
+        text: [
+          `Hola ${created.admin.firstName.trim() || 'hola'},`,
+          '',
+          `Se creó la compañía "${created.company.name}" en Talentgrowthos y eres el administrador inicial.`,
+          '',
+          `Email: ${created.admin.email}`,
+          `Contraseña temporal: ${temporaryPassword}`,
+          accessNote,
+          '',
+          'Inicia sesión y cámbiala de inmediato.',
+          '',
+          '— Talentgrowthos',
+        ].join('\n'),
+        html: [
+          `<p>Hola ${escapeHtml(created.admin.firstName.trim() || 'hola')},</p>`,
+          `<p>Se creó la compañía <strong>${escapeHtml(created.company.name)}</strong> en Talentgrowthos y eres el administrador inicial.</p>`,
+          `<p>Email: <code>${escapeHtml(created.admin.email)}</code></p>`,
+          `<p>Contraseña temporal:</p>`,
+          `<p style="font-size:18px;font-weight:700;letter-spacing:0.04em"><code>${escapeHtml(temporaryPassword)}</code></p>`,
+          `<p>${escapeHtml(accessNote)}</p>`,
+          '<p>Inicia sesión y cámbiala de inmediato.</p>',
+          '<p>— Talentgrowthos</p>',
+        ].join(''),
       });
 
       return {
@@ -232,6 +317,9 @@ export class PlatformService {
           legalName: created.company.legalName,
           slug: created.company.slug,
           status: created.company.status,
+          accessStartsAt: toAccessDateInput(created.company.accessStartsAt),
+          accessEndsAt: toAccessDateInput(created.company.accessEndsAt),
+          brandPrimaryColor: created.company.brandPrimaryColor,
         },
         initialAdmin: {
           id: created.admin.id,
@@ -240,6 +328,7 @@ export class PlatformService {
           lastName: created.admin.lastName,
         },
         temporaryPassword,
+        passwordEmailed: mailResult.status === 'SENT',
       };
     } catch (error: unknown) {
       if (
@@ -588,6 +677,100 @@ export class PlatformService {
     return updated;
   }
 
+  async updateAccessWindow(
+    actorUserId: string,
+    companyId: string,
+    dto: UpdatePlatformCompanyAccessWindowDto,
+  ) {
+    const existing = await this.prisma.company.findFirst({
+      where: { id: companyId, deletedAt: null },
+    });
+    if (!existing) throw new NotFoundException('Company not found');
+
+    const { accessStartsAt, accessEndsAt } = this.resolveAccessWindow({
+      accessStartsAt:
+        dto.accessStartsAt === undefined
+          ? toAccessDateInput(existing.accessStartsAt)
+          : dto.accessStartsAt,
+      accessEndsAt:
+        dto.accessEndsAt === undefined
+          ? toAccessDateInput(existing.accessEndsAt)
+          : dto.accessEndsAt,
+    });
+
+    const updated = await this.prisma.company.update({
+      where: { id: companyId },
+      data: { accessStartsAt, accessEndsAt },
+    });
+    await this.audit.create({
+      action: PLATFORM_AUDIT.COMPANY_ACCESS_WINDOW_UPDATED,
+      entity: 'Company',
+      entityId: companyId,
+      company: { connect: { id: companyId } },
+      user: { connect: { id: actorUserId } },
+      metadata: {
+        accessStartsAt: toAccessDateInput(updated.accessStartsAt),
+        accessEndsAt: toAccessDateInput(updated.accessEndsAt),
+      },
+    });
+    return {
+      id: updated.id,
+      accessStartsAt: toAccessDateInput(updated.accessStartsAt),
+      accessEndsAt: toAccessDateInput(updated.accessEndsAt),
+      accessOpen: isCompanyAccessWindowOpen(updated),
+    };
+  }
+
+  async updateCompanyBranding(
+    actorUserId: string,
+    companyId: string,
+    dto: UpdatePlatformCompanyBrandingDto,
+  ) {
+    const existing = await this.prisma.company.findFirst({
+      where: { id: companyId, deletedAt: null },
+    });
+    if (!existing) throw new NotFoundException('Company not found');
+
+    const brandPrimaryColor =
+      dto.brandPrimaryColor === undefined
+        ? existing.brandPrimaryColor
+        : this.resolveBrandPrimaryColor(dto.brandPrimaryColor);
+
+    const updated = await this.prisma.company.update({
+      where: { id: companyId },
+      data: { brandPrimaryColor },
+    });
+    await this.audit.create({
+      action: PLATFORM_AUDIT.COMPANY_BRANDING_UPDATED,
+      entity: 'Company',
+      entityId: companyId,
+      company: { connect: { id: companyId } },
+      user: { connect: { id: actorUserId } },
+      metadata: {
+        brandPrimaryColor: updated.brandPrimaryColor,
+      },
+    });
+    return {
+      id: updated.id,
+      brandPrimaryColor: updated.brandPrimaryColor,
+    };
+  }
+
+  private resolveBrandPrimaryColor(
+    raw: string | null | undefined,
+  ): string | null {
+    if (raw === undefined || raw === null || raw === '') {
+      return null;
+    }
+    const normalized = normalizeBrandPrimaryColor(raw);
+    if (!normalized) {
+      throw new BadRequestException(
+        'brandPrimaryColor must be a #RRGGBB hex color',
+      );
+    }
+    return normalized;
+  }
+
   async resetCompanyAdminPassword(
     actorUserId: string,
     companyId: string,
@@ -884,4 +1067,13 @@ export class PlatformService {
     });
     return { temporaryPassword };
   }
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
 }
