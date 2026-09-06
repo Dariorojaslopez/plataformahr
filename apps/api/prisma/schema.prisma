@@ -70,29 +70,29 @@ model User {
   updatedAt          DateTime   @updatedAt
   deletedAt          DateTime?
 
-  memberships                     CompanyMembership[]
-  sessions                        UserSession[]
-  auditLogs                       AuditLog[]
-  employees                       Employee[]
-  vacancyApprovalsDecided         VacancyApproval[]
+  memberships                      CompanyMembership[]
+  sessions                         UserSession[]
+  auditLogs                        AuditLog[]
+  employees                        Employee[]
+  vacancyApprovalsDecided          VacancyApproval[]
   jobOfferContractApprovalsDecided JobOfferContractApproval[]
-  applicationStageHistories       ApplicationStageHistory[]
-  interviewAnswers                InterviewAnswer[]
-  interviewTranscriptSegments     InterviewTranscriptSegment[]
-  jobOffersCreated                JobOffer[]
-  jobOffersSignedLetterUploaded   JobOffer[]                   @relation("OfferSignedLetterUploader")
-  hiringsCompleted                Hiring[]
-  applicationPreHireDocuments     ApplicationPreHireDocument[]
-  performanceCyclesCreated        PerformanceCycle[]
-  performanceResultsReleased      PerformanceResult[]          @relation("PerformanceResultReleasedBy")
-  goalCyclesCreated               GoalCycle[]
-  goalsCreated                    Goal[]
-  goalCheckInsCreated             GoalCheckIn[]
-  goalCompletionRequestsRequested GoalCompletionRequest[]      @relation("GoalCompletionRequestedBy")
-  goalCompletionRequestsReviewed  GoalCompletionRequest[]      @relation("GoalCompletionReviewedBy")
-  goalResultsRequested            GoalResult[]                 @relation("GoalResultRequestedBy")
-  goalResultsApproved             GoalResult[]                 @relation("GoalResultApprovedBy")
-  calibrationPlacementsMoved      CalibrationPlacement[]
+  applicationStageHistories        ApplicationStageHistory[]
+  interviewAnswers                 InterviewAnswer[]
+  interviewTranscriptSegments      InterviewTranscriptSegment[]
+  jobOffersCreated                 JobOffer[]
+  jobOffersSignedLetterUploaded    JobOffer[]                   @relation("OfferSignedLetterUploader")
+  hiringsCompleted                 Hiring[]
+  applicationPreHireDocuments      ApplicationPreHireDocument[]
+  performanceCyclesCreated         PerformanceCycle[]
+  performanceResultsReleased       PerformanceResult[]          @relation("PerformanceResultReleasedBy")
+  goalCyclesCreated                GoalCycle[]
+  goalsCreated                     Goal[]
+  goalCheckInsCreated              GoalCheckIn[]
+  goalCompletionRequestsRequested  GoalCompletionRequest[]      @relation("GoalCompletionRequestedBy")
+  goalCompletionRequestsReviewed   GoalCompletionRequest[]      @relation("GoalCompletionReviewedBy")
+  goalResultsRequested             GoalResult[]                 @relation("GoalResultRequestedBy")
+  goalResultsApproved              GoalResult[]                 @relation("GoalResultApprovedBy")
+  calibrationPlacementsMoved       CalibrationPlacement[]
 
   @@map("users")
 }
@@ -120,25 +120,25 @@ model UserSession {
 
 /// Tenant root. Business entities must scope by companyId.
 model Company {
-  id                     String        @id @default(uuid()) @db.Uuid
-  name                   String
-  legalName              String?
-  slug                   String        @unique
-  status                 CompanyStatus @default(ACTIVE)
-  defaultLanguage        Language      @default(ES)
-  brandPrimaryColor      String?
-  logoFileName           String?
-  logoMimeType           String?
-  logoUpdatedAt          DateTime?
+  id                              String        @id @default(uuid()) @db.Uuid
+  name                            String
+  legalName                       String?
+  slug                            String        @unique
+  status                          CompanyStatus @default(ACTIVE)
+  defaultLanguage                 Language      @default(ES)
+  brandPrimaryColor               String?
+  logoFileName                    String?
+  logoMimeType                    String?
+  logoUpdatedAt                   DateTime?
   /// When false, COMPANY goals stay at company level and do not apply to every employee.
-  goalsCascadeEnabled    Boolean       @default(false)
+  goalsCascadeEnabled             Boolean       @default(false)
   /// When false, collaborators do not see the 9Box on Mis resultados.
-  showNineBoxOnMyResults Boolean       @default(true)
+  showNineBoxOnMyResults          Boolean       @default(true)
   /// Minimum days from today before an expected hiring date can be selected.
-  vacancyHiringSlaDays   Int           @default(14)
+  vacancyHiringSlaDays            Int           @default(14)
   /// Thank-you letter sent when other finalists are discarded after a hire.
-  atsThankYouLetterSubject String?
-  atsThankYouLetterBody    String?
+  atsThankYouLetterSubject        String?
+  atsThankYouLetterBody           String?
   /// Stored template files for offer letter / employment contract (PDF/DOCX).
   offerLetterTemplateFileName     String?
   offerLetterTemplateOriginalName String?
@@ -146,9 +146,9 @@ model Company {
   contractTemplateFileName        String?
   contractTemplateOriginalName    String?
   contractTemplateMimeType        String?
-  createdAt              DateTime      @default(now())
-  updatedAt              DateTime      @updatedAt
-  deletedAt              DateTime?
+  createdAt                       DateTime      @default(now())
+  updatedAt                       DateTime      @updatedAt
+  deletedAt                       DateTime?
 
   memberships                       CompanyMembership[]
   modules                           CompanyModule[]
@@ -833,26 +833,26 @@ enum VacancyStatus {
 }
 
 model VacancyRequest {
-  id                             String                @id @default(uuid()) @db.Uuid
-  companyId                      String                @db.Uuid
-  requestedByEmployeeId          String                @db.Uuid
+  id                             String               @id @default(uuid()) @db.Uuid
+  companyId                      String               @db.Uuid
+  requestedByEmployeeId          String               @db.Uuid
   type                           VacancyRequestType
   motive                         VacancyRequestMotive
-  existingPositionId             String?               @db.Uuid
+  existingPositionId             String?              @db.Uuid
   requestedPositionName          String?
-  requestedAreaId                String?               @db.Uuid
-  requestedJobLevelId            String?               @db.Uuid
-  replacedEmployeeId             String?               @db.Uuid
+  requestedAreaId                String?              @db.Uuid
+  requestedJobLevelId            String?              @db.Uuid
+  replacedEmployeeId             String?              @db.Uuid
   requestedHeadcount             Int
-  expectedHiringDate             DateTime              @db.Date
-  justification                  String                @default("")
-  generalManagerApprovalRequired Boolean               @default(false)
-  status                         VacancyRequestStatus  @default(DRAFT)
+  expectedHiringDate             DateTime             @db.Date
+  justification                  String               @default("")
+  generalManagerApprovalRequired Boolean              @default(false)
+  status                         VacancyRequestStatus @default(DRAFT)
   submittedAt                    DateTime?
   approvedAt                     DateTime?
   rejectedAt                     DateTime?
-  createdAt                      DateTime              @default(now())
-  updatedAt                      DateTime              @updatedAt
+  createdAt                      DateTime             @default(now())
+  updatedAt                      DateTime             @updatedAt
   deletedAt                      DateTime?
 
   company             Company                          @relation(fields: [companyId], references: [id], onDelete: Restrict)
@@ -1067,12 +1067,12 @@ model Vacancy {
   updatedAt                   DateTime      @updatedAt
   deletedAt                   DateTime?
 
-  company               Company                     @relation(fields: [companyId], references: [id], onDelete: Restrict)
-  vacancyRequest        VacancyRequest              @relation(fields: [vacancyRequestId], references: [id], onDelete: Restrict)
-  position              Position                    @relation(fields: [positionId], references: [id], onDelete: Restrict)
-  area                  Area                        @relation(fields: [areaId], references: [id], onDelete: Restrict)
-  assignedRecruiter     Employee?                   @relation("VacancyAssignedRecruiter", fields: [assignedRecruiterEmployeeId], references: [id], onDelete: Restrict)
-  interviewFormTemplate InterviewFormTemplate?      @relation(fields: [interviewFormTemplateId], references: [id], onDelete: SetNull)
+  company               Company                    @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  vacancyRequest        VacancyRequest             @relation(fields: [vacancyRequestId], references: [id], onDelete: Restrict)
+  position              Position                   @relation(fields: [positionId], references: [id], onDelete: Restrict)
+  area                  Area                       @relation(fields: [areaId], references: [id], onDelete: Restrict)
+  assignedRecruiter     Employee?                  @relation("VacancyAssignedRecruiter", fields: [assignedRecruiterEmployeeId], references: [id], onDelete: Restrict)
+  interviewFormTemplate InterviewFormTemplate?     @relation(fields: [interviewFormTemplateId], references: [id], onDelete: SetNull)
   applications          Application[]
   hirings               Hiring[]
   screeningQuestions    VacancyScreeningQuestion[]
@@ -1193,12 +1193,12 @@ model Candidate {
 }
 
 model Application {
-  id                    String            @id @default(uuid()) @db.Uuid
-  companyId             String            @db.Uuid
-  candidateId           String            @db.Uuid
-  vacancyId             String            @db.Uuid
-  stage                 ApplicationStage  @default(PENDING_REVIEW)
-  status                ApplicationStatus @default(ACTIVE)
+  id                    String             @id @default(uuid()) @db.Uuid
+  companyId             String             @db.Uuid
+  candidateId           String             @db.Uuid
+  vacancyId             String             @db.Uuid
+  stage                 ApplicationStage   @default(PENDING_REVIEW)
+  status                ApplicationStatus  @default(ACTIVE)
   professionalProfile   String?
   screeningCorrectCount Int?
   screeningPassed       Boolean?
@@ -1207,21 +1207,21 @@ model Application {
   profileFitSummary     String?
   securityStudyStatus   PreHireCheckStatus @default(PENDING)
   medicalExamStatus     PreHireCheckStatus @default(PENDING)
-  appliedAt             DateTime          @default(now())
-  lastStageChangedAt    DateTime          @default(now())
-  createdAt             DateTime          @default(now())
-  updatedAt             DateTime          @updatedAt
+  appliedAt             DateTime           @default(now())
+  lastStageChangedAt    DateTime           @default(now())
+  createdAt             DateTime           @default(now())
+  updatedAt             DateTime           @updatedAt
   deletedAt             DateTime?
 
-  company         Company                        @relation(fields: [companyId], references: [id], onDelete: Restrict)
-  candidate       Candidate                      @relation(fields: [candidateId], references: [id], onDelete: Restrict)
-  vacancy         Vacancy                        @relation(fields: [vacancyId], references: [id], onDelete: Restrict)
-  history         ApplicationStageHistory[]
-  interviews      Interview[]
-  jobOffer        JobOffer?
-  hiring          Hiring?
-  workExperiences ApplicationWorkExperience[]
-  educations      ApplicationEducation[]
+  company          Company                      @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  candidate        Candidate                    @relation(fields: [candidateId], references: [id], onDelete: Restrict)
+  vacancy          Vacancy                      @relation(fields: [vacancyId], references: [id], onDelete: Restrict)
+  history          ApplicationStageHistory[]
+  interviews       Interview[]
+  jobOffer         JobOffer?
+  hiring           Hiring?
+  workExperiences  ApplicationWorkExperience[]
+  educations       ApplicationEducation[]
   screeningAnswers ApplicationScreeningAnswer[]
   preHireDocuments ApplicationPreHireDocument[]
 
@@ -1281,18 +1281,18 @@ model ApplicationWorkExperience {
 }
 
 model ApplicationEducation {
-  id            String         @id @default(uuid()) @db.Uuid
-  companyId     String         @db.Uuid
-  applicationId String         @db.Uuid
-  institution   String
-  program       String
+  id             String         @id @default(uuid()) @db.Uuid
+  companyId      String         @db.Uuid
+  applicationId  String         @db.Uuid
+  institution    String
+  program        String
   educationLevel EducationLevel
-  startDate     DateTime       @db.Date
-  endDate       DateTime?      @db.Date
-  isStudying    Boolean        @default(false)
-  sortOrder     Int
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
+  startDate      DateTime       @db.Date
+  endDate        DateTime?      @db.Date
+  isStudying     Boolean        @default(false)
+  sortOrder      Int
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
 
   company     Company     @relation(fields: [companyId], references: [id], onDelete: Restrict)
   application Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
@@ -1573,42 +1573,42 @@ enum OfferEmploymentType {
 }
 
 model JobOffer {
-  id              String              @id @default(uuid()) @db.Uuid
-  companyId       String              @db.Uuid
-  applicationId   String              @unique @db.Uuid
-  status          JobOfferStatus      @default(DRAFT)
-  positionTitle   String
-  salaryAmount    Decimal             @db.Decimal(14, 2)
-  salaryCurrency  String              @default("COP") @db.VarChar(3)
-  salaryPeriod    SalaryPeriod        @default(MONTHLY)
-  employmentType  OfferEmploymentType @default(FULL_TIME)
-  startDate       DateTime?           @db.Date
-  expiresAt       DateTime?
-  notes           String?
-  sentAt          DateTime?
-  acceptedAt      DateTime?
-  rejectedAt      DateTime?
-  withdrawnAt     DateTime?
-  expiredAt       DateTime?
-  contractApprovalStatus      ContractApprovalStatus @default(NOT_REQUIRED)
-  contractApprovalStartedAt   DateTime?
-  contractApprovalCompletedAt DateTime?
+  id                                String                 @id @default(uuid()) @db.Uuid
+  companyId                         String                 @db.Uuid
+  applicationId                     String                 @unique @db.Uuid
+  status                            JobOfferStatus         @default(DRAFT)
+  positionTitle                     String
+  salaryAmount                      Decimal                @db.Decimal(14, 2)
+  salaryCurrency                    String                 @default("COP") @db.VarChar(3)
+  salaryPeriod                      SalaryPeriod           @default(MONTHLY)
+  employmentType                    OfferEmploymentType    @default(FULL_TIME)
+  startDate                         DateTime?              @db.Date
+  expiresAt                         DateTime?
+  notes                             String?
+  sentAt                            DateTime?
+  acceptedAt                        DateTime?
+  rejectedAt                        DateTime?
+  withdrawnAt                       DateTime?
+  expiredAt                         DateTime?
+  contractApprovalStatus            ContractApprovalStatus @default(NOT_REQUIRED)
+  contractApprovalStartedAt         DateTime?
+  contractApprovalCompletedAt       DateTime?
   /// Candidate/recruiter-uploaded signed offer letter (PDF/DOCX).
-  signedOfferLetterFileName     String?
-  signedOfferLetterOriginalName String?
-  signedOfferLetterMimeType     String?
-  signedOfferLetterUploadedAt   DateTime?
-  signedOfferLetterUploadedByUserId String? @db.Uuid
-  createdByUserId String              @db.Uuid
-  createdAt       DateTime            @default(now())
-  updatedAt       DateTime            @updatedAt
+  signedOfferLetterFileName         String?
+  signedOfferLetterOriginalName     String?
+  signedOfferLetterMimeType         String?
+  signedOfferLetterUploadedAt       DateTime?
+  signedOfferLetterUploadedByUserId String?                @db.Uuid
+  createdByUserId                   String                 @db.Uuid
+  createdAt                         DateTime               @default(now())
+  updatedAt                         DateTime               @updatedAt
 
-  company           Company                    @relation(fields: [companyId], references: [id], onDelete: Restrict)
-  application       Application                @relation(fields: [applicationId], references: [id], onDelete: Restrict)
-  createdBy         User                       @relation(fields: [createdByUserId], references: [id], onDelete: Restrict)
-  signedOfferLetterUploadedBy User?            @relation("OfferSignedLetterUploader", fields: [signedOfferLetterUploadedByUserId], references: [id], onDelete: SetNull)
-  hiring            Hiring?
-  contractApprovals JobOfferContractApproval[]
+  company                     Company                    @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  application                 Application                @relation(fields: [applicationId], references: [id], onDelete: Restrict)
+  createdBy                   User                       @relation(fields: [createdByUserId], references: [id], onDelete: Restrict)
+  signedOfferLetterUploadedBy User?                      @relation("OfferSignedLetterUploader", fields: [signedOfferLetterUploadedByUserId], references: [id], onDelete: SetNull)
+  hiring                      Hiring?
+  contractApprovals           JobOfferContractApproval[]
 
   @@index([companyId])
   @@index([status])
