@@ -394,17 +394,6 @@ function CreateCompanyDialog({
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(emptyForm);
   const [pending, setPending] = useState(false);
-  /** Defer heavy sections so the dialog paints first. */
-  const [sectionsReady, setSectionsReady] = useState(false);
-
-  useEffect(() => {
-    if (!open) {
-      setSectionsReady(false);
-      return;
-    }
-    const id = window.requestAnimationFrame(() => setSectionsReady(true));
-    return () => window.cancelAnimationFrame(id);
-  }, [open]);
 
   async function createCompany(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -578,37 +567,28 @@ function CreateCompanyDialog({
                 help="Puedes escribirla o generar una segura. Si queda vacía, el servidor generará una y la enviará al email del administrador."
               />
             </div>
-            {sectionsReady ? (
-              <>
-                <div className="mt-4 rounded-md border border-border p-3">
-                  <BrandPalettePicker
-                    compact
-                    value={form.brandPrimaryColor ?? PLATFORM_BRAND_PRIMARY}
-                    onChange={(brandPrimaryColor) =>
-                      setForm((v) => ({ ...v, brandPrimaryColor }))
-                    }
-                  />
-                </div>
-                <div className="my-5">
-                  <AccessSelector
-                    enabledModules={form.enabledModules}
-                    enabledFeatures={form.enabledFeatures}
-                    onChange={(enabledModules, enabledFeatures) =>
-                      setForm((value) => ({
-                        ...value,
-                        enabledModules,
-                        enabledFeatures,
-                      }))
-                    }
-                  />
-                </div>
-              </>
-            ) : (
-              <div className="my-5 space-y-2">
-                <Skeleton className="h-24 w-full" />
-                <Skeleton className="h-40 w-full" />
-              </div>
-            )}
+            <div className="mt-4 rounded-md border border-border p-3">
+              <BrandPalettePicker
+                compact
+                value={form.brandPrimaryColor ?? PLATFORM_BRAND_PRIMARY}
+                onChange={(brandPrimaryColor) =>
+                  setForm((v) => ({ ...v, brandPrimaryColor }))
+                }
+              />
+            </div>
+            <div className="my-5">
+              <AccessSelector
+                enabledModules={form.enabledModules}
+                enabledFeatures={form.enabledFeatures}
+                onChange={(enabledModules, enabledFeatures) =>
+                  setForm((value) => ({
+                    ...value,
+                    enabledModules,
+                    enabledFeatures,
+                  }))
+                }
+              />
+            </div>
           </div>
           <DialogFooter className="mt-0 shrink-0 border-t bg-card px-6 pb-6 pt-4">
             <Button type="submit" disabled={pending}>
