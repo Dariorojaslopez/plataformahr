@@ -106,6 +106,8 @@ const feed: CollaboratorHomeFeed = {
       vacancyTitle: "Desarrollador",
     },
   ],
+  pendingContractApprovals: [],
+  readyForOffer: [],
   assignedVacancies: [],
   assignedMetrics: {
     vacancyCount: 0,
@@ -114,6 +116,7 @@ const feed: CollaboratorHomeFeed = {
     activeApplicationCount: 0,
     hiredCount: 0,
     pendingInterviewCount: 0,
+    readyForOfferCount: 0,
     filledHeadcount: 0,
     requestedHeadcount: 0,
   },

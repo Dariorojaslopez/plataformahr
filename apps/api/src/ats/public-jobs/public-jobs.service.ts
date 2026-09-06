@@ -19,9 +19,7 @@ import { BrandingService } from '../../core/companies/branding/branding.service'
 import { PLATFORM_BRAND_PRIMARY } from '../../core/companies/branding/branding.constants';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ATS_AUDIT } from '../ats.constants';
-import {
-  parseDateOnlyUtc,
-} from '../vacancy-requests/vacancy-request-motive';
+import { parseDateOnlyUtc } from '../vacancy-requests/vacancy-request-motive';
 import type {
   ParseLinkedInDto,
   PublicEducationDto,
@@ -43,11 +41,7 @@ import {
   computeProfileFit,
 } from './profile-fit';
 import { CV_ERRORS } from './cv.constants';
-import {
-  buildCvFileName,
-  deleteCvFile,
-  writeCvFile,
-} from './cv.storage';
+import { buildCvFileName, deleteCvFile, writeCvFile } from './cv.storage';
 
 const PUBLIC_JOB_NOT_FOUND = 'Vacante no disponible';
 const PUBLIC_ID_PATTERN = /^[A-Za-z0-9_-]{16}$/;
@@ -390,7 +384,9 @@ export class PublicJobsService {
 
   private assertProfileShape(dto: PublicJobApplicationDto) {
     if (!dto.workExperience?.length) {
-      throw new BadRequestException('workExperience must include at least one item');
+      throw new BadRequestException(
+        'workExperience must include at least one item',
+      );
     }
     if (!dto.education?.length) {
       throw new BadRequestException('education must include at least one item');

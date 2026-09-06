@@ -5,10 +5,7 @@ import {
   ReportingLineType,
   type Company,
 } from '@prisma/client';
-import {
-  resolveCompanyHomeRole,
-  type CompanyHomeRole,
-} from '@talento/shared';
+import { resolveCompanyHomeRole, type CompanyHomeRole } from '@talento/shared';
 import type { TenantContext } from '../../auth/auth.types';
 import { PrismaService } from '../../prisma/prisma.service';
 import { RbacService } from '../rbac/rbac.service';

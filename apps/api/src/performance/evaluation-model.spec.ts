@@ -9,18 +9,18 @@ import {
 
 describe('evaluation model', () => {
   it('enables extra groups from 180° upward', () => {
-    expect(evaluatorRolesForModel(PerformanceEvaluationModel.DEGREE_90)).toEqual(
-      ['self', 'manager'],
-    );
-    expect(evaluatorRolesForModel(PerformanceEvaluationModel.DEGREE_180)).toEqual(
-      ['self', 'manager', 'peer'],
-    );
-    expect(evaluatorRolesForModel(PerformanceEvaluationModel.DEGREE_270)).toEqual(
-      ['self', 'manager', 'peer', 'report'],
-    );
-    expect(evaluatorRolesForModel(PerformanceEvaluationModel.DEGREE_360)).toEqual(
-      ['self', 'manager', 'peer', 'report', 'client'],
-    );
+    expect(
+      evaluatorRolesForModel(PerformanceEvaluationModel.DEGREE_90),
+    ).toEqual(['self', 'manager']);
+    expect(
+      evaluatorRolesForModel(PerformanceEvaluationModel.DEGREE_180),
+    ).toEqual(['self', 'manager', 'peer']);
+    expect(
+      evaluatorRolesForModel(PerformanceEvaluationModel.DEGREE_270),
+    ).toEqual(['self', 'manager', 'peer', 'report']);
+    expect(
+      evaluatorRolesForModel(PerformanceEvaluationModel.DEGREE_360),
+    ).toEqual(['self', 'manager', 'peer', 'report', 'client']);
   });
 
   it('maps extra roles by model', () => {

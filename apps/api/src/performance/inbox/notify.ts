@@ -1,7 +1,4 @@
-import {
-  PerformanceNotificationType,
-  type Prisma,
-} from '@prisma/client';
+import { PerformanceNotificationType, type Prisma } from '@prisma/client';
 
 export async function createPerformanceNotification(
   db: Prisma.TransactionClient,

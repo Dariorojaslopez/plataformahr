@@ -505,7 +505,9 @@ function sortAreas(areas: PlannedArea[]): PlannedArea[] {
 }
 
 function sortPositions(positions: PlannedPosition[]): PlannedPosition[] {
-  const byName = new Map(positions.map((position) => [position.name, position]));
+  const byName = new Map(
+    positions.map((position) => [position.name, position]),
+  );
   const visiting = new Set<string>();
   const visited = new Set<string>();
   const ordered: PlannedPosition[] = [];

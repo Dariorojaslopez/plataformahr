@@ -80,11 +80,12 @@ export class AtsTemplatesService {
         user: { connect: { id: userId } },
         metadata: {
           kind,
-          originalName: updated[
-            kind === ATS_TEMPLATE_KIND.OFFER_LETTER
-              ? 'offerLetterTemplateOriginalName'
-              : 'contractTemplateOriginalName'
-          ],
+          originalName:
+            updated[
+              kind === ATS_TEMPLATE_KIND.OFFER_LETTER
+                ? 'offerLetterTemplateOriginalName'
+                : 'contractTemplateOriginalName'
+            ],
         },
       });
 

@@ -219,9 +219,7 @@ export function canEditEvaluationInCyclePhase(params: {
   if (params.evaluationType === 'MANAGER') {
     return current.kind === 'EVALUATION';
   }
-  return (
-    current.kind === 'SELF_EVALUATION' || current.kind === 'EVALUATION'
-  );
+  return current.kind === 'SELF_EVALUATION' || current.kind === 'EVALUATION';
 }
 
 export function canEditGoalsInCyclePhase(params: {

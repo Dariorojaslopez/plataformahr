@@ -180,11 +180,11 @@ function parseName(
 ): Pick<ParsedCvFields, 'firstName' | 'lastName'> {
   const firstLabel = labeledValue(
     text,
-    new RegExp(`nombres?\\s*[:\\-]\\s*([${NAME_CHARS}]{2,80})`, 'i'),
+    new RegExp(`nombres?\\s*[:-]\\s*([${NAME_CHARS}]{2,80})`, 'i'),
   );
   const lastLabel = labeledValue(
     text,
-    new RegExp(`apellidos?\\s*[:\\-]\\s*([${NAME_CHARS}]{2,80})`, 'i'),
+    new RegExp(`apellidos?\\s*[:-]\\s*([${NAME_CHARS}]{2,80})`, 'i'),
   );
   if (firstLabel || lastLabel) {
     return {
@@ -195,7 +195,7 @@ function parseName(
   const full = labeledValue(
     text,
     new RegExp(
-      `nombres?\\s+y\\s+apellidos?\\s*[:\\-]\\s*([${NAME_CHARS}]{3,80})`,
+      `nombres?\\s+y\\s+apellidos?\\s*[:-]\\s*([${NAME_CHARS}]{3,80})`,
       'i',
     ),
   );
@@ -236,10 +236,9 @@ function splitName(
   };
 }
 
-function splitSections(text: string): Record<
-  'profile' | 'experience' | 'education' | 'other' | 'header',
-  string
-> {
+function splitSections(
+  text: string,
+): Record<'profile' | 'experience' | 'education' | 'other' | 'header', string> {
   const lines = text.split('\n');
   const buckets: Record<
     'profile' | 'experience' | 'education' | 'other' | 'header',
@@ -319,7 +318,7 @@ function splitBlocks(section: string): string[] {
     const startsNew =
       current.length > 0 &&
       (looksLikeDateRange(line) ||
-        /^(empresa|compa[nñ][ií]a|cargo|puesto|instituci[oó]n|universidad|colegio)\s*[:\-]/i.test(
+        /^(empresa|compa[nñ][ií]a|cargo|puesto|instituci[oó]n|universidad|colegio)\s*[:-]/i.test(
           line,
         ) ||
         (/^[A-ZÁÉÍÓÚÜÑ]/.test(line) &&
@@ -347,29 +346,28 @@ function parseExperienceBlock(block: string): ParsedCvWorkExperience | null {
 
   const joined = lines.join('\n');
   const company =
-    labeledField(joined, /(?:empresa|compa[nñ][ií]a)\s*[:\-]\s*(.+)/i) ??
+    labeledField(joined, /(?:empresa|compa[nñ][ií]a)\s*[:-]\s*(.+)/i) ??
     pickTitleLine(lines, /experiencia|funciones|logros|cargo|puesto/i);
   const position =
-    labeledField(
-      joined,
-      /(?:cargo|puesto|posici[oó]n|rol)\s*[:\-]\s*(.+)/i,
-    ) ??
+    labeledField(joined, /(?:cargo|puesto|posici[oó]n|rol)\s*[:-]\s*(.+)/i) ??
     pickSecondaryLine(lines, company) ??
     null;
   const dates = extractDateRange(joined);
   const functions =
-    labeledMultiline(joined, /(?:funciones|responsabilidades)\s*[:\-]\s*/i) ??
+    labeledMultiline(joined, /(?:funciones|responsabilidades)\s*[:-]\s*/i) ??
     null;
   const achievements =
-    labeledMultiline(joined, /(?:logros|logros\s+clave|achievements)\s*[:\-]\s*/i) ??
-    null;
+    labeledMultiline(
+      joined,
+      /(?:logros|logros\s+clave|achievements)\s*[:-]\s*/i,
+    ) ?? null;
 
   if (!company && !position) return null;
 
   return {
     companyName: clip(company, 200),
     country: clip(
-      labeledField(joined, /(?:pa[ií]s|country)\s*[:\-]\s*(.+)/i),
+      labeledField(joined, /(?:pa[ií]s|country)\s*[:-]\s*(.+)/i),
       120,
     ),
     positionTitle: clip(position, 200),
@@ -391,12 +389,12 @@ function parseEducationBlock(block: string): ParsedCvEducation | null {
   const institution =
     labeledField(
       joined,
-      /(?:instituci[oó]n|universidad|colegio|escuela)\s*[:\-]\s*(.+)/i,
+      /(?:instituci[oó]n|universidad|colegio|escuela)\s*[:-]\s*(.+)/i,
     ) ?? pickTitleLine(lines, /educaci|formaci|programa|t[ií]tulo|nivel/i);
   const program =
     labeledField(
       joined,
-      /(?:programa|carrera|t[ií]tulo|estudios?)\s*[:\-]\s*(.+)/i,
+      /(?:programa|carrera|t[ií]tulo|estudios?)\s*[:-]\s*(.+)/i,
     ) ?? pickSecondaryLine(lines, institution);
   const educationLevel =
     parseEducationLevel(joined) ??
@@ -404,8 +402,7 @@ function parseEducationBlock(block: string): ParsedCvEducation | null {
     parseEducationLevel(institution ?? '');
   const dates = extractDateRange(joined);
   const isStudying =
-    dates.isCurrent ||
-    /\b(estudiando|en\s+curso|cursando)\b/i.test(joined);
+    dates.isCurrent || /\b(estudiando|en\s+curso|cursando)\b/i.test(joined);
 
   if (!institution && !program) return null;
 
@@ -437,7 +434,7 @@ function parseEducationLevel(text: string): EducationLevel | null {
 }
 
 const DATE_TOKEN =
-  '(?:\\d{1,2}[\\/\\-]\\d{1,2}[\\/\\-]\\d{4}|\\d{1,2}[\\/\\-]\\d{4}|\\d{4}[\\/\\-]\\d{1,2}(?:[\\/\\-]\\d{1,2})?|(?:ene|enero|feb|febrero|mar|marzo|abr|abril|may|mayo|jun|junio|jul|julio|ago|agosto|sep|sept|septiembre|set|setiembre|oct|octubre|nov|noviembre|dic|diciembre|jan|january|february|march|apr|april|june|july|aug|august|september|october|november|dec|december)[a-z]*\\.?\\s+\\d{4}|\\d{4})';
+  '(?:\\d{1,2}[/-]\\d{1,2}[/-]\\d{4}|\\d{1,2}[/-]\\d{4}|\\d{4}[/-]\\d{1,2}(?:[/-]\\d{1,2})?|(?:ene|enero|feb|febrero|mar|marzo|abr|abril|may|mayo|jun|junio|jul|julio|ago|agosto|sep|sept|septiembre|set|setiembre|oct|octubre|nov|noviembre|dic|diciembre|jan|january|february|march|apr|april|june|july|aug|august|september|october|november|dec|december)[a-z]*\\.?\\s+\\d{4}|\\d{4})';
 const CURRENT_TOKEN =
   '(?:actualidad|actual|presente|hoy|current|present|en\\s+curso)';
 
@@ -473,7 +470,7 @@ function normalizeDateToken(value: string | undefined): string | null {
   const raw = value.trim().toLowerCase().replace(/\.$/, '');
   if (CURRENT_RE.test(raw)) return null;
 
-  const iso = /^(\d{4})(?:[\/\-](\d{1,2})(?:[\/\-](\d{1,2}))?)?$/.exec(raw);
+  const iso = /^(\d{4})(?:[/-](\d{1,2})(?:[/-](\d{1,2}))?)?$/.exec(raw);
   if (iso) {
     const year = Number(iso[1]);
     const month = Number(iso[2] ?? '1');
@@ -481,12 +478,12 @@ function normalizeDateToken(value: string | undefined): string | null {
     return toIsoDate(year, month, day);
   }
 
-  const dmy = /^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/.exec(raw);
+  const dmy = /^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/.exec(raw);
   if (dmy) {
     return toIsoDate(Number(dmy[3]), Number(dmy[2]), Number(dmy[1]));
   }
 
-  const my = /^(\d{1,2})[\/\-](\d{4})$/.exec(raw);
+  const my = /^(\d{1,2})[/-](\d{4})$/.exec(raw);
   if (my) return toIsoDate(Number(my[2]), Number(my[1]), 1);
 
   const named = /^([a-záéíóúüñ]+)\.?\s+(\d{4})$/i.exec(raw);
@@ -557,7 +554,7 @@ function labeledMultiline(text: string, re: RegExp): string | null {
   if (!match || match.index == null) return null;
   const after = text.slice(match.index + match[0].length).trim();
   const stop = after.search(
-    /\n(?:empresa|compa[nñ][ií]a|cargo|puesto|instituci[oó]n|universidad|logros|funciones)\s*[:\-]/i,
+    /\n(?:empresa|compa[nñ][ií]a|cargo|puesto|instituci[oó]n|universidad|logros|funciones)\s*[:-]/i,
   );
   const body = (stop >= 0 ? after.slice(0, stop) : after)
     .split('\n')

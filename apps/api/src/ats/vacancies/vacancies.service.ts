@@ -134,7 +134,12 @@ export class VacanciesService {
   async getById(tenant: TenantContext, id: string) {
     const assignedFilter = await this.assignedVacancyWhere(tenant);
     const vacancy = await this.prisma.vacancy.findFirst({
-      where: { id, companyId: tenant.companyId, deletedAt: null, ...assignedFilter },
+      where: {
+        id,
+        companyId: tenant.companyId,
+        deletedAt: null,
+        ...assignedFilter,
+      },
       include: {
         position: true,
         area: true,
@@ -383,7 +388,9 @@ export class VacanciesService {
     tenant: TenantContext,
   ): Promise<Prisma.VacancyWhereInput> {
     if (tenant.viaPlatformOwner) return {};
-    const roles = await this.rbac.getRoleCodesForMembership(tenant.membershipId);
+    const roles = await this.rbac.getRoleCodesForMembership(
+      tenant.membershipId,
+    );
     if (roles.has('CLIENT_ADMIN') || !roles.has('RECRUITER')) return {};
     const employee = await this.prisma.employee.findFirst({
       where: {

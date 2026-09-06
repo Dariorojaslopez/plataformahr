@@ -121,10 +121,8 @@ export const VACANCY_APPROVAL_ERRORS = {
 export const POSITION_OCCUPANT_ERRORS = {
   POSITION_REQUIRED: 'Selecciona un cargo.',
   NO_OCCUPANTS: 'El cargo no tiene colaboradores activos en la compañía.',
-  SELECT_OCCUPANT:
-    'El cargo tiene más de un ocupante. Selecciona el nombre.',
-  OCCUPANT_NOT_IN_POSITION:
-    'El ocupante no pertenece al cargo seleccionado.',
+  SELECT_OCCUPANT: 'El cargo tiene más de un ocupante. Selecciona el nombre.',
+  OCCUPANT_NOT_IN_POSITION: 'El ocupante no pertenece al cargo seleccionado.',
 } as const;
 
 export const PIPELINE_STAGES = [

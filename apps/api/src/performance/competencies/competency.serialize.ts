@@ -7,7 +7,9 @@ export type CompetencyJobLevelRef = {
 
 export function serializeCompetency<
   T extends { jobLevelAssignments: Array<{ jobLevel: CompetencyJobLevelRef }> },
->(row: T): Omit<T, 'jobLevelAssignments'> & {
+>(
+  row: T,
+): Omit<T, 'jobLevelAssignments'> & {
   jobLevels: CompetencyJobLevelRef[];
 } {
   const { jobLevelAssignments, ...rest } = row;

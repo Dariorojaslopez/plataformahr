@@ -29,7 +29,10 @@ export function renderThankYouLetter(input: {
     input.subject?.trim() || DEFAULT_THANK_YOU_SUBJECT,
     values,
   );
-  const body = applyTokens(input.body?.trim() || DEFAULT_THANK_YOU_BODY, values);
+  const body = applyTokens(
+    input.body?.trim() || DEFAULT_THANK_YOU_BODY,
+    values,
+  );
   return { subject, body };
 }
 

@@ -133,7 +133,11 @@ export class GoalDefinitionService {
           employeeId: ctx.employee.id,
         },
       },
-      select: { submittedAt: true, structureUnlocked: true, reviewStatus: true },
+      select: {
+        submittedAt: true,
+        structureUnlocked: true,
+        reviewStatus: true,
+      },
     });
     const phases = buildCyclePhases(ctx.cycle);
     const definitionEditable = canEditGoalsInCyclePhase({
@@ -183,14 +187,23 @@ export class GoalDefinitionService {
         'El cascadeo de objetivos no está activo en la compañía',
       );
     }
-    if (exceedsMaxObjectives(dto.individualGoals.length, ctx.cycle.maxObjectives)) {
+    if (
+      exceedsMaxObjectives(dto.individualGoals.length, ctx.cycle.maxObjectives)
+    ) {
       throw new BadRequestException(
         `No puedes definir más de ${ctx.cycle.maxObjectives} objetivos individuales`,
       );
     }
 
     await this.prisma.$transaction((tx) =>
-      this.persistDefinition(tx, companyId, ctx, dto, submit, unlockedInFollowUp),
+      this.persistDefinition(
+        tx,
+        companyId,
+        ctx,
+        dto,
+        submit,
+        unlockedInFollowUp,
+      ),
     );
   }
 
@@ -375,7 +388,9 @@ export class GoalDefinitionService {
         );
       }
       const scaleIds = await this.activeScaleIds(tx, companyId);
-      const existingCount = dto.individualGoals.filter((item) => item.id).length;
+      const existingCount = dto.individualGoals.filter(
+        (item) => item.id,
+      ).length;
       if (
         exceedsMaxObjectives(
           existingCount + newGoals.length,
@@ -401,14 +416,16 @@ export class GoalDefinitionService {
     }
 
     if (dto.pdi) {
-      const existing = await tx.performanceIndividualDevelopmentPlan.findUnique({
-        where: {
-          cycleId_employeeId: {
-            cycleId: ctx.cycle.id,
-            employeeId: ctx.employee.id,
+      const existing = await tx.performanceIndividualDevelopmentPlan.findUnique(
+        {
+          where: {
+            cycleId_employeeId: {
+              cycleId: ctx.cycle.id,
+              employeeId: ctx.employee.id,
+            },
           },
         },
-      });
+      );
       if (!existing) return;
       await tx.performanceIndividualDevelopmentPlan.update({
         where: { id: existing.id },
@@ -675,15 +692,17 @@ export class GoalDefinitionService {
     });
     if (!cycle) throw new NotFoundException('Cycle not found');
 
-    const participant = await this.prisma.performanceCycleParticipant.findFirst({
-      where: {
-        companyId,
-        cycleId,
-        employeeId: employee.id,
-        status: { not: PerformanceParticipantStatus.EXCLUDED },
+    const participant = await this.prisma.performanceCycleParticipant.findFirst(
+      {
+        where: {
+          companyId,
+          cycleId,
+          employeeId: employee.id,
+          status: { not: PerformanceParticipantStatus.EXCLUDED },
+        },
+        select: { id: true },
       },
-      select: { id: true },
-    });
+    );
     if (!participant) {
       throw new ForbiddenException('No estás invitado a este ciclo');
     }
@@ -830,8 +849,12 @@ export class GoalDefinitionService {
     ]);
 
     const ownedIds = new Set(ownedGoals.map((goal) => goal.id));
-    const individualGoals = ownedGoals.filter((goal) => goal.parentGoalId == null);
-    const cascadedGoals = ownedGoals.filter((goal) => goal.parentGoalId != null);
+    const individualGoals = ownedGoals.filter(
+      (goal) => goal.parentGoalId == null,
+    );
+    const cascadedGoals = ownedGoals.filter(
+      (goal) => goal.parentGoalId != null,
+    );
     const assignedFromCascade = assignedGoals.filter(
       (goal) => !ownedIds.has(goal.id),
     );

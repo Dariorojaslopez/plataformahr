@@ -120,9 +120,7 @@ export class PositionsService {
     }
     if (dto.parentPositionId) {
       if (dto.parentPositionId === id) {
-        throw new BadRequestException(
-          'Un cargo no puede reportar a sí mismo.',
-        );
+        throw new BadRequestException('Un cargo no puede reportar a sí mismo.');
       }
       await this.integrity.requirePosition(companyId, dto.parentPositionId);
       await this.assertPositionParentSafe(companyId, id, dto.parentPositionId);

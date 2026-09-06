@@ -13,7 +13,10 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import { memoryStorage } from 'multer';
-import { PublicJobApplicationDto, ParseLinkedInDto } from './dto/public-job.dto';
+import {
+  PublicJobApplicationDto,
+  ParseLinkedInDto,
+} from './dto/public-job.dto';
 import { PublicJobsService } from './public-jobs.service';
 import { CV_FIELD_NAME, CV_MAX_BYTES } from './cv.constants';
 

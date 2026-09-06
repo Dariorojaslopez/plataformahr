@@ -20,9 +20,7 @@ export function evaluatorRolesForModel(
   }
 }
 
-export function modelIncludesPeer(
-  model: PerformanceEvaluationModel,
-): boolean {
+export function modelIncludesPeer(model: PerformanceEvaluationModel): boolean {
   return evaluatorRolesForModel(model).includes('peer');
 }
 

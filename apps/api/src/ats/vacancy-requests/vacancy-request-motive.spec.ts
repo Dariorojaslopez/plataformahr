@@ -1,7 +1,4 @@
-import {
-  VacancyRequestMotive,
-  VacancyRequestType,
-} from '@prisma/client';
+import { VacancyRequestMotive, VacancyRequestType } from '@prisma/client';
 import {
   defaultMotiveFromType,
   isReplacementMotive,
@@ -16,9 +13,9 @@ describe('vacancy-request-motive helpers', () => {
     expect(typeFromMotive(VacancyRequestMotive.NEW_POSITION)).toBe(
       VacancyRequestType.NEW_POSITION,
     );
-    expect(
-      typeFromMotive(VacancyRequestMotive.REPLACEMENT_RESIGNATION),
-    ).toBe(VacancyRequestType.EXISTING_POSITION);
+    expect(typeFromMotive(VacancyRequestMotive.REPLACEMENT_RESIGNATION)).toBe(
+      VacancyRequestType.EXISTING_POSITION,
+    );
     expect(defaultMotiveFromType(VacancyRequestType.NEW_POSITION)).toBe(
       VacancyRequestMotive.NEW_POSITION,
     );

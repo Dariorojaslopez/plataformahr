@@ -11,9 +11,7 @@ import { ContractTemplateApproversService } from './contract-template-approvers.
 @Controller('ats/contract-template-approvers')
 @UseGuards(JwtAuthGuard, CompanyContextGuard, PermissionGuard)
 export class ContractTemplateApproversController {
-  constructor(
-    private readonly approvers: ContractTemplateApproversService,
-  ) {}
+  constructor(private readonly approvers: ContractTemplateApproversService) {}
 
   @Get()
   @RequirePermissions('ats.vacancy.read')

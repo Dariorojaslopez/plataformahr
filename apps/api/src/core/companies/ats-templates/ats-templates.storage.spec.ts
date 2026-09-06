@@ -1,7 +1,10 @@
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { ATS_TEMPLATE_KIND, ATS_TEMPLATE_MIME } from './ats-templates.constants';
+import {
+  ATS_TEMPLATE_KIND,
+  ATS_TEMPLATE_MIME,
+} from './ats-templates.constants';
 import {
   buildAtsTemplateFileName,
   deleteAtsTemplateFile,

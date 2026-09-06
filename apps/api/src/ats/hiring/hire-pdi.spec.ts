@@ -47,7 +47,9 @@ describe('renderHirePdiText', () => {
       candidateFirstName: 'Ana',
       candidateLastName: 'Pérez',
       vacancyTitle: 'Analista',
-      interviews: [{ strengths: 'A', improvements: 'B', interviewerLabel: 'X' }],
+      interviews: [
+        { strengths: 'A', improvements: 'B', interviewerLabel: 'X' },
+      ],
     });
     const text = renderHirePdiText({
       draft,

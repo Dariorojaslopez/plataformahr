@@ -9,5 +9,5 @@ export function nextSequentialCode(
     const value = Number.parseInt(code, 10);
     if (Number.isSafeInteger(value) && value > max) max = value;
   }
-  return String(max + 1).padStart(3, "0");
+  return String(max + 1).padStart(3, '0');
 }

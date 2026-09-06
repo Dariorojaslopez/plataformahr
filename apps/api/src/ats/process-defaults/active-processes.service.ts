@@ -13,10 +13,7 @@ import {
 import type { TenantContext } from '../../auth/auth.types';
 import { AuditService } from '../../core/audit/audit.service';
 import { PrismaService } from '../../prisma/prisma.service';
-import {
-  ATS_AUDIT,
-  VACANCY_APPROVAL_ERRORS,
-} from '../ats.constants';
+import { ATS_AUDIT, VACANCY_APPROVAL_ERRORS } from '../ats.constants';
 import { PositionOccupantsService } from '../position-occupants/position-occupants.service';
 import type { ReplacePositionOccupantStepsDto } from './dto/position-occupant-step.dto';
 
@@ -46,7 +43,9 @@ export class ActiveProcessesService {
           { status: VacancyRequestStatus.PENDING_APPROVAL },
           {
             status: VacancyRequestStatus.APPROVED,
-            vacancy: { status: { in: [VacancyStatus.OPEN, VacancyStatus.PAUSED] } },
+            vacancy: {
+              status: { in: [VacancyStatus.OPEN, VacancyStatus.PAUSED] },
+            },
           },
         ],
       },
@@ -243,7 +242,9 @@ export class ActiveProcessesService {
     }
 
     for (const locked of existingLocked) {
-      const next = incoming.find((step) => step.employeeId === locked.employeeId);
+      const next = incoming.find(
+        (step) => step.employeeId === locked.employeeId,
+      );
       if (!next) {
         throw new BadRequestException(
           VACANCY_APPROVAL_ERRORS.CANNOT_REMOVE_EVALUATOR,

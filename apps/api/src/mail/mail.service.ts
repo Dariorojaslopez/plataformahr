@@ -67,7 +67,8 @@ export class MailService {
       });
       return {
         status: 'SENT',
-        messageId: typeof info.messageId === 'string' ? info.messageId : undefined,
+        messageId:
+          typeof info.messageId === 'string' ? info.messageId : undefined,
       };
     } catch (error) {
       const message =

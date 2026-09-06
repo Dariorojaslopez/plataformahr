@@ -1,8 +1,5 @@
 import { BadRequestException } from '@nestjs/common';
-import {
-  CompetencyScaleFormat,
-  CompetencyScaleKind,
-} from '@prisma/client';
+import { CompetencyScaleFormat, CompetencyScaleKind } from '@prisma/client';
 import {
   descriptiveLevelPercent,
   MAX_DESCRIPTIVE_LEVELS,

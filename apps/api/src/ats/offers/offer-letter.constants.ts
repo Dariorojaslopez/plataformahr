@@ -25,6 +25,7 @@ export const OFFER_LETTER_ERRORS = {
   TYPE: 'La carta oferta debe ser PDF o DOCX.',
   SIZE: 'La carta oferta supera el tamaño máximo (10 MB).',
   EMPTY: 'El archivo está vacío.',
-  TEMPLATE_NOT_FOUND: 'No hay plantilla de carta oferta cargada en la compañía.',
+  TEMPLATE_NOT_FOUND:
+    'No hay plantilla de carta oferta cargada en la compañía.',
   SIGNED_NOT_FOUND: 'No hay carta oferta firmada cargada.',
 } as const;

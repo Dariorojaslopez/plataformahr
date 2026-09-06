@@ -273,7 +273,9 @@ export class CyclesService {
 
     const dates = this.mergeCycleWindows(dto, existing);
     const followUps =
-      dto.followUps !== undefined ? this.parseFollowUps(dto.followUps) : undefined;
+      dto.followUps !== undefined
+        ? this.parseFollowUps(dto.followUps)
+        : undefined;
 
     assertCycleDates({
       startDate,
@@ -369,7 +371,9 @@ export class CyclesService {
 
     const updated = await this.prisma.$transaction(async (tx) => {
       if (followUps) {
-        await tx.performanceCycleFollowUp.deleteMany({ where: { cycleId: id } });
+        await tx.performanceCycleFollowUp.deleteMany({
+          where: { cycleId: id },
+        });
         if (followUps.length > 0) {
           await tx.performanceCycleFollowUp.createMany({
             data: followUps.map((row) => ({

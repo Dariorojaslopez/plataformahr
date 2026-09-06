@@ -14,7 +14,10 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import { memoryStorage } from 'multer';
-import type { AuthenticatedUser, TenantContext } from '../../../auth/auth.types';
+import type {
+  AuthenticatedUser,
+  TenantContext,
+} from '../../../auth/auth.types';
 import { CurrentUser } from '../../../auth/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../../../auth/guards/jwt-auth.guard';
 import { RequirePermissions } from '../../../rbac/decorators/require-permissions.decorator';

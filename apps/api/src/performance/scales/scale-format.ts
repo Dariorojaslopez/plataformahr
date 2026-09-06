@@ -1,8 +1,5 @@
 import { BadRequestException } from '@nestjs/common';
-import {
-  CompetencyScaleFormat,
-  CompetencyScaleKind,
-} from '@prisma/client';
+import { CompetencyScaleFormat, CompetencyScaleKind } from '@prisma/client';
 
 export const QUALITATIVE_SCALE_FORMATS: CompetencyScaleFormat[] = [
   CompetencyScaleFormat.NUMERIC,
@@ -70,10 +67,7 @@ export function assertKindAndFormat(
   }
 }
 
-function requireNumber(
-  value: number | undefined,
-  label: string,
-): number {
+function requireNumber(value: number | undefined, label: string): number {
   if (value == null || !Number.isFinite(value)) {
     throw new BadRequestException(`${label} es obligatorio.`);
   }
@@ -123,10 +117,16 @@ export function normalizeScaleConfig(input: {
       };
     }
 
-    const minValue = Math.trunc(requireNumber(input.minValue, 'El valor mínimo'));
-    const maxValue = Math.trunc(requireNumber(input.maxValue, 'El valor máximo'));
+    const minValue = Math.trunc(
+      requireNumber(input.minValue, 'El valor mínimo'),
+    );
+    const maxValue = Math.trunc(
+      requireNumber(input.maxValue, 'El valor máximo'),
+    );
     if (minValue < 0 || maxValue < 0) {
-      throw new BadRequestException('Los valores mínimo y máximo deben ser >= 0.');
+      throw new BadRequestException(
+        'Los valores mínimo y máximo deben ser >= 0.',
+      );
     }
     const steps = maxValue - minValue + 1;
     if (steps < MIN_SCALE_STEPS) {
@@ -202,7 +202,11 @@ export function normalizeScaleConfig(input: {
   }
 
   const decimalPlaces = input.decimalPlaces ?? 2;
-  if (!Number.isInteger(decimalPlaces) || decimalPlaces < 0 || decimalPlaces > 2) {
+  if (
+    !Number.isInteger(decimalPlaces) ||
+    decimalPlaces < 0 ||
+    decimalPlaces > 2
+  ) {
     throw new BadRequestException(
       'El formato numérico admite como máximo 2 decimales.',
     );

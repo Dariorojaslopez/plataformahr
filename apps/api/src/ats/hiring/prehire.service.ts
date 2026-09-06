@@ -216,10 +216,7 @@ export class PreHireService {
     }
   }
 
-  private isReady(
-    security: PreHireCheckStatus | string,
-    medical: PreHireCheckStatus | string,
-  ) {
+  private isReady(security: PreHireCheckStatus, medical: PreHireCheckStatus) {
     return isPreHireClear(security) && isPreHireClear(medical);
   }
 

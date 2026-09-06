@@ -56,7 +56,10 @@ export function assertOptionalDateWindow(
       `${window.startField} must be on or before ${window.endField}`,
     );
   }
-  if (start.getTime() < cycleStart.getTime() || end.getTime() > cycleEnd.getTime()) {
+  if (
+    start.getTime() < cycleStart.getTime() ||
+    end.getTime() > cycleEnd.getTime()
+  ) {
     throw new BadRequestException(
       `${window.startField} and ${window.endField} must fall within the cycle period`,
     );
@@ -285,7 +288,8 @@ export function resolveResultCompositionConfig(input: {
       ? (competencyResultWeight ?? new Prisma.Decimal(0))
       : new Prisma.Decimal(0),
     goalsResultWeight: new Prisma.Decimal(goalsN.toFixed(2)),
-    organizationalGoalsWeight: organizationalGoalsWeight ?? new Prisma.Decimal(0),
+    organizationalGoalsWeight:
+      organizationalGoalsWeight ?? new Prisma.Decimal(0),
     individualGoalsWeight: individualGoalsWeight ?? new Prisma.Decimal(0),
     evaluationRange,
     maxObjectives: input.maxObjectives ?? null,
@@ -432,7 +436,8 @@ function decimalOrNull(
   return new Prisma.Decimal(value);
 }
 
-type EvaluatorRoleFromWeights = 'self' | 'manager' | 'peer' | 'report' | 'client';
+type EvaluatorRoleFromWeights =
+  'self' | 'manager' | 'peer' | 'report' | 'client';
 
 export function parseEvaluatorWeight(
   value: number | string | undefined,

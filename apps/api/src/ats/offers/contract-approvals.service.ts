@@ -237,7 +237,7 @@ export class ContractApprovalsService {
     return this.getByOffer(companyId, offerId);
   }
 
-  isReadyForHire(status: ContractApprovalStatus | string): boolean {
+  isReadyForHire(status: ContractApprovalStatus): boolean {
     return (
       status === ContractApprovalStatus.APPROVED ||
       status === ContractApprovalStatus.NOT_REQUIRED

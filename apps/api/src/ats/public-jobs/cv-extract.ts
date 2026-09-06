@@ -13,9 +13,7 @@ export type InspectedCv = {
   buffer: Buffer;
 };
 
-const OLE_MAGIC = Buffer.from([
-  0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1,
-]);
+const OLE_MAGIC = Buffer.from([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1]);
 
 export function inspectCvFile(input: {
   buffer: Buffer;
@@ -42,7 +40,10 @@ export function detectCvMime(
   mimeHint?: string,
   originalName?: string,
 ): AllowedCvMime | null {
-  if (buffer.length >= 5 && buffer.subarray(0, 5).toString('ascii') === '%PDF-') {
+  if (
+    buffer.length >= 5 &&
+    buffer.subarray(0, 5).toString('ascii') === '%PDF-'
+  ) {
     return CV_MIME.PDF;
   }
   if (buffer.length >= 4 && buffer.subarray(0, 2).toString('ascii') === 'PK') {
@@ -55,7 +56,9 @@ export function detectCvMime(
   const name = (originalName ?? '').toLowerCase();
   const hint = (mimeHint ?? '').toLowerCase();
   const looksText =
-    hint.startsWith('text/plain') || name.endsWith('.txt') || looksLikeUtf8Text(buffer);
+    hint.startsWith('text/plain') ||
+    name.endsWith('.txt') ||
+    looksLikeUtf8Text(buffer);
   if (looksText && looksLikeUtf8Text(buffer)) return CV_MIME.TXT;
   return null;
 }
@@ -86,7 +89,10 @@ export function extractPdfText(buffer: Buffer): string {
       parts.push(decoded.toString('utf8'));
     }
   }
-  return parts.join('\n').replace(/[^\S\n]+/g, ' ').trim();
+  return parts
+    .join('\n')
+    .replace(/[^\S\n]+/g, ' ')
+    .trim();
 }
 
 export function extractDocxText(buffer: Buffer): string {
@@ -132,7 +138,11 @@ function isOleDoc(
   }
   const name = (originalName ?? '').toLowerCase();
   const hint = (mimeHint ?? '').toLowerCase();
-  if (name.endsWith('.doc') || hint.includes('msword') || hint.includes('word')) {
+  if (
+    name.endsWith('.doc') ||
+    hint.includes('msword') ||
+    hint.includes('word')
+  ) {
     return true;
   }
   return buffer.includes(Buffer.from('WordDocument', 'ascii'));
@@ -163,7 +173,7 @@ function extractAsciiRuns(buffer: Buffer): string[] {
   const out: string[] = [];
   let current = '';
   for (let i = 0; i < buffer.length; i += 1) {
-    const code = buffer[i]!;
+    const code = buffer[i];
     if (code === 0x0a || code === 0x0d) {
       if (current.length >= 4) out.push(current);
       current = '';
@@ -263,10 +273,13 @@ function readZipEntry(buffer: Buffer, target: string): Buffer | null {
 }
 
 /** Test helper: ZIP with stored (uncompressed) entries. */
-export function buildStoredZip(entries: Record<string, string | Buffer>): Buffer {
+export function buildStoredZip(
+  entries: Record<string, string | Buffer>,
+): Buffer {
   const parts: Buffer[] = [];
   for (const [name, content] of Object.entries(entries)) {
-    const data = typeof content === 'string' ? Buffer.from(content, 'utf8') : content;
+    const data =
+      typeof content === 'string' ? Buffer.from(content, 'utf8') : content;
     const nameBuf = Buffer.from(name, 'utf8');
     const header = Buffer.alloc(30);
     header.writeUInt32LE(0x04034b50, 0);

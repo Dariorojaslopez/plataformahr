@@ -88,11 +88,7 @@ export class CalibrationController {
     @Param('id', ParseUUIDPipe) id: string,
     @Query('cycleId') cycleId?: string,
   ) {
-    return this.calibration.listPlacements(
-      tenant.companyId,
-      id,
-      cycleId,
-    );
+    return this.calibration.listPlacements(tenant.companyId, id, cycleId);
   }
 
   @Post('sessions/:id/placements')

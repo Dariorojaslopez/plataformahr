@@ -82,7 +82,11 @@ export class GoalApprovalsService {
             reviewComment: definition?.reviewComment ?? null,
             structureUnlocked: Boolean(definition?.structureUnlocked),
             pendingEditRequest: edit
-              ? { id: edit.id, comment: edit.comment, createdAt: edit.createdAt }
+              ? {
+                  id: edit.id,
+                  comment: edit.comment,
+                  createdAt: edit.createdAt,
+                }
               : null,
           };
         }),
@@ -211,16 +215,19 @@ export class GoalApprovalsService {
     if (definition.structureUnlocked) {
       throw new BadRequestException('La edición ya está habilitada');
     }
-    const existing = await this.prisma.performanceGoalModificationRequest.findFirst({
-      where: {
-        companyId,
-        cycleId,
-        employeeId: actor.id,
-        status: GoalModificationRequestStatus.PENDING,
-      },
-    });
+    const existing =
+      await this.prisma.performanceGoalModificationRequest.findFirst({
+        where: {
+          companyId,
+          cycleId,
+          employeeId: actor.id,
+          status: GoalModificationRequestStatus.PENDING,
+        },
+      });
     if (existing) {
-      throw new BadRequestException('Ya tienes una solicitud de edición pendiente');
+      throw new BadRequestException(
+        'Ya tienes una solicitud de edición pendiente',
+      );
     }
 
     const manager = await this.managerOf(companyId, actor.id);
@@ -265,9 +272,10 @@ export class GoalApprovalsService {
     dto: ReviewCommentDto,
   ) {
     const actor = await this.requireEmployee(companyId, userId);
-    const request = await this.prisma.performanceGoalModificationRequest.findFirst({
-      where: { id: requestId, companyId, cycleId },
-    });
+    const request =
+      await this.prisma.performanceGoalModificationRequest.findFirst({
+        where: { id: requestId, companyId, cycleId },
+      });
     if (!request) throw new NotFoundException('Solicitud no encontrada');
     if (request.status !== GoalModificationRequestStatus.PENDING) {
       throw new BadRequestException('La solicitud ya fue resuelta');
@@ -364,12 +372,11 @@ export class GoalApprovalsService {
         type: approved
           ? 'GOAL_DEFINITION_APPROVED'
           : 'GOAL_DEFINITION_REJECTED',
-        title: approved
-          ? 'Objetivos aprobados'
-          : 'Objetivos rechazados',
+        title: approved ? 'Objetivos aprobados' : 'Objetivos rechazados',
         body: approved
           ? 'Tu líder aprobó y bloqueó tus objetivos.'
-          : comment?.trim() || 'Tu líder rechazó la definición. Puedes editarla de nuevo.',
+          : comment?.trim() ||
+            'Tu líder rechazó la definición. Puedes editarla de nuevo.',
       });
     });
 

@@ -139,9 +139,7 @@ function requireLen(
   return value;
 }
 
-function mapByName<T extends { name: string }>(
-  rows: T[],
-): Map<string, T> {
+function mapByName<T extends { name: string }>(rows: T[]): Map<string, T> {
   const map = new Map<string, T>();
   for (const row of rows) {
     map.set(row.name, row);
@@ -252,9 +250,7 @@ export function buildOrgImportPlanFromTable(
 
   const unknown = headerCells.filter(
     (h) =>
-      h.length > 0 &&
-      !HEADER_SET.has(h) &&
-      !ORG_IMPORT_IGNORED_HEADERS.has(h),
+      h.length > 0 && !HEADER_SET.has(h) && !ORG_IMPORT_IGNORED_HEADERS.has(h),
   );
   for (const header of unknown) {
     issue(issues, 1, header, `Encabezado desconocido (${header}).`);
@@ -870,11 +866,7 @@ function resolveReferences(
     }
     if (area.parentAreaName && area.name) {
       if (
-        wouldCreateParentCycle(
-          area.name,
-          area.parentAreaName,
-          parentNameByName,
-        )
+        wouldCreateParentCycle(area.name, area.parentAreaName, parentNameByName)
       ) {
         issue(
           issues,
@@ -933,7 +925,10 @@ function resolveReferences(
         `No existe el nivel ${position.jobLevelName}.`,
       );
     }
-    if (position.parentPositionName && !hasPosition(position.parentPositionName)) {
+    if (
+      position.parentPositionName &&
+      !hasPosition(position.parentPositionName)
+    ) {
       issue(
         issues,
         position.row,

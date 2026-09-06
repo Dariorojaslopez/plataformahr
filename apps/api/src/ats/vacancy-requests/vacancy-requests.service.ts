@@ -395,7 +395,8 @@ export class VacancyRequestsService {
             companyId: tenant.companyId,
             vacancyRequestId: id,
             requestedByEmployeeId: request.requestedByEmployeeId,
-            generalManagerApprovalRequired: request.generalManagerApprovalRequired,
+            generalManagerApprovalRequired:
+              request.generalManagerApprovalRequired,
           });
     const evaluatorsData = await this.evaluatorDefaults.buildSnapshot(
       tenant.companyId,
@@ -535,9 +536,9 @@ export class VacancyRequestsService {
         return tx.vacancyRequest.findFirstOrThrow({
           where: { id, companyId: tenant.companyId },
           include: {
-          approvals: APPROVAL_INCLUDE,
-          approvalPlanSteps: PLAN_INCLUDE,
-        },
+            approvals: APPROVAL_INCLUDE,
+            approvalPlanSteps: PLAN_INCLUDE,
+          },
         });
       });
 
@@ -900,7 +901,8 @@ export class VacancyRequestsService {
   }
 
   private rejectExtraApprovalSteps(
-    steps: Array<{ positionId: string; employeeId?: string | null }> | undefined,
+    steps:
+      Array<{ positionId: string; employeeId?: string | null }> | undefined,
   ): void {
     if (steps && steps.length > 0) {
       throw new BadRequestException(
@@ -916,9 +918,7 @@ export class VacancyRequestsService {
     if (motive) {
       const derivedType = typeFromMotive(motive);
       if (type && type !== derivedType) {
-        throw new BadRequestException(
-          'motive and type are inconsistent',
-        );
+        throw new BadRequestException('motive and type are inconsistent');
       }
       return { motive, type: derivedType };
     }
@@ -1149,7 +1149,9 @@ export class VacancyRequestsService {
         updatedAt: new Date(),
       }));
     if (rows.length > 0) {
-      await this.prisma.vacancyRequestApprovalPlanStep.createMany({ data: rows });
+      await this.prisma.vacancyRequestApprovalPlanStep.createMany({
+        data: rows,
+      });
     }
   }
 }

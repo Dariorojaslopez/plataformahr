@@ -162,8 +162,7 @@ export function computeProfileFit(input: {
 
   let score: number;
   if (requiredTokens.size > 0 && contextTokens.size > 0) {
-    score =
-      requiredOverlap * 0.5 + contextOverlap * 0.2 + screeningBoost * 0.3;
+    score = requiredOverlap * 0.5 + contextOverlap * 0.2 + screeningBoost * 0.3;
   } else if (requiredTokens.size > 0) {
     score = requiredOverlap * 0.7 + screeningBoost * 0.3;
   } else {
@@ -212,7 +211,10 @@ function screeningOnlyFit(input: {
   return { level: 'yellow', summary: FIT_SUMMARY.yellow };
 }
 
-function overlapRatio(jobTokens: Set<string>, candidateTokens: Set<string>): number {
+function overlapRatio(
+  jobTokens: Set<string>,
+  candidateTokens: Set<string>,
+): number {
   if (jobTokens.size === 0) return 0;
   let hits = 0;
   for (const token of jobTokens) {
@@ -238,10 +240,7 @@ function summarizeOverlap(input: {
 }
 
 export function tokenize(text: string): Set<string> {
-  const normalized = text
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/\p{M}/gu, '');
+  const normalized = text.toLowerCase().normalize('NFD').replace(/\p{M}/gu, '');
   const matches = normalized.match(/[\p{L}\p{N}+#]{2,}/gu) ?? [];
   const out = new Set<string>();
   for (const raw of matches) {

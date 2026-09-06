@@ -3,11 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import {
-  EmployeeStatus,
-  Prisma,
-  ReportingLineType,
-} from '@prisma/client';
+import { EmployeeStatus, Prisma, ReportingLineType } from '@prisma/client';
 import { AuditService } from '../../core/audit/audit.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import {
@@ -284,9 +280,7 @@ export class EmployeesService {
             ...(dto.state !== undefined
               ? { state: emptyToNull(dto.state) }
               : {}),
-            ...(dto.city !== undefined
-              ? { city: emptyToNull(dto.city) }
-              : {}),
+            ...(dto.city !== undefined ? { city: emptyToNull(dto.city) } : {}),
             ...(dto.maritalStatus !== undefined
               ? { maritalStatus: emptyToNull(dto.maritalStatus) }
               : {}),

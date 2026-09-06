@@ -1,7 +1,4 @@
-import {
-  VacancyRequestMotive,
-  VacancyRequestType,
-} from '@prisma/client';
+import { VacancyRequestMotive, VacancyRequestType } from '@prisma/client';
 
 export const REPLACEMENT_MOTIVES: ReadonlySet<VacancyRequestMotive> = new Set([
   VacancyRequestMotive.REPLACEMENT_RESIGNATION,
@@ -9,13 +6,13 @@ export const REPLACEMENT_MOTIVES: ReadonlySet<VacancyRequestMotive> = new Set([
   VacancyRequestMotive.REPLACEMENT_TERMINATION_WITHOUT_CAUSE,
 ]);
 
-export function isReplacementMotive(
-  motive: VacancyRequestMotive,
-): boolean {
+export function isReplacementMotive(motive: VacancyRequestMotive): boolean {
   return REPLACEMENT_MOTIVES.has(motive);
 }
 
-export function typeFromMotive(motive: VacancyRequestMotive): VacancyRequestType {
+export function typeFromMotive(
+  motive: VacancyRequestMotive,
+): VacancyRequestType {
   return motive === VacancyRequestMotive.NEW_POSITION
     ? VacancyRequestType.NEW_POSITION
     : VacancyRequestType.EXISTING_POSITION;
@@ -63,7 +60,8 @@ export function minExpectedHiringDate(
   slaDays: number,
   now: Date = new Date(),
 ): Date {
-  const days = Number.isFinite(slaDays) && slaDays >= 0 ? Math.floor(slaDays) : 0;
+  const days =
+    Number.isFinite(slaDays) && slaDays >= 0 ? Math.floor(slaDays) : 0;
   return addUtcDays(startOfUtcDay(now), days);
 }
 

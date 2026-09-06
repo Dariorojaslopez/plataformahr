@@ -71,9 +71,7 @@ export function assertCompositionWeights(
       `Los pesos de composición deben estar entre 0 y ${max}`,
     );
   }
-  const sum = roundScorePercentage(
-    competencyResultWeight + goalsResultWeight,
-  );
+  const sum = roundScorePercentage(competencyResultWeight + goalsResultWeight);
   if (sum <= 0) {
     throw new GoalsPerformanceIntegrationError(
       'La ponderación de competencias y objetivos debe ser mayor a 0',

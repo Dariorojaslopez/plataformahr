@@ -312,7 +312,11 @@ export class VacancyApprovalWorkflowService {
     for (const step of steps) {
       const label = step.label?.trim() ? step.label.trim() : null;
       if (step.approverType === VacancyApproverType.MANAGER_OF_REQUESTER) {
-        if (step.specificEmployeeId || step.requiredRoleCode || step.positionId) {
+        if (
+          step.specificEmployeeId ||
+          step.requiredRoleCode ||
+          step.positionId
+        ) {
           throw new BadRequestException(
             VACANCY_APPROVAL_ERRORS.INVALID_MANAGER_FIELDS,
           );
@@ -369,7 +373,11 @@ export class VacancyApprovalWorkflowService {
         continue;
       }
 
-      if (!step.requiredRoleCode?.trim() || step.specificEmployeeId || step.positionId) {
+      if (
+        !step.requiredRoleCode?.trim() ||
+        step.specificEmployeeId ||
+        step.positionId
+      ) {
         throw new BadRequestException(
           VACANCY_APPROVAL_ERRORS.INVALID_ROLE_FIELDS,
         );

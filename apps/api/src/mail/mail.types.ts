@@ -35,9 +35,7 @@ export function resolveMailSmtpConfig(
   if (!Number.isFinite(port) || port <= 0) return null;
 
   const secure =
-    env.SMTP_SECURE === 'true' ||
-    env.SMTP_SECURE === '1' ||
-    port === 465;
+    env.SMTP_SECURE === 'true' || env.SMTP_SECURE === '1' || port === 465;
 
   return {
     host,

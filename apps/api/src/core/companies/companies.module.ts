@@ -13,7 +13,11 @@ import { CompaniesService } from './companies.service';
 
 @Module({
   imports: [AuthModule, RbacModule, AuditModule],
-  controllers: [CompaniesController, BrandingController, AtsTemplatesController],
+  controllers: [
+    CompaniesController,
+    BrandingController,
+    AtsTemplatesController,
+  ],
   providers: [
     CompaniesService,
     BrandingService,

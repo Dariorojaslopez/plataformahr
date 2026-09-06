@@ -14,10 +14,7 @@ import {
   Prisma,
   ReportingLineType,
 } from '@prisma/client';
-import {
-  modelIncludesPeer,
-  modelIncludesReport,
-} from '../evaluation-model';
+import { modelIncludesPeer, modelIncludesReport } from '../evaluation-model';
 import { AuditService } from '../../core/audit/audit.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import {

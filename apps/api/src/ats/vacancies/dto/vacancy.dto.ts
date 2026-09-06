@@ -55,7 +55,9 @@ export class UpdateVacancyDto {
   assignedRecruiterEmployeeId?: string | null;
 
   @IsOptional()
-  @ValidateIf((_, value) => value !== null && value !== undefined && value !== '')
+  @ValidateIf(
+    (_, value) => value !== null && value !== undefined && value !== '',
+  )
   @Matches(/^\d+(\.\d{1,2})?$/, {
     message: 'salaryAmount must be a non-negative decimal with up to 2 places',
   })

@@ -81,8 +81,8 @@ describe('ATS public jobs (e2e)', () => {
           companyId: company.id,
           requestedByEmployeeId: requester.id,
           type: VacancyRequestType.EXISTING_POSITION,
-        motive: VacancyRequestMotive.REPLACEMENT_RESIGNATION,
-        expectedHiringDate: new Date('2099-06-15'),
+          motive: VacancyRequestMotive.REPLACEMENT_RESIGNATION,
+          expectedHiringDate: new Date('2099-06-15'),
           existingPositionId: position.id,
           requestedHeadcount: 1,
           justification: 'Approved public vacancy fixture',
@@ -262,8 +262,7 @@ Profesional
       email: 'ana.perez@example.com',
       documentType: 'CC',
       documentNumber: '1234567890',
-      professionalProfile:
-        'Ingeniera con experiencia en productos digitales.',
+      professionalProfile: 'Ingeniera con experiencia en productos digitales.',
       workExperience: [
         expect.objectContaining({
           companyName: 'Acme',

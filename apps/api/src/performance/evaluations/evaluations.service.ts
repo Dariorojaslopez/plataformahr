@@ -699,7 +699,9 @@ export class EvaluationsService {
             .filter((row) => row.selectedScaleLevelId)
             .map((row) => row.goalId),
         );
-        const missingGoals = rateableGoals.filter((goal) => !rated.has(goal.id));
+        const missingGoals = rateableGoals.filter(
+          (goal) => !rated.has(goal.id),
+        );
         if (missingGoals.length > 0) {
           throw new BadRequestException({
             message: 'Debes calificar todos los objetivos',

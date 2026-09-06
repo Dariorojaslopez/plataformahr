@@ -730,7 +730,8 @@ export class InterviewsService {
       (item) => !doneEvaluatorIds.has(item.employeeId),
     );
 
-    let outcome: 'NEXT_EVALUATOR' | 'READY_FOR_RECRUITER' = 'READY_FOR_RECRUITER';
+    let outcome: 'NEXT_EVALUATOR' | 'READY_FOR_RECRUITER' =
+      'READY_FOR_RECRUITER';
 
     if (nextEvaluator) {
       await this.prisma.$transaction(async (tx) => {

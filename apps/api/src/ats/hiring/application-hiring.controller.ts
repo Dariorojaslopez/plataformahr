@@ -28,10 +28,7 @@ import { CreateHiringDto } from './dto/hiring.dto';
 import { UpdatePreHireDto } from './dto/prehire.dto';
 import { HirePdiService } from './hire-pdi.service';
 import { HiringService } from './hiring.service';
-import {
-  PREHIRE_FIELD_NAME,
-  PREHIRE_MAX_BYTES,
-} from './prehire.constants';
+import { PREHIRE_FIELD_NAME, PREHIRE_MAX_BYTES } from './prehire.constants';
 import { PreHireService } from './prehire.service';
 
 @Controller('ats/applications')

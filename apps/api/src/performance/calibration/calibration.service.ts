@@ -22,6 +22,7 @@ import {
   DEFAULT_NINE_BOX_CELLS,
   parseScore,
   scoresToNineBoxCell,
+  type NineBoxBand,
   type NineBoxCellConfig,
 } from './nine-box';
 
@@ -121,7 +122,13 @@ export class CalibrationService {
           },
         },
       });
-      await this.replacePeople(tx, companyId, created.id, inviteeIds, leaderIds);
+      await this.replacePeople(
+        tx,
+        companyId,
+        created.id,
+        inviteeIds,
+        leaderIds,
+      );
       return tx.calibrationSession.findFirstOrThrow({
         where: { id: created.id },
         include: SESSION_INCLUDE,
@@ -189,20 +196,18 @@ export class CalibrationService {
         for (const cell of dto.cells) {
           await tx.calibrationNineBoxCell.update({
             where: {
-              sessionId_row_col: { sessionId: id, row: cell.row, col: cell.col },
+              sessionId_row_col: {
+                sessionId: id,
+                row: cell.row,
+                col: cell.col,
+              },
             },
             data: { label: cell.label.trim(), color: cell.color.toLowerCase() },
           });
         }
       }
       if (inviteeIds || leaderIds) {
-        await this.replacePeople(
-          tx,
-          companyId,
-          id,
-          inviteeIds,
-          leaderIds,
-        );
+        await this.replacePeople(tx, companyId, id, inviteeIds, leaderIds);
       }
       return tx.calibrationSession.findFirstOrThrow({
         where: { id },
@@ -224,7 +229,10 @@ export class CalibrationService {
     const session = await this.requireSession(companyId, sessionId);
     const leaderIds = session.leaders.map((row) => row.employeeId);
     if (leaderIds.length === 0) {
-      return { items: [], cells: session.cells.map((cell) => this.toCell(cell)) };
+      return {
+        items: [],
+        cells: session.cells.map((cell) => this.toCell(cell)),
+      };
     }
 
     const reports = await this.prisma.employeeReportingLine.findMany({
@@ -279,10 +287,10 @@ export class CalibrationService {
           ? result.competencyScore.toString()
           : null,
         cycleId: result?.cycleId ?? null,
-        calculatedRow: (placement?.row ?? null) as number | null,
-        calculatedCol: (placement?.col ?? null) as number | null,
-        row: (placement?.row ?? null) as number | null,
-        col: (placement?.col ?? null) as number | null,
+        calculatedRow: placement?.row ?? null,
+        calculatedCol: placement?.col ?? null,
+        row: placement?.row ?? null,
+        col: placement?.col ?? null,
         justification: null as string | null,
         moved: false,
       };
@@ -299,12 +307,18 @@ export class CalibrationService {
     for (const item of items) {
       const override = byEmployee.get(item.employee.id);
       if (!override) continue;
-      item.row = override.row;
-      item.col = override.col;
+      item.row = override.row as NineBoxBand;
+      item.col = override.col as NineBoxBand;
       item.justification = override.justification;
       item.moved = true;
-      item.calculatedRow = override.calculatedRow ?? item.calculatedRow;
-      item.calculatedCol = override.calculatedCol ?? item.calculatedCol;
+      item.calculatedRow =
+        override.calculatedRow == null
+          ? item.calculatedRow
+          : (override.calculatedRow as NineBoxBand);
+      item.calculatedCol =
+        override.calculatedCol == null
+          ? item.calculatedCol
+          : (override.calculatedCol as NineBoxBand);
     }
 
     return {
@@ -520,8 +534,22 @@ export class CalibrationService {
     createdAt: Date;
     updatedAt: Date;
     cells: Array<{ row: number; col: number; label: string; color: string }>;
-    invitees: Array<{ employee: { id: string; firstName: string; lastName: string; email: string } }>;
-    leaders: Array<{ employee: { id: string; firstName: string; lastName: string; email: string } }>;
+    invitees: Array<{
+      employee: {
+        id: string;
+        firstName: string;
+        lastName: string;
+        email: string;
+      };
+    }>;
+    leaders: Array<{
+      employee: {
+        id: string;
+        firstName: string;
+        lastName: string;
+        email: string;
+      };
+    }>;
   }) {
     return {
       id: session.id,

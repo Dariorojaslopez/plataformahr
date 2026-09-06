@@ -11,9 +11,7 @@ import { VacancyEvaluatorDefaultsService } from './vacancy-evaluator-defaults.se
 @Controller('ats/evaluator-defaults')
 @UseGuards(JwtAuthGuard, CompanyContextGuard, PermissionGuard)
 export class VacancyEvaluatorDefaultsController {
-  constructor(
-    private readonly defaults: VacancyEvaluatorDefaultsService,
-  ) {}
+  constructor(private readonly defaults: VacancyEvaluatorDefaultsService) {}
 
   @Get()
   @RequirePermissions('ats.vacancy.read')

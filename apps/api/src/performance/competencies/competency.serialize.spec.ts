@@ -20,9 +20,7 @@ describe('serializeCompetency', () => {
     expect(serialized).toEqual({
       id: 'c1',
       name: 'Liderazgo',
-      jobLevels: [
-        { id: 'jl-1', name: 'Senior', rank: 3, status: 'ACTIVE' },
-      ],
+      jobLevels: [{ id: 'jl-1', name: 'Senior', rank: 3, status: 'ACTIVE' }],
     });
     expect(serialized).not.toHaveProperty('jobLevelAssignments');
   });

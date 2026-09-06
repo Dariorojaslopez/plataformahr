@@ -96,6 +96,33 @@ export class HiringService {
     let result;
     try {
       result = await this.prisma.$transaction(async (tx) => {
+        // Lock vacancy before the application so concurrent hires on different
+        // finalists serialize here instead of deadlocking when discarding siblings.
+        const vacancyIdRow = await tx.application.findFirst({
+          where: { id: applicationId, companyId, deletedAt: null },
+          select: { vacancyId: true },
+        });
+        if (!vacancyIdRow) {
+          throw new NotFoundException('Application not found');
+        }
+
+        const vacancy = await this.lockVacancy(
+          tx,
+          companyId,
+          vacancyIdRow.vacancyId,
+        );
+        if (
+          vacancy.status !== VacancyStatus.OPEN &&
+          vacancy.status !== VacancyStatus.PAUSED
+        ) {
+          throw new BadRequestException(
+            'Vacancy must be OPEN or PAUSED to hire',
+          );
+        }
+        if (vacancy.filledCount >= vacancy.headcount) {
+          throw new ConflictException('Vacancy has no remaining capacity');
+        }
+
         const application = await this.lockApplication(
           tx,
           companyId,
@@ -172,39 +199,6 @@ export class HiringService {
           throw new BadRequestException(
             'Debes cargar la carta oferta firmada antes de contratar',
           );
-        }
-
-        const vacancyRows = await tx.$queryRaw<
-          Array<{
-            id: string;
-            positionId: string;
-            areaId: string;
-            headcount: number;
-            filledCount: number;
-            status: VacancyStatus;
-          }>
-        >`
-          SELECT id, "positionId", "areaId", headcount, "filledCount", status
-          FROM vacancies
-          WHERE id = ${application.vacancyId}::uuid
-            AND "companyId" = ${companyId}::uuid
-            AND "deletedAt" IS NULL
-          FOR UPDATE
-        `;
-        const vacancy = vacancyRows[0];
-        if (!vacancy) {
-          throw new NotFoundException('Vacancy not found');
-        }
-        if (
-          vacancy.status !== VacancyStatus.OPEN &&
-          vacancy.status !== VacancyStatus.PAUSED
-        ) {
-          throw new BadRequestException(
-            'Vacancy must be OPEN or PAUSED to hire',
-          );
-        }
-        if (vacancy.filledCount >= vacancy.headcount) {
-          throw new ConflictException('Vacancy has no remaining capacity');
         }
 
         const candidate = await tx.candidate.findFirst({
@@ -357,10 +351,22 @@ export class HiringService {
     } catch (error: unknown) {
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
-        error.code === 'P2002'
+        (error.code === 'P2002' || error.code === 'P2034')
       ) {
         throw new ConflictException(
-          'Hiring conflict: duplicate employee or hiring record',
+          error.code === 'P2034'
+            ? 'Hiring conflict: concurrent hire; retry'
+            : 'Hiring conflict: duplicate employee or hiring record',
+        );
+      }
+      if (
+        error instanceof Prisma.PrismaClientUnknownRequestError &&
+        /vacancies_filled_lte_headcount_check|deadlock detected/i.test(
+          error.message,
+        )
+      ) {
+        throw new ConflictException(
+          'Vacancy capacity changed concurrently; retry',
         );
       }
       throw error;
@@ -520,8 +526,7 @@ export class HiringService {
           fromStage: sibling.stage,
           toStage: ApplicationStage.REJECTED,
           changedByUserId: input.userId,
-          comment:
-            'Descartado automáticamente: otro finalista fue contratado',
+          comment: 'Descartado automáticamente: otro finalista fue contratado',
         },
       });
       await tx.jobOffer.updateMany({
@@ -570,6 +575,35 @@ export class HiringService {
       throw new NotFoundException('Application not found');
     }
     return application;
+  }
+
+  private async lockVacancy(
+    tx: Prisma.TransactionClient,
+    companyId: string,
+    vacancyId: string,
+  ) {
+    const rows = await tx.$queryRaw<
+      Array<{
+        id: string;
+        positionId: string;
+        areaId: string;
+        headcount: number;
+        filledCount: number;
+        status: VacancyStatus;
+      }>
+    >`
+      SELECT id, "positionId", "areaId", headcount, "filledCount", status
+      FROM vacancies
+      WHERE id = ${vacancyId}::uuid
+        AND "companyId" = ${companyId}::uuid
+        AND "deletedAt" IS NULL
+      FOR UPDATE
+    `;
+    const vacancy = rows[0];
+    if (!vacancy) {
+      throw new NotFoundException('Vacancy not found');
+    }
+    return vacancy;
   }
 
   private async lockApplication(

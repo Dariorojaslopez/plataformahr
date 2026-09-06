@@ -1,7 +1,4 @@
-export type GoalProgressStatusCode =
-  | 'NOT_STARTED'
-  | 'IN_PROGRESS'
-  | 'FINISHED';
+export type GoalProgressStatusCode = 'NOT_STARTED' | 'IN_PROGRESS' | 'FINISHED';
 
 export type PdiDerivedStatus = 'NOT_STARTED' | 'IN_PROGRESS' | 'COMPLETED';
 

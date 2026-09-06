@@ -78,14 +78,14 @@ export function parseLinkedInInput(input: {
 export function hasLinkedInParsedData(parsed: ParsedLinkedInFields): boolean {
   return Boolean(
     parsed.linkedinUrl ||
-      parsed.firstName ||
-      parsed.lastName ||
-      parsed.email ||
-      parsed.phone ||
-      parsed.documentNumber ||
-      parsed.professionalProfile ||
-      parsed.workExperience.length > 0 ||
-      parsed.education.length > 0,
+    parsed.firstName ||
+    parsed.lastName ||
+    parsed.email ||
+    parsed.phone ||
+    parsed.documentNumber ||
+    parsed.professionalProfile ||
+    parsed.workExperience.length > 0 ||
+    parsed.education.length > 0,
   );
 }
 

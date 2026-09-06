@@ -98,13 +98,9 @@ export class ClosingService {
       collaboratorObservations: session?.collaboratorObservations ?? null,
       leaderObservations: session?.leaderObservations ?? null,
       canEditPdi:
-        isCycleActiveForEditing(cycle.status) &&
-        closingCurrent &&
-        !accepted,
+        isCycleActiveForEditing(cycle.status) && closingCurrent && !accepted,
       canEditObservations:
-        isCycleActiveForEditing(cycle.status) &&
-        closingCurrent &&
-        !accepted,
+        isCycleActiveForEditing(cycle.status) && closingCurrent && !accepted,
       canAccept:
         isSubject &&
         isCycleActiveForEditing(cycle.status) &&
@@ -170,11 +166,11 @@ export class ClosingService {
           cycleId,
           employeeId: subjectId,
           collaboratorObservations: current.isSubject
-            ? emptyToNull(dto.collaboratorObservations) ?? null
+            ? (emptyToNull(dto.collaboratorObservations) ?? null)
             : null,
           leaderObservations: current.isSubject
             ? null
-            : emptyToNull(dto.leaderObservations) ?? null,
+            : (emptyToNull(dto.leaderObservations) ?? null),
         },
         update: current.isSubject
           ? {
@@ -198,7 +194,9 @@ export class ClosingService {
             data: {
               ...(dto.pdiProgressPercent != null
                 ? {
-                    progressPercent: clampProgressPercent(dto.pdiProgressPercent),
+                    progressPercent: clampProgressPercent(
+                      dto.pdiProgressPercent,
+                    ),
                   }
                 : {}),
               ...(dto.pdiProgressNotes !== undefined

@@ -39,7 +39,10 @@ export class CompaniesController {
     @CurrentTenant() tenant: TenantContext,
     @Body() dto: UpdateCompanyPerformanceSettingsDto,
   ) {
-    return this.companiesService.updatePerformanceSettings(tenant.companyId, dto);
+    return this.companiesService.updatePerformanceSettings(
+      tenant.companyId,
+      dto,
+    );
   }
 
   @Patch('current/ats-settings')

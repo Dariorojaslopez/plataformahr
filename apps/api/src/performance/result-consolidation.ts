@@ -8,11 +8,7 @@
 import { roundScorePercentage } from './evaluation-score';
 
 export type ConsolidationEvalType =
-  | 'SELF'
-  | 'MANAGER'
-  | 'PEER'
-  | 'REPORT'
-  | 'CLIENT';
+  'SELF' | 'MANAGER' | 'PEER' | 'REPORT' | 'CLIENT';
 
 export type ConsolidationEvaluationInput = {
   type: ConsolidationEvalType;
@@ -77,9 +73,7 @@ function assertConfiguredWeights(weights: number[]) {
   }
   const sum = weights.reduce((a, b) => a + b, 0);
   if (roundScorePercentage(sum) !== 100) {
-    throw new ConsolidationError(
-      'Configured evaluator weights must equal 100',
-    );
+    throw new ConsolidationError('Configured evaluator weights must equal 100');
   }
 }
 
@@ -141,7 +135,11 @@ export function calculatePerformanceResult(
 
   const present: Array<{ score: number; configured: number; key: string }> = [];
   if (selfScore != null) {
-    present.push({ score: selfScore, configured: configuredSelfWeight, key: 'self' });
+    present.push({
+      score: selfScore,
+      configured: configuredSelfWeight,
+      key: 'self',
+    });
   }
   if (managerScore != null) {
     present.push({
@@ -151,7 +149,11 @@ export function calculatePerformanceResult(
     });
   }
   if (peerScore != null) {
-    present.push({ score: peerScore, configured: configuredPeerWeight, key: 'peer' });
+    present.push({
+      score: peerScore,
+      configured: configuredPeerWeight,
+      key: 'peer',
+    });
   }
   if (reportScore != null) {
     present.push({

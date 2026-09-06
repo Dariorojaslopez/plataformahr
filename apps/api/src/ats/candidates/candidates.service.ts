@@ -18,7 +18,10 @@ import {
   MAX_LIMIT,
 } from '../ats.constants';
 import { CV_ERRORS } from '../public-jobs/cv.constants';
-import { readCvFile, resolveCompanyUploadsDir } from '../public-jobs/cv.storage';
+import {
+  readCvFile,
+  resolveCompanyUploadsDir,
+} from '../public-jobs/cv.storage';
 import {
   LINKEDIN_ERRORS,
   normalizeLinkedInProfileUrl,
@@ -233,9 +236,7 @@ export class CandidatesService {
     }
   }
 
-  private resolveLinkedInUrl(
-    value: string | null | undefined,
-  ): string | null {
+  private resolveLinkedInUrl(value: string | null | undefined): string | null {
     const trimmed = typeof value === 'string' ? value.trim() : '';
     if (!trimmed) return null;
     const normalized = normalizeLinkedInProfileUrl(trimmed);

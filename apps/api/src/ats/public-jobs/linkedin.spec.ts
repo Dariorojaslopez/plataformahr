@@ -6,15 +6,15 @@ import {
 
 describe('linkedin helpers', () => {
   it('normalizes profile URLs', () => {
-    expect(
-      normalizeLinkedInProfileUrl('linkedin.com/in/ana-perez/'),
-    ).toBe('https://www.linkedin.com/in/ana-perez');
+    expect(normalizeLinkedInProfileUrl('linkedin.com/in/ana-perez/')).toBe(
+      'https://www.linkedin.com/in/ana-perez',
+    );
     expect(
       normalizeLinkedInProfileUrl('https://co.linkedin.com/in/Ana_Perez'),
     ).toBe('https://www.linkedin.com/in/Ana_Perez');
-    expect(normalizeLinkedInProfileUrl('https://linkedin.com/company/acme')).toBe(
-      null,
-    );
+    expect(
+      normalizeLinkedInProfileUrl('https://linkedin.com/company/acme'),
+    ).toBe(null);
   });
 
   it('prefills contact and sections from pasted LinkedIn text', () => {
@@ -45,8 +45,7 @@ Profesional
       firstName: 'Ana',
       lastName: 'Ruiz',
       email: 'ana.ruiz@example.com',
-      professionalProfile:
-        'Ingeniera de software enfocada en productos B2B.',
+      professionalProfile: 'Ingeniera de software enfocada en productos B2B.',
     });
     expect(parsed.workExperience[0]).toMatchObject({
       companyName: 'Acme',

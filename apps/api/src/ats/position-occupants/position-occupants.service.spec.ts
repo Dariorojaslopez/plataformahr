@@ -14,7 +14,7 @@ describe('PositionOccupantsService', () => {
     userId: null,
   };
 
-  function serviceWith(employees: typeof occupant[]) {
+  function serviceWith(employees: (typeof occupant)[]) {
     return new PositionOccupantsService(
       {
         employee: {
@@ -36,9 +36,9 @@ describe('PositionOccupantsService', () => {
 
   it('resolves the unique occupant without requiring a user account', async () => {
     const service = serviceWith([occupant]);
-    await expect(
-      service.resolve(companyId, positionId),
-    ).resolves.toEqual(occupant);
+    await expect(service.resolve(companyId, positionId)).resolves.toEqual(
+      occupant,
+    );
   });
 
   it('rejects a cargo with no active collaborators', async () => {
@@ -55,7 +55,9 @@ describe('PositionOccupantsService', () => {
     const findMany = jest.fn().mockResolvedValue([occupant]);
     const service = new PositionOccupantsService(
       { employee: { findMany } } as never,
-      { requirePosition: jest.fn().mockResolvedValue({ id: positionId }) } as never,
+      {
+        requirePosition: jest.fn().mockResolvedValue({ id: positionId }),
+      } as never,
     );
     await service.list(companyId, positionId);
     expect(findMany).toHaveBeenCalledWith(

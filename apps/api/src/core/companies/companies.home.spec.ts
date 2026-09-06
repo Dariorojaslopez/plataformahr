@@ -22,9 +22,11 @@ describe('CompaniesService.getCurrentAccessContext', () => {
         findMany: jest.fn().mockResolvedValue([{ feature: 'ats.vacancies' }]),
       },
       employee: {
-        findFirst: jest.fn().mockResolvedValue(
-          options.employeeId ? { id: options.employeeId } : null,
-        ),
+        findFirst: jest
+          .fn()
+          .mockResolvedValue(
+            options.employeeId ? { id: options.employeeId } : null,
+          ),
       },
       employeeReportingLine: {
         count: jest.fn().mockResolvedValue(options.directReportCount ?? 0),

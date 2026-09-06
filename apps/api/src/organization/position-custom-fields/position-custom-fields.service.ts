@@ -71,11 +71,12 @@ export class PositionCustomFieldsService {
   ) {}
 
   async listDefinitions(companyId: string) {
-    const definitions = await this.prisma.positionCustomFieldDefinition.findMany({
-      where: { companyId },
-      include: DEFINITION_INCLUDE,
-      orderBy: [{ sortOrder: 'asc' }, { label: 'asc' }],
-    });
+    const definitions =
+      await this.prisma.positionCustomFieldDefinition.findMany({
+        where: { companyId },
+        include: DEFINITION_INCLUDE,
+        orderBy: [{ sortOrder: 'asc' }, { label: 'asc' }],
+      });
     return definitions.map(toPublicDefinition);
   }
 
@@ -149,8 +150,7 @@ export class PositionCustomFieldsService {
   ) {
     const current = await this.requireDefinition(companyId, id);
     const nextType = dto.type ?? current.type;
-    const hasValues =
-      current._count.values + current._count.employeeValues > 0;
+    const hasValues = current._count.values + current._count.employeeValues > 0;
 
     if (dto.type && dto.type !== current.type && hasValues) {
       throw new ConflictException(
@@ -241,7 +241,8 @@ export class PositionCustomFieldsService {
           tx.positionCustomFieldValue.findMany({
             where: { companyId, positionId },
           }),
-        deleteById: (id) => tx.positionCustomFieldValue.delete({ where: { id } }),
+        deleteById: (id) =>
+          tx.positionCustomFieldValue.delete({ where: { id } }),
         updateById: (id, columns) =>
           tx.positionCustomFieldValue.update({ where: { id }, data: columns }),
         createValue: (definitionId, columns) =>
@@ -270,7 +271,8 @@ export class PositionCustomFieldsService {
           tx.employeeCustomFieldValue.findMany({
             where: { companyId, employeeId },
           }),
-        deleteById: (id) => tx.employeeCustomFieldValue.delete({ where: { id } }),
+        deleteById: (id) =>
+          tx.employeeCustomFieldValue.delete({ where: { id } }),
         updateById: (id, columns) =>
           tx.employeeCustomFieldValue.update({ where: { id }, data: columns }),
         createValue: (definitionId, columns) =>

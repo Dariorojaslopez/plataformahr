@@ -472,7 +472,10 @@ export class ApplicationsService {
           select: { kind: true },
         },
         interviews: {
-          where: { deletedAt: null, status: { not: InterviewStatus.CANCELLED } },
+          where: {
+            deletedAt: null,
+            status: { not: InterviewStatus.CANCELLED },
+          },
           select: {
             status: true,
             questions: {
@@ -544,7 +547,7 @@ export class ApplicationsService {
               fitSummary:
                 interviewFit !== 'gray'
                   ? null
-                  : item.profileFitSummary ?? null,
+                  : (item.profileFitSummary ?? null),
               evaluatorStatuses: this.evaluatorStatusesForCard(
                 configuredEvaluators,
                 item.interviews,
@@ -729,7 +732,8 @@ export class ApplicationsService {
   private normalizeFitLevel(
     value: string | null | undefined,
   ): 'green' | 'yellow' | 'red' | 'gray' {
-    if (value === 'green' || value === 'yellow' || value === 'red') return value;
+    if (value === 'green' || value === 'yellow' || value === 'red')
+      return value;
     return 'gray';
   }
 

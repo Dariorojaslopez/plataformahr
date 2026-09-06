@@ -1,18 +1,13 @@
-import {
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
-import {
-  InterviewStatus,
-  PerformanceCycleStatus,
-} from '@prisma/client';
+import { Injectable, NotFoundException } from '@nestjs/common';
+import { InterviewStatus, PerformanceCycleStatus } from '@prisma/client';
 import { AuditService } from '../../core/audit/audit.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ATS_AUDIT } from '../ats.constants';
 import { buildHirePdiDraft, renderHirePdiText } from './hire-pdi';
 
 export type HirePdiSyncResult = {
-  status: 'SYNCED' | 'SKIPPED_NO_FEATURE' | 'SKIPPED_NO_CYCLE' | 'SKIPPED_EMPTY';
+  status:
+    'SYNCED' | 'SKIPPED_NO_FEATURE' | 'SKIPPED_NO_CYCLE' | 'SKIPPED_EMPTY';
   cycleId?: string;
   cycleName?: string;
   pdiId?: string;
