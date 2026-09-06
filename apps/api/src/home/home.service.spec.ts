@@ -52,6 +52,8 @@ describe('HomeService', () => {
     pendingInterviewCount?: number;
     requests?: unknown[];
     interviews?: unknown[];
+    contractApprovals?: unknown[];
+    readyForOfferApplications?: unknown[];
     roleCodes?: string[];
   }) {
     const openVacancies = overrides?.vacancies ?? [
@@ -99,6 +101,9 @@ describe('HomeService', () => {
           .mockResolvedValue(overrides?.pendingInterviewCount ?? 0),
       },
       application: {
+        findMany: jest
+          .fn()
+          .mockResolvedValue(overrides?.readyForOfferApplications ?? []),
         groupBy: jest
           .fn()
           .mockResolvedValue(overrides?.applicationCounts ?? []),
@@ -106,6 +111,11 @@ describe('HomeService', () => {
           .fn()
           .mockResolvedValueOnce(overrides?.activeApplicationCount ?? 0)
           .mockResolvedValueOnce(overrides?.hiredCount ?? 0),
+      },
+      jobOfferContractApproval: {
+        findMany: jest
+          .fn()
+          .mockResolvedValue(overrides?.contractApprovals ?? []),
       },
     };
     const rbac = {
@@ -138,6 +148,8 @@ describe('HomeService', () => {
     ]);
     expect(feed.pendingApprovals).toEqual([]);
     expect(feed.pendingEvaluations).toEqual([]);
+    expect(feed.pendingContractApprovals).toEqual([]);
+    expect(feed.readyForOffer).toEqual([]);
     expect(feed.assignedVacancies).toEqual([]);
     expect(feed.assignedMetrics.vacancyCount).toBe(0);
   });
@@ -178,6 +190,7 @@ describe('HomeService', () => {
       activeApplicationCount: 3,
       hiredCount: 1,
       pendingInterviewCount: 2,
+      readyForOfferCount: 0,
       filledHeadcount: 1,
       requestedHeadcount: 2,
     });

@@ -16,7 +16,6 @@ import {
   Palette,
   Settings2,
   Share2,
-  ShieldCheck,
   SlidersHorizontal,
   Target,
   Upload,

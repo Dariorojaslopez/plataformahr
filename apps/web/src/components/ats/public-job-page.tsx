@@ -4,7 +4,7 @@ import { CANDIDATE_DOCUMENT_TYPES } from "@talento/shared";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { CheckCircle2, ChevronDown, Plus, Trash2 } from "lucide-react";
 import { useTheme } from "next-themes";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { FormSelect } from "@/components/organization/form-select";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -99,6 +99,20 @@ function compactForm(form: PublicJobApplicationInput): PublicJobApplicationInput
   };
 }
 
+function upsertScreeningAnswer(
+  answers: PublicJobApplicationInput["screeningAnswers"],
+  questionId: string,
+  answer: boolean,
+): PublicJobApplicationInput["screeningAnswers"] {
+  const existing = answers.find((item) => item.questionId === questionId);
+  if (!existing) {
+    return [...answers, { questionId, answer }];
+  }
+  return answers.map((item) =>
+    item.questionId === questionId ? { ...item, answer } : item,
+  );
+}
+
 export function PublicJobPage({
   publicId,
   job: jobOverride,
@@ -120,9 +134,26 @@ export function PublicJobPage({
     enabled: Boolean(publicId) && !jobOverride,
     retry: false,
   });
+  const job = jobOverride ?? jobQuery.data;
   const applyMutation = useMutation({
-    mutationFn: () =>
-      publicJobsApi.apply(publicId!, compactForm(form), cvFile ?? undefined),
+    mutationFn: () => {
+      const screeningAnswers = (job?.screeningQuestions ?? []).map(
+        (question) => {
+          const existing = form.screeningAnswers.find(
+            (item) => item.questionId === question.id,
+          );
+          return {
+            questionId: question.id,
+            answer: existing?.answer ?? null,
+          };
+        },
+      );
+      return publicJobsApi.apply(
+        publicId!,
+        compactForm({ ...form, screeningAnswers }),
+        cvFile ?? undefined,
+      );
+    },
   });
   const parseCvMutation = useMutation({
     mutationFn: (file: File) => publicJobsApi.parseCv(publicId!, file),
@@ -169,25 +200,8 @@ export function PublicJobPage({
     },
   });
 
-  const job = jobOverride ?? jobQuery.data;
   const loading = !jobOverride && jobQuery.isLoading;
   const failed = !jobOverride && (jobQuery.isError || !jobQuery.data);
-
-  useEffect(() => {
-    if (!job?.screeningQuestions) return;
-    setForm((current) => ({
-      ...current,
-      screeningAnswers: job.screeningQuestions!.map((question) => {
-        const existing = current.screeningAnswers.find(
-          (item) => item.questionId === question.id,
-        );
-        return {
-          questionId: question.id,
-          answer: existing?.answer ?? null,
-        };
-      }),
-    }));
-  }, [job?.screeningQuestions]);
 
   if (loading) {
     return (
@@ -493,10 +507,10 @@ export function PublicJobPage({
                             onChange={() =>
                               update(
                                 "screeningAnswers",
-                                form.screeningAnswers.map((item) =>
-                                  item.questionId === question.id
-                                    ? { ...item, answer: true }
-                                    : item,
+                                upsertScreeningAnswer(
+                                  form.screeningAnswers,
+                                  question.id,
+                                  true,
                                 ),
                               )
                             }
@@ -512,10 +526,10 @@ export function PublicJobPage({
                             onChange={() =>
                               update(
                                 "screeningAnswers",
-                                form.screeningAnswers.map((item) =>
-                                  item.questionId === question.id
-                                    ? { ...item, answer: false }
-                                    : item,
+                                upsertScreeningAnswer(
+                                  form.screeningAnswers,
+                                  question.id,
+                                  false,
                                 ),
                               )
                             }

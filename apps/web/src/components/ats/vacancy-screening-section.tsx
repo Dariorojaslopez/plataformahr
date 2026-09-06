@@ -2,7 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus, Trash2 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -17,11 +17,31 @@ type ScreeningRow = {
   correctAnswer: boolean;
 };
 
+type ScreeningDraft = {
+  rows: ScreeningRow[];
+  minCorrect: string;
+};
+
+function toDraft(data: {
+  questions: Array<{ id: string; prompt: string; correctAnswer: boolean }>;
+  minCorrect: number | null;
+}): ScreeningDraft {
+  return {
+    rows: data.questions.map((question) => ({
+      key: question.id,
+      prompt: question.prompt,
+      correctAnswer: question.correctAnswer,
+    })),
+    minCorrect: String(
+      data.minCorrect ?? Math.max(data.questions.length, 0),
+    ),
+  };
+}
+
 export function VacancyScreeningSection({ vacancyId }: { vacancyId: string }) {
   const companyId = useCompanyId();
   const queryClient = useQueryClient();
-  const [rows, setRows] = useState<ScreeningRow[]>([]);
-  const [minCorrect, setMinCorrect] = useState("1");
+  const [draft, setDraft] = useState<ScreeningDraft | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
 
   const screeningQuery = useQuery({
@@ -29,22 +49,26 @@ export function VacancyScreeningSection({ vacancyId }: { vacancyId: string }) {
     queryFn: () => atsApi.getVacancyScreening(vacancyId),
   });
 
-  useEffect(() => {
-    if (!screeningQuery.data) return;
-    setRows(
-      screeningQuery.data.questions.map((question) => ({
-        key: question.id,
-        prompt: question.prompt,
-        correctAnswer: question.correctAnswer,
-      })),
-    );
-    setMinCorrect(
-      String(
-        screeningQuery.data.minCorrect ??
-          Math.max(screeningQuery.data.questions.length, 0),
-      ),
-    );
-  }, [screeningQuery.data]);
+  const serverDraft = screeningQuery.data
+    ? toDraft(screeningQuery.data)
+    : null;
+  const active = draft ?? serverDraft;
+  const rows = active?.rows ?? [];
+  const minCorrect = active?.minCorrect ?? "1";
+
+  const setRows = (updater: (current: ScreeningRow[]) => ScreeningRow[]) => {
+    setDraft((current) => {
+      const base = current ?? serverDraft ?? { rows: [], minCorrect: "1" };
+      return { ...base, rows: updater(base.rows) };
+    });
+  };
+
+  const setMinCorrect = (value: string) => {
+    setDraft((current) => {
+      const base = current ?? serverDraft ?? { rows: [], minCorrect: "1" };
+      return { ...base, minCorrect: value };
+    });
+  };
 
   const saveMutation = useMutation({
     mutationFn: async () => {
@@ -68,13 +92,14 @@ export function VacancyScreeningSection({ vacancyId }: { vacancyId: string }) {
         questions: cleaned,
       });
     },
-    onSuccess: async () => {
+    onSuccess: async (data) => {
       await queryClient.invalidateQueries({
         queryKey: atsKeys.vacancyScreening(companyId, vacancyId),
       });
       await queryClient.invalidateQueries({
         queryKey: atsKeys.vacancy(companyId, vacancyId),
       });
+      setDraft(toDraft(data));
       setFormError(null);
       notifySuccess("Screening guardado");
     },
