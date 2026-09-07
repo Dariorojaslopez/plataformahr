@@ -34,7 +34,7 @@ export function AtsSettingsShell({ children }: { children: React.ReactNode }) {
           href="/ats/pipeline"
           className="text-sm font-medium text-primary hover:underline"
         >
-          ← Volver al pipeline ATS
+          ← Volver al tablero Kanban
         </Link>
       </div>
       <nav className="flex flex-wrap gap-2 border-b border-border pb-2">

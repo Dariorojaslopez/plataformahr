@@ -61,9 +61,8 @@ describe("home view by role", () => {
     expect(hrefs("CLIENT_ADMIN")).toContain("/performance/calibration");
     expect(hrefs("CLIENT_ADMIN")).toContain("/performance/9box");
     expect(hrefs("CLIENT_ADMIN")).toContain("/organization/settings");
-    expect(hrefs("CLIENT_ADMIN")).not.toContain("/ats/pipeline");
+    expect(hrefs("CLIENT_ADMIN")).toContain("/ats/pipeline");
     expect(hrefs("CLIENT_ADMIN")).toContain("/settings/branding");
-    expect(hrefs("CLIENT_ADMIN")).not.toContain("/ats/pipeline");
     expect(hrefs("COLLABORATOR")).not.toEqual(hrefs("LEADER"));
     expect(hrefs("LEADER")).not.toEqual(hrefs("RECRUITER"));
     expect(hrefs("RECRUITER")).not.toEqual(hrefs("CLIENT_ADMIN"));

@@ -114,8 +114,8 @@ export const HOME_SHORTCUTS: Record<CompanyHomeRole, HomeShortcut[]> = {
     },
     {
       href: "/ats/pipeline",
-      title: "Pipeline",
-      description: "Mueve aplicaciones entre etapas.",
+      title: "Tablero Kanban",
+      description: "Avance de candidatos por proceso de selección.",
     },
     {
       href: "/ats/interviews",
@@ -194,6 +194,12 @@ export const HOME_SHORTCUTS: Record<CompanyHomeRole, HomeShortcut[]> = {
       title: "Importación masiva",
       description: "Carga masiva de la organización.",
       group: "organization",
+    },
+    {
+      href: "/ats/pipeline",
+      title: "Tablero Kanban",
+      description: "Avance de candidatos por proceso de selección.",
+      group: "ats",
     },
     {
       href: "/ats/settings/approvals",

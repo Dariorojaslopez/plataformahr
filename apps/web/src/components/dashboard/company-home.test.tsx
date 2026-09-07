@@ -38,7 +38,7 @@ describe("CompanyHome", () => {
     expect(screen.getByText("Información de la compañía")).toBeInTheDocument();
     expect(screen.queryByText("Compañía activa")).not.toBeInTheDocument();
     expect(screen.queryByText("Colaboradores")).not.toBeInTheDocument();
-    expect(screen.queryByText("Pipeline")).not.toBeInTheDocument();
+    expect(screen.queryByText("Tablero Kanban")).not.toBeInTheDocument();
   });
 
   it("shows leader people home, not recruiter shortcuts", () => {
@@ -118,7 +118,7 @@ describe("CompanyHome", () => {
     expect(screen.getByText("Configuración del sistema")).toBeInTheDocument();
     expect(screen.getByText("Colaboradores")).toBeInTheDocument();
     expect(screen.getByText("Apariencia")).toBeInTheDocument();
-    expect(screen.queryByText("Pipeline")).not.toBeInTheDocument();
+    expect(screen.getByText("Tablero Kanban")).toBeInTheDocument();
     expect(screen.queryByText("Próximamente")).not.toBeInTheDocument();
   });
 });

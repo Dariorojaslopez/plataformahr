@@ -355,6 +355,9 @@ function VacancyActions({
         </Link>
       </Button>
       <Button variant="outline" size="sm" asChild>
+        <Link href={`/ats/pipeline?vacancyId=${vacancy.id}`}>Tablero</Link>
+      </Button>
+      <Button variant="outline" size="sm" asChild>
         <Link href={`/ats/vacancies/${vacancy.id}/preview`}>Preview</Link>
       </Button>
       {canPublish ? (

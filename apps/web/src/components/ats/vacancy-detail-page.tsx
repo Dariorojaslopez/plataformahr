@@ -138,7 +138,7 @@ export function VacancyDetailPageClient() {
             ) : null}
             <Button asChild>
               <Link href={`/ats/pipeline?vacancyId=${vacancy.id}`}>
-                Ver pipeline
+                Ver tablero Kanban
               </Link>
             </Button>
             <Button variant="outline" asChild>

@@ -16,7 +16,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { FileText, MoreHorizontal } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useSession } from "@/components/auth/session-provider";
 import { FormSelect } from "@/components/organization/form-select";
 import { Badge } from "@/components/ui/badge";
@@ -201,6 +201,15 @@ export function PipelinePageClient() {
     router.replace(qs ? `${pathname}?${qs}` : pathname);
   }
 
+  const didAutoSelectVacancy = useRef(false);
+  useEffect(() => {
+    if (didAutoSelectVacancy.current || vacancyId) return;
+    const firstVacancyId = vacancyOptions[0]?.value;
+    if (!firstVacancyId) return;
+    didAutoSelectVacancy.current = true;
+    setVacancy(firstVacancyId);
+  }, [vacancyId, vacancyOptions]);
+
   async function invalidatePipeline() {
     await queryClient.invalidateQueries({
       queryKey: atsKeys.pipeline(companyId, vacancyId),
@@ -323,8 +332,8 @@ export function PipelinePageClient() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Pipeline"
-        description="Tablero Kanban de candidatos por proceso de selección."
+        title="Tablero Kanban"
+        description="Avance de candidatos por proceso de selección."
       />
 
       <FormSelect
@@ -339,7 +348,10 @@ export function PipelinePageClient() {
       />
 
       {!vacancyId ? (
-        <EmptyState title="Selecciona una vacante para ver el pipeline." />
+        <div className="space-y-3">
+          <EmptyState title="Selecciona un proceso de selección para ver el avance de los candidatos." />
+          <KanbanColumnsPreview />
+        </div>
       ) : null}
 
       {vacancyId && pipelineQuery.isLoading ? (
@@ -352,7 +364,7 @@ export function PipelinePageClient() {
 
       {pipelineQuery.isError ? (
         <ErrorState
-          title="No se pudo cargar el pipeline"
+          title="No se pudo cargar el tablero"
           description={getErrorMessage(pipelineQuery.error, "Error al cargar.")}
           onRetry={() => void pipelineQuery.refetch()}
         />
@@ -835,6 +847,30 @@ function DocDownloadRow({
         Descargar
       </Button>
     </li>
+  );
+}
+
+function KanbanColumnsPreview() {
+  return (
+    <div className="flex gap-3 overflow-x-auto pb-2">
+      {KANBAN_COLUMNS.map((column) => (
+        <section
+          key={column.id}
+          aria-label={column.label}
+          className="flex w-72 shrink-0 flex-col rounded-lg border border-border bg-muted/30"
+        >
+          <header className="flex items-center justify-between border-b border-border px-3 py-2">
+            <h3 className="text-sm font-semibold">{column.label}</h3>
+            <Badge variant="secondary">0</Badge>
+          </header>
+          <div className="p-2">
+            <p className="px-1 py-6 text-center text-xs text-muted-foreground">
+              {column.dropHint}
+            </p>
+          </div>
+        </section>
+      ))}
+    </div>
   );
 }
 

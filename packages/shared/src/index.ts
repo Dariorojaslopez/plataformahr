@@ -294,7 +294,7 @@ export const COMPANY_ACCESS_CATALOG = [
       { code: 'ats.vacancy-requests', label: 'Crear proceso de selección' },
       { code: 'ats.vacancies', label: 'Vacantes' },
       { code: 'ats.candidates', label: 'Candidatos' },
-      { code: 'ats.pipeline', label: 'Pipeline' },
+      { code: 'ats.pipeline', label: 'Tablero Kanban' },
       { code: 'ats.interviews', label: 'Entrevistas' },
       { code: 'ats.interview-templates', label: 'Plantillas de entrevista' },
       { code: 'ats.approvals', label: 'Niveles de aprobación por defecto' },

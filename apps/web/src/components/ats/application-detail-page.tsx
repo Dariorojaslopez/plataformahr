@@ -157,7 +157,7 @@ export function ApplicationDetailPageClient() {
             </Button>
             <Button variant="outline" asChild>
               <Link href={`/ats/pipeline?vacancyId=${application.vacancyId}`}>
-                Ver pipeline
+                Ver tablero Kanban
               </Link>
             </Button>
             <Button variant="outline" asChild>

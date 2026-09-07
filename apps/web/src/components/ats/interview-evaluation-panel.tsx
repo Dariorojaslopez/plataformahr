@@ -394,7 +394,7 @@ function InterviewPhaseDecisionField({
       });
       notifySuccess(
         result === "hire-hint"
-          ? 'Para contratar, muévelo a la columna "a Contratar" en el Pipeline.'
+          ? 'Para contratar, muévelo a la columna "a Contratar" en el tablero Kanban.'
           : "Estado de fase actualizado",
       );
       setError(null);

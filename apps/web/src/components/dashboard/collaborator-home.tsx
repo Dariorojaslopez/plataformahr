@@ -774,6 +774,11 @@ function AssignedVacanciesSection({
                 <Button type="button" size="sm" variant="outline" asChild>
                   <Link href={`/ats/vacancies/${item.id}`}>Ver proceso</Link>
                 </Button>
+                <Button type="button" size="sm" asChild>
+                  <Link href={`/ats/pipeline?vacancyId=${item.id}`}>
+                    Ver tablero Kanban
+                  </Link>
+                </Button>
               </CardContent>
             </Card>
           ))}

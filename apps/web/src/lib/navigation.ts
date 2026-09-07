@@ -131,7 +131,7 @@ export const APP_NAV: NavSection[] = [
         icon: Users,
       },
       {
-        label: "Pipeline",
+        label: "Tablero Kanban",
         href: "/ats/pipeline",
         icon: GitBranch,
       },

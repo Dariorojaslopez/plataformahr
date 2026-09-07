@@ -121,18 +121,23 @@ export function CandidatesPageClient() {
         title="Candidatos"
         description="Talento en proceso de selección."
         actions={
-          <Button
-            type="button"
-            onClick={() => {
-              setEditing(null);
-              setForm(emptyCandidateForm());
-              setFormError(null);
-              setOpen(true);
-            }}
-          >
-            <Plus className="size-4" aria-hidden />
-            Nuevo candidato
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" asChild>
+              <Link href="/ats/pipeline">Ver tablero Kanban</Link>
+            </Button>
+            <Button
+              type="button"
+              onClick={() => {
+                setEditing(null);
+                setForm(emptyCandidateForm());
+                setFormError(null);
+                setOpen(true);
+              }}
+            >
+              <Plus className="size-4" aria-hidden />
+              Nuevo candidato
+            </Button>
+          </div>
         }
       />
 
