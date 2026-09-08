@@ -2,16 +2,20 @@
 
 import { Moon, Sun } from "lucide-react";
 import { ThemeProvider as NextThemesProvider, useTheme } from "next-themes";
+import { usePathname } from "next/navigation";
 import { useSyncExternalStore, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
+import { forcedThemeForPath } from "@/lib/theme";
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
+  const pathname = usePathname();
   return (
     <NextThemesProvider
       attribute="class"
       defaultTheme="system"
       enableSystem
       disableTransitionOnChange
+      forcedTheme={forcedThemeForPath(pathname)}
     >
       {children}
     </NextThemesProvider>

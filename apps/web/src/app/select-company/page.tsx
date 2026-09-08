@@ -20,6 +20,7 @@ export default function SelectCompanyPage() {
     selectCompany,
     logout,
     setPlatformCompanies,
+    refreshCompanyAccess,
   } = useSession();
   const [platformError, setPlatformError] = useState<string | null>(null);
   const [platformFetchFinished, setPlatformFetchFinished] = useState(false);
@@ -133,7 +134,9 @@ export default function SelectCompanyPage() {
             className="text-left focus-visible:outline-none"
             onClick={() => {
               selectCompany(company.id);
-              router.push("/dashboard");
+              void refreshCompanyAccess().then(() => {
+                router.push("/dashboard");
+              });
             }}
           >
             <Card className="h-full transition-colors hover:border-primary/40">

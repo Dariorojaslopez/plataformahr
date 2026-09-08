@@ -75,15 +75,22 @@ function CompanyBrandingForm({
     queryKey: companyKeys.logo(companyId, branding.logoUpdatedAt),
     queryFn: async () => {
       const { blob } = await companyApi.getLogoBlob();
-      return URL.createObjectURL(blob);
+      return blob;
     },
     enabled: branding.hasLogo,
+    staleTime: Infinity,
   });
 
+  const [logoSrc, setLogoSrc] = useState<string | null>(null);
   useEffect(() => {
-    const url = logoQuery.data;
+    if (!logoQuery.data) {
+      setLogoSrc(null);
+      return;
+    }
+    const url = URL.createObjectURL(logoQuery.data);
+    setLogoSrc(url);
     return () => {
-      if (url) URL.revokeObjectURL(url);
+      URL.revokeObjectURL(url);
     };
   }, [logoQuery.data]);
 
@@ -159,10 +166,10 @@ function CompanyBrandingForm({
         style={previewVars}
       >
         <div className="flex items-center gap-3 bg-sidebar px-4 py-3 text-sidebar-foreground">
-          {branding.hasLogo && logoQuery.data ? (
+          {branding.hasLogo && logoSrc ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
-              src={logoQuery.data}
+              src={logoSrc}
               alt=""
               className="h-8 w-8 rounded object-contain bg-white"
             />

@@ -27,7 +27,8 @@ type AppHeaderProps = {
 export function AppHeader({ onToggleSidebar }: AppHeaderProps) {
   const pathname = usePathname();
   const router = useRouter();
-  const { user, companies, activeCompany, selectCompany, logout } = useSession();
+  const { user, companies, activeCompany, selectCompany, refreshCompanyAccess, logout } =
+    useSession();
   const [mobileOpen, setMobileOpen] = useState(false);
 
   if (!user) return null;
@@ -86,7 +87,9 @@ export function AppHeader({ onToggleSidebar }: AppHeaderProps) {
                   key={company.id}
                   onSelect={() => {
                     selectCompany(company.id);
-                    router.push("/dashboard");
+                    void refreshCompanyAccess().then(() => {
+                      router.push("/dashboard");
+                    });
                   }}
                 >
                   <div className="min-w-0">

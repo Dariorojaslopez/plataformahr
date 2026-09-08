@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Pencil, Plus, Trash2 } from "lucide-react";
+import { Pencil, Plus, Trash2, KeyRound } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useMemo, useState } from "react";
@@ -13,6 +13,7 @@ import {
 } from "@/components/organization/employee-form";
 import { EntityEditorShell } from "@/components/organization/entity-editor-shell";
 import { FormSelect } from "@/components/organization/form-select";
+import { IssueEmployeeAccessDialog } from "@/components/organization/issue-employee-access-dialog";
 import { OrgStatusBadge } from "@/components/organization/status-badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -46,6 +47,7 @@ export function EmployeeProfilePageClient() {
   const [managerId, setManagerId] = useState("");
   const [reportType, setReportType] = useState<ReportingLineType>("DIRECT");
   const [reportError, setReportError] = useState<string | null>(null);
+  const [accessOpen, setAccessOpen] = useState(false);
 
   const profileQuery = useQuery({
     queryKey: orgKeys.employeeProfile(companyId, employeeId),
@@ -173,16 +175,28 @@ export function EmployeeProfilePageClient() {
         title={`${profile.firstName} ${profile.lastName}`}
         description="Perfil organizacional del colaborador"
         actions={
-          <Button
-            type="button"
-            onClick={() => {
-              setFormError(null);
-              setEditOpen(true);
-            }}
-          >
-            <Pencil className="h-4 w-4" aria-hidden />
-            Editar
-          </Button>
+          <>
+            {employee ? (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setAccessOpen(true)}
+              >
+                <KeyRound className="h-4 w-4" aria-hidden />
+                Dar acceso
+              </Button>
+            ) : null}
+            <Button
+              type="button"
+              onClick={() => {
+                setFormError(null);
+                setEditOpen(true);
+              }}
+            >
+              <Pencil className="h-4 w-4" aria-hidden />
+              Editar
+            </Button>
+          </>
         }
       />
 
@@ -440,6 +454,12 @@ export function EmployeeProfilePageClient() {
           </div>
         </form>
       </EntityEditorShell>
+
+      <IssueEmployeeAccessDialog
+        employee={employee ?? null}
+        open={accessOpen}
+        onOpenChange={setAccessOpen}
+      />
     </div>
   );
 }

@@ -4,6 +4,7 @@ import {
   IsDateString,
   IsEmail,
   IsEnum,
+  IsIn,
   IsInt,
   IsOptional,
   IsString,
@@ -251,6 +252,27 @@ export class UpdateEmployeeDto {
   @ValidateNested({ each: true })
   @Type(() => PositionCustomFieldValueInputDto)
   customFields?: PositionCustomFieldValueInputDto[];
+}
+
+export class DeleteEmployeesDto {
+  @IsArray()
+  @ArrayMaxSize(100)
+  @IsUUID('4', { each: true })
+  ids!: string[];
+}
+
+export const EMPLOYEE_ACCESS_ROLES = [
+  'COLLABORATOR',
+  'LEADER',
+  'RECRUITER',
+] as const;
+
+export type EmployeeAccessRoleCode = (typeof EMPLOYEE_ACCESS_ROLES)[number];
+
+export class IssueEmployeeAccessDto {
+  @IsOptional()
+  @IsIn(EMPLOYEE_ACCESS_ROLES)
+  roleCode?: EmployeeAccessRoleCode;
 }
 
 export class ListEmployeesQueryDto {

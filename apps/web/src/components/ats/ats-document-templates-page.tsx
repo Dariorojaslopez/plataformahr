@@ -98,13 +98,8 @@ function ThankYouLetterForm({
       <div>
         <h2 className="text-lg font-semibold">Carta de agradecimiento</h2>
         <p className="text-sm text-muted-foreground">
-          Se envía por email a los finalistas descartados al contratar a otro
-          candidato (requiere SMTP configurado en el API). Placeholders:{" "}
-          <code className="text-xs">{"{{firstName}}"}</code>,{" "}
-          <code className="text-xs">{"{{lastName}}"}</code>,{" "}
-          <code className="text-xs">{"{{fullName}}"}</code>,{" "}
-          <code className="text-xs">{"{{vacancyTitle}}"}</code>,{" "}
-          <code className="text-xs">{"{{companyName}}"}</code>.
+          Se envía por correo a los finalistas que no fueron contratados. Si
+          dejas el cuerpo vacío, se usa el texto por defecto del sistema.
         </p>
       </div>
       <div className="space-y-2">

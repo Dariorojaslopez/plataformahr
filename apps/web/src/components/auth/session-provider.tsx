@@ -6,13 +6,13 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   useSyncExternalStore,
   type ReactNode,
 } from "react";
 import {
   changePasswordRequest,
-  currentCompanyAccessRequest,
   loginRequest,
   logoutRequest,
   meRequest,
@@ -20,6 +20,7 @@ import {
 } from "@/lib/api/auth";
 import { refreshAccessToken } from "@/lib/api/client";
 import { getErrorMessage } from "@/lib/api/errors";
+import { fetchCompanyAccessWithRetry } from "@/lib/auth/company-access";
 import {
   clearSession,
   getAccessToken,
@@ -49,6 +50,7 @@ type SessionContextValue = {
   activeCompany: PublicCompany | null;
   companyAccess: CurrentCompanyAccess | null;
   companyAccessLoading: boolean;
+  companyAccessError: string | null;
   login: (
     email: string,
     password: string,
@@ -91,6 +93,10 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const [companyAccess, setCompanyAccess] =
     useState<CurrentCompanyAccess | null>(null);
   const [companyAccessLoading, setCompanyAccessLoading] = useState(false);
+  const [companyAccessError, setCompanyAccessError] = useState<string | null>(
+    null,
+  );
+  const accessRequestId = useRef(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -146,9 +152,11 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     setSessionIdentity(result.user, result.companies);
     if (result.companies.length === 1) {
       setCompanyAccess(null);
+      setCompanyAccessError(null);
       setCompanyAccessLoading(true);
       setActiveCompanyId(result.companies[0].id);
     } else {
+      setCompanyAccessError(null);
       setActiveCompanyId(null);
     }
     setStatus("authenticated");
@@ -163,6 +171,10 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     } catch {
       // always clear local session; server clears cookie on success
     } finally {
+      accessRequestId.current += 1;
+      setCompanyAccess(null);
+      setCompanyAccessError(null);
+      setCompanyAccessLoading(false);
       clearSession();
       setStatus("anonymous");
     }
@@ -184,12 +196,15 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       throw new Error("Company not available for this user");
     }
     setCompanyAccess(null);
+    setCompanyAccessError(null);
     setCompanyAccessLoading(true);
     setActiveCompanyId(companyId);
   }, []);
 
   const clearActiveCompany = useCallback(() => {
+    accessRequestId.current += 1;
     setCompanyAccess(null);
+    setCompanyAccessError(null);
     setCompanyAccessLoading(false);
     setActiveCompanyId(null);
   }, []);
@@ -205,38 +220,44 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       (company) => company.id === snapshot.activeCompanyId,
     ) ?? null;
 
-  const refreshCompanyAccess = useCallback(async () => {
+  const loadCompanyAccess = useCallback(async () => {
     if (!getActiveCompanyId()) {
       setCompanyAccess(null);
+      setCompanyAccessError(null);
+      setCompanyAccessLoading(false);
       return;
     }
+    const requestId = ++accessRequestId.current;
     setCompanyAccessLoading(true);
+    setCompanyAccessError(null);
     try {
-      setCompanyAccess(await currentCompanyAccessRequest());
+      const access = await fetchCompanyAccessWithRetry();
+      if (requestId !== accessRequestId.current) return;
+      setCompanyAccess(access);
+      setCompanyAccessError(null);
+    } catch (error) {
+      if (requestId !== accessRequestId.current) return;
+      setCompanyAccess(null);
+      setCompanyAccessError(
+        getErrorMessage(error, "No se pudo cargar el acceso de la compañía."),
+      );
     } finally {
-      setCompanyAccessLoading(false);
+      if (requestId === accessRequestId.current) {
+        setCompanyAccessLoading(false);
+      }
     }
   }, []);
 
+  const refreshCompanyAccess = useCallback(async () => {
+    await loadCompanyAccess();
+  }, [loadCompanyAccess]);
+
   useEffect(() => {
-    let cancelled = false;
     if (!snapshot.activeCompanyId || status !== "authenticated") {
       return;
     }
-    void currentCompanyAccessRequest()
-      .then((access) => {
-        if (!cancelled) setCompanyAccess(access);
-      })
-      .catch(() => {
-        if (!cancelled) setCompanyAccess(null);
-      })
-      .finally(() => {
-        if (!cancelled) setCompanyAccessLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [snapshot.activeCompanyId, status]);
+    void loadCompanyAccess();
+  }, [snapshot.activeCompanyId, status, loadCompanyAccess]);
 
   const value = useMemo<SessionContextValue>(
     () => ({
@@ -247,6 +268,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       activeCompany,
       companyAccess,
       companyAccessLoading,
+      companyAccessError,
       login,
       logout,
       changePassword,
@@ -263,6 +285,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       activeCompany,
       companyAccess,
       companyAccessLoading,
+      companyAccessError,
       login,
       logout,
       changePassword,

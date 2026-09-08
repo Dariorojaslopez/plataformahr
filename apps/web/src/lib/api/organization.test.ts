@@ -239,4 +239,44 @@ describe("organizationApi", () => {
     expect(headers?.["Content-Type"]).toMatch(/spreadsheetml/);
     expect(vi.mocked(fetch).mock.calls[0]?.[1]?.body).toBe(bytes);
   });
+
+  it("deletes collaborators in bulk", async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      new Response(JSON.stringify({ deleted: 2 }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+    await organizationApi.deleteEmployees(["e1", "e2"]);
+    expect(String(vi.mocked(fetch).mock.calls[0]?.[0])).toContain(
+      "/organization/employees/bulk-delete",
+    );
+    expect(vi.mocked(fetch).mock.calls[0]?.[1]).toMatchObject({
+      method: "POST",
+    });
+    expect(JSON.parse(String(vi.mocked(fetch).mock.calls[0]?.[1]?.body))).toEqual(
+      { ids: ["e1", "e2"] },
+    );
+  });
+
+  it("issues employee access with a role", async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          email: "ada@example.com",
+          temporaryPassword: "tmp",
+          passwordEmailed: false,
+          roleCode: "LEADER",
+        }),
+        { status: 201, headers: { "Content-Type": "application/json" } },
+      ),
+    );
+    await organizationApi.issueEmployeeAccess("e1", "LEADER");
+    expect(String(vi.mocked(fetch).mock.calls[0]?.[0])).toContain(
+      "/organization/employees/e1/access",
+    );
+    expect(JSON.parse(String(vi.mocked(fetch).mock.calls[0]?.[1]?.body))).toEqual(
+      { roleCode: "LEADER" },
+    );
+  });
 });

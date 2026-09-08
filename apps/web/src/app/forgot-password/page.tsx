@@ -55,15 +55,18 @@ export default function ForgotPasswordPage() {
           </h1>
           <p className="text-sm leading-relaxed text-black/55">
             Te enviaremos una contraseña temporal a tu correo corporativo. Al
-            entrar deberás cambiarla.
+            entrar deberás cambiarla. Si no llega, un administrador puede
+            generarte una desde Colaboradores.
           </p>
         </div>
 
         {sent ? (
           <div className="space-y-5 rounded-lg border border-black/10 bg-white p-5">
             <p className="text-sm leading-relaxed text-[#041110]">
-              Si el email está registrado, recibirás una contraseña temporal en
-              unos minutos. Revisa también spam.
+              Si el email está registrado y el correo está configurado,
+              recibirás una contraseña temporal en unos minutos. Revisa también
+              spam. Si no llega, pide a un administrador que te genere el
+              acceso desde Colaboradores.
             </p>
             <Button asChild className="w-full">
               <Link href="/login">Volver a iniciar sesión</Link>

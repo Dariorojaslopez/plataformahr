@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
 import { useCompanyBranding } from "@/components/company/company-branding-provider";
 import { useSession } from "@/components/auth/session-provider";
 import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
@@ -37,25 +38,40 @@ export function SidebarNav({
     navigation.flatMap(({ items }) => items),
   );
   const branding = useCompanyBranding();
+  const [logoFailed, setLogoFailed] = useState(false);
+  useEffect(() => {
+    setLogoFailed(false);
+  }, [branding.logoSrc]);
+  const showLogo = Boolean(branding.logoSrc) && !logoFailed;
 
   return (
     <div className="flex h-full flex-col bg-sidebar text-sidebar-foreground">
       <div
         className={cn(
-          "flex h-14 items-center border-b border-sidebar-border px-4",
-          collapsed ? "justify-center" : "justify-between",
+          "flex shrink-0 items-center border-b border-sidebar-border",
+          collapsed
+            ? "h-auto flex-col justify-center gap-1 px-1 py-2"
+            : "h-14 justify-between px-4",
         )}
       >
-        {!collapsed ? (
-          <div className="flex min-w-0 items-center gap-2">
-            {branding.logoSrc ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={branding.logoSrc}
-                alt=""
-                className="h-8 w-8 shrink-0 rounded object-contain bg-white"
-              />
-            ) : null}
+        <div
+          className={cn(
+            "flex min-w-0 items-center justify-center gap-2 overflow-hidden",
+            collapsed && "w-full",
+          )}
+        >
+          {showLogo ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={branding.logoSrc ?? ""}
+              alt=""
+              onError={() => setLogoFailed(true)}
+              className="h-8 w-8 max-h-8 max-w-8 shrink-0 rounded object-contain bg-white"
+            />
+          ) : collapsed ? (
+            <span className="text-sm font-semibold">{branding.initials}</span>
+          ) : null}
+          {!collapsed ? (
             <div className="min-w-0">
               <p className="truncate text-sm font-semibold tracking-tight">
                 {branding.name}
@@ -64,23 +80,17 @@ export function SidebarNav({
                 Gestión de talento
               </p>
             </div>
-          </div>
-        ) : branding.logoSrc ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={branding.logoSrc}
-            alt=""
-            className="h-8 w-8 rounded object-contain bg-white"
-          />
-        ) : (
-          <span className="text-sm font-semibold">{branding.initials}</span>
-        )}
+          ) : null}
+        </div>
         {showCollapseToggle && onToggleCollapse ? (
           <Button
             type="button"
             variant="ghost"
             size="icon"
-            className="text-sidebar-foreground hover:bg-sidebar-muted"
+            className={cn(
+              "shrink-0 text-sidebar-foreground hover:bg-sidebar-muted",
+              collapsed && "size-8",
+            )}
             onClick={onToggleCollapse}
             aria-label={collapsed ? "Expandir menú" : "Colapsar menú"}
           >

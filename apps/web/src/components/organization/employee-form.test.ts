@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  employeeRequiredFieldError,
   employeeToFormValues,
   toCreatePayload,
   toUpdatePayload,
@@ -79,6 +80,24 @@ describe("employee form mappers", () => {
     const update = toUpdatePayload(values);
     expect(update.businessUnitId).toBeNull();
     expect(update.birthDate).toBeNull();
+  });
+});
+
+describe("employeeRequiredFieldError", () => {
+  it("asks only for the cargo when the rest is complete", () => {
+    const values = employeeToFormValues(sample);
+    values.positionId = "";
+    expect(employeeRequiredFieldError(values, 2)).toBe(
+      "Selecciona un cargo de esta área.",
+    );
+  });
+
+  it("explains when the area has no positions", () => {
+    const values = employeeToFormValues(sample);
+    values.positionId = "";
+    expect(employeeRequiredFieldError(values, 0)).toBe(
+      "Esta área no tiene cargos. Crea uno en Descripciones de cargo y vuelve a asignarlo.",
+    );
   });
 });
 

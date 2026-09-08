@@ -11,6 +11,8 @@ import type {
   CreatePositionInput,
   CreateReportingLineInput,
   Employee,
+  EmployeeAccessIssued,
+  EmployeeAccessRole,
   JobLevel,
   JobLevelCompetencies,
   ListEmployeesParams,
@@ -193,6 +195,18 @@ export const organizationApi = {
     apiRequest<Employee>(`/organization/employees/${id}`, {
       method: "PATCH",
       body,
+    }),
+
+  deleteEmployees: (ids: string[]) =>
+    apiRequest<{ deleted: number }>("/organization/employees/bulk-delete", {
+      method: "POST",
+      body: { ids },
+    }),
+
+  issueEmployeeAccess: (id: string, roleCode?: EmployeeAccessRole) =>
+    apiRequest<EmployeeAccessIssued>(`/organization/employees/${id}/access`, {
+      method: "POST",
+      body: { roleCode },
     }),
 
   listReportingLines: (employeeId: string) =>

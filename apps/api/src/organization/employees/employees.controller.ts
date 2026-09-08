@@ -19,6 +19,8 @@ import { CurrentTenant } from '../../tenant/decorators/current-tenant.decorator'
 import { CompanyContextGuard } from '../../tenant/guards/company-context.guard';
 import {
   CreateEmployeeDto,
+  DeleteEmployeesDto,
+  IssueEmployeeAccessDto,
   ListEmployeesQueryDto,
   UpdateEmployeeDto,
 } from './dto/employee.dto';
@@ -78,6 +80,36 @@ export class EmployeesController {
     @Body() dto: CreateEmployeeDto,
   ) {
     return this.employeesService.create(tenant.companyId, user.userId, dto);
+  }
+
+  @Post('bulk-delete')
+  @RequirePermissions('organization.manage')
+  removeMany(
+    @CurrentTenant() tenant: TenantContext,
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: DeleteEmployeesDto,
+  ) {
+    return this.employeesService.removeMany(
+      tenant.companyId,
+      user.userId,
+      dto.ids,
+    );
+  }
+
+  @Post(':id/access')
+  @RequirePermissions('organization.manage')
+  issueAccess(
+    @CurrentTenant() tenant: TenantContext,
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: IssueEmployeeAccessDto,
+  ) {
+    return this.employeesService.issueAccess(
+      tenant.companyId,
+      user.userId,
+      id,
+      dto.roleCode ?? 'LEADER',
+    );
   }
 
   @Patch(':id')

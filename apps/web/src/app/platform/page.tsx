@@ -99,12 +99,14 @@ export default function PlatformPage() {
 
 function PlatformAdministration() {
   const router = useRouter();
-  const { user, logout, selectCompany, setPlatformCompanies } = useSession();
+  const { user, logout, selectCompany, setPlatformCompanies, refreshCompanyAccess } =
+    useSession();
   const [companies, setCompanies] = useState<ManagedCompany[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [credentials, setCredentials] =
     useState<CreateManagedCompanyResponse | null>(null);
+  const [enteringId, setEnteringId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -148,14 +150,18 @@ function PlatformAdministration() {
   }
 
   async function enterCompany(companyId: string) {
+    setEnteringId(companyId);
     try {
       await grantPlatformTenantAccessRequest(companyId);
       const active = await platformCompaniesRequest();
       setPlatformCompanies(active);
       selectCompany(companyId);
-      router.push("/dashboard");
+      await refreshCompanyAccess();
+      router.replace("/dashboard");
     } catch (err) {
       notifyError(err, "No se pudo entrar a la compañía.");
+    } finally {
+      setEnteringId(null);
     }
   }
 
@@ -221,7 +227,7 @@ function PlatformAdministration() {
               <CardDescription>
                 {credentials.passwordEmailed
                   ? "También enviamos la contraseña al email del administrador. Cópiala por si no llega el correo; deberá cambiarla al iniciar sesión."
-                  : "Copia la contraseña ahora. No se pudo enviar por correo (revisa SMTP). Deberá cambiarse al iniciar sesión."}
+                  : "Copia la contraseña ahora. No se pudo enviar por correo. Deberá cambiarse al iniciar sesión."}
               </CardDescription>
             </CardHeader>
             <CardContent className="flex flex-col gap-3 sm:flex-row sm:items-end">
@@ -349,11 +355,15 @@ function PlatformAdministration() {
                   <div className="flex flex-wrap gap-2">
                     <Button
                       size="sm"
-                      disabled={company.status !== "ACTIVE"}
+                      disabled={
+                        company.status !== "ACTIVE" || enteringId === company.id
+                      }
                       onClick={() => void enterCompany(company.id)}
                     >
                       <LogIn className="size-4" />
-                      Entrar como administrador
+                      {enteringId === company.id
+                        ? "Entrando…"
+                        : "Entrar como administrador"}
                     </Button>
                     <CompanyAccessWindowDialog
                       company={company}

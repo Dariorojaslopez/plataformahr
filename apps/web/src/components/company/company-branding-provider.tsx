@@ -6,6 +6,7 @@ import {
   createContext,
   useContext,
   useEffect,
+  useState,
   type ReactNode,
 } from "react";
 import { useSession } from "@/components/auth/session-provider";
@@ -47,15 +48,22 @@ export function CompanyBrandingProvider({ children }: { children: ReactNode }) {
     ),
     queryFn: async () => {
       const { blob } = await companyApi.getLogoBlob();
-      return URL.createObjectURL(blob);
+      return blob;
     },
     enabled: Boolean(activeCompanyId && branding?.hasLogo),
+    staleTime: Infinity,
   });
 
+  const [logoSrc, setLogoSrc] = useState<string | null>(null);
   useEffect(() => {
-    const url = logoQuery.data;
+    if (!logoQuery.data) {
+      setLogoSrc(null);
+      return;
+    }
+    const url = URL.createObjectURL(logoQuery.data);
+    setLogoSrc(url);
     return () => {
-      if (url) URL.revokeObjectURL(url);
+      URL.revokeObjectURL(url);
     };
   }, [logoQuery.data]);
 
@@ -67,7 +75,7 @@ export function CompanyBrandingProvider({ children }: { children: ReactNode }) {
     initials: companyInitials(name),
     brandPrimaryColor: branding?.brandPrimaryColor ?? null,
     hasLogo: Boolean(branding?.hasLogo),
-    logoSrc: branding?.hasLogo ? (logoQuery.data ?? null) : null,
+    logoSrc: branding?.hasLogo ? logoSrc : null,
     branding,
   };
 

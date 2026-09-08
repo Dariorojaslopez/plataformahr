@@ -14,10 +14,17 @@ import {
 } from "@/lib/auth/session-store";
 import { cn } from "@/lib/utils";
 import { resolveCompanyAccessForPath } from "@/lib/navigation";
+import { ErrorState } from "@/components/ui/error-state";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export function AppShell({ children }: { children: ReactNode }) {
-  const { activeCompanyId, companyAccess } = useSession();
+  const {
+    activeCompanyId,
+    companyAccess,
+    companyAccessLoading,
+    companyAccessError,
+    refreshCompanyAccess,
+  } = useSession();
   const pathname = usePathname();
   const collapsed = useSyncExternalStore(
     subscribeSidebar,
@@ -37,10 +44,21 @@ export function AppShell({ children }: { children: ReactNode }) {
   return (
     <AuthGuard requireCompany>
       <CompanyBrandingProvider key={activeCompanyId ?? "none"}>
-        {!companyAccess ? (
+        {companyAccessLoading ? (
           <div className="mx-auto max-w-7xl space-y-4 px-4 py-8">
             <Skeleton className="h-12 w-64" />
             <Skeleton className="h-72 w-full" />
+          </div>
+        ) : !companyAccess ? (
+          <div className="mx-auto max-w-7xl px-4 py-8">
+            <ErrorState
+              title="No se pudo cargar la compañía"
+              description={
+                companyAccessError ??
+                "Vuelve a intentar. Si el panel se queda en blanco, recarga."
+              }
+              onRetry={() => void refreshCompanyAccess()}
+            />
           </div>
         ) : !hasAccess ? (
           <div className="flex min-h-screen items-center justify-center p-6 text-center">
@@ -55,7 +73,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         <div className="min-h-screen bg-background">
           <aside
             className={cn(
-              "fixed inset-y-0 left-0 z-40 hidden border-r border-sidebar-border transition-[width] lg:block",
+              "fixed inset-y-0 left-0 z-40 hidden overflow-hidden border-r border-sidebar-border transition-[width] lg:block",
               collapsed ? "w-[4.5rem]" : "w-64",
             )}
           >

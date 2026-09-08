@@ -122,6 +122,25 @@ export function toUpdatePayload(values: EmployeeFormValues): UpdateEmployeeInput
   };
 }
 
+export function employeeRequiredFieldError(
+  values: EmployeeFormValues,
+  positionsInArea: number,
+): string {
+  if (values.areaId && !values.positionId && positionsInArea === 0) {
+    return "Esta área no tiene cargos. Crea uno en Descripciones de cargo y vuelve a asignarlo.";
+  }
+  const missing: string[] = [];
+  if (!values.firstName.trim()) missing.push("nombre");
+  if (!values.lastName.trim()) missing.push("apellido");
+  if (!values.email.trim()) missing.push("email");
+  if (!values.areaId) missing.push("área");
+  if (!values.positionId) missing.push("cargo");
+  if (missing.length === 1 && missing[0] === "cargo") {
+    return "Selecciona un cargo de esta área.";
+  }
+  return `Completa: ${missing.join(", ")}.`;
+}
+
 type EmployeeFormProps = {
   initial?: Employee | null;
   areas: Area[];
@@ -164,11 +183,16 @@ export function EmployeeForm({
     setValues((prev) => {
       const next = { ...prev, [key]: value };
       if (key === "areaId") {
-        const stillValid = positions.some(
+        const inArea = positions.filter(
           (position) =>
-            position.id === next.positionId && position.areaId === value,
+            position.areaId === value && position.status !== "INACTIVE",
         );
-        if (!stillValid) next.positionId = "";
+        const stillValid = inArea.some(
+          (position) => position.id === next.positionId,
+        );
+        if (!stillValid) {
+          next.positionId = inArea.length === 1 ? (inArea[0]?.id ?? "") : "";
+        }
       }
       return next;
     });
@@ -188,7 +212,7 @@ export function EmployeeForm({
           !values.positionId
         ) {
           setLocalError(
-            "Nombre, apellido, email, área y cargo son obligatorios.",
+            employeeRequiredFieldError(values, filteredPositions.length),
           );
           return;
         }
@@ -368,6 +392,14 @@ export function EmployeeForm({
             required
             value={values.positionId}
             onChange={(value) => setField("positionId", value)}
+            placeholder="Seleccionar cargo de esta área"
+            hint={
+              values.areaId && filteredPositions.length === 0
+                ? "Esta área no tiene cargos. Créalos en Descripciones de cargo."
+                : values.areaId && !values.positionId
+                  ? "Al cambiar el área debes elegir un cargo de esa área."
+                  : undefined
+            }
             options={filteredPositions.map((position) => ({
               value: position.id,
               label: position.name,

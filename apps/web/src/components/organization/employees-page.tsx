@@ -1,10 +1,10 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Eye, Pencil, Plus, Search } from "lucide-react";
+import { Eye, KeyRound, Pencil, Plus, Search, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { NO_BUSINESS_UNIT_LABEL } from "@/components/organization/area-form";
 import {
   EmployeeForm,
@@ -12,6 +12,7 @@ import {
   toUpdatePayload,
   type EmployeeFormValues,
 } from "@/components/organization/employee-form";
+import { IssueEmployeeAccessDialog } from "@/components/organization/issue-employee-access-dialog";
 import {
   activeDefinitions,
   customFieldValuesFromRecord,
@@ -25,6 +26,14 @@ import { PaginationControls } from "@/components/organization/pagination-control
 import { OrgStatusBadge } from "@/components/organization/status-badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
 import { Input } from "@/components/ui/input";
@@ -42,6 +51,7 @@ import {
 import { useCompanyId } from "@/hooks/use-company-id";
 import { getErrorMessage } from "@/lib/api/errors";
 import { organizationApi, orgKeys } from "@/lib/api/organization";
+import { notifyError, notifySuccess } from "@/lib/ui/notify";
 import { getInitials } from "@/lib/utils";
 import type { Employee, EmployeeStatus, ListEmployeesParams } from "@/types/organization";
 
@@ -85,6 +95,9 @@ export function EmployeesPageClient() {
   const [editing, setEditing] = useState<Employee | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [customValues, setCustomValues] = useState<CustomFieldFormValues>({});
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [accessEmployee, setAccessEmployee] = useState<Employee | null>(null);
 
   const employeesQuery = useQuery({
     queryKey: orgKeys.employees(companyId, params),
@@ -147,21 +160,73 @@ export function EmployeesPageClient() {
         customFields,
       });
     },
-    onSuccess: async () => {
+    onSuccess: async (saved) => {
       await queryClient.invalidateQueries({
         queryKey: orgKeys.all(companyId),
       });
+      const wasCreate = !editing;
       setOpen(false);
       setEditing(null);
       setCustomValues({});
       setFormError(null);
+      if (wasCreate) {
+        notifySuccess(
+          "Colaborador creado. Genera su contraseña con Acceso si debe entrar al sistema.",
+        );
+        setAccessEmployee(saved);
+      } else {
+        notifySuccess("Colaborador actualizado");
+      }
     },
     onError: (error) => {
       setFormError(getErrorMessage(error, "No se pudo guardar el colaborador."));
     },
   });
 
+  const deleteMutation = useMutation({
+    mutationFn: () => organizationApi.deleteEmployees(selectedIds),
+    onSuccess: async (result) => {
+      await queryClient.invalidateQueries({
+        queryKey: orgKeys.all(companyId),
+      });
+      setSelectedIds([]);
+      setConfirmDelete(false);
+      notifySuccess(
+        result.deleted === 1
+          ? "Colaborador eliminado"
+          : `${result.deleted} colaboradores eliminados`,
+      );
+    },
+    onError: (error) => {
+      notifyError(error, "No se pudieron eliminar los colaboradores.");
+    },
+  });
+
   const items = employeesQuery.data?.items ?? [];
+  const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
+  const allVisibleSelected =
+    items.length > 0 && items.every((employee) => selectedSet.has(employee.id));
+
+  useEffect(() => {
+    setSelectedIds([]);
+  }, [
+    params.search,
+    params.status,
+    params.areaId,
+    params.positionId,
+    params.businessUnitId,
+    params.page,
+  ]);
+
+  function toggleSelected(id: string, checked: boolean) {
+    setSelectedIds((current) =>
+      checked
+        ? current.includes(id)
+          ? current
+          : [...current, id]
+        : current.filter((item) => item !== id),
+    );
+  }
 
   return (
     <div>
@@ -169,18 +234,30 @@ export function EmployeesPageClient() {
         title="Colaboradores"
         description="Personas de la estructura organizacional."
         actions={
-          <Button
-            type="button"
-            onClick={() => {
-              setEditing(null);
-              setCustomValues(emptyCustomFieldValues(activeEmployeeFields));
-              setFormError(null);
-              setOpen(true);
-            }}
-          >
-            <Plus className="h-4 w-4" aria-hidden />
-            Nuevo colaborador
-          </Button>
+          <>
+            {selectedIds.length > 0 ? (
+              <Button
+                type="button"
+                variant="destructive"
+                onClick={() => setConfirmDelete(true)}
+              >
+                <Trash2 className="h-4 w-4" aria-hidden />
+                Eliminar ({selectedIds.length})
+              </Button>
+            ) : null}
+            <Button
+              type="button"
+              onClick={() => {
+                setEditing(null);
+                setCustomValues(emptyCustomFieldValues(activeEmployeeFields));
+                setFormError(null);
+                setOpen(true);
+              }}
+            >
+              <Plus className="h-4 w-4" aria-hidden />
+              Nuevo colaborador
+            </Button>
+          </>
         }
       />
 
@@ -298,6 +375,29 @@ export function EmployeesPageClient() {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-10">
+                    <Checkbox
+                      checked={
+                        allVisibleSelected
+                          ? true
+                          : items.some((employee) => selectedSet.has(employee.id))
+                            ? "indeterminate"
+                            : false
+                      }
+                      onCheckedChange={(checked) => {
+                        const enable = checked === true;
+                        setSelectedIds((current) => {
+                          const next = new Set(current);
+                          for (const employee of items) {
+                            if (enable) next.add(employee.id);
+                            else next.delete(employee.id);
+                          }
+                          return [...next];
+                        });
+                      }}
+                      aria-label="Seleccionar todos"
+                    />
+                  </TableHead>
                   <TableHead>Nombre</TableHead>
                   <TableHead>Email</TableHead>
                   <TableHead>Área</TableHead>
@@ -310,6 +410,15 @@ export function EmployeesPageClient() {
               <TableBody>
                 {items.map((employee) => (
                   <TableRow key={employee.id}>
+                    <TableCell>
+                      <Checkbox
+                        checked={selectedSet.has(employee.id)}
+                        onCheckedChange={(checked) =>
+                          toggleSelected(employee.id, checked === true)
+                        }
+                        aria-label={`Seleccionar ${employee.firstName} ${employee.lastName}`}
+                      />
+                    </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-3">
                         <Avatar>
@@ -357,6 +466,16 @@ export function EmployeesPageClient() {
                           type="button"
                           variant="ghost"
                           size="sm"
+                          onClick={() => setAccessEmployee(employee)}
+                          aria-label={`Dar acceso a ${employee.firstName}`}
+                        >
+                          <KeyRound className="h-4 w-4" />
+                          Acceso
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
                           onClick={() => {
                             setEditing(employee);
                             setCustomValues(
@@ -388,6 +507,14 @@ export function EmployeesPageClient() {
                 className="rounded-lg border border-border bg-card p-4"
               >
                 <div className="flex items-start gap-3">
+                  <Checkbox
+                    className="mt-1"
+                    checked={selectedSet.has(employee.id)}
+                    onCheckedChange={(checked) =>
+                      toggleSelected(employee.id, checked === true)
+                    }
+                    aria-label={`Seleccionar ${employee.firstName} ${employee.lastName}`}
+                  />
                   <Avatar>
                     <AvatarFallback>
                       {getInitials(employee.firstName, employee.lastName)}
@@ -407,11 +534,19 @@ export function EmployeesPageClient() {
                     <OrgStatusBadge status={employee.status} />
                   </div>
                 </div>
-                <div className="mt-3 flex gap-2">
+                <div className="mt-3 flex flex-wrap gap-2">
                   <Button asChild type="button" variant="outline" size="sm">
                     <Link href={`/organization/employees/${employee.id}`}>
                       Ver perfil
                     </Link>
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setAccessEmployee(employee)}
+                  >
+                    Acceso
                   </Button>
                   <Button
                     type="button"
@@ -467,6 +602,44 @@ export function EmployeesPageClient() {
           onSubmit={(values) => saveMutation.mutate(values)}
         />
       </EntityEditorShell>
+
+      <IssueEmployeeAccessDialog
+        employee={accessEmployee}
+        open={Boolean(accessEmployee)}
+        onOpenChange={(next) => {
+          if (!next) setAccessEmployee(null);
+        }}
+      />
+
+      <Dialog open={confirmDelete} onOpenChange={setConfirmDelete}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Eliminar colaboradores</DialogTitle>
+            <p className="text-sm text-muted-foreground">
+              Vas a eliminar {selectedIds.length}{" "}
+              {selectedIds.length === 1 ? "colaborador" : "colaboradores"}.
+              Esta acción los saca de la estructura y les quita el acceso.
+            </p>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setConfirmDelete(false)}
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={deleteMutation.isPending || selectedIds.length === 0}
+              onClick={() => deleteMutation.mutate()}
+            >
+              {deleteMutation.isPending ? "Eliminando…" : "Eliminar"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

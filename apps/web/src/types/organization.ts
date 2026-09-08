@@ -197,6 +197,15 @@ export type ListEmployeesParams = {
   limit?: number;
 };
 
+export type EmployeeAccessRole = "COLLABORATOR" | "LEADER" | "RECRUITER";
+
+export type EmployeeAccessIssued = {
+  email: string;
+  temporaryPassword: string;
+  passwordEmailed: boolean;
+  roleCode: EmployeeAccessRole;
+};
+
 export type ManagerSummary = {
   id: string;
   firstName: string;

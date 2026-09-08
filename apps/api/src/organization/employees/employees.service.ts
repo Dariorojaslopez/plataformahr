@@ -1,10 +1,21 @@
 import {
+  BadRequestException,
   ConflictException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { EmployeeStatus, Prisma, ReportingLineType } from '@prisma/client';
+import {
+  EmployeeStatus,
+  MembershipStatus,
+  Prisma,
+  ReportingLineType,
+  RoleScope,
+  UserStatus,
+} from '@prisma/client';
+import { randomBytes } from 'node:crypto';
+import { PasswordHashingService } from '../../auth/password-hashing.service';
 import { AuditService } from '../../core/audit/audit.service';
+import { MailService } from '../../mail/mail.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import {
   DEFAULT_LIMIT,
@@ -22,6 +33,7 @@ import {
 } from '../position-custom-fields/position-custom-fields.serialize';
 import type {
   CreateEmployeeDto,
+  EmployeeAccessRoleCode,
   ListEmployeesQueryDto,
   UpdateEmployeeDto,
 } from './dto/employee.dto';
@@ -33,6 +45,8 @@ export class EmployeesService {
     private readonly audit: AuditService,
     private readonly integrity: OrganizationIntegrityService,
     private readonly customFields: PositionCustomFieldsService,
+    private readonly passwords: PasswordHashingService,
+    private readonly mail: MailService,
   ) {}
 
   async list(companyId: string, query: ListEmployeesQueryDto) {
@@ -242,8 +256,8 @@ export class EmployeesService {
     id: string,
     dto: UpdateEmployeeDto,
   ): Promise<SerializedEmployee> {
-    await this.integrity.requireEmployee(companyId, id);
-    await this.validateRelations(companyId, dto);
+    const existing = await this.integrity.requireEmployee(companyId, id);
+    await this.validateRelations(companyId, dto, existing);
 
     try {
       await this.prisma.$transaction(async (tx) => {
@@ -361,6 +375,203 @@ export class EmployeesService {
     }
   }
 
+  async removeMany(
+    companyId: string,
+    actorUserId: string,
+    ids: string[],
+  ): Promise<{ deleted: number }> {
+    const uniqueIds = [...new Set(ids)];
+    if (uniqueIds.length === 0) {
+      throw new BadRequestException('Selecciona al menos un colaborador.');
+    }
+    const employees = await this.prisma.employee.findMany({
+      where: { companyId, id: { in: uniqueIds }, deletedAt: null },
+      select: { id: true, userId: true },
+    });
+    if (employees.length !== uniqueIds.length) {
+      throw new NotFoundException('Uno o más colaboradores no existen.');
+    }
+
+    const now = new Date();
+    await this.prisma.$transaction(async (tx) => {
+      await tx.employee.updateMany({
+        where: { companyId, id: { in: uniqueIds }, deletedAt: null },
+        data: { deletedAt: now, userId: null },
+      });
+      const userIds = employees
+        .map((item) => item.userId)
+        .filter((id): id is string => Boolean(id));
+      if (userIds.length > 0) {
+        await tx.companyMembership.updateMany({
+          where: { companyId, userId: { in: userIds } },
+          data: { status: MembershipStatus.INACTIVE },
+        });
+      }
+    });
+
+    await this.audit.create({
+      action: ORG_AUDIT.EMPLOYEE_DELETED,
+      entity: 'Employee',
+      entityId: uniqueIds[0],
+      company: { connect: { id: companyId } },
+      user: { connect: { id: actorUserId } },
+      metadata: { ids: uniqueIds, count: uniqueIds.length },
+    });
+    return { deleted: uniqueIds.length };
+  }
+
+  async issueAccess(
+    companyId: string,
+    actorUserId: string,
+    employeeId: string,
+    roleCode: EmployeeAccessRoleCode = 'LEADER',
+  ): Promise<{
+    email: string;
+    temporaryPassword: string;
+    passwordEmailed: boolean;
+    roleCode: EmployeeAccessRoleCode;
+  }> {
+    const employee = await this.integrity.requireEmployee(companyId, employeeId);
+    if (employee.status !== EmployeeStatus.ACTIVE) {
+      throw new BadRequestException(
+        'Solo se puede dar acceso a un colaborador activo.',
+      );
+    }
+    const role = await this.prisma.role.findUnique({
+      where: { scope_code: { scope: RoleScope.COMPANY, code: roleCode } },
+    });
+    if (!role) {
+      throw new ConflictException('El rol solicitado no está provisionado.');
+    }
+
+    const temporaryPassword = randomBytes(18).toString('base64url');
+    const passwordHash = await this.passwords.hash(temporaryPassword);
+    const email = normalizeEmail(employee.email);
+
+    const user = await this.prisma.$transaction(async (tx) => {
+      let existing = employee.userId
+        ? await tx.user.findFirst({
+            where: { id: employee.userId, deletedAt: null },
+          })
+        : await tx.user.findFirst({
+            where: { email, deletedAt: null },
+          });
+
+      if (existing) {
+        const other = await tx.employee.findFirst({
+          where: {
+            companyId,
+            userId: existing.id,
+            deletedAt: null,
+            NOT: { id: employee.id },
+          },
+        });
+        if (other) {
+          throw new ConflictException(
+            'Ese email ya tiene acceso ligado a otro colaborador.',
+          );
+        }
+        existing = await tx.user.update({
+          where: { id: existing.id },
+          data: {
+            passwordHash,
+            mustChangePassword: true,
+            status: UserStatus.ACTIVE,
+            firstName: employee.firstName,
+            lastName: employee.lastName,
+          },
+        });
+      } else {
+        existing = await tx.user.create({
+          data: {
+            email,
+            passwordHash,
+            firstName: employee.firstName,
+            lastName: employee.lastName,
+            status: UserStatus.ACTIVE,
+            mustChangePassword: true,
+          },
+        });
+      }
+
+      await tx.employee.update({
+        where: { id: employee.id },
+        data: { userId: existing.id },
+      });
+
+      const membership = await tx.companyMembership.upsert({
+        where: {
+          userId_companyId: { userId: existing.id, companyId },
+        },
+        create: {
+          userId: existing.id,
+          companyId,
+          status: MembershipStatus.ACTIVE,
+        },
+        update: { status: MembershipStatus.ACTIVE },
+      });
+      await tx.membershipRole.deleteMany({
+        where: { membershipId: membership.id },
+      });
+      await tx.membershipRole.create({
+        data: { membershipId: membership.id, roleId: role.id },
+      });
+      await tx.userSession.updateMany({
+        where: { userId: existing.id, revokedAt: null },
+        data: { revokedAt: new Date() },
+      });
+      return existing;
+    });
+
+    const firstName = employee.firstName.trim() || 'hola';
+    const mailResult = await this.mail.sendText({
+      to: user.email,
+      subject: 'Acceso a Talentgrowthos',
+      text: [
+        `Hola ${firstName},`,
+        '',
+        'Te crearon un acceso a Talentgrowthos.',
+        '',
+        `Email: ${user.email}`,
+        `Contraseña temporal: ${temporaryPassword}`,
+        '',
+        'Inicia sesión y cámbiala de inmediato.',
+        '',
+        '— Talentgrowthos',
+      ].join('\n'),
+      html: [
+        `<p>Hola ${escapeHtml(firstName)},</p>`,
+        '<p>Te crearon un acceso a <strong>Talentgrowthos</strong>.</p>',
+        `<p>Email: <code>${escapeHtml(user.email)}</code></p>`,
+        '<p>Contraseña temporal:</p>',
+        `<p style="font-size:18px;font-weight:700;letter-spacing:0.04em"><code>${escapeHtml(temporaryPassword)}</code></p>`,
+        '<p>Inicia sesión y cámbiala de inmediato.</p>',
+        '<p>— Talentgrowthos</p>',
+      ].join(''),
+    });
+
+    await this.audit.create({
+      action: ORG_AUDIT.EMPLOYEE_ACCESS_ISSUED,
+      entity: 'Employee',
+      entityId: employee.id,
+      company: { connect: { id: companyId } },
+      user: { connect: { id: actorUserId } },
+      metadata: {
+        employeeId: employee.id,
+        targetUserId: user.id,
+        roleCode,
+        passwordEmailed: mailResult.status === 'SENT',
+      },
+    });
+
+    return {
+      email: user.email,
+      temporaryPassword,
+      passwordEmailed: mailResult.status === 'SENT',
+      roleCode,
+    };
+  }
+
   private rethrowUniqueConflict(error: unknown): never {
     if (
       error instanceof Prisma.PrismaClientKnownRequestError &&
@@ -374,6 +585,7 @@ export class EmployeesService {
   private async validateRelations(
     companyId: string,
     dto: Partial<CreateEmployeeDto | UpdateEmployeeDto>,
+    existing?: { areaId: string; positionId: string },
   ): Promise<void> {
     if (dto.areaId) {
       await this.integrity.requireArea(companyId, dto.areaId);
@@ -387,5 +599,28 @@ export class EmployeesService {
     if (dto.userId) {
       await this.integrity.assertUserMembership(companyId, dto.userId);
     }
+
+    const areaId = dto.areaId ?? existing?.areaId;
+    const positionId = dto.positionId ?? existing?.positionId;
+    if (areaId && positionId) {
+      const position = await this.integrity.requirePosition(
+        companyId,
+        positionId,
+      );
+      if (position.areaId !== areaId) {
+        throw new BadRequestException(
+          'El cargo no pertenece al área seleccionada. Elige un cargo de esa área.',
+        );
+      }
+    }
   }
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
 }
