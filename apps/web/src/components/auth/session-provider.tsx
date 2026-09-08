@@ -129,8 +129,10 @@ export function SessionProvider({ children }: { children: ReactNode }) {
           existingCompany &&
           companies.some((company) => company.id === existingCompany)
         ) {
+          setCompanyAccessLoading(true);
           setActiveCompanyId(existingCompany);
         } else if (companies.length === 1 && !me.isPlatformOwner) {
+          setCompanyAccessLoading(true);
           setActiveCompanyId(companies[0].id);
         }
         setStatus("authenticated");
@@ -220,7 +222,32 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       (company) => company.id === snapshot.activeCompanyId,
     ) ?? null;
 
-  const loadCompanyAccess = useCallback(async () => {
+  const applyAccessResult = useCallback(
+    (
+      requestId: number,
+      result:
+        | { ok: true; access: CurrentCompanyAccess }
+        | { ok: false; error: unknown },
+    ) => {
+      if (requestId !== accessRequestId.current) return;
+      if (result.ok) {
+        setCompanyAccess(result.access);
+        setCompanyAccessError(null);
+      } else {
+        setCompanyAccess(null);
+        setCompanyAccessError(
+          getErrorMessage(
+            result.error,
+            "No se pudo cargar el acceso de la compañía.",
+          ),
+        );
+      }
+      setCompanyAccessLoading(false);
+    },
+    [],
+  );
+
+  const refreshCompanyAccess = useCallback(async () => {
     if (!getActiveCompanyId()) {
       setCompanyAccess(null);
       setCompanyAccessError(null);
@@ -232,32 +259,22 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     setCompanyAccessError(null);
     try {
       const access = await fetchCompanyAccessWithRetry();
-      if (requestId !== accessRequestId.current) return;
-      setCompanyAccess(access);
-      setCompanyAccessError(null);
+      applyAccessResult(requestId, { ok: true, access });
     } catch (error) {
-      if (requestId !== accessRequestId.current) return;
-      setCompanyAccess(null);
-      setCompanyAccessError(
-        getErrorMessage(error, "No se pudo cargar el acceso de la compañía."),
-      );
-    } finally {
-      if (requestId === accessRequestId.current) {
-        setCompanyAccessLoading(false);
-      }
+      applyAccessResult(requestId, { ok: false, error });
     }
-  }, []);
-
-  const refreshCompanyAccess = useCallback(async () => {
-    await loadCompanyAccess();
-  }, [loadCompanyAccess]);
+  }, [applyAccessResult]);
 
   useEffect(() => {
     if (!snapshot.activeCompanyId || status !== "authenticated") {
       return;
     }
-    void loadCompanyAccess();
-  }, [snapshot.activeCompanyId, status, loadCompanyAccess]);
+    const requestId = ++accessRequestId.current;
+    void fetchCompanyAccessWithRetry().then(
+      (access) => applyAccessResult(requestId, { ok: true, access }),
+      (error: unknown) => applyAccessResult(requestId, { ok: false, error }),
+    );
+  }, [snapshot.activeCompanyId, status, applyAccessResult]);
 
   const value = useMemo<SessionContextValue>(
     () => ({

@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Eye, KeyRound, Pencil, Plus, Search, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { NO_BUSINESS_UNIT_LABEL } from "@/components/organization/area-form";
 import {
   EmployeeForm,
@@ -95,7 +95,33 @@ export function EmployeesPageClient() {
   const [editing, setEditing] = useState<Employee | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [customValues, setCustomValues] = useState<CustomFieldFormValues>({});
-  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const selectionKey = useMemo(
+    () =>
+      [
+        params.search ?? "",
+        params.status ?? "",
+        params.areaId ?? "",
+        params.positionId ?? "",
+        params.businessUnitId ?? "",
+        String(params.page ?? 1),
+      ].join("\0"),
+    [
+      params.search,
+      params.status,
+      params.areaId,
+      params.positionId,
+      params.businessUnitId,
+      params.page,
+    ],
+  );
+  const [selection, setSelection] = useState<{ key: string; ids: string[] }>({
+    key: selectionKey,
+    ids: [],
+  });
+  const selectedIds = useMemo(
+    () => (selection.key === selectionKey ? selection.ids : []),
+    [selection, selectionKey],
+  );
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [accessEmployee, setAccessEmployee] = useState<Employee | null>(null);
 
@@ -189,7 +215,7 @@ export function EmployeesPageClient() {
       await queryClient.invalidateQueries({
         queryKey: orgKeys.all(companyId),
       });
-      setSelectedIds([]);
+      setSelection({ key: selectionKey, ids: [] });
       setConfirmDelete(false);
       notifySuccess(
         result.deleted === 1
@@ -207,25 +233,18 @@ export function EmployeesPageClient() {
   const allVisibleSelected =
     items.length > 0 && items.every((employee) => selectedSet.has(employee.id));
 
-  useEffect(() => {
-    setSelectedIds([]);
-  }, [
-    params.search,
-    params.status,
-    params.areaId,
-    params.positionId,
-    params.businessUnitId,
-    params.page,
-  ]);
-
   function toggleSelected(id: string, checked: boolean) {
-    setSelectedIds((current) =>
-      checked
-        ? current.includes(id)
-          ? current
-          : [...current, id]
-        : current.filter((item) => item !== id),
-    );
+    setSelection((current) => {
+      const ids = current.key === selectionKey ? current.ids : [];
+      return {
+        key: selectionKey,
+        ids: checked
+          ? ids.includes(id)
+            ? ids
+            : [...ids, id]
+          : ids.filter((item) => item !== id),
+      };
+    });
   }
 
   return (
@@ -386,13 +405,15 @@ export function EmployeesPageClient() {
                       }
                       onCheckedChange={(checked) => {
                         const enable = checked === true;
-                        setSelectedIds((current) => {
-                          const next = new Set(current);
+                        setSelection((current) => {
+                          const ids =
+                            current.key === selectionKey ? current.ids : [];
+                          const next = new Set(ids);
                           for (const employee of items) {
                             if (enable) next.add(employee.id);
                             else next.delete(employee.id);
                           }
-                          return [...next];
+                          return { key: selectionKey, ids: [...next] };
                         });
                       }}
                       aria-label="Seleccionar todos"

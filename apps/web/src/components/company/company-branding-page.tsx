@@ -81,18 +81,16 @@ function CompanyBrandingForm({
     staleTime: Infinity,
   });
 
-  const [logoSrc, setLogoSrc] = useState<string | null>(null);
-  useEffect(() => {
-    if (!logoQuery.data) {
-      setLogoSrc(null);
-      return;
-    }
-    const url = URL.createObjectURL(logoQuery.data);
-    setLogoSrc(url);
-    return () => {
-      URL.revokeObjectURL(url);
-    };
+  const logoSrc = useMemo(() => {
+    if (!logoQuery.data) return null;
+    return URL.createObjectURL(logoQuery.data);
   }, [logoQuery.data]);
+
+  useEffect(() => {
+    return () => {
+      if (logoSrc) URL.revokeObjectURL(logoSrc);
+    };
+  }, [logoSrc]);
 
   const previewColor = useMemo(
     () => normalizeBrandColor(color) ?? PLATFORM_BRAND_PRIMARY,

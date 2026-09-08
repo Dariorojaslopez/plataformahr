@@ -3,10 +3,10 @@ import type { CurrentCompanyAccess } from "@/types/auth";
 
 const RETRY_DELAYS_MS = [0, 250, 600] as const;
 
-export async function fetchCompanyAccessWithRetry(
-  request: () => Promise<CurrentCompanyAccess> = currentCompanyAccessRequest,
+export async function fetchCompanyAccessWithRetry<T = CurrentCompanyAccess>(
+  request: () => Promise<T> = currentCompanyAccessRequest as () => Promise<T>,
   delays: readonly number[] = RETRY_DELAYS_MS,
-): Promise<CurrentCompanyAccess> {
+): Promise<T> {
   let lastError: unknown;
   for (const delay of delays) {
     if (delay > 0) {

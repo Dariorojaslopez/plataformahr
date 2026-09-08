@@ -2,7 +2,7 @@
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Copy } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { FormSelect } from "@/components/organization/form-select";
 import { Button } from "@/components/ui/button";
 import {
@@ -43,12 +43,13 @@ export function IssueEmployeeAccessDialog({
   const [roleCode, setRoleCode] = useState<EmployeeAccessRole>("LEADER");
   const [issued, setIssued] = useState<EmployeeAccessIssued | null>(null);
 
-  useEffect(() => {
-    if (!open) {
+  function handleOpenChange(next: boolean) {
+    if (!next) {
       setIssued(null);
       setRoleCode("LEADER");
     }
-  }, [open]);
+    onOpenChange(next);
+  }
 
   const mutation = useMutation({
     mutationFn: () => {
@@ -74,7 +75,7 @@ export function IssueEmployeeAccessDialog({
   });
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>
@@ -110,7 +111,7 @@ export function IssueEmployeeAccessDialog({
                 <Copy className="h-4 w-4" />
                 Copiar
               </Button>
-              <Button type="button" onClick={() => onOpenChange(false)}>
+              <Button type="button" onClick={() => handleOpenChange(false)}>
                 Listo
               </Button>
             </DialogFooter>
@@ -132,7 +133,7 @@ export function IssueEmployeeAccessDialog({
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => onOpenChange(false)}
+                onClick={() => handleOpenChange(false)}
               >
                 Cancelar
               </Button>

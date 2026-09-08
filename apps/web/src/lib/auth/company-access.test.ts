@@ -1,8 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { fetchCompanyAccessWithRetry } from "./company-access";
-import type { CurrentCompanyAccess } from "@/types/auth";
 
-const access = { homeRole: "ADMIN" } as CurrentCompanyAccess;
+const access = { homeRole: "ADMIN" };
 
 describe("fetchCompanyAccessWithRetry", () => {
   it("returns the first successful response", async () => {

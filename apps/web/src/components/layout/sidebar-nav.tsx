@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useCompanyBranding } from "@/components/company/company-branding-provider";
 import { useSession } from "@/components/auth/session-provider";
 import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
@@ -38,11 +38,9 @@ export function SidebarNav({
     navigation.flatMap(({ items }) => items),
   );
   const branding = useCompanyBranding();
-  const [logoFailed, setLogoFailed] = useState(false);
-  useEffect(() => {
-    setLogoFailed(false);
-  }, [branding.logoSrc]);
-  const showLogo = Boolean(branding.logoSrc) && !logoFailed;
+  const [failedLogoSrc, setFailedLogoSrc] = useState<string | null>(null);
+  const showLogo =
+    Boolean(branding.logoSrc) && failedLogoSrc !== branding.logoSrc;
 
   return (
     <div className="flex h-full flex-col bg-sidebar text-sidebar-foreground">
@@ -65,7 +63,7 @@ export function SidebarNav({
             <img
               src={branding.logoSrc ?? ""}
               alt=""
-              onError={() => setLogoFailed(true)}
+              onError={() => setFailedLogoSrc(branding.logoSrc)}
               className="h-8 w-8 max-h-8 max-w-8 shrink-0 rounded object-contain bg-white"
             />
           ) : collapsed ? (
