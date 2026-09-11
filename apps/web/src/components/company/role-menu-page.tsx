@@ -110,7 +110,7 @@ function RoleMenuForm({
       notifySuccess("Permisos de menú guardados.");
     },
     onError: (error) => {
-      notifyError(getErrorMessage(error, "No se pudieron guardar los permisos."));
+      notifyError(error, "No se pudieron guardar los permisos.");
     },
   });
 
