@@ -45,6 +45,7 @@ describe('VacanciesService', () => {
         findFirst: jest.fn().mockResolvedValue({
           id: 'emp-rec',
           userId: 'user-rec',
+          accessRoleCode: roleCode,
         }),
         findMany: jest.fn(() =>
           Promise.resolve(
@@ -117,9 +118,6 @@ describe('VacanciesService', () => {
 
   it('lists employees that hold the RECRUITER role', async () => {
     const { service, prisma } = build();
-    prisma.companyMembership.findMany.mockImplementation(() =>
-      Promise.resolve([{ userId: 'user-rec' }]),
-    );
     prisma.employee.findMany.mockImplementation(() =>
       Promise.resolve([
         {
@@ -137,6 +135,13 @@ describe('VacanciesService', () => {
         lastName: 'Gil',
         email: 'marta@acme.test',
       },
+    ]);
+    const [listArg] = prisma.employee.findMany.mock.calls[0] as [
+      { where: { accessRoleCode: { in: string[] } } },
+    ];
+    expect(listArg.where.accessRoleCode.in).toEqual([
+      'RECRUITER',
+      'RECRUITMENT_LEADER',
     ]);
   });
 
@@ -192,13 +197,9 @@ describe('VacanciesService', () => {
 
     await service.listRecruiters('company-1', 'RECRUITER');
 
-    const [listArg] = prisma.companyMembership.findMany.mock.calls[0] as [
-      {
-        where: {
-          roles: { some: { role: { code: { in: string[] } } } };
-        };
-      },
+    const [listArg] = prisma.employee.findMany.mock.calls[0] as [
+      { where: { accessRoleCode: { in: string[] } } },
     ];
-    expect(listArg.where.roles.some.role.code.in).toEqual(['RECRUITER']);
+    expect(listArg.where.accessRoleCode.in).toEqual(['RECRUITER']);
   });
 });

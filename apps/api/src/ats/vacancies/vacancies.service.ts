@@ -114,32 +114,13 @@ export class VacanciesService {
   }
 
   async listRecruiters(companyId: string, roleCode?: 'RECRUITER') {
-    const memberships = await this.prisma.companyMembership.findMany({
-      where: {
-        companyId,
-        status: MembershipStatus.ACTIVE,
-        roles: {
-          some: {
-            role: {
-              code: {
-                in: roleCode
-                  ? [roleCode]
-                  : ['RECRUITER', 'RECRUITMENT_LEADER'],
-              },
-            },
-          },
-        },
-      },
-      select: { userId: true },
-    });
-    const userIds = memberships.map((item) => item.userId);
-    if (userIds.length === 0) return [];
+    const codes = roleCode ? [roleCode] : ['RECRUITER', 'RECRUITMENT_LEADER'];
     return this.prisma.employee.findMany({
       where: {
         companyId,
         deletedAt: null,
         status: EmployeeStatus.ACTIVE,
-        userId: { in: userIds },
+        accessRoleCode: { in: codes },
       },
       select: { id: true, firstName: true, lastName: true, email: true },
       orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }],
@@ -440,16 +421,23 @@ export class VacanciesService {
         companyId,
         deletedAt: null,
         status: EmployeeStatus.ACTIVE,
-        userId: { not: null },
       },
-      select: { id: true, userId: true },
+      select: { id: true, userId: true, accessRoleCode: true },
     });
-    if (!employee?.userId) {
+    if (!employee) {
       throw new BadRequestException(
         'El colaborador no puede asignarse como reclutador.',
       );
     }
+    if (ASSIGNABLE_RECRUITER_ROLES.has(employee.accessRoleCode)) {
+      return employee.id;
+    }
 
+    if (!employee.userId) {
+      throw new BadRequestException(
+        'El colaborador no es reclutador de esta compañía.',
+      );
+    }
     const membership = await this.prisma.companyMembership.findFirst({
       where: {
         companyId,
