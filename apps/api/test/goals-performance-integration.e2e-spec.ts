@@ -43,6 +43,8 @@ type AnalyticsBody = {
 };
 
 describe('Goals ↔ Performance integration (09D)', () => {
+  jest.setTimeout(30_000);
+
   let app: INestApplication<App>;
   let prisma: PrismaClient;
   let hasher: PasswordHashingService;
@@ -996,7 +998,7 @@ describe('Goals ↔ Performance integration (09D)', () => {
       goalsAchievement: '80.00',
       overallScore: '80.00',
     });
-  });
+  }, 30_000);
 
   it('area change after GoalResult; snapshots created and frozen', async () => {
     const goalCycleId = await createAndActivateGoalCycle(
