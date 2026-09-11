@@ -203,7 +203,7 @@ export function RequestVacancyDialog({
           error={formError}
           positions={positionOptions}
           positionHeadcounts={positionHeadcounts}
-          positionsHint="Tu cargo y los que te reportan en el organigrama."
+          positionsHint="Solo cargos que te reportan en el organigrama."
           areas={areaOptions}
           jobLevels={levelOptions}
           employees={[]}

@@ -33,8 +33,10 @@ describe('ATS vacancy core (e2e)', () => {
   let areaAId = '';
   let areaBId = '';
   let positionAId = '';
+  let positionReportId = '';
   let positionHeadcountStart = 0;
   let requesterEmployeeId = '';
+  let reportEmployeeId = '';
   let managerEmployeeId = '';
   let otherLeaderEmployeeId = '';
 
@@ -105,6 +107,17 @@ describe('ATS vacancy core (e2e)', () => {
     });
     positionAId = positionA.id;
     positionHeadcountStart = positionA.headcount;
+
+    const positionReport = await prisma.position.create({
+      data: {
+        companyId: companyAId,
+        areaId: areaAId,
+        name: `Junior ${suffix}`,
+        headcount: 2,
+        parentPositionId: positionAId,
+      },
+    });
+    positionReportId = positionReport.id;
 
     await prisma.position.create({
       data: {
@@ -253,6 +266,18 @@ describe('ATS vacancy core (e2e)', () => {
     });
     otherLeaderEmployeeId = otherLeaderEmp.id;
 
+    const reportEmp = await prisma.employee.create({
+      data: {
+        companyId: companyAId,
+        firstName: 'Report',
+        lastName: 'Junior',
+        email: `jr-${suffix}@example.com`,
+        areaId: areaAId,
+        positionId: positionReportId,
+      },
+    });
+    reportEmployeeId = reportEmp.id;
+
     await prisma.employeeReportingLine.create({
       data: {
         companyId: companyAId,
@@ -308,7 +333,7 @@ describe('ATS vacancy core (e2e)', () => {
   });
 
   it('resolves omitted requester from the linked employee and rejects proxy abuse', async () => {
-    const asSelf = await request(app.getHttpServer())
+    const ownCargo = await request(app.getHttpServer())
       .post('/ats/vacancy-requests')
       .set(auth(collaboratorToken))
       .send({
@@ -317,6 +342,22 @@ describe('ATS vacancy core (e2e)', () => {
         requestedHeadcount: 1,
         expectedHiringDate: '2099-06-15',
         replacedEmployeeId: requesterEmployeeId,
+        justification: 'Cannot request own cargo',
+      })
+      .expect(403);
+    expect((ownCargo.body as { message: string }).message).toBe(
+      VACANCY_REQUESTER_ERRORS.POSITION_NOT_REPORTABLE,
+    );
+
+    const asSelf = await request(app.getHttpServer())
+      .post('/ats/vacancy-requests')
+      .set(auth(collaboratorToken))
+      .send({
+        type: VacancyRequestType.EXISTING_POSITION,
+        existingPositionId: positionReportId,
+        requestedHeadcount: 1,
+        expectedHiringDate: '2099-06-15',
+        replacedEmployeeId: reportEmployeeId,
         justification: 'Linked collaborator omits requester id',
       })
       .expect(201);
@@ -444,10 +485,10 @@ describe('ATS vacancy core (e2e)', () => {
       .set(auth(otherLeaderToken))
       .send({
         type: VacancyRequestType.EXISTING_POSITION,
-        existingPositionId: positionAId,
+        existingPositionId: positionReportId,
         requestedHeadcount: 1,
         expectedHiringDate: '2099-06-15',
-        replacedEmployeeId: requesterEmployeeId,
+        replacedEmployeeId: reportEmployeeId,
         justification: 'Leader has linked employee so omit is ok',
       })
       .expect(201);

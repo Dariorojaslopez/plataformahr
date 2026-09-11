@@ -970,7 +970,7 @@ export class VacancyRequestsService {
     return PROXY_REQUESTER_ROLE_CODES.some((code) => roleCodes.has(code));
   }
 
-  /** Own cargo plus cargos that report to this employee in the org chart. */
+  /** Cargos that report to this employee — never their own cargo. */
   private async reportablePositionIds(
     companyId: string,
     employeeId: string,
@@ -997,7 +997,7 @@ export class VacancyRequestsService {
     const ids = new Set(
       listReportablePositionIds(rows, employeeId, positionId, positions),
     );
-    ids.add(positionId);
+    ids.delete(positionId);
     return ids;
   }
 

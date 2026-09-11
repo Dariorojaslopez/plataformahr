@@ -475,7 +475,7 @@ export function VacancyRequestsPageClient() {
           positionHeadcounts={positionHeadcounts}
           positionsHint={
             isLeaderView
-              ? "Tu cargo y los que te reportan en el organigrama."
+              ? "Solo cargos que te reportan en el organigrama."
               : undefined
           }
           areas={areaOptions}
