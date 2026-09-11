@@ -69,7 +69,11 @@ export function vacancyRequestToForm(
 }
 
 export function isReplacementMotive(motive: VacancyRequestMotive): boolean {
-  return motive !== "NEW_POSITION";
+  return (
+    motive === "REPLACEMENT_RESIGNATION" ||
+    motive === "REPLACEMENT_MUTUAL_AGREEMENT" ||
+    motive === "REPLACEMENT_TERMINATION_WITHOUT_CAUSE"
+  );
 }
 
 export const VACANT_SLOT_PREFIX = "vacant:";
@@ -140,9 +144,11 @@ export function toCreateVacancyRequestPayload(
     }
   } else {
     base.existingPositionId = values.existingPositionId;
-    const replaced = replacedEmployeeIdForPayload(values.replacedEmployeeId);
-    if (replaced) {
-      base.replacedEmployeeId = replaced;
+    if (isReplacementMotive(values.motive)) {
+      const replaced = replacedEmployeeIdForPayload(values.replacedEmployeeId);
+      if (replaced) {
+        base.replacedEmployeeId = replaced;
+      }
     }
   }
   return base;
@@ -165,7 +171,8 @@ export function toUpdateVacancyRequestPayload(
     requestedPositionName: null,
     requestedAreaId: null,
     requestedJobLevelId: null,
-    replacedEmployeeId:
-      replacedEmployeeIdForPayload(values.replacedEmployeeId) ?? null,
+    replacedEmployeeId: isReplacementMotive(values.motive)
+      ? (replacedEmployeeIdForPayload(values.replacedEmployeeId) ?? null)
+      : null,
   };
 }

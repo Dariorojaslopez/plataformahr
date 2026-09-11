@@ -60,6 +60,7 @@ export const VACANCY_REQUEST_MOTIVE_LABELS: Record<
   string
 > = {
   NEW_POSITION: "Nuevo cargo",
+  VACANT_PLAZA: "Plaza vacante",
   REPLACEMENT_RESIGNATION: "Reemplazo por renuncia",
   REPLACEMENT_MUTUAL_AGREEMENT: "Retiro por mutuo acuerdo",
   REPLACEMENT_TERMINATION_WITHOUT_CAUSE: "Despido sin justa causa",

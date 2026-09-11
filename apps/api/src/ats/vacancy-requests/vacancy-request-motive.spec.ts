@@ -16,6 +16,9 @@ describe('vacancy-request-motive helpers', () => {
     expect(typeFromMotive(VacancyRequestMotive.REPLACEMENT_RESIGNATION)).toBe(
       VacancyRequestType.EXISTING_POSITION,
     );
+    expect(typeFromMotive(VacancyRequestMotive.VACANT_PLAZA)).toBe(
+      VacancyRequestType.EXISTING_POSITION,
+    );
     expect(defaultMotiveFromType(VacancyRequestType.NEW_POSITION)).toBe(
       VacancyRequestMotive.NEW_POSITION,
     );
@@ -29,6 +32,7 @@ describe('vacancy-request-motive helpers', () => {
       isReplacementMotive(VacancyRequestMotive.REPLACEMENT_RESIGNATION),
     ).toBe(true);
     expect(isReplacementMotive(VacancyRequestMotive.NEW_POSITION)).toBe(false);
+    expect(isReplacementMotive(VacancyRequestMotive.VACANT_PLAZA)).toBe(false);
   });
 
   it('parses date-only and computes SLA min date', () => {

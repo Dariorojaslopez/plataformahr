@@ -1,0 +1,1 @@
+ALTER TYPE "VacancyRequestMotive" ADD VALUE 'VACANT_PLAZA';

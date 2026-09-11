@@ -129,6 +129,9 @@ export function VacancyRequestForm({
       requestedPositionName: "",
       requestedAreaId: "",
       requestedJobLevelId: "",
+      replacedEmployeeId: isReplacementMotive(motive)
+        ? values.replacedEmployeeId
+        : "",
     });
   }
 
@@ -231,25 +234,32 @@ export function VacancyRequestForm({
                 : positionsHint
             }
           />
-          <FormSelect
-            id="vr-replaced"
-            label="Plaza a cubrir"
-            required
-            value={selectedCover}
-            onChange={(replacedEmployeeId) =>
-              onChange({ ...values, replacedEmployeeId })
-            }
-            options={occupantOptions}
-            hint={
-              !values.existingPositionId
-                ? "Selecciona primero el cargo."
-                : occupantsQuery.isLoading
-                  ? "Cargando ocupantes…"
-                  : occupantOptions.length === 0
-                    ? "Este cargo no tiene ocupantes ni plazas vacantes."
-                    : "Elige a quién reemplazar o una posición vacante."
-            }
-          />
+          {isReplacementMotive(values.motive) ? (
+            <FormSelect
+              id="vr-replaced"
+              label="Plaza a cubrir"
+              required
+              value={selectedCover}
+              onChange={(replacedEmployeeId) =>
+                onChange({ ...values, replacedEmployeeId })
+              }
+              options={occupantOptions}
+              hint={
+                !values.existingPositionId
+                  ? "Selecciona primero el cargo."
+                  : occupantsQuery.isLoading
+                    ? "Cargando ocupantes…"
+                    : occupantOptions.length === 0
+                      ? "Este cargo no tiene ocupantes ni plazas vacantes."
+                      : "Elige a quién reemplazar o una posición vacante."
+              }
+            />
+          ) : (
+            <p className="text-xs text-muted-foreground">
+              Cubre una plaza vacante del cargo en la estructura. No reemplaza
+              a un ocupante.
+            </p>
+          )}
         </>
       )}
 

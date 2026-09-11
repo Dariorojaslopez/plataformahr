@@ -84,6 +84,9 @@ export const VACANCY_REQUESTER_ERRORS = {
   CANNOT_PROXY: 'No puedes crear solicitudes en nombre de otro colaborador.',
   POSITION_NOT_REPORTABLE:
     'Solo puedes solicitar procesos para cargos que te reportan en el organigrama.',
+  NO_VACANT_PLAZA: 'Este cargo no tiene plazas vacantes.',
+  REPLACED_NOT_FOR_VACANT:
+    'Plaza vacante no admite un ocupante a reemplazar.',
 } as const;
 
 export const VACANCY_APPROVAL_ERRORS = {

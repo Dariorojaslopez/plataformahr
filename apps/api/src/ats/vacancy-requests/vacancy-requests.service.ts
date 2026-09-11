@@ -1135,6 +1135,21 @@ export class VacancyRequestsService {
             );
           }
         }
+      } else if (dto.motive === VacancyRequestMotive.VACANT_PLAZA) {
+        if (dto.replacedEmployeeId) {
+          throw new BadRequestException(
+            VACANCY_REQUESTER_ERRORS.REPLACED_NOT_FOR_VACANT,
+          );
+        }
+        const occupants = await this.occupants.list(
+          companyId,
+          dto.existingPositionId,
+        );
+        if (occupants.length >= position.headcount) {
+          throw new BadRequestException(
+            VACANCY_REQUESTER_ERRORS.NO_VACANT_PLAZA,
+          );
+        }
       } else if (dto.replacedEmployeeId) {
         throw new BadRequestException(
           'replacedEmployeeId must be null for NEW_POSITION',

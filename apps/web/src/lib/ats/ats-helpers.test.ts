@@ -129,6 +129,22 @@ describe("vacancy request form payloads", () => {
     expect(payload.existingPositionId).toBe("pos-1");
     expect(payload.replacedEmployeeId).toBeUndefined();
   });
+
+  it("builds VACANT_PLAZA payload without replacedEmployeeId", () => {
+    const payload = toCreateVacancyRequestPayload({
+      ...baseValues(),
+      motive: "VACANT_PLAZA",
+      replacedEmployeeId: "emp-replaced",
+    });
+    expect(payload).toEqual({
+      motive: "VACANT_PLAZA",
+      requestedHeadcount: 2,
+      expectedHiringDate: "2099-06-15",
+      justification: "",
+      existingPositionId: "pos-1",
+    });
+    expect(payload.replacedEmployeeId).toBeUndefined();
+  });
 });
 
 describe("labels and transitions", () => {

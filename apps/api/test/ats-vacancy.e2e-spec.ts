@@ -8,6 +8,7 @@ import {
   ReportingLineType,
   RoleScope,
   UserStatus,
+  VacancyRequestMotive,
   VacancyRequestType,
   VacancyStatus,
 } from '@prisma/client';
@@ -742,6 +743,43 @@ describe('ATS vacancy core (e2e)', () => {
     expect(
       await prisma.vacancy.count({ where: { vacancyRequestId: id } }),
     ).toBe(0);
+  });
+
+  it('creates VACANT_PLAZA for an existing cargo with free slots', async () => {
+    const created = await request(app.getHttpServer())
+      .post('/ats/vacancy-requests')
+      .set(auth(adminToken))
+      .send({
+        motive: VacancyRequestMotive.VACANT_PLAZA,
+        requestedByEmployeeId: requesterEmployeeId,
+        existingPositionId: positionReportId,
+        requestedHeadcount: 1,
+        expectedHiringDate: '2099-06-15',
+        justification: 'Cover vacant plaza',
+      })
+      .expect(201);
+    expect(
+      (created.body as { motive: string; replacedEmployeeId: string | null })
+        .motive,
+    ).toBe(VacancyRequestMotive.VACANT_PLAZA);
+    expect(
+      (created.body as { replacedEmployeeId: string | null })
+        .replacedEmployeeId,
+    ).toBeNull();
+
+    await request(app.getHttpServer())
+      .post('/ats/vacancy-requests')
+      .set(auth(adminToken))
+      .send({
+        motive: VacancyRequestMotive.VACANT_PLAZA,
+        requestedByEmployeeId: requesterEmployeeId,
+        existingPositionId: positionReportId,
+        requestedHeadcount: 1,
+        expectedHiringDate: '2099-06-15',
+        replacedEmployeeId: reportEmployeeId,
+        justification: 'Cannot replace on vacant plaza',
+      })
+      .expect(400);
   });
 
   it('creates NEW_POSITION with correct headcount and rejects cross-tenant refs', async () => {

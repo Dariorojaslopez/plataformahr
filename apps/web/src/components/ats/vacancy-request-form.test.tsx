@@ -192,4 +192,18 @@ describe("VacancyRequestForm requester field", () => {
       screen.getByRole("option", { name: "Posición vacante" }),
     ).toBeInTheDocument();
   });
+
+  it("hides plaza a cubrir when the motive is plaza vacante", () => {
+    renderForm({
+      values: {
+        ...baseProps.values,
+        motive: "VACANT_PLAZA",
+        replacedEmployeeId: "",
+      },
+    });
+    expect(document.getElementById("vr-replaced")).toBeNull();
+    expect(
+      screen.getByText(/Cubre una plaza vacante del cargo/),
+    ).toBeInTheDocument();
+  });
 });
