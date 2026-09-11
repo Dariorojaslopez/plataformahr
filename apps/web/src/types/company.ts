@@ -1,3 +1,5 @@
+import type { ConfigurableCompanyRole } from "@talento/shared";
+
 export type CompanyBranding = {
   id: string;
   name: string;
@@ -20,7 +22,7 @@ export type RoleMenuCatalogItem = {
 };
 
 export type RoleMenuRoleConfig = {
-  roleCode: "RECRUITER" | "PERFORMANCE_MANAGER" | "LEADER" | "COLLABORATOR";
+  roleCode: ConfigurableCompanyRole;
   hrefs: string[];
   customized: boolean;
 };
