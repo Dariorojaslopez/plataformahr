@@ -715,6 +715,7 @@ model Employee {
   businessUnitId        String?        @db.Uuid
   areaId                String         @db.Uuid
   positionId            String         @db.Uuid
+  accessRoleCode        String         @default("COLLABORATOR")
   status                EmployeeStatus @default(ACTIVE)
   hireDate              DateTime?      @db.Date
   terminationDate       DateTime?      @db.Date

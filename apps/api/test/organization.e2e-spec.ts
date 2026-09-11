@@ -458,6 +458,65 @@ describe('Organization core (e2e)', () => {
     expect((linked.body as { userId: string }).userId).toBe(adminAUserId);
   });
 
+  it('assigns access role from the employee form and applies it when issuing access', async () => {
+    const created = await request(app.getHttpServer())
+      .post('/organization/employees')
+      .set('Authorization', `Bearer ${adminAToken}`)
+      .set('X-Company-Id', companyAId)
+      .send({
+        firstName: 'Role',
+        lastName: 'Recruiter',
+        email: `role-recruiter-${suffix}@example.com`,
+        areaId: areaAId,
+        positionId: positionAId,
+        accessRoleCode: 'RECRUITER',
+      })
+      .expect(201);
+    const createdBody = created.body as { id: string; accessRoleCode: string };
+    expect(createdBody.accessRoleCode).toBe('RECRUITER');
+
+    const issued = await request(app.getHttpServer())
+      .post(`/organization/employees/${createdBody.id}/access`)
+      .set('Authorization', `Bearer ${adminAToken}`)
+      .set('X-Company-Id', companyAId)
+      .send({})
+      .expect(201);
+    expect((issued.body as { roleCode: string }).roleCode).toBe('RECRUITER');
+
+    const user = await prisma.user.findFirstOrThrow({
+      where: { email: `role-recruiter-${suffix}@example.com` },
+    });
+    const membership = await prisma.companyMembership.findUniqueOrThrow({
+      where: {
+        userId_companyId: { userId: user.id, companyId: companyAId },
+      },
+      include: { roles: { include: { role: true } } },
+    });
+    expect(membership.roles.map((item) => item.role.code)).toEqual([
+      'RECRUITER',
+    ]);
+
+    const updated = await request(app.getHttpServer())
+      .patch(`/organization/employees/${createdBody.id}`)
+      .set('Authorization', `Bearer ${adminAToken}`)
+      .set('X-Company-Id', companyAId)
+      .send({ accessRoleCode: 'PERFORMANCE_MANAGER' })
+      .expect(200);
+    expect(
+      (updated.body as { accessRoleCode: string }).accessRoleCode,
+    ).toBe('PERFORMANCE_MANAGER');
+
+    const afterUpdate = await prisma.companyMembership.findUniqueOrThrow({
+      where: {
+        userId_companyId: { userId: user.id, companyId: companyAId },
+      },
+      include: { roles: { include: { role: true } } },
+    });
+    expect(afterUpdate.roles.map((item) => item.role.code)).toEqual([
+      'PERFORMANCE_MANAGER',
+    ]);
+  });
+
   it('validates reporting lines: self, unique direct, multiple indirect, same company, cycles', async () => {
     await request(app.getHttpServer())
       .post(`/organization/employees/${employeeAId}/reporting-lines`)

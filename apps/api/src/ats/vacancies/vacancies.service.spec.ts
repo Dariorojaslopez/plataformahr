@@ -84,6 +84,15 @@ describe('VacanciesService', () => {
     expect(audit.create).toHaveBeenCalled();
   });
 
+  it('assigns a recruitment leader as vacancy recruiter', async () => {
+    const { service, prisma } = build('RECRUITMENT_LEADER');
+    const updated = await service.update(tenant, 'user-1', 'vac-1', {
+      assignedRecruiterEmployeeId: 'emp-rec',
+    });
+    expect(updated.assignedRecruiterEmployeeId).toBe('emp-rec');
+    expect(prisma.vacancy.update).toHaveBeenCalled();
+  });
+
   it('rejects a collaborator that is not a recruiter', async () => {
     const { service } = build('COLLABORATOR');
     await expect(
@@ -141,5 +150,25 @@ describe('VacanciesService', () => {
       { where: { assignedRecruiterEmployeeId?: string } },
     ];
     expect(listArg.where.assignedRecruiterEmployeeId).toBe('emp-rec');
+  });
+
+  it('lists all vacancies for a recruitment leader', async () => {
+    const { service, prisma, rbac } = build('RECRUITMENT_LEADER');
+    rbac.getRoleCodesForMembership.mockResolvedValue(
+      new Set(['RECRUITMENT_LEADER']),
+    );
+    const findMany = jest.fn().mockResolvedValue([]);
+    prisma.vacancy.findMany = findMany;
+    prisma.vacancy.count = jest.fn().mockResolvedValue(0);
+    prisma.$transaction = jest.fn((ops: Promise<unknown>[]) =>
+      Promise.all(ops),
+    );
+
+    await service.list(tenant, { page: 1, limit: 20 });
+
+    const [listArg] = findMany.mock.calls[0] as [
+      { where: { assignedRecruiterEmployeeId?: string } },
+    ];
+    expect(listArg.where.assignedRecruiterEmployeeId).toBeUndefined();
   });
 });

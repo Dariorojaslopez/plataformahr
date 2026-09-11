@@ -3,7 +3,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Copy } from "lucide-react";
 import { useState } from "react";
-import { FormSelect } from "@/components/organization/form-select";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -14,18 +13,9 @@ import {
 } from "@/components/ui/dialog";
 import { useCompanyId } from "@/hooks/use-company-id";
 import { organizationApi, orgKeys } from "@/lib/api/organization";
+import { COMPANY_ROLE_LABELS } from "@/lib/ats/labels";
 import { notifyError, notifySuccess } from "@/lib/ui/notify";
-import type {
-  Employee,
-  EmployeeAccessIssued,
-  EmployeeAccessRole,
-} from "@/types/organization";
-
-const ACCESS_ROLES: { value: EmployeeAccessRole; label: string }[] = [
-  { value: "LEADER", label: "Líder (puede aprobar vacantes)" },
-  { value: "RECRUITER", label: "Reclutador" },
-  { value: "COLLABORATOR", label: "Colaborador" },
-];
+import type { Employee, EmployeeAccessIssued } from "@/types/organization";
 
 type IssueEmployeeAccessDialogProps = {
   employee: Employee | null;
@@ -40,13 +30,14 @@ export function IssueEmployeeAccessDialog({
 }: IssueEmployeeAccessDialogProps) {
   const companyId = useCompanyId();
   const queryClient = useQueryClient();
-  const [roleCode, setRoleCode] = useState<EmployeeAccessRole>("LEADER");
   const [issued, setIssued] = useState<EmployeeAccessIssued | null>(null);
+  const roleLabel = employee
+    ? (COMPANY_ROLE_LABELS[employee.accessRoleCode] ?? employee.accessRoleCode)
+    : null;
 
   function handleOpenChange(next: boolean) {
     if (!next) {
       setIssued(null);
-      setRoleCode("LEADER");
     }
     onOpenChange(next);
   }
@@ -56,7 +47,7 @@ export function IssueEmployeeAccessDialog({
       if (!employee) {
         throw new Error("Sin colaborador");
       }
-      return organizationApi.issueEmployeeAccess(employee.id, roleCode);
+      return organizationApi.issueEmployeeAccess(employee.id);
     },
     onSuccess: async (result) => {
       await queryClient.invalidateQueries({
@@ -120,15 +111,9 @@ export function IssueEmployeeAccessDialog({
           <div className="space-y-4">
             <p className="text-sm text-muted-foreground">
               Crea o restablece el usuario y muestra una contraseña temporal.
-              Elige Líder si esta persona debe aprobar vacantes.
+              El rol se asigna en la ficha del colaborador
+              {roleLabel ? ` (ahora: ${roleLabel})` : ""}.
             </p>
-            <FormSelect
-              id="access-role"
-              label="Rol"
-              value={roleCode}
-              onChange={(value) => setRoleCode(value as EmployeeAccessRole)}
-              options={ACCESS_ROLES}
-            />
             <DialogFooter>
               <Button
                 type="button"

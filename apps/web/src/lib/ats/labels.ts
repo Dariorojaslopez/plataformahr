@@ -97,8 +97,10 @@ export const VACANCY_APPROVER_TYPE_LABELS: Record<VacancyApproverType, string> =
 
 export const COMPANY_ROLE_LABELS: Record<string, string> = {
   CLIENT_ADMIN: "Administrador de compañía",
+  ADMINISTRATOR: "Administrador",
   LEADER: "Líder",
   RECRUITER: "Reclutador",
+  RECRUITMENT_LEADER: "Líder de reclutamiento",
   PERFORMANCE_MANAGER: "Gestor de performance",
   COLLABORATOR: "Colaborador",
 };

@@ -206,7 +206,7 @@ export const organizationApi = {
   issueEmployeeAccess: (id: string, roleCode?: EmployeeAccessRole) =>
     apiRequest<EmployeeAccessIssued>(`/organization/employees/${id}/access`, {
       method: "POST",
-      body: { roleCode },
+      body: roleCode ? { roleCode } : {},
     }),
 
   listReportingLines: (employeeId: string) =>

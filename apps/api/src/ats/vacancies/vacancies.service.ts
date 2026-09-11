@@ -42,7 +42,12 @@ const ALLOWED_TRANSITIONS: Record<VacancyStatus, VacancyStatus[]> = {
   [VacancyStatus.CANCELLED]: [],
 };
 
-const ASSIGNABLE_RECRUITER_ROLES = new Set(['RECRUITER', 'CLIENT_ADMIN']);
+const ASSIGNABLE_RECRUITER_ROLES = new Set([
+  'RECRUITER',
+  'RECRUITMENT_LEADER',
+  'ADMINISTRATOR',
+  'CLIENT_ADMIN',
+]);
 
 const VACANCY_LIST_INCLUDE = {
   position: {
@@ -113,7 +118,11 @@ export class VacanciesService {
       where: {
         companyId,
         status: MembershipStatus.ACTIVE,
-        roles: { some: { role: { code: 'RECRUITER' } } },
+        roles: {
+          some: {
+            role: { code: { in: ['RECRUITER', 'RECRUITMENT_LEADER'] } },
+          },
+        },
       },
       select: { userId: true },
     });
@@ -391,7 +400,14 @@ export class VacanciesService {
     const roles = await this.rbac.getRoleCodesForMembership(
       tenant.membershipId,
     );
-    if (roles.has('CLIENT_ADMIN') || !roles.has('RECRUITER')) return {};
+    if (
+      roles.has('CLIENT_ADMIN') ||
+      roles.has('ADMINISTRATOR') ||
+      roles.has('RECRUITMENT_LEADER') ||
+      !roles.has('RECRUITER')
+    ) {
+      return {};
+    }
     const employee = await this.prisma.employee.findFirst({
       where: {
         companyId: tenant.companyId,

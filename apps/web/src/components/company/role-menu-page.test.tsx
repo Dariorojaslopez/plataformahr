@@ -91,6 +91,12 @@ describe("RoleMenuPageClient", () => {
       await screen.findByRole("heading", { name: "Permisos de menú" }),
     ).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "Líder" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("tab", { name: "Administrador" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("tab", { name: "Líder de reclutamiento" }),
+    ).toBeInTheDocument();
     await userEvent.click(screen.getByRole("tab", { name: "Líder" }));
     expect(
       await screen.findByLabelText("Organigrama"),

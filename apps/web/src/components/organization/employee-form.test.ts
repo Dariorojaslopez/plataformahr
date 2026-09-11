@@ -29,6 +29,7 @@ const sample: Employee = {
   businessUnitId: null,
   areaId: "a1",
   positionId: "p1",
+  accessRoleCode: "COLLABORATOR",
   status: "ACTIVE",
   hireDate: null,
   terminationDate: null,
@@ -45,6 +46,17 @@ describe("employee form mappers", () => {
     const create = toCreatePayload(values);
     expect(create.email).toBe("ada@example.com");
     expect(create.businessUnitId).toBeUndefined();
+    expect(create.accessRoleCode).toBe("COLLABORATOR");
+    expect(
+      toCreatePayload({
+        ...values,
+        accessRoleCode: "PERFORMANCE_MANAGER",
+      }).accessRoleCode,
+    ).toBe("PERFORMANCE_MANAGER");
+    expect(
+      toUpdatePayload({ ...values, accessRoleCode: "CLIENT_ADMIN" })
+        .accessRoleCode,
+    ).toBeUndefined();
   });
 
   it("maps housing type aliases onto the catalog", () => {

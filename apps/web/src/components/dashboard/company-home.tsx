@@ -102,7 +102,8 @@ export function CompanyHome({
   const greeting = firstName.trim() ? `Hola, ${firstName.trim()}` : "Hola";
   const isPeopleHome =
     homeRole === "COLLABORATOR" || homeRole === "LEADER";
-  const isRecruiterHome = homeRole === "RECRUITER";
+  const isRecruitmentLeadHome = homeRole === "RECRUITMENT_LEADER";
+  const isRecruiterHome = homeRole === "RECRUITER" || isRecruitmentLeadHome;
   const isAdminHome = homeRole === "CLIENT_ADMIN";
   const usesFeedHome = isPeopleHome || isRecruiterHome || isAdminHome;
   const configSections = isAdminHome ? groupedHomeShortcuts(shortcuts) : [];
@@ -140,7 +141,7 @@ export function CompanyHome({
             <CollaboratorHome
               canRequestVacancies={homeRole === "LEADER"}
               showAssignedWork={isRecruiterHome}
-              showAllProcesses={isAdminHome}
+              showAllProcesses={isAdminHome || isRecruitmentLeadHome}
             />
           ) : null}
 

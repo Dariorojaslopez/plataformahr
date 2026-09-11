@@ -1,3 +1,10 @@
 export function recruiterSeesAssignedOnly(roleCodes: string[]): boolean {
-  return roleCodes.includes("RECRUITER") && !roleCodes.includes("CLIENT_ADMIN");
+  if (
+    roleCodes.includes("CLIENT_ADMIN") ||
+    roleCodes.includes("ADMINISTRATOR") ||
+    roleCodes.includes("RECRUITMENT_LEADER")
+  ) {
+    return false;
+  }
+  return roleCodes.includes("RECRUITER");
 }

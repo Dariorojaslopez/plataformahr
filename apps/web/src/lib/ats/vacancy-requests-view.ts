@@ -23,5 +23,10 @@ export function selectionProcessNavLabel(
 }
 
 export function canProxyVacancyRequester(roleCodes: readonly string[]): boolean {
-  return roleCodes.includes("CLIENT_ADMIN") || roleCodes.includes("RECRUITER");
+  return (
+    roleCodes.includes("CLIENT_ADMIN") ||
+    roleCodes.includes("ADMINISTRATOR") ||
+    roleCodes.includes("RECRUITER") ||
+    roleCodes.includes("RECRUITMENT_LEADER")
+  );
 }

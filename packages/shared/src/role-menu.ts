@@ -1,4 +1,6 @@
 export const CONFIGURABLE_COMPANY_ROLES = [
+  'ADMINISTRATOR',
+  'RECRUITMENT_LEADER',
   'RECRUITER',
   'PERFORMANCE_MANAGER',
   'LEADER',
@@ -124,6 +126,16 @@ export const DEFAULT_ROLE_MENU_HREFS: Record<
   ConfigurableCompanyRole,
   readonly RoleMenuHref[]
 > = {
+  ADMINISTRATOR: ROLE_MENU_CATALOG.map((item) => item.href),
+  RECRUITMENT_LEADER: [
+    '/ats/vacancies',
+    '/ats/candidates',
+    '/ats/pipeline',
+    '/ats/interviews',
+    '/ats/interview-templates',
+    '/ats/vacancy-requests',
+    '/ats/settings/approvals',
+  ],
   COLLABORATOR: [
     '/performance/my-evaluations',
     '/performance/my-results',
@@ -178,10 +190,7 @@ export function resolveAllowedNavHrefs(input: {
   overrides: Readonly<Record<string, readonly string[]>>;
 }): string[] {
   const catalog = new Set(input.catalogHrefs);
-  if (
-    input.roleCodes.includes('CLIENT_ADMIN') ||
-    input.homeRole === 'CLIENT_ADMIN'
-  ) {
+  if (input.roleCodes.includes('CLIENT_ADMIN')) {
     return [...ALWAYS_ALLOWED_NAV_HREFS, ...ADMIN_ONLY_NAV_HREFS, ...catalog];
   }
 

@@ -1,3 +1,5 @@
+import type { ConfigurableCompanyRole } from "@talento/shared";
+
 export type OrganizationEntityStatus = "ACTIVE" | "INACTIVE";
 export type EmployeeStatus = "ACTIVE" | "INACTIVE" | "TERMINATED";
 export type ReportingLineType = "DIRECT" | "INDIRECT";
@@ -148,6 +150,8 @@ export type Position = {
   customFields?: PositionCustomFieldValue[];
 };
 
+export type EmployeeAccessRole = ConfigurableCompanyRole;
+
 export type Employee = {
   id: string;
   companyId: string;
@@ -170,6 +174,7 @@ export type Employee = {
   businessUnitId: string | null;
   areaId: string;
   positionId: string;
+  accessRoleCode: EmployeeAccessRole | "CLIENT_ADMIN";
   status: EmployeeStatus;
   hireDate: string | null;
   terminationDate: string | null;
@@ -196,8 +201,6 @@ export type ListEmployeesParams = {
   page?: number;
   limit?: number;
 };
-
-export type EmployeeAccessRole = "COLLABORATOR" | "LEADER" | "RECRUITER";
 
 export type EmployeeAccessIssued = {
   email: string;
@@ -372,6 +375,7 @@ export type CreateEmployeeInput = {
   businessUnitId?: string;
   areaId: string;
   positionId: string;
+  accessRoleCode?: EmployeeAccessRole;
   status?: EmployeeStatus;
   hireDate?: string;
   terminationDate?: string;
@@ -398,6 +402,7 @@ export type UpdateEmployeeInput = {
   businessUnitId?: string | null;
   areaId?: string;
   positionId?: string;
+  accessRoleCode?: EmployeeAccessRole;
   status?: EmployeeStatus;
   hireDate?: string | null;
   terminationDate?: string | null;

@@ -8,6 +8,7 @@ import {
 describe("organizational goals form", () => {
   it("lets company admins and performance managers create org goals", () => {
     expect(canManageOrganizationalGoals(["CLIENT_ADMIN"])).toBe(true);
+    expect(canManageOrganizationalGoals(["ADMINISTRATOR"])).toBe(true);
     expect(canManageOrganizationalGoals(["PERFORMANCE_MANAGER"])).toBe(true);
     expect(canManageOrganizationalGoals(["COLLABORATOR"])).toBe(false);
     expect(canManageOrganizationalGoals([])).toBe(false);

@@ -30,6 +30,8 @@ describe("vacancy requests view", () => {
   it("lets only admin and recruiter create requests on behalf of someone else", () => {
     expect(canProxyVacancyRequester(["LEADER"])).toBe(false);
     expect(canProxyVacancyRequester(["CLIENT_ADMIN"])).toBe(true);
+    expect(canProxyVacancyRequester(["ADMINISTRATOR"])).toBe(true);
+    expect(canProxyVacancyRequester(["RECRUITMENT_LEADER"])).toBe(true);
     expect(canProxyVacancyRequester(["RECRUITER", "LEADER"])).toBe(true);
   });
 });

@@ -18,6 +18,10 @@ import {
 import { Transform, Type } from 'class-transformer';
 import { EmployeeStatus } from '@prisma/client';
 import {
+  CONFIGURABLE_COMPANY_ROLES,
+  type ConfigurableCompanyRole,
+} from '@talento/shared';
+import {
   DEFAULT_LIMIT,
   DEFAULT_PAGE,
   MAX_LIMIT,
@@ -118,6 +122,10 @@ export class CreateEmployeeDto {
 
   @IsUUID()
   positionId!: string;
+
+  @IsOptional()
+  @IsIn(CONFIGURABLE_COMPANY_ROLES)
+  accessRoleCode?: ConfigurableCompanyRole;
 
   @IsOptional()
   @IsEnum(EmployeeStatus)
@@ -235,6 +243,10 @@ export class UpdateEmployeeDto {
   positionId?: string;
 
   @IsOptional()
+  @IsIn(CONFIGURABLE_COMPANY_ROLES)
+  accessRoleCode?: ConfigurableCompanyRole;
+
+  @IsOptional()
   @IsEnum(EmployeeStatus)
   status?: EmployeeStatus;
 
@@ -261,13 +273,9 @@ export class DeleteEmployeesDto {
   ids!: string[];
 }
 
-export const EMPLOYEE_ACCESS_ROLES = [
-  'COLLABORATOR',
-  'LEADER',
-  'RECRUITER',
-] as const;
+export const EMPLOYEE_ACCESS_ROLES = CONFIGURABLE_COMPANY_ROLES;
 
-export type EmployeeAccessRoleCode = (typeof EMPLOYEE_ACCESS_ROLES)[number];
+export type EmployeeAccessRoleCode = ConfigurableCompanyRole;
 
 export class IssueEmployeeAccessDto {
   @IsOptional()

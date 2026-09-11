@@ -3,10 +3,12 @@
 import {
   employeeDocumentTypeSelectOptions,
   housingTypeSelectOptions,
+  isConfigurableCompanyRole,
   maritalStatusSelectOptions,
   normalizeEmployeeDocumentType,
   normalizeEmployeeHousingType,
   normalizeEmployeeMaritalStatus,
+  type ConfigurableCompanyRole,
 } from "@talento/shared";
 import { useMemo, useState } from "react";
 import { NO_BUSINESS_UNIT_LABEL } from "@/components/organization/area-form";
@@ -16,11 +18,13 @@ import type { CustomFieldFormValues } from "@/components/organization/position-c
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { COMPANY_ROLE_LABELS } from "@/lib/ats/labels";
 import type {
   Area,
   BusinessUnit,
   CreateEmployeeInput,
   Employee,
+  EmployeeAccessRole,
   EmployeeStatus,
   Position,
   PositionCustomFieldDefinition,
@@ -46,10 +50,40 @@ export type EmployeeFormValues = {
   businessUnitId: string;
   areaId: string;
   positionId: string;
+  accessRoleCode: EmployeeAccessRole | "CLIENT_ADMIN";
   status: EmployeeStatus;
   hireDate: string;
   terminationDate: string;
 };
+
+const ASSIGNABLE_ACCESS_ROLE_ORDER: ConfigurableCompanyRole[] = [
+  "COLLABORATOR",
+  "LEADER",
+  "RECRUITER",
+  "RECRUITMENT_LEADER",
+  "PERFORMANCE_MANAGER",
+  "ADMINISTRATOR",
+];
+
+const ASSIGNABLE_ACCESS_ROLE_OPTIONS: {
+  value: EmployeeAccessRole;
+  label: string;
+}[] = ASSIGNABLE_ACCESS_ROLE_ORDER.map((value) => ({
+  value,
+  label: COMPANY_ROLE_LABELS[value] ?? value,
+}));
+
+function formAccessRole(
+  code?: string | null,
+): EmployeeAccessRole | "CLIENT_ADMIN" {
+  if (code === "CLIENT_ADMIN") {
+    return code;
+  }
+  if (code && isConfigurableCompanyRole(code)) {
+    return code;
+  }
+  return "COLLABORATOR";
+}
 
 export function employeeToFormValues(employee?: Employee | null): EmployeeFormValues {
   return {
@@ -74,6 +108,7 @@ export function employeeToFormValues(employee?: Employee | null): EmployeeFormVa
     businessUnitId: employee?.businessUnitId ?? "",
     areaId: employee?.areaId ?? "",
     positionId: employee?.positionId ?? "",
+    accessRoleCode: formAccessRole(employee?.accessRoleCode),
     status: employee?.status ?? "ACTIVE",
     hireDate: employee?.hireDate?.slice(0, 10) ?? "",
     terminationDate: employee?.terminationDate?.slice(0, 10) ?? "",
@@ -101,6 +136,10 @@ export function toCreatePayload(values: EmployeeFormValues): CreateEmployeeInput
     businessUnitId: values.businessUnitId || undefined,
     areaId: values.areaId,
     positionId: values.positionId,
+    accessRoleCode:
+      values.accessRoleCode === "CLIENT_ADMIN"
+        ? undefined
+        : values.accessRoleCode,
     status: values.status,
     hireDate: values.hireDate || undefined,
     terminationDate: values.terminationDate || undefined,
@@ -108,8 +147,13 @@ export function toCreatePayload(values: EmployeeFormValues): CreateEmployeeInput
 }
 
 export function toUpdatePayload(values: EmployeeFormValues): UpdateEmployeeInput {
+  const payload = toCreatePayload(values);
   return {
-    ...toCreatePayload(values),
+    ...payload,
+    accessRoleCode:
+      values.accessRoleCode === "CLIENT_ADMIN"
+        ? undefined
+        : payload.accessRoleCode,
     businessUnitId: values.businessUnitId || null,
     birthDate: values.birthDate || null,
     documentType: values.documentType.trim() || null,
@@ -404,6 +448,33 @@ export function EmployeeForm({
               value: position.id,
               label: position.name,
             }))}
+          />
+          <FormSelect
+            id="emp-access-role"
+            label="Rol de sistema"
+            value={values.accessRoleCode}
+            onChange={(value) =>
+              setField(
+                "accessRoleCode",
+                value as EmployeeAccessRole | "CLIENT_ADMIN",
+              )
+            }
+            disabled={values.accessRoleCode === "CLIENT_ADMIN"}
+            hint={
+              values.accessRoleCode === "CLIENT_ADMIN"
+                ? "Este colaborador es administrador de la compañía. El rol no se cambia desde aquí."
+                : "Define los menús y permisos. La contraseña se genera aparte, en Acceso."
+            }
+            options={
+              values.accessRoleCode === "CLIENT_ADMIN"
+                ? [
+                    {
+                      value: "CLIENT_ADMIN",
+                      label: COMPANY_ROLE_LABELS.CLIENT_ADMIN,
+                    },
+                  ]
+                : ASSIGNABLE_ACCESS_ROLE_OPTIONS
+            }
           />
           <FormSelect
             id="emp-status"

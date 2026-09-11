@@ -73,7 +73,9 @@ export const MAX_VACANCY_EVALUATORS = 10;
 
 export const PROXY_REQUESTER_ROLE_CODES = [
   'CLIENT_ADMIN',
+  'ADMINISTRATOR',
   'RECRUITER',
+  'RECRUITMENT_LEADER',
 ] as const;
 
 /** User-facing requester errors (Spanish). Do not include tenant or employee ids. */

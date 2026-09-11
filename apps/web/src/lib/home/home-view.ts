@@ -52,6 +52,7 @@ export const HOME_ROLE_LABELS: Record<CompanyHomeRole, string> = {
   COLLABORATOR: "Colaborador",
   LEADER: "Líder",
   RECRUITER: "Reclutador",
+  RECRUITMENT_LEADER: "Líder de reclutamiento",
   CLIENT_ADMIN: "Administrador",
   PERFORMANCE_MANAGER: "Gestor de performance",
 };
@@ -126,6 +127,43 @@ export const HOME_SHORTCUTS: Record<CompanyHomeRole, HomeShortcut[]> = {
       href: "/ats/vacancy-requests",
       title: "Crear proceso de selección",
       description: "Gestiona pedidos de vacante de la compañía.",
+    },
+  ],
+  RECRUITMENT_LEADER: [
+    {
+      href: "/ats/vacancies",
+      title: "Vacantes",
+      description: "Administra todas las vacantes y asigna reclutadores.",
+    },
+    {
+      href: "/ats/candidates",
+      title: "Candidatos",
+      description: "Carga y actualiza el talento en proceso.",
+    },
+    {
+      href: "/ats/pipeline",
+      title: "Tablero Kanban",
+      description: "Avance de candidatos por proceso de selección.",
+    },
+    {
+      href: "/ats/interviews",
+      title: "Entrevistas",
+      description: "Agenda y da seguimiento a entrevistas.",
+    },
+    {
+      href: "/ats/interview-templates",
+      title: "Plantillas de entrevista",
+      description: "Formularios de evaluación reutilizables.",
+    },
+    {
+      href: "/ats/vacancy-requests",
+      title: "Crear proceso de selección",
+      description: "Gestiona pedidos de vacante de la compañía.",
+    },
+    {
+      href: "/ats/settings/approvals",
+      title: "Configuración ATS",
+      description: "Niveles de aprobación y ajustes de selección.",
     },
   ],
   CLIENT_ADMIN: [
@@ -323,6 +361,8 @@ export function homeDescription(
         : "Administra la compañía: procesos de selección, perfil y configuración.";
     case "RECRUITER":
       return "Vacantes internas, tu perfil, los procesos que te asignaron y sus métricas.";
+    case "RECRUITMENT_LEADER":
+      return "Vacantes, equipo de reclutamiento y configuración del ATS.";
     case "LEADER":
       return "Vacantes internas, tu perfil, tareas asignadas y solicitudes de selección para tu equipo.";
     case "PERFORMANCE_MANAGER":

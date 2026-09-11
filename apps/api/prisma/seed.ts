@@ -34,9 +34,19 @@ const COMPANY_ROLES = [
     description: 'Recruitment operator',
   },
   {
+    code: 'RECRUITMENT_LEADER',
+    name: 'Recruitment Leader',
+    description: 'Leads recruitment operations and ATS configuration',
+  },
+  {
     code: 'PERFORMANCE_MANAGER',
     name: 'Performance Manager',
     description: 'Performance process manager',
+  },
+  {
+    code: 'ADMINISTRATOR',
+    name: 'Administrator',
+    description: 'Assignable company administrator',
   },
   {
     code: 'CLIENT_ADMIN',
@@ -404,6 +414,9 @@ const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
     'goals.completion.request',
   ],
 };
+
+ROLE_PERMISSIONS.ADMINISTRATOR = ROLE_PERMISSIONS.CLIENT_ADMIN;
+ROLE_PERMISSIONS.RECRUITMENT_LEADER = ROLE_PERMISSIONS.RECRUITER;
 
 async function upsertCompanyRoles(): Promise<Map<string, Role>> {
   const rolesByCode = new Map<string, Role>();

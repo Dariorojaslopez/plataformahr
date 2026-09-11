@@ -44,7 +44,9 @@ export function canManageOrganizationalGoals(
 ): boolean {
   const codes = roleCodes ?? [];
   return (
-    codes.includes("CLIENT_ADMIN") || codes.includes("PERFORMANCE_MANAGER")
+    codes.includes("CLIENT_ADMIN") ||
+    codes.includes("ADMINISTRATOR") ||
+    codes.includes("PERFORMANCE_MANAGER")
   );
 }
 

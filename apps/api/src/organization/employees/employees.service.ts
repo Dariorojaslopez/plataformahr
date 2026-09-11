@@ -12,6 +12,7 @@ import {
   RoleScope,
   UserStatus,
 } from '@prisma/client';
+import { isConfigurableCompanyRole } from '@talento/shared';
 import { randomBytes } from 'node:crypto';
 import { PasswordHashingService } from '../../auth/password-hashing.service';
 import { AuditService } from '../../core/audit/audit.service';
@@ -195,6 +196,13 @@ export class EmployeesService {
 
     try {
       const created = await this.prisma.$transaction(async (tx) => {
+        const accessRoleCode = await this.resolveStoredAccessRole(
+          tx,
+          companyId,
+          dto.userId ?? null,
+          this.assignableAccessRole(dto.accessRoleCode),
+          { sync: dto.accessRoleCode !== undefined },
+        );
         const employee = await tx.employee.create({
           data: {
             companyId,
@@ -218,6 +226,7 @@ export class EmployeesService {
             businessUnitId: dto.businessUnitId ?? null,
             areaId: dto.areaId,
             positionId: dto.positionId,
+            accessRoleCode,
             status: dto.status ?? EmployeeStatus.ACTIVE,
             hireDate: dto.hireDate ? new Date(dto.hireDate) : null,
             terminationDate: dto.terminationDate
@@ -261,9 +270,22 @@ export class EmployeesService {
 
     try {
       await this.prisma.$transaction(async (tx) => {
+        const nextUserId =
+          dto.userId !== undefined ? dto.userId : existing.userId;
+        const keepAdmin = existing.accessRoleCode === 'CLIENT_ADMIN';
+        const accessRoleCode =
+          keepAdmin || dto.accessRoleCode === undefined
+            ? undefined
+            : await this.resolveStoredAccessRole(
+                tx,
+                companyId,
+                nextUserId,
+                this.assignableAccessRole(dto.accessRoleCode),
+              );
         await tx.employee.update({
           where: { id },
           data: {
+            ...(accessRoleCode !== undefined ? { accessRoleCode } : {}),
             ...(dto.firstName !== undefined
               ? { firstName: dto.firstName.trim() }
               : {}),
@@ -424,12 +446,12 @@ export class EmployeesService {
     companyId: string,
     actorUserId: string,
     employeeId: string,
-    roleCode: EmployeeAccessRoleCode = 'LEADER',
+    roleCode?: EmployeeAccessRoleCode,
   ): Promise<{
     email: string;
     temporaryPassword: string;
     passwordEmailed: boolean;
-    roleCode: EmployeeAccessRoleCode;
+    roleCode: string;
   }> {
     const employee = await this.integrity.requireEmployee(
       companyId,
@@ -440,8 +462,13 @@ export class EmployeesService {
         'Solo se puede dar acceso a un colaborador activo.',
       );
     }
+    const requestedRole = this.assignableAccessRole(
+      roleCode ?? employee.accessRoleCode,
+    );
     const role = await this.prisma.role.findUnique({
-      where: { scope_code: { scope: RoleScope.COMPANY, code: roleCode } },
+      where: {
+        scope_code: { scope: RoleScope.COMPANY, code: requestedRole },
+      },
     });
     if (!role) {
       throw new ConflictException('El rol solicitado no está provisionado.');
@@ -497,12 +524,7 @@ export class EmployeesService {
         });
       }
 
-      await tx.employee.update({
-        where: { id: employee.id },
-        data: { userId: existing.id },
-      });
-
-      const membership = await tx.companyMembership.upsert({
+      await tx.companyMembership.upsert({
         where: {
           userId_companyId: { userId: existing.id, companyId },
         },
@@ -513,11 +535,15 @@ export class EmployeesService {
         },
         update: { status: MembershipStatus.ACTIVE },
       });
-      await tx.membershipRole.deleteMany({
-        where: { membershipId: membership.id },
-      });
-      await tx.membershipRole.create({
-        data: { membershipId: membership.id, roleId: role.id },
+      const appliedRole = await this.resolveStoredAccessRole(
+        tx,
+        companyId,
+        existing.id,
+        requestedRole,
+      );
+      await tx.employee.update({
+        where: { id: employee.id },
+        data: { userId: existing.id, accessRoleCode: appliedRole },
       });
       await tx.userSession.updateMany({
         where: { userId: existing.id, revokedAt: null },
@@ -562,7 +588,7 @@ export class EmployeesService {
       metadata: {
         employeeId: employee.id,
         targetUserId: user.id,
-        roleCode,
+        roleCode: requestedRole,
         passwordEmailed: mailResult.status === 'SENT',
       },
     });
@@ -571,7 +597,7 @@ export class EmployeesService {
       email: user.email,
       temporaryPassword,
       passwordEmailed: mailResult.status === 'SENT',
-      roleCode,
+      roleCode: requestedRole,
     };
   }
 
@@ -583,6 +609,81 @@ export class EmployeesService {
       throw new ConflictException('Employee unique constraint violated');
     }
     throw error;
+  }
+
+  private assignableAccessRole(
+    code: string | null | undefined,
+  ): EmployeeAccessRoleCode {
+    if (code && isConfigurableCompanyRole(code)) {
+      return code;
+    }
+    return 'COLLABORATOR';
+  }
+
+  private async membershipRoleCodes(
+    tx: Prisma.TransactionClient,
+    companyId: string,
+    userId: string,
+  ): Promise<string[]> {
+    const membership = await tx.companyMembership.findUnique({
+      where: { userId_companyId: { userId, companyId } },
+      include: { roles: { include: { role: true } } },
+    });
+    return membership?.roles.map((item) => item.role.code) ?? [];
+  }
+
+  private async syncMembershipAccessRole(
+    tx: Prisma.TransactionClient,
+    companyId: string,
+    userId: string,
+    roleCode: EmployeeAccessRoleCode,
+  ): Promise<void> {
+    const codes = await this.membershipRoleCodes(tx, companyId, userId);
+    if (codes.includes('CLIENT_ADMIN')) {
+      return;
+    }
+    const membership = await tx.companyMembership.findUnique({
+      where: { userId_companyId: { userId, companyId } },
+    });
+    if (!membership) {
+      return;
+    }
+    const role = await tx.role.findUnique({
+      where: { scope_code: { scope: RoleScope.COMPANY, code: roleCode } },
+    });
+    if (!role) {
+      throw new ConflictException('El rol solicitado no está provisionado.');
+    }
+    await tx.membershipRole.deleteMany({
+      where: { membershipId: membership.id },
+    });
+    await tx.membershipRole.create({
+      data: { membershipId: membership.id, roleId: role.id },
+    });
+  }
+
+  private async resolveStoredAccessRole(
+    tx: Prisma.TransactionClient,
+    companyId: string,
+    userId: string | null | undefined,
+    requested: EmployeeAccessRoleCode,
+    options?: { sync?: boolean },
+  ): Promise<string> {
+    if (!userId) {
+      return requested;
+    }
+    const codes = await this.membershipRoleCodes(tx, companyId, userId);
+    if (codes.includes('CLIENT_ADMIN')) {
+      return 'CLIENT_ADMIN';
+    }
+    if (options?.sync === false) {
+      const fromMembership = codes.find((code) =>
+        isConfigurableCompanyRole(code),
+      );
+      return fromMembership ?? requested;
+    }
+    await this.syncMembershipAccessRole(tx, companyId, userId, requested);
+    return requested;
   }
 
   private async validateRelations(

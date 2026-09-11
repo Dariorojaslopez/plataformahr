@@ -143,6 +143,11 @@ test('resolveCompanyHomeRole follows the product HOME matrix', () => {
   assert.equal(resolveCompanyHomeRole(['LEADER'], false), 'LEADER');
   assert.equal(resolveCompanyHomeRole(['COLLABORATOR'], true), 'LEADER');
   assert.equal(resolveCompanyHomeRole(['RECRUITER'], false), 'RECRUITER');
+  assert.equal(
+    resolveCompanyHomeRole(['RECRUITMENT_LEADER'], false),
+    'RECRUITMENT_LEADER',
+  );
+  assert.equal(resolveCompanyHomeRole(['ADMINISTRATOR'], false), 'CLIENT_ADMIN');
   assert.equal(resolveCompanyHomeRole(['CLIENT_ADMIN'], false), 'CLIENT_ADMIN');
   assert.equal(
     resolveCompanyHomeRole(['PERFORMANCE_MANAGER'], false),
@@ -182,6 +187,25 @@ test('role menu defaults hide company admin pages from collaborators', () => {
   });
   assert.ok(admin.includes('/organization/employees'));
   assert.ok(admin.includes('/settings/roles'));
+
+  const administrator = resolveAllowedNavHrefs({
+    roleCodes: ['ADMINISTRATOR'],
+    homeRole: 'CLIENT_ADMIN',
+    catalogHrefs: catalog,
+    overrides: {},
+  });
+  assert.ok(administrator.includes('/organization/employees'));
+  assert.equal(administrator.includes('/settings/roles'), false);
+
+  const recruitmentLead = resolveAllowedNavHrefs({
+    roleCodes: ['RECRUITMENT_LEADER'],
+    homeRole: 'RECRUITMENT_LEADER',
+    catalogHrefs: catalog,
+    overrides: {},
+  });
+  assert.ok(recruitmentLead.includes('/ats/interview-templates'));
+  assert.ok(recruitmentLead.includes('/ats/settings/approvals'));
+  assert.equal(recruitmentLead.includes('/organization/employees'), false);
 
   const customized = resolveAllowedNavHrefs({
     roleCodes: ['LEADER'],

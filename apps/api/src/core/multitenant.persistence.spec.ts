@@ -74,11 +74,13 @@ describe('Core multi-tenant persistence', () => {
     });
 
     expect(roles.map((role) => role.code).sort()).toEqual([
+      'ADMINISTRATOR',
       'CLIENT_ADMIN',
       'COLLABORATOR',
       'LEADER',
       'PERFORMANCE_MANAGER',
       'RECRUITER',
+      'RECRUITMENT_LEADER',
     ]);
     expect(permissions.map((permission) => permission.code).sort()).toEqual([
       'ats.application.manage',

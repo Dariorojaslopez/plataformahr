@@ -52,6 +52,15 @@ describe("home view by role", () => {
       "/ats/interviews",
       "/ats/vacancy-requests",
     ]);
+    expect(hrefs("RECRUITMENT_LEADER")).toEqual([
+      "/ats/vacancies",
+      "/ats/candidates",
+      "/ats/pipeline",
+      "/ats/interviews",
+      "/ats/interview-templates",
+      "/ats/vacancy-requests",
+      "/ats/settings/approvals",
+    ]);
     expect(hrefs("CLIENT_ADMIN")).toContain("/organization/employees");
     expect(hrefs("CLIENT_ADMIN")).toContain("/ats/settings/approvals");
     expect(hrefs("CLIENT_ADMIN")).toContain("/ats/settings/evaluators");
@@ -103,6 +112,7 @@ describe("home view by role", () => {
     expect(homeDescription("COLLABORATOR", "Acme")).toMatch(/perfil/);
     expect(homeDescription("LEADER", "Acme")).toMatch(/solicitudes de selección/);
     expect(homeDescription("RECRUITER", "Acme")).toMatch(/procesos que te asignaron/);
+    expect(homeDescription("RECRUITMENT_LEADER", "Acme")).toMatch(/equipo de reclutamiento/);
     expect(homeDescription("CLIENT_ADMIN", "Acme")).toMatch(/configuración/);
   });
 });

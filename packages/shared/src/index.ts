@@ -433,6 +433,7 @@ export function mergeCompanyAccess(
 export const COMPANY_HOME_ROLES = [
   'CLIENT_ADMIN',
   'RECRUITER',
+  'RECRUITMENT_LEADER',
   'PERFORMANCE_MANAGER',
   'LEADER',
   'COLLABORATOR',
@@ -448,9 +449,9 @@ export function isCompanyHomeRole(value: string): value is CompanyHomeRole {
 
 /**
  * Picks the HOME persona when a membership has several company roles.
- * Precedence matches the product matrix: Administrador → Reclutador →
- * Gestor de performance → Líder (role or people reporting to them) →
- * Colaborador.
+ * Precedence: Administrador de compañía → Administrador →
+ * Líder de reclutamiento → Reclutador → Gestor de performance →
+ * Líder (role or people reporting to them) → Colaborador.
  */
 export function resolveCompanyHomeRole(
   roleCodes: readonly string[],
@@ -458,6 +459,8 @@ export function resolveCompanyHomeRole(
 ): CompanyHomeRole {
   const roles = new Set(roleCodes);
   if (roles.has('CLIENT_ADMIN')) return 'CLIENT_ADMIN';
+  if (roles.has('ADMINISTRATOR')) return 'CLIENT_ADMIN';
+  if (roles.has('RECRUITMENT_LEADER')) return 'RECRUITMENT_LEADER';
   if (roles.has('RECRUITER')) return 'RECRUITER';
   if (roles.has('PERFORMANCE_MANAGER')) return 'PERFORMANCE_MANAGER';
   if (roles.has('LEADER') || hasDirectReports) return 'LEADER';

@@ -89,4 +89,38 @@ describe("EmployeeForm area selector", () => {
       screen.getByRole("option", { name: "Comercial" }),
     ).toBeInTheDocument();
   });
+
+  it("lets the admin pick a system role in the collaborator form", async () => {
+    const user = userEvent.setup();
+    render(
+      <EmployeeForm
+        areas={[areaWithoutBu]}
+        positions={[position]}
+        businessUnits={[]}
+        onSubmit={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("Rol de sistema")).toBeInTheDocument();
+    const trigger = document.getElementById("emp-access-role");
+    expect(trigger).toBeTruthy();
+    await user.click(trigger!);
+    expect(
+      await screen.findByRole("option", { name: "Colaborador" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Líder" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("option", { name: "Reclutador" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("option", { name: "Gestor de performance" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("option", { name: "Líder de reclutamiento" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("option", { name: "Administrador" }),
+    ).toBeInTheDocument();
+  });
 });

@@ -259,24 +259,24 @@ describe("organizationApi", () => {
     );
   });
 
-  it("issues employee access with a role", async () => {
+  it("issues employee access using the role saved on the employee", async () => {
     vi.mocked(fetch).mockResolvedValue(
       new Response(
         JSON.stringify({
           email: "ada@example.com",
           temporaryPassword: "tmp",
           passwordEmailed: false,
-          roleCode: "LEADER",
+          roleCode: "RECRUITER",
         }),
         { status: 201, headers: { "Content-Type": "application/json" } },
       ),
     );
-    await organizationApi.issueEmployeeAccess("e1", "LEADER");
+    await organizationApi.issueEmployeeAccess("e1");
     expect(String(vi.mocked(fetch).mock.calls[0]?.[0])).toContain(
       "/organization/employees/e1/access",
     );
     expect(JSON.parse(String(vi.mocked(fetch).mock.calls[0]?.[1]?.body))).toEqual(
-      { roleCode: "LEADER" },
+      {},
     );
   });
 });

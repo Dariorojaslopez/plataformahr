@@ -9,5 +9,10 @@ describe("vacancies view", () => {
       false,
     );
     expect(recruiterSeesAssignedOnly(["CLIENT_ADMIN"])).toBe(false);
+    expect(recruiterSeesAssignedOnly(["ADMINISTRATOR"])).toBe(false);
+    expect(recruiterSeesAssignedOnly(["RECRUITMENT_LEADER"])).toBe(false);
+    expect(
+      recruiterSeesAssignedOnly(["RECRUITER", "RECRUITMENT_LEADER"]),
+    ).toBe(false);
   });
 });

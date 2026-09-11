@@ -193,7 +193,10 @@ function RecruiterAssignmentField({ vacancy }: { vacancy: Vacancy }) {
   const companyId = useCompanyId();
   const queryClient = useQueryClient();
   const roleCodes = new Set(useSession().companyAccess?.roleCodes ?? []);
-  const canAssign = roleCodes.has("CLIENT_ADMIN");
+  const canAssign =
+    roleCodes.has("CLIENT_ADMIN") ||
+    roleCodes.has("ADMINISTRATOR") ||
+    roleCodes.has("RECRUITMENT_LEADER");
 
   const recruitersQuery = useQuery({
     queryKey: atsKeys.recruiters(companyId),
@@ -253,8 +256,8 @@ function RecruiterAssignmentField({ vacancy }: { vacancy: Vacancy }) {
 function SalaryPublicationField({ vacancy }: { vacancy: Vacancy }) {
   const companyId = useCompanyId();
   const queryClient = useQueryClient();
-  const isAdmin = (useSession().companyAccess?.roleCodes ?? []).includes(
-    "CLIENT_ADMIN",
+  const isAdmin = (useSession().companyAccess?.roleCodes ?? []).some((code) =>
+    ["CLIENT_ADMIN", "ADMINISTRATOR"].includes(code),
   );
   const [amount, setAmount] = useState(vacancy.salaryAmount ?? "");
 

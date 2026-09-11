@@ -108,7 +108,7 @@ export class EmployeesController {
       tenant.companyId,
       user.userId,
       id,
-      dto.roleCode ?? 'LEADER',
+      dto.roleCode,
     );
   }
 
