@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import type { ComponentProps } from "react";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { VacancyRequestForm } from "@/components/ats/vacancy-request-form";
+import { atsApi } from "@/lib/api/ats";
 import { VACANCY_REQUESTER_MESSAGES } from "@/lib/ats/vacancy-requester";
 
 vi.mock("@/hooks/use-company-id", () => ({
@@ -157,5 +158,38 @@ describe("VacancyRequestForm requester field", () => {
     ).toBeInTheDocument();
     expect(document.getElementById("vr-requester")).toBeNull();
     expect(screen.getByRole("button", { name: "Guardar" })).toBeDisabled();
+  });
+
+  it("lists vacant plazas next to occupants of the cargo", async () => {
+    vi.mocked(atsApi.listPositionOccupants).mockResolvedValueOnce([
+      {
+        id: "emp-1",
+        firstName: "maria",
+        lastName: "abril",
+        email: "maria@example.com",
+        userId: "user-1",
+      },
+      {
+        id: "emp-2",
+        firstName: "Carlos",
+        lastName: "perez",
+        email: "carlos@example.com",
+        userId: null,
+      },
+    ]);
+    const user = userEvent.setup();
+    renderForm({
+      values: { ...baseProps.values, replacedEmployeeId: "vacant:0" },
+    });
+    await user.click(document.getElementById("vr-replaced")!);
+    expect(
+      await screen.findByRole("option", { name: "maria abril" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("option", { name: "Carlos perez (sin acceso)" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("option", { name: "Posición vacante" }),
+    ).toBeInTheDocument();
   });
 });

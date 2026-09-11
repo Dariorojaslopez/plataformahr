@@ -32,6 +32,8 @@ import {
   emptyToNull,
   normalizeEmail,
 } from '../organization/organization.helpers';
+import { ORG_CHART_EMPLOYEE_SELECT } from '../organization/org-chart/org-chart.service';
+import { listOrgChartReports } from '../organization/org-chart/org-chart.tree';
 import type {
   CollaboratorHomeFeed,
   HomeAssignedMetrics,
@@ -42,6 +44,7 @@ import type {
   HomePendingEvaluation,
   HomeProfile,
   HomeReadyForOffer,
+  HomeTeamMember,
   InternalJobApplicationDto,
   UpdateHomeProfileDto,
 } from './dto/home.dto';
@@ -72,6 +75,7 @@ export class HomeService {
       pendingContractApprovals,
       readyForOffer,
       assigned,
+      teamMembers,
     ] = await Promise.all([
       this.listOpenVacancies(tenant.companyId),
       this.listPendingApprovals(tenant.companyId, actor),
@@ -90,10 +94,14 @@ export class HomeService {
             assignedVacancies: [] as HomeAssignedVacancy[],
             assignedMetrics: EMPTY_ASSIGNED_METRICS,
           }),
+      employee
+        ? this.listTeamMembers(tenant.companyId, employee.id)
+        : Promise.resolve([] as HomeTeamMember[]),
     ]);
 
     return {
       profile: employee ? this.toProfile(employee) : null,
+      teamMembers,
       openVacancies,
       pendingApprovals,
       pendingEvaluations,
@@ -513,6 +521,27 @@ export class HomeService {
       vacancyId: row.vacancy.id,
       vacancyTitle: row.vacancy.title,
       lastStageChangedAt: row.lastStageChangedAt.toISOString(),
+    }));
+  }
+
+  private async listTeamMembers(
+    companyId: string,
+    employeeId: string,
+  ): Promise<HomeTeamMember[]> {
+    const rows = await this.prisma.employee.findMany({
+      where: {
+        companyId,
+        deletedAt: null,
+        status: EmployeeStatus.ACTIVE,
+      },
+      select: ORG_CHART_EMPLOYEE_SELECT,
+    });
+    return listOrgChartReports(rows, employeeId).map((row) => ({
+      id: row.id,
+      firstName: row.firstName,
+      lastName: row.lastName,
+      positionName: row.position.name,
+      areaName: row.area.name,
     }));
   }
 

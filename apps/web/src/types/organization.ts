@@ -234,8 +234,9 @@ export type OrgChartNode = {
   firstName: string;
   lastName: string;
   status: EmployeeStatus;
+  kind?: "employee" | "vacant";
   managerId: string | null;
-  position: { id: string; name: string };
+  position: { id: string; name: string; headcount?: number };
   jobLevel: { id: string; name: string; rank: number } | null;
   area: { id: string; name: string };
   businessUnit: { id: string; name: string } | null;

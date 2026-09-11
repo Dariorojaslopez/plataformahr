@@ -431,7 +431,10 @@ export class EmployeesService {
     passwordEmailed: boolean;
     roleCode: EmployeeAccessRoleCode;
   }> {
-    const employee = await this.integrity.requireEmployee(companyId, employeeId);
+    const employee = await this.integrity.requireEmployee(
+      companyId,
+      employeeId,
+    );
     if (employee.status !== EmployeeStatus.ACTIVE) {
       throw new BadRequestException(
         'Solo se puede dar acceso a un colaborador activo.',

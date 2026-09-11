@@ -1,3 +1,4 @@
+import { isOrgChartVacant } from "@/lib/organization/org-chart-filter";
 import type { OrgChartNode } from "@/types/organization";
 
 export const ORG_CARD_WIDTH = 220;
@@ -7,7 +8,7 @@ export const ORG_GAP_Y = 56;
 
 export type LaidOutNode = {
   id: string;
-  kind: "company" | "employee";
+  kind: "company" | "employee" | "vacant";
   label: string;
   subtitle: string;
   meta: string;
@@ -51,14 +52,15 @@ function layoutEmployee(
 ): number {
   const width = nodeSubtreeWidth(node);
   const x = left + width / 2 - ORG_CARD_WIDTH / 2;
+  const vacant = isOrgChartVacant(node);
   acc.nodes.push({
     id: node.employeeId,
-    kind: "employee",
-    label: `${node.firstName} ${node.lastName}`,
+    kind: vacant ? "vacant" : "employee",
+    label: vacant ? "Posición vacante" : `${node.firstName} ${node.lastName}`,
     subtitle: node.position.name,
     meta: cardMeta(node),
-    href: `/organization/employees/${node.employeeId}`,
-    status: node.status,
+    href: vacant ? undefined : `/organization/employees/${node.employeeId}`,
+    status: vacant ? undefined : node.status,
     x,
     y: top,
   });
@@ -142,11 +144,17 @@ export function layoutToSvg(
     .join("");
   const cards = layout.nodes
     .map((node) => {
-      const fill = node.kind === "company" ? "#0f172a" : "#ffffff";
+      const fill =
+        node.kind === "company"
+          ? "#0f172a"
+          : node.kind === "vacant"
+            ? "#f8fafc"
+            : "#ffffff";
       const color = node.kind === "company" ? "#ffffff" : "#0f172a";
       const muted = node.kind === "company" ? "#cbd5e1" : "#64748b";
+      const strokeDash = node.kind === "vacant" ? ' stroke-dasharray="6 4"' : "";
       return `<g>
-        <rect x="${node.x}" y="${node.y}" width="${ORG_CARD_WIDTH}" height="${ORG_CARD_HEIGHT}" rx="10" fill="${fill}" stroke="#e2e8f0"/>
+        <rect x="${node.x}" y="${node.y}" width="${ORG_CARD_WIDTH}" height="${ORG_CARD_HEIGHT}" rx="10" fill="${fill}" stroke="#94a3b8"${strokeDash}/>
         <text x="${node.x + 12}" y="${node.y + 28}" font-size="14" font-family="system-ui,sans-serif" fill="${color}" font-weight="600">${escapeXml(node.label)}</text>
         <text x="${node.x + 12}" y="${node.y + 50}" font-size="12" font-family="system-ui,sans-serif" fill="${muted}">${escapeXml(node.subtitle)}</text>
         <text x="${node.x + 12}" y="${node.y + 70}" font-size="11" font-family="system-ui,sans-serif" fill="${muted}">${escapeXml(node.meta)}</text>

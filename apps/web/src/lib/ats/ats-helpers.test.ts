@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   justificationRequired,
+  replacementCoverOptions,
   toCreateVacancyRequestPayload,
   type VacancyRequestFormValues,
 } from "@/lib/ats/vacancy-request-form";
@@ -102,6 +103,31 @@ describe("vacancy request form payloads", () => {
         positionHeadcount: 0,
       }),
     ).toBe(true);
+  });
+
+  it("lists vacant plazas next to hired people", () => {
+    expect(
+      replacementCoverOptions(
+        [
+          { id: "emp-1", firstName: "maria", lastName: "abril", userId: "u1" },
+          { id: "emp-2", firstName: "Carlos", lastName: "perez" },
+        ],
+        3,
+      ),
+    ).toEqual([
+      { value: "emp-1", label: "maria abril" },
+      { value: "emp-2", label: "Carlos perez (sin acceso)" },
+      { value: "vacant:0", label: "Posición vacante" },
+    ]);
+  });
+
+  it("omits replacedEmployeeId when covering a vacant plaza", () => {
+    const payload = toCreateVacancyRequestPayload({
+      ...baseValues(),
+      replacedEmployeeId: "vacant:0",
+    });
+    expect(payload.existingPositionId).toBe("pos-1");
+    expect(payload.replacedEmployeeId).toBeUndefined();
   });
 });
 

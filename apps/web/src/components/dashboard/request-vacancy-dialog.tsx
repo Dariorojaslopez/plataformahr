@@ -45,8 +45,8 @@ export function RequestVacancyDialog({
     enabled: open,
   });
   const positionsQuery = useQuery({
-    queryKey: orgKeys.positions(companyId),
-    queryFn: () => organizationApi.listPositions(),
+    queryKey: atsKeys.reportablePositions(companyId),
+    queryFn: () => atsApi.listReportablePositions(),
     enabled: open,
   });
   const areasQuery = useQuery({
@@ -203,6 +203,7 @@ export function RequestVacancyDialog({
           error={formError}
           positions={positionOptions}
           positionHeadcounts={positionHeadcounts}
+          positionsHint="Solo cargos que te reportan en el organigrama."
           areas={areaOptions}
           jobLevels={levelOptions}
           employees={[]}

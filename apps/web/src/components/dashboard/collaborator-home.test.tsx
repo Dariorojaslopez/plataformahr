@@ -109,6 +109,7 @@ const feed: CollaboratorHomeFeed = {
   pendingContractApprovals: [],
   readyForOffer: [],
   assignedVacancies: [],
+  teamMembers: [],
   assignedMetrics: {
     vacancyCount: 0,
     openCount: 0,
@@ -191,6 +192,7 @@ describe("CollaboratorHome", () => {
     expect(
       screen.queryByText("Todos los procesos de selección"),
     ).not.toBeInTheDocument();
+    expect(screen.queryByText("Personas a cargo")).not.toBeInTheDocument();
   });
 
   it("shows the vacancy request button for a leader", async () => {
@@ -200,6 +202,36 @@ describe("CollaboratorHome", () => {
         name: "Solicitar proceso de selección",
       }),
     ).toBeInTheDocument();
+  });
+
+  it("lists org-chart reports on the leader home", async () => {
+    getFeed.mockResolvedValue({
+      ...feed,
+      teamMembers: [
+        {
+          id: "emp-2",
+          firstName: "Maria",
+          lastName: "Abril",
+          positionName: "Analista de Selección",
+          areaName: "Gestión Humana",
+        },
+        {
+          id: "emp-3",
+          firstName: "Nestor",
+          lastName: "Agudelo",
+          positionName: "Reclutador",
+          areaName: "Gestión Humana",
+        },
+      ],
+    });
+    renderHome({ canRequestVacancies: true });
+    expect(await screen.findByText("Personas a cargo")).toBeInTheDocument();
+    expect(screen.getByText("Maria Abril")).toBeInTheDocument();
+    expect(screen.getByText("Nestor Agudelo")).toBeInTheDocument();
+    expect(screen.getByText(/Analista de Selección/)).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Ver organigrama" }),
+    ).toHaveAttribute("href", "/organization/org-chart");
   });
 
   it("opens the application form in a dialog", async () => {

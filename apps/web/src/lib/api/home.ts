@@ -59,8 +59,17 @@ export type HomePendingContractApproval = {
   sequence: number;
 };
 
+export type HomeTeamMember = {
+  id: string;
+  firstName: string;
+  lastName: string;
+  positionName: string;
+  areaName: string;
+};
+
 export type CollaboratorHomeFeed = {
   profile: HomeProfile | null;
+  teamMembers: HomeTeamMember[];
   openVacancies: HomeOpenVacancy[];
   pendingApprovals: HomePendingApproval[];
   pendingEvaluations: HomePendingEvaluation[];

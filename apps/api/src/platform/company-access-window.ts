@@ -36,7 +36,9 @@ export function isCompanyAccessWindowOpen(
   return true;
 }
 
-export function toAccessDateInput(value: Date | null | undefined): string | null {
+export function toAccessDateInput(
+  value: Date | null | undefined,
+): string | null {
   if (!value) return null;
   return value.toISOString().slice(0, 10);
 }

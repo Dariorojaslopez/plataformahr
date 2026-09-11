@@ -96,7 +96,6 @@ export function CompanyHome({
   companyName,
   companySlug,
   homeRole,
-  hasDirectReports,
   shortcuts,
 }: CompanyHomeProps) {
   const greeting = firstName.trim() ? `Hola, ${firstName.trim()}` : "Hola";
@@ -116,18 +115,6 @@ export function CompanyHome({
           <Badge variant="secondary">{HOME_ROLE_LABELS[homeRole]}</Badge>
         }
       />
-
-      {homeRole === "LEADER" && !hasDirectReports ? (
-        <Card className="mb-8">
-          <CardHeader>
-            <CardTitle className="text-base">Personas a cargo</CardTitle>
-            <CardDescription>
-              Aún no tienes reportes directos en el organigrama. Cuando se
-              asignen, aparecerán en Mi equipo y en el organigrama.
-            </CardDescription>
-          </CardHeader>
-        </Card>
-      ) : null}
 
       {homeRole === "CLIENT_ADMIN" ? (
         <Card className="mb-8">

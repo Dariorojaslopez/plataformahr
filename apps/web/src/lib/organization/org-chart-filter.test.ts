@@ -2,7 +2,10 @@ import { describe, expect, it } from "vitest";
 import {
   ORG_CHART_UNASSIGNED,
   countOrgChartNodes,
+  expandOrgChartSlots,
   filterOrgChartForest,
+  isOrgChartVacant,
+  vacantPositionRequestHref,
 } from "@/lib/organization/org-chart-filter";
 import type { OrgChartNode } from "@/types/organization";
 
@@ -96,5 +99,62 @@ describe("filterOrgChartForest", () => {
       businessUnitId: ORG_CHART_UNASSIGNED,
     });
     expect(filtered.map((item) => item.employeeId)).toEqual(["solo"]);
+  });
+});
+
+describe("expandOrgChartSlots", () => {
+  it("adds empty boxes for unfilled plazas next to hired people", () => {
+    const maria = node({
+      employeeId: "maria",
+      firstName: "Maria",
+      lastName: "Abril",
+      managerId: "oscar",
+      position: { id: "analista", name: "Analista de Selección", headcount: 3 },
+    });
+    const carlos = node({
+      employeeId: "carlos",
+      firstName: "Carlos",
+      lastName: "Perez",
+      managerId: "oscar",
+      position: { id: "analista", name: "Analista de Selección", headcount: 3 },
+    });
+    const oscar = node({
+      employeeId: "oscar",
+      firstName: "Oscar",
+      lastName: "Agudelo",
+      position: { id: "vp", name: "Vicepresidente", headcount: 1 },
+      children: [maria, carlos],
+    });
+
+    const [root] = expandOrgChartSlots([oscar]);
+    const childIds = root?.children.map((item) => item.employeeId) ?? [];
+    expect(childIds).toEqual([
+      "maria",
+      "carlos",
+      "vacant:analista:0",
+    ]);
+    const vacant = root?.children.find((item) => isOrgChartVacant(item));
+    expect(vacant?.kind).toBe("vacant");
+    expect(vacant?.position.name).toBe("Analista de Selección");
+    expect(vacant?.children).toEqual([]);
+    expect(root?.children.some((item) => item.employeeId.startsWith("vacant:vp"))).toBe(
+      false,
+    );
+  });
+
+  it("does not add boxes when the cargo is already full", () => {
+    const oscar = node({
+      employeeId: "oscar",
+      firstName: "Oscar",
+      lastName: "Agudelo",
+      position: { id: "vp", name: "Vicepresidente", headcount: 1 },
+    });
+    expect(expandOrgChartSlots([oscar])).toEqual([oscar]);
+  });
+
+  it("builds the vacancy-request link for a vacant cargo", () => {
+    expect(vacantPositionRequestHref("analista")).toBe(
+      "/ats/vacancy-requests?positionId=analista",
+    );
   });
 });

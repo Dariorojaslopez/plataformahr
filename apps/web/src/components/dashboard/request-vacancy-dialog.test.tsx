@@ -60,6 +60,8 @@ vi.mock("@/lib/api/ats", async () => {
       ...actual.atsApi,
       getVacancyApprovalWorkflow: () =>
         Promise.resolve({ enabled: true, steps: [], allowedRoles: [] }),
+      listReportablePositions: () =>
+        Promise.resolve([{ id: "pos-1", name: "Analista", headcount: 3 }]),
       listPositionOccupants: () =>
         Promise.resolve([
           {

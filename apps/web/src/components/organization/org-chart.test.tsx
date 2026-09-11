@@ -75,6 +75,24 @@ describe("org chart layout and export", () => {
     expect(svg).toContain("Generado 2026-08-17");
   });
 
+  it("lays out vacant plazas as dashed cards", () => {
+    const vacant = node({
+      employeeId: "vacant:analista:0",
+      firstName: "",
+      lastName: "",
+      kind: "vacant",
+      position: { id: "analista", name: "Analista de Selección", headcount: 3 },
+    });
+    const layout = layoutOrgChart("Acme", [vacant]);
+    expect(layout.nodes.some((item) => item.kind === "vacant")).toBe(true);
+    expect(layout.nodes.find((item) => item.kind === "vacant")?.label).toBe(
+      "Posición vacante",
+    );
+    const svg = layoutToSvg(layout, { generatedAt: "2026-08-17" });
+    expect(svg).toContain("Posición vacante");
+    expect(svg).toContain("stroke-dasharray");
+  });
+
   it("builds a PDF that starts with a valid header", () => {
     const jpeg = Uint8Array.from([0xff, 0xd8, 0xff, 0xd9]);
     const pdf = buildPdfFromJpeg(jpeg, 400, 300);
@@ -116,6 +134,34 @@ describe("OrgChartTree", () => {
 
     await user.click(screen.getByLabelText("Contraer rama"));
     expect(onToggle).toHaveBeenCalledWith("mgr");
+  });
+
+  it("renders an empty plaza box without a profile link", () => {
+    render(
+      <OrgChartTree
+        companyName="Acme"
+        roots={[
+          node({
+            employeeId: "vacant:analista:0",
+            firstName: "",
+            lastName: "",
+            kind: "vacant",
+            position: { id: "analista", name: "Analista de Selección", headcount: 3 },
+          }),
+        ]}
+        collapsedIds={new Set()}
+        onToggle={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("Posición vacante")).toBeInTheDocument();
+    expect(screen.getByText("Analista de Selección")).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Solicitar proceso de selección" }),
+    ).toHaveAttribute(
+      "href",
+      "/ats/vacancy-requests?positionId=analista",
+    );
   });
 });
 

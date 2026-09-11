@@ -1,6 +1,15 @@
 import type { OrgChartNode } from "@/types/organization";
 
 export const ORG_CHART_UNASSIGNED = "__unassigned__";
+export const ORG_CHART_VACANT_PREFIX = "vacant:";
+
+export function isOrgChartVacant(node: OrgChartNode): boolean {
+  return node.kind === "vacant" || node.employeeId.startsWith(ORG_CHART_VACANT_PREFIX);
+}
+
+export function vacantPositionRequestHref(positionId: string): string {
+  return `/ats/vacancy-requests?positionId=${encodeURIComponent(positionId)}`;
+}
 
 export type OrgChartViewFilters = {
   businessUnitId?: string;
@@ -8,7 +17,84 @@ export type OrgChartViewFilters = {
 };
 
 function displayName(node: OrgChartNode): string {
+  if (isOrgChartVacant(node)) {
+    return `\uffff ${node.position.name}`.toLowerCase();
+  }
   return `${node.lastName} ${node.firstName}`.toLowerCase();
+}
+
+function vacantSlotId(positionId: string, index: number): string {
+  return `${ORG_CHART_VACANT_PREFIX}${positionId}:${index}`;
+}
+
+function makeVacantNode(
+  sample: OrgChartNode,
+  index: number,
+  managerId: string | null,
+): OrgChartNode {
+  return {
+    employeeId: vacantSlotId(sample.position.id, index),
+    firstName: "",
+    lastName: "",
+    status: "ACTIVE",
+    kind: "vacant",
+    managerId,
+    position: sample.position,
+    jobLevel: sample.jobLevel,
+    area: sample.area,
+    businessUnit: sample.businessUnit,
+    children: [],
+  };
+}
+
+/**
+ * Adds empty boxes for unfilled plazas (headcount − people in that cargo).
+ * Vacant slots hang next to the people already in the same cargo.
+ */
+export function expandOrgChartSlots(roots: OrgChartNode[]): OrgChartNode[] {
+  const occupantsByPosition = new Map<string, number>();
+  const sampleByPosition = new Map<string, OrgChartNode>();
+
+  for (const node of flattenOrgChart(roots)) {
+    if (isOrgChartVacant(node)) continue;
+    occupantsByPosition.set(
+      node.position.id,
+      (occupantsByPosition.get(node.position.id) ?? 0) + 1,
+    );
+    sampleByPosition.set(node.position.id, node);
+  }
+
+  const remaining = new Map<string, number>();
+  for (const [positionId, sample] of sampleByPosition) {
+    const headcount = sample.position.headcount ?? occupantsByPosition.get(positionId) ?? 0;
+    const occupied = occupantsByPosition.get(positionId) ?? 0;
+    remaining.set(positionId, Math.max(0, headcount - occupied));
+  }
+
+  function expand(
+    nodes: OrgChartNode[],
+    managerId: string | null,
+  ): OrgChartNode[] {
+    const next = nodes.map((node) => ({
+      ...node,
+      children: expand(node.children, node.employeeId),
+    }));
+    const added: OrgChartNode[] = [];
+    const seen = new Set<string>();
+    for (const node of next) {
+      if (isOrgChartVacant(node) || seen.has(node.position.id)) continue;
+      seen.add(node.position.id);
+      const left = remaining.get(node.position.id) ?? 0;
+      if (left <= 0) continue;
+      remaining.set(node.position.id, 0);
+      for (let index = 0; index < left; index += 1) {
+        added.push(makeVacantNode(node, index, managerId));
+      }
+    }
+    return [...next, ...added];
+  }
+
+  return expand(roots, null);
 }
 
 function nodeMatches(

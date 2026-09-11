@@ -109,7 +109,11 @@ export function VacancyRequestsPageClient() {
   const companyId = useCompanyId();
   const { user, companyAccess } = useSession();
   const queryClient = useQueryClient();
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const { params, setParams } = useRequestFilters();
+  const seedPositionId = searchParams.get("positionId") ?? "";
   const [searchInput, setSearchInput] = useState(params.search ?? "");
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<VacancyRequest | null>(null);
@@ -120,8 +124,8 @@ export function VacancyRequestsPageClient() {
   const roleCodes = companyAccess?.roleCodes ?? [];
 
   const positionsQuery = useQuery({
-    queryKey: orgKeys.positions(companyId),
-    queryFn: () => organizationApi.listPositions(),
+    queryKey: atsKeys.reportablePositions(companyId),
+    queryFn: () => atsApi.listReportablePositions(),
   });
   const areasQuery = useQuery({
     queryKey: orgKeys.areas(companyId),
@@ -235,19 +239,26 @@ export function VacancyRequestsPageClient() {
       await queryClient.invalidateQueries({
         queryKey: atsKeys.all(companyId),
       });
-      setOpen(false);
-      setEditing(null);
-      setForm(emptyVacancyRequestForm(slaDays));
-      setFormError(null);
+      closeEditor();
     },
     onError: (error) => {
       setFormError(vacancyRequestSaveError(error));
     },
   });
 
+  const seededCreate = Boolean(seedPositionId) && !open && !editing;
+  const editorOpen = open || Boolean(seedPositionId);
+  const editorValues: VacancyRequestFormValues = seededCreate
+    ? {
+        ...emptyVacancyRequestForm(slaDays),
+        existingPositionId: seedPositionId,
+        approvalSteps: workflowToLockedApprovalRows(workflowQuery.data),
+      }
+    : form;
+
   function submitForm() {
     const requesterError = validateRequesterSelection(
-      form.requestedByEmployeeId,
+      editorValues.requestedByEmployeeId,
       requesterField,
     );
     if (requesterError) {
@@ -255,7 +266,15 @@ export function VacancyRequestsPageClient() {
       return;
     }
     setFormError(null);
-    saveMutation.mutate(form);
+    saveMutation.mutate(editorValues);
+  }
+
+  function clearSeedPosition() {
+    if (!seedPositionId) return;
+    const next = new URLSearchParams(searchParams.toString());
+    next.delete("positionId");
+    const qs = next.toString();
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
   }
 
   function openCreate() {
@@ -266,6 +285,15 @@ export function VacancyRequestsPageClient() {
     });
     setFormError(null);
     setOpen(true);
+    clearSeedPosition();
+  }
+
+  function closeEditor() {
+    setOpen(false);
+    setEditing(null);
+    setForm(emptyVacancyRequestForm(slaDays));
+    setFormError(null);
+    clearSeedPosition();
   }
 
   function openEdit(request: VacancyRequest) {
@@ -426,19 +454,30 @@ export function VacancyRequestsPageClient() {
       ) : null}
 
       <EntityEditorShell
-        open={open}
-        onOpenChange={setOpen}
+        open={editorOpen}
+        onOpenChange={(next) => {
+          if (next) setOpen(true);
+          else closeEditor();
+        }}
         title={editing ? "Editar solicitud" : "Nueva solicitud"}
       >
         <VacancyRequestForm
-          values={form}
-          onChange={setForm}
-          onCancel={() => setOpen(false)}
+          values={editorValues}
+          onChange={(next) => {
+            setForm(next);
+            if (!open) setOpen(true);
+          }}
+          onCancel={closeEditor}
           onSubmit={submitForm}
           submitting={saveMutation.isPending}
           error={formError}
           positions={positionOptions}
           positionHeadcounts={positionHeadcounts}
+          positionsHint={
+            isLeaderView
+              ? "Solo cargos que te reportan en el organigrama."
+              : undefined
+          }
           areas={areaOptions}
           jobLevels={levelOptions}
           employees={employeeOptions}

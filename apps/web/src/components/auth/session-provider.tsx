@@ -8,6 +8,7 @@ import {
   useMemo,
   useRef,
   useState,
+  startTransition,
   useSyncExternalStore,
   type ReactNode,
 } from "react";
@@ -20,7 +21,15 @@ import {
 } from "@/lib/api/auth";
 import { refreshAccessToken } from "@/lib/api/client";
 import { getErrorMessage } from "@/lib/api/errors";
-import { fetchCompanyAccessWithRetry } from "@/lib/auth/company-access";
+import {
+  canFetchCompanyAccess,
+  fetchCompanyAccessWithRetry,
+} from "@/lib/auth/company-access";
+import {
+  clearLastActivityAt,
+  createIdleSessionWatcher,
+  writeLastActivityAt,
+} from "@/lib/auth/idle-session";
 import {
   clearSession,
   getAccessToken,
@@ -161,6 +170,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       setCompanyAccessError(null);
       setActiveCompanyId(null);
     }
+    writeLastActivityAt(Date.now());
     setStatus("authenticated");
     return { user: result.user, companies: result.companies };
   }, []);
@@ -177,6 +187,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       setCompanyAccess(null);
       setCompanyAccessError(null);
       setCompanyAccessLoading(false);
+      clearLastActivityAt();
       clearSession();
       setStatus("anonymous");
     }
@@ -187,6 +198,13 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       const result = await changePasswordRequest(currentPassword, newPassword);
       setAccessToken(result.accessToken);
       setSessionIdentity(result.user, getSessionCompanies());
+      // Drop any 403 from /companies/current/features while mustChangePassword
+      // was true, and reload access with the new token.
+      if (getActiveCompanyId()) {
+        setCompanyAccess(null);
+        setCompanyAccessError(null);
+        setCompanyAccessLoading(true);
+      }
       return result.user;
     },
     [],
@@ -266,15 +284,41 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   }, [applyAccessResult]);
 
   useEffect(() => {
-    if (!snapshot.activeCompanyId || status !== "authenticated") {
+    if (status !== "authenticated") return;
+    return createIdleSessionWatcher({
+      onIdle: () => {
+        void logout();
+      },
+    });
+  }, [status, logout]);
+
+  const mustChangePassword = snapshot.user?.mustChangePassword === true;
+
+  useEffect(() => {
+    if (
+      !canFetchCompanyAccess(
+        status === "authenticated",
+        snapshot.activeCompanyId,
+        mustChangePassword,
+      )
+    ) {
       return;
     }
     const requestId = ++accessRequestId.current;
+    startTransition(() => {
+      setCompanyAccessLoading(true);
+      setCompanyAccessError(null);
+    });
     void fetchCompanyAccessWithRetry().then(
       (access) => applyAccessResult(requestId, { ok: true, access }),
       (error: unknown) => applyAccessResult(requestId, { ok: false, error }),
     );
-  }, [snapshot.activeCompanyId, status, applyAccessResult]);
+  }, [
+    snapshot.activeCompanyId,
+    mustChangePassword,
+    status,
+    applyAccessResult,
+  ]);
 
   const value = useMemo<SessionContextValue>(
     () => ({

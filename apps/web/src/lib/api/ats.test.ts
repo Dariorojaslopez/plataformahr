@@ -28,6 +28,13 @@ describe("atsApi", () => {
     );
   });
 
+  it("loads reportable positions for the vacancy request form", async () => {
+    await atsApi.listReportablePositions();
+    expect(mockedRequest).toHaveBeenCalledWith(
+      "/ats/vacancy-requests/reportable-positions",
+    );
+  });
+
   it("submits and decides vacancy requests", async () => {
     await atsApi.submitVacancyRequest("vr-1");
     await atsApi.approveVacancyRequest("vr-1", { comment: "ok" });

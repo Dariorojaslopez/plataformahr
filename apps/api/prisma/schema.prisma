@@ -217,6 +217,7 @@ model Company {
   goalResultKeyResults              GoalResultKeyResult[]
   goalResultApplicableEmployees     GoalResultApplicableEmployee[]
   homeInfo                          CompanyHomeInfo?
+  roleMenus                         CompanyRoleMenu[]
   billing                           CompanyBilling?
   calibrationSessions               CalibrationSession[]
   performanceGoalDefinitions        PerformanceGoalDefinition[]
@@ -233,6 +234,22 @@ model Company {
 enum CompanyHomeMediaKind {
   IMAGE
   VIDEO
+}
+
+/// Admin-configured sidebar grants per company role. Missing row = product defaults.
+model CompanyRoleMenu {
+  id        String   @id @default(uuid()) @db.Uuid
+  companyId String   @db.Uuid
+  roleCode  String
+  hrefs     String[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, roleCode])
+  @@index([companyId])
+  @@map("company_role_menus")
 }
 
 /// Single HOME communication slot per company (image or video + schedule).

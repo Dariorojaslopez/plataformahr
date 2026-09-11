@@ -10,6 +10,7 @@ export type OrgChartEmployeeRow = {
   position: {
     id: string;
     name: string;
+    headcount: number;
     parentPositionId: string | null;
     jobLevel: { id: string; name: string; rank: number } | null;
   };
@@ -22,7 +23,7 @@ export type OrgChartNode = {
   lastName: string;
   status: EmployeeStatus;
   managerId: string | null;
-  position: { id: string; name: string };
+  position: { id: string; name: string; headcount: number };
   jobLevel: { id: string; name: string; rank: number } | null;
   area: { id: string; name: string };
   businessUnit: { id: string; name: string } | null;
@@ -87,7 +88,11 @@ function toNode(
     lastName: row.lastName,
     status: row.status,
     managerId: directManagerId(row),
-    position: { id: row.position.id, name: row.position.name },
+    position: {
+      id: row.position.id,
+      name: row.position.name,
+      headcount: row.position.headcount,
+    },
     jobLevel: row.position.jobLevel
       ? {
           id: row.position.jobLevel.id,
@@ -148,6 +153,39 @@ export function buildOrgChartForest(
   }
 
   return roots;
+}
+
+/** Direct children as the org chart would render them (lines + cargo padre). */
+export function listOrgChartReports(
+  rows: OrgChartEmployeeRow[],
+  managerId: string,
+): OrgChartEmployeeRow[] {
+  const resolved = applyPositionReportingFallback(rows);
+  return resolved
+    .filter((row) => row.reportingTo[0]?.managerEmployeeId === managerId)
+    .sort((a, b) => displayName(a).localeCompare(displayName(b)));
+}
+
+/**
+ * Cargos that report to a manager in the org chart: people under them, plus
+ * cargos whose parent cargo is the manager's (including vacant plazas).
+ */
+export function listReportablePositionIds(
+  rows: OrgChartEmployeeRow[],
+  managerEmployeeId: string,
+  managerPositionId: string,
+  positions: Array<{ id: string; parentPositionId: string | null }>,
+): string[] {
+  const ids = new Set<string>();
+  for (const report of listOrgChartReports(rows, managerEmployeeId)) {
+    ids.add(report.position.id);
+  }
+  for (const position of positions) {
+    if (position.parentPositionId === managerPositionId) {
+      ids.add(position.id);
+    }
+  }
+  return [...ids];
 }
 
 export function countOrgChartNodes(nodes: OrgChartNode[]): number {

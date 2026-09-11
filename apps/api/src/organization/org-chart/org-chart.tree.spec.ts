@@ -2,6 +2,8 @@ import { EmployeeStatus } from '@prisma/client';
 import {
   buildOrgChartForest,
   countOrgChartNodes,
+  listOrgChartReports,
+  listReportablePositionIds,
   type OrgChartEmployeeRow,
 } from './org-chart.tree';
 
@@ -29,6 +31,7 @@ function row(
     position: {
       id: partial.positionId ?? `pos-${partial.id}`,
       name: partial.positionName ?? 'Cargo',
+      headcount: 1,
       parentPositionId: partial.parentPositionId ?? null,
       jobLevel: partial.jobLevelName
         ? { id: `jl-${partial.id}`, name: partial.jobLevelName, rank: 1 }
@@ -52,6 +55,7 @@ describe('buildOrgChartForest', () => {
     expect(forest).toHaveLength(1);
     expect(forest[0].employeeId).toBe('e1');
     expect(forest[0].managerId).toBeNull();
+    expect(forest[0].position.headcount).toBe(1);
     expect(forest[0].children).toEqual([]);
   });
 
@@ -186,6 +190,45 @@ describe('buildOrgChartForest', () => {
     ]);
     const other = forest.find((node) => node.employeeId === 'other');
     expect(other?.children.map((child) => child.employeeId)).toEqual(['emp']);
+  });
+
+  it('lists the same children the forest would nest under a manager', () => {
+    const rows = [
+      row({
+        id: 'boss',
+        firstName: 'Oscar',
+        lastName: 'Agudelo',
+        positionId: 'vp',
+        positionName: 'Vicepresidente',
+      }),
+      row({
+        id: 'emp-a',
+        firstName: 'Maria',
+        lastName: 'Abril',
+        positionId: 'analista',
+        parentPositionId: 'vp',
+      }),
+      row({
+        id: 'emp-b',
+        firstName: 'Nestor',
+        lastName: 'Agudelo',
+        positionId: 'reclutador',
+        parentPositionId: 'vp',
+      }),
+    ];
+    expect(listOrgChartReports(rows, 'boss').map((item) => item.id)).toEqual([
+      'emp-a',
+      'emp-b',
+    ]);
+    expect(
+      listReportablePositionIds(rows, 'boss', 'vp', [
+        { id: 'vp', parentPositionId: null },
+        { id: 'analista', parentPositionId: 'vp' },
+        { id: 'reclutador', parentPositionId: 'vp' },
+        { id: 'b2b', parentPositionId: null },
+        { id: 'vacante-sin-gente', parentPositionId: 'vp' },
+      ]).sort(),
+    ).toEqual(['analista', 'reclutador', 'vacante-sin-gente']);
   });
 
   it('does not infer a manager when the parent cargo has several occupants', () => {

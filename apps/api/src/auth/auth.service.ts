@@ -16,6 +16,7 @@ import { MailService } from '../mail/mail.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { AUTH_AUDIT } from './auth.types';
 import { PasswordHashingService } from './password-hashing.service';
+import { isSessionIdle } from './session-idle';
 import { TokenService } from './token.service';
 import { isCompanyAccessWindowOpen } from '../platform/company-access-window';
 
@@ -165,6 +166,25 @@ export class AuthService {
           data: { revokedAt: new Date() },
         });
       }
+      throw new UnauthorizedException('Invalid refresh token');
+    }
+
+    if (isSessionIdle(session)) {
+      if (session.revokedAt === null) {
+        await this.prisma.userSession.update({
+          where: { id: session.id },
+          data: { revokedAt: new Date() },
+        });
+      }
+      await this.audit.create({
+        action: AUTH_AUDIT.SESSION_IDLE,
+        entity: 'UserSession',
+        entityId: session.id,
+        user: { connect: { id: session.userId } },
+        ipAddress: meta?.ipAddress,
+        userAgent: meta?.userAgent,
+        metadata: { sessionId: session.id, reason: 'idle_timeout' },
+      });
       throw new UnauthorizedException('Invalid refresh token');
     }
 

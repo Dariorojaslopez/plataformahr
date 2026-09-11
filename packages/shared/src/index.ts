@@ -328,7 +328,10 @@ export const COMPANY_ACCESS_CATALOG = [
   {
     code: 'SETTINGS',
     label: 'Configuración',
-    features: [{ code: 'settings.branding', label: 'Apariencia' }],
+    features: [
+      { code: 'settings.branding', label: 'Apariencia' },
+      { code: 'settings.role-menu', label: 'Permisos de menú' },
+    ],
   },
   {
     code: 'PREMIUM',
@@ -460,3 +463,21 @@ export function resolveCompanyHomeRole(
   if (roles.has('LEADER') || hasDirectReports) return 'LEADER';
   return 'COLLABORATOR';
 }
+
+export {
+  ADMIN_ONLY_NAV_HREFS,
+  ALWAYS_ALLOWED_NAV_HREFS,
+  CONFIGURABLE_COMPANY_ROLES,
+  DEFAULT_ROLE_MENU_HREFS,
+  ROLE_MENU_CATALOG,
+  configurableRoles,
+  defaultMenuHrefsForRole,
+  isConfigurableCompanyRole,
+  isGrantableNavHref,
+  navGrantCoversPath,
+  resolveAllowedNavHrefs,
+} from './role-menu';
+export type {
+  ConfigurableCompanyRole,
+  RoleMenuHref,
+} from './role-menu';

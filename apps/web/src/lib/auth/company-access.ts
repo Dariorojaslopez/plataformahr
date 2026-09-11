@@ -3,6 +3,17 @@ import type { CurrentCompanyAccess } from "@/types/auth";
 
 const RETRY_DELAYS_MS = [0, 250, 600] as const;
 
+/** Features require a company context and a token that is not pending password change. */
+export function canFetchCompanyAccess(
+  isAuthenticated: boolean,
+  activeCompanyId: string | null,
+  mustChangePassword: boolean,
+): boolean {
+  return (
+    isAuthenticated && activeCompanyId !== null && !mustChangePassword
+  );
+}
+
 export async function fetchCompanyAccessWithRetry<T = CurrentCompanyAccess>(
   request: () => Promise<T> = currentCompanyAccessRequest as () => Promise<T>,
   delays: readonly number[] = RETRY_DELAYS_MS,

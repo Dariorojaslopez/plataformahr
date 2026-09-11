@@ -266,6 +266,11 @@ export class PermissionGuard implements CanActivate {
         module: 'SETTINGS',
         features: ['settings.branding'],
       },
+      {
+        prefix: '/companies/current/role-menus',
+        module: 'SETTINGS',
+        features: ['settings.role-menu'],
+      },
     ];
     const match = mappings.find(
       ({ prefix }) => path === prefix || path.startsWith(`${prefix}/`),

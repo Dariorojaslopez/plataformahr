@@ -40,6 +40,12 @@ export class VacancyRequestsController {
     return this.vacancyRequestsService.list(tenant, query);
   }
 
+  @Get('reportable-positions')
+  @RequirePermissions('ats.vacancy.request')
+  listReportablePositions(@CurrentTenant() tenant: TenantContext) {
+    return this.vacancyRequestsService.listReportablePositions(tenant);
+  }
+
   @Get(':id')
   @RequirePermissions('ats.vacancy.read')
   getById(

@@ -10,6 +10,8 @@ import { AtsTemplatesController } from './ats-templates/ats-templates.controller
 import { AtsTemplatesService } from './ats-templates/ats-templates.service';
 import { CompaniesController } from './companies.controller';
 import { CompaniesService } from './companies.service';
+import { RoleMenuController } from './role-menu/role-menu.controller';
+import { RoleMenuService } from './role-menu/role-menu.service';
 
 @Module({
   imports: [AuthModule, RbacModule, AuditModule],
@@ -17,11 +19,13 @@ import { CompaniesService } from './companies.service';
     CompaniesController,
     BrandingController,
     AtsTemplatesController,
+    RoleMenuController,
   ],
   providers: [
     CompaniesService,
     BrandingService,
     AtsTemplatesService,
+    RoleMenuService,
     CompanyContextGuard,
     PermissionGuard,
   ],

@@ -4,9 +4,14 @@ import Link from "next/link";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { OrgStatusBadge } from "@/components/organization/status-badge";
 import { Button } from "@/components/ui/button";
+import {
+  isOrgChartVacant,
+  vacantPositionRequestHref,
+} from "@/lib/organization/org-chart-filter";
 import type { OrgChartNode } from "@/types/organization";
 
 export function displayEmployeeName(node: OrgChartNode): string {
+  if (isOrgChartVacant(node)) return "Posición vacante";
   return `${node.firstName} ${node.lastName}`;
 }
 
@@ -20,15 +25,28 @@ function NodeCard({
   onToggle: () => void;
 }) {
   const hasChildren = node.children.length > 0;
+  const vacant = isOrgChartVacant(node);
   return (
-    <article className="w-[220px] rounded-lg border-2 border-border bg-card p-3 text-left text-card-foreground shadow-sm">
+    <article
+      className={
+        vacant
+          ? "w-[220px] rounded-lg border-2 border-dashed border-muted-foreground/50 bg-card/40 p-3 text-left text-muted-foreground shadow-none"
+          : "w-[220px] rounded-lg border-2 border-border bg-card p-3 text-left text-card-foreground shadow-sm"
+      }
+    >
       <div className="flex items-start justify-between gap-2">
-        <Link
-          href={`/organization/employees/${node.employeeId}`}
-          className="font-medium leading-tight text-card-foreground hover:underline"
-        >
-          {displayEmployeeName(node)}
-        </Link>
+        {vacant ? (
+          <p className="font-medium leading-tight text-muted-foreground">
+            Posición vacante
+          </p>
+        ) : (
+          <Link
+            href={`/organization/employees/${node.employeeId}`}
+            className="font-medium leading-tight text-card-foreground hover:underline"
+          >
+            {displayEmployeeName(node)}
+          </Link>
+        )}
         {hasChildren ? (
           <Button
             type="button"
@@ -53,6 +71,14 @@ function NodeCard({
       ) : null}
       {node.jobLevel ? (
         <p className="text-xs text-foreground/80">{node.jobLevel.name}</p>
+      ) : null}
+      {vacant ? (
+        <Link
+          href={vacantPositionRequestHref(node.position.id)}
+          className="mt-2 inline-block text-xs font-medium text-primary hover:underline"
+        >
+          Solicitar proceso de selección
+        </Link>
       ) : null}
       {node.status !== "ACTIVE" ? (
         <div className="mt-2">

@@ -314,6 +314,28 @@ describe('Auth + tenant + RBAC (e2e)', () => {
       .expect(401);
   });
 
+  it('rejects refresh after three hours of inactivity', async () => {
+    const agent = request.agent(app.getHttpServer());
+    await agent
+      .post('/auth/login')
+      .send({ email: adminEmail, password: adminPassword })
+      .expect(201);
+
+    const session = await prisma.userSession.findFirstOrThrow({
+      where: { userId: adminUserId, revokedAt: null },
+    });
+    await prisma.userSession.update({
+      where: { id: session.id },
+      data: { lastUsedAt: new Date(Date.now() - 3 * 60 * 60 * 1000 - 1_000) },
+    });
+
+    await agent.post('/auth/refresh').expect(401);
+    const revoked = await prisma.userSession.findUniqueOrThrow({
+      where: { id: session.id },
+    });
+    expect(revoked.revokedAt).not.toBeNull();
+  });
+
   it('rejects refresh without cookie', async () => {
     await request(app.getHttpServer()).post('/auth/refresh').expect(401);
   });

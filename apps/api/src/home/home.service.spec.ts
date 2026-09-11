@@ -55,6 +55,7 @@ describe('HomeService', () => {
     contractApprovals?: unknown[];
     readyForOfferApplications?: unknown[];
     roleCodes?: string[];
+    orgEmployees?: unknown[];
   }) {
     const openVacancies = overrides?.vacancies ?? [
       {
@@ -78,6 +79,7 @@ describe('HomeService', () => {
           ...employeeRow,
           phone: '3009990000',
         }),
+        findMany: jest.fn().mockResolvedValue(overrides?.orgEmployees ?? []),
       },
       vacancy: {
         findMany: jest
@@ -151,7 +153,57 @@ describe('HomeService', () => {
     expect(feed.pendingContractApprovals).toEqual([]);
     expect(feed.readyForOffer).toEqual([]);
     expect(feed.assignedVacancies).toEqual([]);
+    expect(feed.teamMembers).toEqual([]);
     expect(feed.assignedMetrics.vacancyCount).toBe(0);
+  });
+
+  it('lists org-chart reports including cargo-parent fallback', async () => {
+    const { service } = build({
+      orgEmployees: [
+        {
+          id: 'emp-1',
+          firstName: 'Oscar',
+          lastName: 'Agudelo',
+          status: 'ACTIVE',
+          businessUnit: null,
+          area: { id: 'area-1', name: 'Gestión Humana' },
+          position: {
+            id: 'vp',
+            name: 'Vicepresidente',
+            headcount: 1,
+            parentPositionId: null,
+            jobLevel: null,
+          },
+          reportingTo: [],
+        },
+        {
+          id: 'emp-2',
+          firstName: 'Maria',
+          lastName: 'Abril',
+          status: 'ACTIVE',
+          businessUnit: null,
+          area: { id: 'area-1', name: 'Gestión Humana' },
+          position: {
+            id: 'analista',
+            name: 'Analista de Selección',
+            headcount: 3,
+            parentPositionId: 'vp',
+            jobLevel: null,
+          },
+          reportingTo: [],
+        },
+      ],
+    });
+    const feed = await service.getFeed(tenant);
+    expect(feed.teamMembers).toEqual([
+      {
+        id: 'emp-2',
+        firstName: 'Maria',
+        lastName: 'Abril',
+        positionName: 'Analista de Selección',
+        areaName: 'Gestión Humana',
+      },
+    ]);
   });
 
   it('scopes assigned processes and metrics to the recruiter employee', async () => {

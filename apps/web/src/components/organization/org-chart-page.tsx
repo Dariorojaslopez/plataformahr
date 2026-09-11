@@ -29,12 +29,14 @@ import { organizationApi, orgKeys } from "@/lib/api/organization";
 import {
   ORG_CHART_UNASSIGNED,
   countOrgChartNodes,
+  expandOrgChartSlots,
   filterOrgChartForest,
 } from "@/lib/organization/org-chart-filter";
 
 export function OrgChartPageClient() {
   const companyId = useCompanyId();
   const [includeInactive, setIncludeInactive] = useState(false);
+  const [showSlots, setShowSlots] = useState(false);
   const [businessUnitId, setBusinessUnitId] = useState("");
   const [jobLevelId, setJobLevelId] = useState("");
   const [collapsedIds, setCollapsedIds] = useState<Set<string>>(new Set());
@@ -56,14 +58,13 @@ export function OrgChartPageClient() {
 
   const hasBusinessUnits = (buQuery.data?.length ?? 0) > 0;
   const hasJobLevels = (levelsQuery.data?.length ?? 0) > 0;
-  const filteredRoots = useMemo(
-    () =>
-      filterOrgChartForest(query.data?.roots ?? [], {
-        businessUnitId: businessUnitId || undefined,
-        jobLevelId: jobLevelId || undefined,
-      }),
-    [query.data?.roots, businessUnitId, jobLevelId],
-  );
+  const filteredRoots = useMemo(() => {
+    const filtered = filterOrgChartForest(query.data?.roots ?? [], {
+      businessUnitId: businessUnitId || undefined,
+      jobLevelId: jobLevelId || undefined,
+    });
+    return showSlots ? expandOrgChartSlots(filtered) : filtered;
+  }, [query.data?.roots, businessUnitId, jobLevelId, showSlots]);
   const visibleCount = countOrgChartNodes(filteredRoots);
   const layout = useMemo(() => {
     if (!query.data) return null;
@@ -128,6 +129,13 @@ export function OrgChartPageClient() {
                 }
               />
               Incluir inactivos
+            </label>
+            <label className="flex items-center gap-2 text-sm text-foreground">
+              <Checkbox
+                checked={showSlots}
+                onCheckedChange={(checked) => setShowSlots(checked === true)}
+              />
+              Mostrar plazas
             </label>
             <Button
               type="button"

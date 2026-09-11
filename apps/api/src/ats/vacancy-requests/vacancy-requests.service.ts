@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import {
   ApprovalStatus,
+  EmployeeStatus,
   OrganizationEntityStatus,
   Prisma,
   VacancyApprovalPlanOrigin,
@@ -21,6 +22,8 @@ import type { TenantContext } from '../../auth/auth.types';
 import { AuditService } from '../../core/audit/audit.service';
 import { RbacService } from '../../core/rbac/rbac.service';
 import { OrganizationIntegrityService } from '../../organization/organization-integrity.service';
+import { ORG_CHART_EMPLOYEE_SELECT } from '../../organization/org-chart/org-chart.service';
+import { listReportablePositionIds } from '../../organization/org-chart/org-chart.tree';
 import { PrismaService } from '../../prisma/prisma.service';
 import {
   ATS_AUDIT,
@@ -224,6 +227,52 @@ export class VacancyRequestsService {
     return this.withDecisionFlag(request, actor);
   }
 
+  async listReportablePositions(tenant: TenantContext) {
+    const positions = await this.prisma.position.findMany({
+      where: {
+        companyId: tenant.companyId,
+        deletedAt: null,
+        status: OrganizationEntityStatus.ACTIVE,
+      },
+      select: {
+        id: true,
+        name: true,
+        headcount: true,
+        parentPositionId: true,
+      },
+      orderBy: { name: 'asc' },
+    });
+    if (await this.canProxyRequester(tenant)) {
+      return positions.map((item) => ({
+        id: item.id,
+        name: item.name,
+        headcount: item.headcount,
+      }));
+    }
+    const employee = await this.prisma.employee.findFirst({
+      where: {
+        companyId: tenant.companyId,
+        userId: tenant.userId,
+        deletedAt: null,
+        status: EmployeeStatus.ACTIVE,
+      },
+      select: { id: true, positionId: true },
+    });
+    if (!employee) return [];
+    const allowed = await this.reportablePositionIds(
+      tenant.companyId,
+      employee.id,
+      employee.positionId,
+    );
+    return positions
+      .filter((item) => allowed.has(item.id))
+      .map((item) => ({
+        id: item.id,
+        name: item.name,
+        headcount: item.headcount,
+      }));
+  }
+
   async create(
     tenant: TenantContext,
     dto: CreateVacancyRequestDto,
@@ -241,6 +290,13 @@ export class VacancyRequestsService {
       expectedHiringDate: dto.expectedHiringDate,
       replacedEmployeeId: dto.replacedEmployeeId,
     });
+    await this.assertPositionReportable(
+      tenant,
+      requestedByEmployeeId,
+      resolved.type === VacancyRequestType.EXISTING_POSITION
+        ? dto.existingPositionId
+        : null,
+    );
 
     const created = await this.prisma.vacancyRequest.create({
       data: this.toCreateData(
@@ -318,6 +374,13 @@ export class VacancyRequestsService {
       await this.resolveRequesterEmployeeId(tenant, dto.requestedByEmployeeId);
     }
     await this.validateRequestShape(tenant.companyId, shape);
+    await this.assertPositionReportable(
+      tenant,
+      existing.requestedByEmployeeId,
+      resolved.type === VacancyRequestType.EXISTING_POSITION
+        ? shape.existingPositionId
+        : null,
+    );
 
     const expectedHiringDate = parseDateOnlyUtc(shape.expectedHiringDate)!;
 
@@ -900,6 +963,73 @@ export class VacancyRequestsService {
     return ownEmployee.id;
   }
 
+  private async canProxyRequester(tenant: TenantContext): Promise<boolean> {
+    const roleCodes = await this.rbac.getRoleCodesForMembership(
+      tenant.membershipId,
+    );
+    return PROXY_REQUESTER_ROLE_CODES.some((code) => roleCodes.has(code));
+  }
+
+  private async reportablePositionIds(
+    companyId: string,
+    employeeId: string,
+    positionId: string,
+  ): Promise<Set<string>> {
+    const [rows, positions] = await Promise.all([
+      this.prisma.employee.findMany({
+        where: {
+          companyId,
+          deletedAt: null,
+          status: EmployeeStatus.ACTIVE,
+        },
+        select: ORG_CHART_EMPLOYEE_SELECT,
+      }),
+      this.prisma.position.findMany({
+        where: {
+          companyId,
+          deletedAt: null,
+          status: OrganizationEntityStatus.ACTIVE,
+        },
+        select: { id: true, parentPositionId: true },
+      }),
+    ]);
+    return new Set(
+      listReportablePositionIds(rows, employeeId, positionId, positions),
+    );
+  }
+
+  private async assertPositionReportable(
+    tenant: TenantContext,
+    requesterEmployeeId: string,
+    existingPositionId?: string | null,
+  ): Promise<void> {
+    if (!existingPositionId) return;
+    if (await this.canProxyRequester(tenant)) return;
+    const employee = await this.prisma.employee.findFirst({
+      where: {
+        id: requesterEmployeeId,
+        companyId: tenant.companyId,
+        deletedAt: null,
+      },
+      select: { id: true, positionId: true },
+    });
+    if (!employee) {
+      throw new ForbiddenException(
+        VACANCY_REQUESTER_ERRORS.POSITION_NOT_REPORTABLE,
+      );
+    }
+    const allowed = await this.reportablePositionIds(
+      tenant.companyId,
+      employee.id,
+      employee.positionId,
+    );
+    if (!allowed.has(existingPositionId)) {
+      throw new ForbiddenException(
+        VACANCY_REQUESTER_ERRORS.POSITION_NOT_REPORTABLE,
+      );
+    }
+  }
+
   private rejectExtraApprovalSteps(
     steps:
       Array<{ positionId: string; employeeId?: string | null }> | undefined,
@@ -985,16 +1115,23 @@ export class VacancyRequestsService {
         dto.existingPositionId,
       );
       if (isReplacementMotive(dto.motive)) {
-        if (!dto.replacedEmployeeId) {
-          throw new BadRequestException(
-            'replacedEmployeeId is required for replacement motives',
+        if (dto.replacedEmployeeId) {
+          await this.occupants.resolve(
+            companyId,
+            dto.existingPositionId,
+            dto.replacedEmployeeId,
           );
+        } else {
+          const occupants = await this.occupants.list(
+            companyId,
+            dto.existingPositionId,
+          );
+          if (occupants.length >= position.headcount) {
+            throw new BadRequestException(
+              'replacedEmployeeId is required when the cargo has no vacant plazas',
+            );
+          }
         }
-        await this.occupants.resolve(
-          companyId,
-          dto.existingPositionId,
-          dto.replacedEmployeeId,
-        );
       } else if (dto.replacedEmployeeId) {
         throw new BadRequestException(
           'replacedEmployeeId must be null for NEW_POSITION',

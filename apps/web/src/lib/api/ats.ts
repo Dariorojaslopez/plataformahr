@@ -64,6 +64,11 @@ export const atsApi = {
   getVacancyRequest: (id: string) =>
     apiRequest<VacancyRequest>(`/ats/vacancy-requests/${id}`),
 
+  listReportablePositions: () =>
+    apiRequest<Array<{ id: string; name: string; headcount: number }>>(
+      "/ats/vacancy-requests/reportable-positions",
+    ),
+
   createVacancyRequest: (body: CreateVacancyRequestInput) =>
     apiRequest<VacancyRequest>("/ats/vacancy-requests", {
       method: "POST",
@@ -369,6 +374,8 @@ export const atsKeys = {
     [...atsKeys.all(companyId), "vacancy-requests", params] as const,
   vacancyRequest: (companyId: string, id: string) =>
     [...atsKeys.all(companyId), "vacancy-request", id] as const,
+  reportablePositions: (companyId: string) =>
+    [...atsKeys.all(companyId), "reportable-positions"] as const,
   vacancyApprovalWorkflow: (companyId: string) =>
     [...atsKeys.all(companyId), "vacancy-approval-workflow"] as const,
   positionOccupants: (companyId: string, positionId: string) =>

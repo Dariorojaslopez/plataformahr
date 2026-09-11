@@ -1,14 +1,17 @@
 import { Injectable } from '@nestjs/common';
+import { EmployeeStatus, Prisma, type Company } from '@prisma/client';
 import {
-  EmployeeStatus,
-  Prisma,
-  ReportingLineType,
-  type Company,
-} from '@prisma/client';
-import { resolveCompanyHomeRole, type CompanyHomeRole } from '@talento/shared';
+  ROLE_MENU_CATALOG,
+  resolveAllowedNavHrefs,
+  resolveCompanyHomeRole,
+  type CompanyHomeRole,
+} from '@talento/shared';
 import type { TenantContext } from '../../auth/auth.types';
+import { ORG_CHART_EMPLOYEE_SELECT } from '../../organization/org-chart/org-chart.service';
+import { listOrgChartReports } from '../../organization/org-chart/org-chart.tree';
 import { PrismaService } from '../../prisma/prisma.service';
 import { RbacService } from '../rbac/rbac.service';
+import { RoleMenuService } from './role-menu/role-menu.service';
 
 export type CompanyEnabledAccess = {
   enabledModules: string[];
@@ -19,6 +22,7 @@ export type CurrentCompanyAccessContext = CompanyEnabledAccess & {
   roleCodes: string[];
   hasDirectReports: boolean;
   homeRole: CompanyHomeRole;
+  allowedNavHrefs: string[];
 };
 
 @Injectable()
@@ -26,6 +30,7 @@ export class CompaniesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly rbac: RbacService,
+    private readonly roleMenus: RoleMenuService,
   ) {}
 
   findById(id: string): Promise<Company | null> {
@@ -60,17 +65,26 @@ export class CompaniesService {
   async getCurrentAccessContext(
     tenant: TenantContext,
   ): Promise<CurrentCompanyAccessContext> {
-    const [access, roleCodeSet, hasDirectReports] = await Promise.all([
-      this.getEnabledAccess(tenant.companyId),
-      this.rbac.getRoleCodesForMembership(tenant.membershipId),
-      this.hasDirectReports(tenant),
-    ]);
+    const [access, roleCodeSet, hasDirectReports, overrides] =
+      await Promise.all([
+        this.getEnabledAccess(tenant.companyId),
+        this.rbac.getRoleCodesForMembership(tenant.membershipId),
+        this.hasDirectReports(tenant),
+        this.roleMenus.listOverrides(tenant.companyId),
+      ]);
     const roleCodes = [...roleCodeSet].sort();
+    const homeRole = resolveCompanyHomeRole(roleCodes, hasDirectReports);
     return {
       ...access,
       roleCodes,
       hasDirectReports,
-      homeRole: resolveCompanyHomeRole(roleCodes, hasDirectReports),
+      homeRole,
+      allowedNavHrefs: resolveAllowedNavHrefs({
+        roleCodes,
+        homeRole,
+        catalogHrefs: ROLE_MENU_CATALOG.map((item) => item.href),
+        overrides,
+      }),
     };
   }
 
@@ -86,18 +100,15 @@ export class CompaniesService {
     });
     if (!employee) return false;
 
-    const count = await this.prisma.employeeReportingLine.count({
+    const rows = await this.prisma.employee.findMany({
       where: {
         companyId: tenant.companyId,
-        managerEmployeeId: employee.id,
-        type: ReportingLineType.DIRECT,
-        employee: {
-          deletedAt: null,
-          status: EmployeeStatus.ACTIVE,
-        },
+        deletedAt: null,
+        status: EmployeeStatus.ACTIVE,
       },
+      select: ORG_CHART_EMPLOYEE_SELECT,
     });
-    return count > 0;
+    return listOrgChartReports(rows, employee.id).length > 0;
   }
 
   toCurrentResponse(company: Company) {

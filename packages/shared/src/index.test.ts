@@ -26,6 +26,9 @@ import {
   normalizeEmployeeHousingType,
   normalizeEmployeeMaritalStatus,
   resolveCompanyHomeRole,
+  ROLE_MENU_CATALOG,
+  navGrantCoversPath,
+  resolveAllowedNavHrefs,
   splitCompanyAccess,
 } from './index.ts';
 
@@ -156,4 +159,37 @@ test('resolveCompanyHomeRole follows the product HOME matrix', () => {
   assert.equal(resolveCompanyHomeRole([], false), 'COLLABORATOR');
   assert.equal(isCompanyHomeRole('LEADER'), true);
   assert.equal(isCompanyHomeRole('UNKNOWN'), false);
+});
+
+test('role menu defaults hide company admin pages from collaborators', () => {
+  const catalog = ROLE_MENU_CATALOG.map((item) => item.href);
+  const collaborator = resolveAllowedNavHrefs({
+    roleCodes: ['COLLABORATOR'],
+    homeRole: 'COLLABORATOR',
+    catalogHrefs: catalog,
+    overrides: {},
+  });
+  assert.ok(collaborator.includes('/dashboard'));
+  assert.ok(collaborator.includes('/performance/my-evaluations'));
+  assert.equal(collaborator.includes('/organization/employees'), false);
+  assert.equal(collaborator.includes('/settings/roles'), false);
+
+  const admin = resolveAllowedNavHrefs({
+    roleCodes: ['CLIENT_ADMIN'],
+    homeRole: 'CLIENT_ADMIN',
+    catalogHrefs: catalog,
+    overrides: {},
+  });
+  assert.ok(admin.includes('/organization/employees'));
+  assert.ok(admin.includes('/settings/roles'));
+
+  const customized = resolveAllowedNavHrefs({
+    roleCodes: ['LEADER'],
+    homeRole: 'LEADER',
+    catalogHrefs: catalog,
+    overrides: { LEADER: ['/organization/employees', '/organization/org-chart'] },
+  });
+  assert.ok(customized.includes('/organization/employees'));
+  assert.equal(customized.includes('/ats/vacancy-requests'), false);
+  assert.equal(navGrantCoversPath(customized, '/organization/employees/abc'), true);
 });

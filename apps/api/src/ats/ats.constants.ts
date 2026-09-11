@@ -82,6 +82,8 @@ export const VACANCY_REQUESTER_ERRORS = {
   NO_LINKED_EMPLOYEE:
     'Tu usuario no tiene un colaborador asociado. Contacta al administrador de la compañía.',
   CANNOT_PROXY: 'No puedes crear solicitudes en nombre de otro colaborador.',
+  POSITION_NOT_REPORTABLE:
+    'Solo puedes solicitar procesos para cargos que te reportan en el organigrama.',
 } as const;
 
 export const VACANCY_APPROVAL_ERRORS = {

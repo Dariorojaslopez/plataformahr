@@ -28,6 +28,7 @@ describe('OrgChartService', () => {
         position: {
           id: 'p1',
           name: 'Analista',
+          headcount: 3,
           parentPositionId: null,
           jobLevel: null,
         },
@@ -48,6 +49,7 @@ describe('OrgChartService', () => {
       status: EmployeeStatus.ACTIVE,
     });
     expect(result.roots).toHaveLength(1);
+    expect(result.roots[0]?.position.headcount).toBe(3);
     expect(JSON.stringify(result)).not.toMatch(
       /email|phone|birthDate|salary|emergency/i,
     );

@@ -46,6 +46,7 @@ import {
   type HomePendingContractApproval,
   type HomeProfile,
   type HomeReadyForOffer,
+  type HomeTeamMember,
   type UpdateHomeProfileInput,
 } from "@/lib/api/home";
 import { FormSelect } from "@/components/organization/form-select";
@@ -113,6 +114,10 @@ export function CollaboratorHome({
 
   return (
     <div className="space-y-8">
+      <TeamMembersSection
+        members={feed.teamMembers ?? []}
+        showEmpty={canRequestVacancies}
+      />
       {showRequestButton ? (
         <>
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -934,6 +939,57 @@ function EditableField({
         onChange={(event) => onChange(event.target.value)}
       />
     </div>
+  );
+}
+
+function TeamMembersSection({
+  members,
+  showEmpty,
+}: {
+  members: HomeTeamMember[];
+  showEmpty: boolean;
+}) {
+  if (members.length === 0 && !showEmpty) return null;
+
+  return (
+    <section className="space-y-3">
+      <div className="flex flex-wrap items-end justify-between gap-2">
+        <div>
+          <h2 className="text-lg font-semibold">Personas a cargo</h2>
+          <p className="text-sm text-muted-foreground">
+            Las mismas personas que ves debajo de ti en el organigrama.
+          </p>
+        </div>
+        <Button asChild variant="outline" size="sm">
+          <Link href="/organization/org-chart">Ver organigrama</Link>
+        </Button>
+      </div>
+      {members.length === 0 ? (
+        <Card>
+          <CardContent className="py-6 text-sm text-muted-foreground">
+            Aún no tienes personas a cargo en el organigrama. Cuando se
+            asignen por reporte directo o por el cargo al que reportan,
+            aparecerán aquí.
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="grid gap-3 sm:grid-cols-2">
+          {members.map((member) => (
+            <Card key={member.id}>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base">
+                  {formatEmployeeName(member)}
+                </CardTitle>
+                <CardDescription>
+                  {member.positionName}
+                  {member.areaName ? ` · ${member.areaName}` : ""}
+                </CardDescription>
+              </CardHeader>
+            </Card>
+          ))}
+        </div>
+      )}
+    </section>
   );
 }
 

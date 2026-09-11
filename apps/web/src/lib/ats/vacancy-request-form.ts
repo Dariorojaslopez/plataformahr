@@ -11,7 +11,11 @@ import type {
   VacancyRequestMotive,
 } from "@/types/ats";
 import { requestPlanToApprovalRows } from "@/lib/ats/approval-plan";
-import type { CargoOccupantRow } from "@/lib/ats/position-occupant";
+import {
+  occupantLabel,
+  type CargoOccupantRow,
+  type OccupantOption,
+} from "@/lib/ats/position-occupant";
 
 export type VacancyRequestFormValues = {
   motive: VacancyRequestMotive;
@@ -68,6 +72,43 @@ export function isReplacementMotive(motive: VacancyRequestMotive): boolean {
   return motive !== "NEW_POSITION";
 }
 
+export const VACANT_SLOT_PREFIX = "vacant:";
+
+export function isVacantSlotValue(value: string | null | undefined): boolean {
+  return Boolean(value?.startsWith(VACANT_SLOT_PREFIX));
+}
+
+export function vacantSlotCount(
+  headcount: number | undefined,
+  occupantCount: number,
+): number {
+  if (headcount == null) return 0;
+  return Math.max(0, headcount - occupantCount);
+}
+
+export function replacementCoverOptions(
+  occupants: OccupantOption[],
+  headcount: number | undefined,
+): { value: string; label: string }[] {
+  const vacant = vacantSlotCount(headcount, occupants.length);
+  const people = occupants.map((occupant) => ({
+    value: occupant.id,
+    label: occupantLabel(occupant),
+  }));
+  const slots = Array.from({ length: vacant }, (_, index) => ({
+    value: `${VACANT_SLOT_PREFIX}${index}`,
+    label: vacant === 1 ? "Posición vacante" : `Posición vacante ${index + 1}`,
+  }));
+  return [...people, ...slots];
+}
+
+export function replacedEmployeeIdForPayload(
+  value: string,
+): string | undefined {
+  if (!value || isVacantSlotValue(value)) return undefined;
+  return value;
+}
+
 export function justificationRequired(options: {
   motive: VacancyRequestMotive;
   requestedHeadcount: number;
@@ -99,7 +140,10 @@ export function toCreateVacancyRequestPayload(
     }
   } else {
     base.existingPositionId = values.existingPositionId;
-    base.replacedEmployeeId = values.replacedEmployeeId;
+    const replaced = replacedEmployeeIdForPayload(values.replacedEmployeeId);
+    if (replaced) {
+      base.replacedEmployeeId = replaced;
+    }
   }
   return base;
 }
@@ -121,5 +165,7 @@ export function toUpdateVacancyRequestPayload(
     requestedPositionName: null,
     requestedAreaId: null,
     requestedJobLevelId: null,
+    replacedEmployeeId:
+      replacedEmployeeIdForPayload(values.replacedEmployeeId) ?? null,
   };
 }

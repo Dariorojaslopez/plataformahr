@@ -55,28 +55,8 @@ describe("CompanyHome", () => {
 
     expect(screen.getByText("Líder")).toBeInTheDocument();
     expect(screen.getByText("Procesos de selección activos")).toBeInTheDocument();
-    expect(
-      screen.getByText(/Aún no tienes reportes directos/),
-    ).toBeInTheDocument();
     expect(screen.queryByText("Mi equipo")).not.toBeInTheDocument();
     expect(screen.queryByText("Candidatos")).not.toBeInTheDocument();
-  });
-
-  it("hides the empty-reports note when the leader has people", () => {
-    render(
-      <CompanyHome
-        firstName="Luis"
-        companyName="Acme"
-        companySlug="acme"
-        homeRole="LEADER"
-        hasDirectReports
-        shortcuts={HOME_SHORTCUTS.LEADER}
-      />,
-    );
-
-    expect(
-      screen.queryByText(/Aún no tienes reportes directos/),
-    ).not.toBeInTheDocument();
   });
 
   it("shows recruiter assigned work, not admin shortcuts", () => {

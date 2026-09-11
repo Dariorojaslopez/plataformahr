@@ -9,10 +9,11 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useCompanyId } from "@/hooks/use-company-id";
 import { atsApi, atsKeys } from "@/lib/api/ats";
-import { occupantLabel } from "@/lib/ats/position-occupant";
 import {
   isReplacementMotive,
   justificationRequired,
+  replacementCoverOptions,
+  VACANT_SLOT_PREFIX,
   type VacancyRequestFormValues,
 } from "@/lib/ats/vacancy-request-form";
 import {
@@ -50,6 +51,7 @@ type VacancyRequestFormProps = {
   canProxyRequester: boolean;
   slaDays?: number;
   submitLabel?: string;
+  positionsHint?: string;
 };
 
 const MOTIVE_OPTIONS = (
@@ -74,6 +76,7 @@ export function VacancyRequestForm({
   canProxyRequester,
   slaDays = DEFAULT_VACANCY_HIRING_SLA_DAYS,
   submitLabel = "Guardar",
+  positionsHint,
 }: VacancyRequestFormProps) {
   const companyId = useCompanyId();
   const requesterField = describeVacancyRequesterField({
@@ -99,10 +102,16 @@ export function VacancyRequestForm({
       isReplacementMotive(values.motive) && Boolean(values.existingPositionId),
   });
 
-  const occupantOptions = (occupantsQuery.data ?? []).map((item) => ({
-    value: item.id,
-    label: occupantLabel(item),
-  }));
+  const occupantOptions = replacementCoverOptions(
+    occupantsQuery.data ?? [],
+    structureHeadcount,
+  );
+  const selectedCover =
+    values.replacedEmployeeId ||
+    occupantOptions.find((option) =>
+      option.value.startsWith(VACANT_SLOT_PREFIX),
+    )?.value ||
+    "";
 
   function setMotive(motive: VacancyRequestMotive) {
     if (motive === "NEW_POSITION") {
@@ -216,12 +225,17 @@ export function VacancyRequestForm({
               })
             }
             options={positions}
+            hint={
+              positions.length === 0
+                ? "No hay cargos que te reporten en el organigrama."
+                : positionsHint
+            }
           />
           <FormSelect
             id="vr-replaced"
-            label="Ocupante a reemplazar"
+            label="Plaza a cubrir"
             required
-            value={values.replacedEmployeeId}
+            value={selectedCover}
             onChange={(replacedEmployeeId) =>
               onChange({ ...values, replacedEmployeeId })
             }
@@ -232,8 +246,8 @@ export function VacancyRequestForm({
                 : occupantsQuery.isLoading
                   ? "Cargando ocupantes…"
                   : occupantOptions.length === 0
-                    ? "No hay colaboradores activos en este cargo."
-                    : undefined
+                    ? "Este cargo no tiene ocupantes ni plazas vacantes."
+                    : "Elige a quién reemplazar o una posición vacante."
             }
           />
         </>
