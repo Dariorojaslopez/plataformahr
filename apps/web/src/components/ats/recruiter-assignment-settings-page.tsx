@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { FormSelect } from "@/components/organization/form-select";
 import { Button } from "@/components/ui/button";
 import { ErrorState } from "@/components/ui/error-state";
@@ -67,7 +67,9 @@ function RecruiterAssignmentForm({
 }) {
   const queryClient = useQueryClient();
   const [vacancyId, setVacancyId] = useState("");
-  const [recruiterId, setRecruiterId] = useState("");
+  const [recruiterOverride, setRecruiterOverride] = useState<string | null>(
+    null,
+  );
 
   const vacancyQuery = useQuery({
     queryKey: atsKeys.vacancy(companyId, vacancyId),
@@ -80,13 +82,10 @@ function RecruiterAssignmentForm({
     enabled: Boolean(vacancyId),
   });
 
-  useEffect(() => {
-    if (!vacancyId) {
-      setRecruiterId("");
-      return;
-    }
-    setRecruiterId(vacancyQuery.data?.assignedRecruiterEmployeeId ?? "");
-  }, [vacancyId, vacancyQuery.data?.assignedRecruiterEmployeeId]);
+  const recruiterId =
+    recruiterOverride ??
+    vacancyQuery.data?.assignedRecruiterEmployeeId ??
+    "";
 
   const processOptions = useMemo(
     () =>
@@ -149,7 +148,10 @@ function RecruiterAssignmentForm({
             required
             placeholder="Seleccionar proceso"
             value={vacancyId}
-            onChange={setVacancyId}
+            onChange={(next) => {
+              setVacancyId(next);
+              setRecruiterOverride(null);
+            }}
             options={processOptions}
           />
           {vacancyId ? (
@@ -159,7 +161,7 @@ function RecruiterAssignmentForm({
               required
               placeholder="Seleccionar reclutador"
               value={recruiterId}
-              onChange={setRecruiterId}
+              onChange={setRecruiterOverride}
               options={recruiterOptions}
               disabled={vacancyQuery.isLoading || recruitersQuery.isLoading}
               hint={
