@@ -8,6 +8,7 @@ import {
   Max,
   MaxLength,
   Min,
+  IsIn,
   IsInt,
   ValidateIf,
 } from 'class-validator';
@@ -37,6 +38,12 @@ export class ListVacanciesQueryDto {
   @Min(1)
   @Max(MAX_LIMIT)
   limit?: number = DEFAULT_LIMIT;
+}
+
+export class ListRecruitersQueryDto {
+  @IsOptional()
+  @IsIn(['RECRUITER'])
+  roleCode?: 'RECRUITER';
 }
 
 export class UpdateVacancyDto {

@@ -17,7 +17,11 @@ import { RequirePermissions } from '../../rbac/decorators/require-permissions.de
 import { PermissionGuard } from '../../rbac/guards/permission.guard';
 import { CurrentTenant } from '../../tenant/decorators/current-tenant.decorator';
 import { CompanyContextGuard } from '../../tenant/guards/company-context.guard';
-import { ListVacanciesQueryDto, UpdateVacancyDto } from './dto/vacancy.dto';
+import {
+  ListRecruitersQueryDto,
+  ListVacanciesQueryDto,
+  UpdateVacancyDto,
+} from './dto/vacancy.dto';
 import { VacanciesService } from './vacancies.service';
 import { VacancyScreeningService } from './vacancy-screening.service';
 import { PublicJobsService } from '../public-jobs/public-jobs.service';
@@ -43,8 +47,14 @@ export class VacanciesController {
 
   @Get('recruiters')
   @RequirePermissions('ats.vacancy.read')
-  listRecruiters(@CurrentTenant() tenant: TenantContext) {
-    return this.vacanciesService.listRecruiters(tenant.companyId);
+  listRecruiters(
+    @CurrentTenant() tenant: TenantContext,
+    @Query() query: ListRecruitersQueryDto,
+  ) {
+    return this.vacanciesService.listRecruiters(
+      tenant.companyId,
+      query.roleCode,
+    );
   }
 
   @Get(':id/public-preview')

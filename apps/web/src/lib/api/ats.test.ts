@@ -87,6 +87,10 @@ describe("atsApi", () => {
       "/ats/vacancies?status=OPEN&search=eng",
     );
     expect(mockedRequest).toHaveBeenCalledWith("/ats/vacancies/recruiters");
+    await atsApi.listRecruiters({ roleCode: "RECRUITER" });
+    expect(mockedRequest).toHaveBeenCalledWith(
+      "/ats/vacancies/recruiters?roleCode=RECRUITER",
+    );
     expect(mockedRequest).toHaveBeenCalledWith("/ats/vacancies/v1", {
       method: "PATCH",
       body: { status: "PAUSED" },

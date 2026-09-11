@@ -113,14 +113,20 @@ export class VacanciesService {
     };
   }
 
-  async listRecruiters(companyId: string) {
+  async listRecruiters(companyId: string, roleCode?: 'RECRUITER') {
     const memberships = await this.prisma.companyMembership.findMany({
       where: {
         companyId,
         status: MembershipStatus.ACTIVE,
         roles: {
           some: {
-            role: { code: { in: ['RECRUITER', 'RECRUITMENT_LEADER'] } },
+            role: {
+              code: {
+                in: roleCode
+                  ? [roleCode]
+                  : ['RECRUITER', 'RECRUITMENT_LEADER'],
+              },
+            },
           },
         },
       },

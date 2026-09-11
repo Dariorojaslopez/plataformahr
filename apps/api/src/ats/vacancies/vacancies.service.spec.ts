@@ -171,4 +171,22 @@ describe('VacanciesService', () => {
     ];
     expect(listArg.where.assignedRecruiterEmployeeId).toBeUndefined();
   });
+
+  it('lists only RECRUITER employees when roleCode is set', async () => {
+    const { service, prisma } = build();
+    prisma.companyMembership.findMany = jest.fn().mockResolvedValue([]);
+    prisma.employee.findMany = jest.fn().mockResolvedValue([]);
+
+    await service.listRecruiters('company-1', 'RECRUITER');
+
+    expect(prisma.companyMembership.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          roles: {
+            some: { role: { code: { in: ['RECRUITER'] } } },
+          },
+        }),
+      }),
+    );
+  });
 });

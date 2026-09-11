@@ -183,10 +183,10 @@ export const atsApi = {
       body,
     }),
 
-  listRecruiters: () =>
+  listRecruiters: (params: { roleCode?: "RECRUITER" } = {}) =>
     apiRequest<
       Array<{ id: string; firstName: string; lastName: string; email: string }>
-    >("/ats/vacancies/recruiters"),
+    >(`/ats/vacancies/recruiters${toQuery({ roleCode: params.roleCode })}`),
 
   updateVacancy: (id: string, body: UpdateVacancyInput) =>
     apiRequest<Vacancy>(`/ats/vacancies/${id}`, {
@@ -398,8 +398,8 @@ export const atsKeys = {
     [...atsKeys.all(companyId), "vacancy-screening", id] as const,
   vacancyPublicPreview: (companyId: string, id: string) =>
     [...atsKeys.all(companyId), "vacancy-public-preview", id] as const,
-  recruiters: (companyId: string) =>
-    [...atsKeys.all(companyId), "recruiters"] as const,
+  recruiters: (companyId: string, roleCode?: "RECRUITER") =>
+    [...atsKeys.all(companyId), "recruiters", roleCode ?? "all"] as const,
   candidates: (companyId: string, params: ListCandidatesParams = {}) =>
     [...atsKeys.all(companyId), "candidates", params] as const,
   candidate: (companyId: string, id: string) =>
