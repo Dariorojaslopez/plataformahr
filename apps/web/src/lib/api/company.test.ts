@@ -70,6 +70,45 @@ describe("company branding API and keys", () => {
     expect(headers["Content-Type"]).toBeUndefined();
   });
 
+  it("loads and saves role menus for the current company", async () => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            catalog: [],
+            roles: [],
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            catalog: [],
+            roles: [],
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        ),
+      );
+    await companyApi.getRoleMenus();
+    expect(fetch).toHaveBeenCalledWith(
+      "http://localhost:3001/companies/current/role-menus",
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          Authorization: "Bearer token",
+          "X-Company-Id": "company-a",
+        }) as HeadersInit,
+      }),
+    );
+    await companyApi.updateRoleMenus({
+      roles: [{ roleCode: "LEADER", hrefs: ["/organization/org-chart"] }],
+    });
+    expect(fetch).toHaveBeenLastCalledWith(
+      "http://localhost:3001/companies/current/role-menus",
+      expect.objectContaining({ method: "PUT" }),
+    );
+  });
+
   it("uploads an ATS template as multipart", async () => {
     vi.mocked(fetch).mockResolvedValue(
       new Response(

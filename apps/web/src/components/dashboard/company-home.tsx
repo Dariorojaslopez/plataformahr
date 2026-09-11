@@ -76,6 +76,7 @@ const SHORTCUT_ICONS: Record<string, LucideIcon> = {
   "/goals": Target,
   "/organization/settings": Settings2,
   "/settings/branding": Palette,
+  "/settings/roles": ShieldCheck,
   "/performance/results": Medal,
   "/performance/competencies": Target,
   "/goals/cycles": CalendarDays,

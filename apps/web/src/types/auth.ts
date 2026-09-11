@@ -82,12 +82,14 @@ export type CreateManagedCompanyInput = {
 export type CompanyAccess = {
   enabledModules: CompanyModuleCode[];
   enabledFeatures: CompanyFeatureCode[];
+  allowedNavHrefs?: string[];
 };
 
 export type CurrentCompanyAccess = CompanyAccess & {
   roleCodes: string[];
   hasDirectReports: boolean;
   homeRole: CompanyHomeRole;
+  allowedNavHrefs: string[];
 };
 
 export type CreateManagedCompanyResponse = {

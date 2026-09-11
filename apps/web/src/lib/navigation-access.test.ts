@@ -21,6 +21,25 @@ describe("company navigation access", () => {
     ]);
   });
 
+  it("hides nav items that the role menu does not grant", () => {
+    const filtered = flattenNavItems(
+      filterNavigation(APP_NAV, {
+        enabledModules: ["ATS", "SETTINGS"],
+        enabledFeatures: [
+          "ats.vacancies",
+          "ats.pipeline",
+          "settings.branding",
+          "settings.role-menu",
+        ],
+        allowedNavHrefs: ["/dashboard", "/ats/vacancies"],
+      }),
+    );
+    expect(filtered.map(({ href }) => href)).toEqual([
+      "/dashboard",
+      "/ats/vacancies",
+    ]);
+  });
+
   it("maps nested detail routes to their protected feature", () => {
     expect(resolveCompanyAccessForPath("/ats/applications/abc")).toEqual({
       module: "ATS",

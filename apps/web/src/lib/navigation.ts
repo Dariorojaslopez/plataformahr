@@ -16,6 +16,7 @@ import {
   Palette,
   Settings2,
   Share2,
+  ShieldCheck,
   SlidersHorizontal,
   Target,
   Upload,
@@ -25,6 +26,7 @@ import {
 } from "lucide-react";
 import {
   moduleForCompanyFeature,
+  navGrantCoversPath,
   type CompanyFeatureCode,
   type CompanyModuleCode,
 } from "@talento/shared";
@@ -205,6 +207,11 @@ export const APP_NAV: NavSection[] = [
         href: "/settings/branding",
         icon: Palette,
       },
+      {
+        label: "Permisos de menú",
+        href: "/settings/roles",
+        icon: ShieldCheck,
+      },
     ],
   },
 ];
@@ -247,6 +254,7 @@ const NAV_FEATURE_BY_HREF: Record<string, CompanyFeatureCode> = {
   "/goals/team": "goals.team",
   "/goals/reviews": "goals.reviews",
   "/settings/branding": "settings.branding",
+  "/settings/roles": "settings.role-menu",
 };
 
 export function resolveCompanyAccessForPath(pathname: string): {
@@ -283,6 +291,14 @@ export function resolveCompanyAccessForPath(pathname: string): {
   return moduleCode ? { module: moduleCode, feature } : null;
 }
 
+export function isNavHrefGranted(
+  access: Pick<CompanyAccess, "allowedNavHrefs">,
+  href: string,
+): boolean {
+  if (!access.allowedNavHrefs) return true;
+  return navGrantCoversPath(access.allowedNavHrefs, href);
+}
+
 export function filterNavigation(
   sections: NavSection[],
   access: CompanyAccess,
@@ -294,10 +310,10 @@ export function filterNavigation(
       ...section,
       items: section.items.filter((item) => {
         const required = resolveCompanyAccessForPath(item.href);
-        return (
+        const featureOk =
           !required ||
-          (modules.has(required.module) && features.has(required.feature))
-        );
+          (modules.has(required.module) && features.has(required.feature));
+        return featureOk && isNavHrefGranted(access, item.href);
       }),
     }))
     .filter((section) => section.items.length > 0);
@@ -379,5 +395,6 @@ export function resolvePageTitle(pathname: string): string {
   if (pathname === "/select-company") return "Seleccionar compañía";
   if (pathname === "/platform") return "Platform";
   if (pathname === "/settings/branding") return "Apariencia";
+  if (pathname === "/settings/roles") return "Permisos de menú";
   return "Talentgrowthos";
 }

@@ -13,7 +13,7 @@ import {
   subscribeSidebar,
 } from "@/lib/auth/session-store";
 import { cn } from "@/lib/utils";
-import { resolveCompanyAccessForPath } from "@/lib/navigation";
+import { resolveCompanyAccessForPath, isNavHrefGranted } from "@/lib/navigation";
 import { ErrorState } from "@/components/ui/error-state";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -37,9 +37,10 @@ export function AppShell({ children }: { children: ReactNode }) {
   }, []);
   const requiredAccess = resolveCompanyAccessForPath(pathname);
   const hasAccess =
-    !requiredAccess ||
-    (companyAccess?.enabledModules.includes(requiredAccess.module) &&
-      companyAccess.enabledFeatures.includes(requiredAccess.feature));
+    (!requiredAccess ||
+      (companyAccess?.enabledModules.includes(requiredAccess.module) &&
+        companyAccess.enabledFeatures.includes(requiredAccess.feature))) &&
+    (!companyAccess || isNavHrefGranted(companyAccess, pathname));
 
   return (
     <AuthGuard requireCompany>

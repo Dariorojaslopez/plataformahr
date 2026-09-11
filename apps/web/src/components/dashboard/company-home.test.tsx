@@ -98,6 +98,7 @@ describe("CompanyHome", () => {
     expect(screen.getByText("Configuración del sistema")).toBeInTheDocument();
     expect(screen.getByText("Colaboradores")).toBeInTheDocument();
     expect(screen.getByText("Apariencia")).toBeInTheDocument();
+    expect(screen.getByText("Permisos de menú")).toBeInTheDocument();
     expect(screen.getByText("Tablero Kanban")).toBeInTheDocument();
     expect(screen.queryByText("Próximamente")).not.toBeInTheDocument();
   });

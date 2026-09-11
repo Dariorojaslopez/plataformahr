@@ -2,13 +2,17 @@ import { apiRequest, apiRequestBlob } from "@/lib/api/client";
 import type { CurrentCompanyResponse } from "@/types/auth";
 import type {
   CompanyBranding,
+  RoleMenuConfig,
   UpdateCompanyBrandingInput,
+  UpdateRoleMenusInput,
 } from "@/types/company";
 
 export const companyKeys = {
   all: (companyId: string) => ["company", companyId] as const,
   branding: (companyId: string) =>
     [...companyKeys.all(companyId), "branding"] as const,
+  roleMenus: (companyId: string) =>
+    [...companyKeys.all(companyId), "role-menus"] as const,
   current: (companyId: string) =>
     [...companyKeys.all(companyId), "current"] as const,
   logo: (companyId: string, logoUpdatedAt: string | null) =>
@@ -81,5 +85,14 @@ export const companyApi = {
   getLogoBlob: () =>
     apiRequestBlob("/companies/current/branding/logo", {
       headers: { Accept: "image/*, application/octet-stream" },
+    }),
+
+  getRoleMenus: () =>
+    apiRequest<RoleMenuConfig>("/companies/current/role-menus"),
+
+  updateRoleMenus: (body: UpdateRoleMenusInput) =>
+    apiRequest<RoleMenuConfig>("/companies/current/role-menus", {
+      method: "PUT",
+      body,
     }),
 };

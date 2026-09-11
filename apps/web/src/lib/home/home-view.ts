@@ -3,7 +3,7 @@ import {
   resolveCompanyHomeRole,
   type CompanyHomeRole,
 } from "@talento/shared";
-import { resolveCompanyAccessForPath } from "@/lib/navigation";
+import { resolveCompanyAccessForPath, isNavHrefGranted } from "@/lib/navigation";
 import type { CompanyAccess, CurrentCompanyAccess } from "@/types/auth";
 
 export type HomeConfigGroup =
@@ -261,6 +261,12 @@ export const HOME_SHORTCUTS: Record<CompanyHomeRole, HomeShortcut[]> = {
       description: "Nombre, color y logo de la compañía.",
       group: "system",
     },
+    {
+      href: "/settings/roles",
+      title: "Permisos de menú",
+      description: "Qué opciones del menú ve cada rol.",
+      group: "system",
+    },
   ],
   PERFORMANCE_MANAGER: [
     {
@@ -355,10 +361,10 @@ export function homeShortcutsFor(
   const features = new Set(access.enabledFeatures);
   return HOME_SHORTCUTS[homeRole].filter((item) => {
     const required = resolveCompanyAccessForPath(item.href);
-    return (
+    const featureOk =
       !required ||
-      (modules.has(required.module) && features.has(required.feature))
-    );
+      (modules.has(required.module) && features.has(required.feature));
+    return featureOk && isNavHrefGranted(access, item.href);
   });
 }
 
