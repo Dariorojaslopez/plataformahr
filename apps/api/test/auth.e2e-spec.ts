@@ -10,6 +10,7 @@ import { join } from 'node:path';
 import { loadOptionalEnvFile } from './load-env';
 import request from 'supertest';
 import { PasswordHashingService } from '../src/auth/password-hashing.service';
+import { SESSION_IDLE_MS } from '../src/auth/session-idle';
 import { REFRESH_COOKIE_NAME } from '../src/config/security.config';
 import {
   cookieFlags,
@@ -323,10 +324,11 @@ describe('Auth + tenant + RBAC (e2e)', () => {
 
     const session = await prisma.userSession.findFirstOrThrow({
       where: { userId: adminUserId, revokedAt: null },
+      orderBy: { createdAt: 'desc' },
     });
     await prisma.userSession.update({
       where: { id: session.id },
-      data: { lastUsedAt: new Date(Date.now() - 3 * 60 * 60 * 1000 - 1_000) },
+      data: { lastUsedAt: new Date(Date.now() - SESSION_IDLE_MS - 1_000) },
     });
 
     await agent.post('/auth/refresh').expect(401);
