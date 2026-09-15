@@ -272,22 +272,22 @@ export function PublicJobPage({
       })}
     >
       <header className="border-b bg-card">
-        <div className="mx-auto flex max-w-5xl items-center gap-4 px-6 py-6 sm:gap-5 sm:py-8">
+        <div className="mx-auto flex max-w-5xl items-center gap-4 px-6 py-6">
           {logoSrc ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
               src={logoSrc}
               alt={`Logo de ${job.companyName}`}
-              className="h-16 w-auto max-w-[240px] shrink-0 rounded-md object-contain object-left sm:h-20 sm:max-w-[320px] md:h-24 md:max-w-[380px]"
+              className="h-[4.5rem] w-[7.5rem] shrink-0 rounded-md object-contain object-left sm:h-20 sm:w-36"
             />
           ) : (
-            <div className="flex size-16 shrink-0 items-center justify-center rounded-md bg-primary text-lg font-semibold text-primary-foreground sm:size-20 md:size-24 md:text-xl">
+            <div className="flex h-[4.5rem] w-[7.5rem] shrink-0 items-center justify-center rounded-md bg-primary text-lg font-semibold text-primary-foreground sm:h-20 sm:w-36">
               {companyInitials(job.companyName)}
             </div>
           )}
           <div className="min-w-0">
-            <p className="text-lg font-semibold sm:text-xl">{job.companyName}</p>
-            <p className="text-sm text-muted-foreground sm:text-base">
+            <p className="font-semibold sm:text-lg">{job.companyName}</p>
+            <p className="text-sm text-muted-foreground">
               Oportunidades laborales
             </p>
           </div>
