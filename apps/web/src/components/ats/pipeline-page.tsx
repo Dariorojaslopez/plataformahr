@@ -87,7 +87,12 @@ type PendingMove = {
   fromStage: ApplicationStage;
   toStage: ApplicationStage;
   candidateName: string;
+  card?: PipelineCard;
 };
+
+const PREHIRE_UPLOAD_MAX_BYTES = 20 * 1024 * 1024;
+const PREHIRE_UPLOAD_ACCEPT =
+  ".pdf,.docx,.jpg,.jpeg,.png,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,image/jpeg,image/png";
 
 const FIT_DOT_CLASS: Record<FitLevel, string> = {
   green: "bg-emerald-500",
@@ -228,17 +233,63 @@ export function PipelinePageClient() {
       applicationId: string;
       stage: ApplicationStage;
       comment?: string;
+      card?: PipelineCard;
     }) => atsApi.moveApplication(applicationId, { stage, comment: moveComment }),
-    onSuccess: async () => {
+    onSuccess: async (_data, vars) => {
+      const openedCard =
+        vars.stage === "FINALISTS"
+          ? (vars.card ?? pendingMove?.card ?? null)
+          : null;
       await invalidatePipeline();
       setPendingMove(null);
       setComment("");
       setMoveError(null);
       notifySuccess("Aplicación movida de etapa");
+      if (openedCard) {
+        setResumeCard({ ...openedCard, stage: "FINALISTS" });
+      }
     },
     onError: (error) => {
       setMoveError(getErrorMessage(error, "No se pudo mover la aplicación."));
       notifyError(error, "No se pudo mover la aplicación.");
+    },
+  });
+
+  const uploadPreHireMutation = useMutation({
+    mutationFn: async ({
+      applicationId,
+      kind,
+      file,
+    }: {
+      applicationId: string;
+      kind: PreHireDocumentKind;
+      file: File;
+    }) => {
+      if (file.size > PREHIRE_UPLOAD_MAX_BYTES) {
+        throw new Error("El documento supera el tamaño máximo (20 MB).");
+      }
+      return hiringApi.uploadPreHireDocument(applicationId, kind, file);
+    },
+    onSuccess: async (_data, vars) => {
+      await invalidatePipeline();
+      setResumeCard((current) => {
+        if (!current || current.applicationId !== vars.applicationId) {
+          return current;
+        }
+        return {
+          ...current,
+          hasSecurityStudyDoc:
+            vars.kind === "SECURITY_STUDY"
+              ? true
+              : current.hasSecurityStudyDoc,
+          hasMedicalExamDoc:
+            vars.kind === "MEDICAL_EXAM" ? true : current.hasMedicalExamDoc,
+        };
+      });
+      notifySuccess("Documento cargado");
+    },
+    onError: (error) => {
+      notifyError(error, "No se pudo cargar el documento.");
     },
   });
 
@@ -280,6 +331,7 @@ export function PipelinePageClient() {
       fromStage: card.stage,
       toStage: stageForKanbanColumn(columnId),
       candidateName: card.candidateName,
+      card,
     });
   }
 
@@ -294,6 +346,7 @@ export function PipelinePageClient() {
     moveMutation.mutate({
       applicationId: move.applicationId,
       stage: move.toStage,
+      card: move.card,
     });
   }
 
@@ -483,6 +536,7 @@ export function PipelinePageClient() {
                   applicationId: pendingMove.applicationId,
                   stage: pendingMove.toStage,
                   comment: comment.trim() || undefined,
+                  card: pendingMove.card,
                 });
               }}
             >
@@ -627,7 +681,8 @@ export function PipelinePageClient() {
           {resumeCard ? (
             <div className="space-y-3">
               <p className="text-sm text-muted-foreground">
-                {resumeCard.candidateName} · descargas de HV y pre-contratación.
+                {resumeCard.candidateName} · HV y pre-contratación (máx. 20 MB;
+                PDF, DOCX, JPG o PNG).
               </p>
               <ul className="space-y-2 text-sm">
                 <DocDownloadRow
@@ -653,6 +708,14 @@ export function PipelinePageClient() {
                       "SECURITY_STUDY",
                     )
                   }
+                  onUpload={(file) =>
+                    uploadPreHireMutation.mutate({
+                      applicationId: resumeCard.applicationId,
+                      kind: "SECURITY_STUDY",
+                      file,
+                    })
+                  }
+                  uploading={uploadPreHireMutation.isPending}
                 />
                 <DocDownloadRow
                   label="Exámenes médicos"
@@ -670,6 +733,14 @@ export function PipelinePageClient() {
                       "MEDICAL_EXAM",
                     )
                   }
+                  onUpload={(file) =>
+                    uploadPreHireMutation.mutate({
+                      applicationId: resumeCard.applicationId,
+                      kind: "MEDICAL_EXAM",
+                      file,
+                    })
+                  }
+                  uploading={uploadPreHireMutation.isPending}
                 />
               </ul>
             </div>
@@ -817,12 +888,18 @@ function DocDownloadRow({
   available,
   statusLabel,
   onDownload,
+  onUpload,
+  uploading = false,
 }: {
   label: string;
   available: boolean;
   statusLabel?: string;
   onDownload: () => void;
+  onUpload?: (file: File) => void;
+  uploading?: boolean;
 }) {
+  const inputRef = useRef<HTMLInputElement>(null);
+
   return (
     <li className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border/70 px-3 py-2">
       <div>
@@ -837,15 +914,49 @@ function DocDownloadRow({
               : "Sin archivo"}
         </p>
       </div>
-      <Button
-        type="button"
-        size="sm"
-        variant="outline"
-        disabled={!available}
-        onClick={onDownload}
-      >
-        Descargar
-      </Button>
+      <div className="flex flex-wrap gap-2">
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          disabled={!available}
+          onClick={onDownload}
+        >
+          Descargar
+        </Button>
+        {onUpload ? (
+          <>
+            <input
+              ref={inputRef}
+              type="file"
+              accept={PREHIRE_UPLOAD_ACCEPT}
+              className="sr-only"
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                event.target.value = "";
+                if (!file) return;
+                if (file.size > PREHIRE_UPLOAD_MAX_BYTES) {
+                  notifyError(
+                    new Error("El documento supera el tamaño máximo (20 MB)."),
+                    "El documento supera el tamaño máximo (20 MB).",
+                  );
+                  return;
+                }
+                onUpload(file);
+              }}
+            />
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={uploading}
+              onClick={() => inputRef.current?.click()}
+            >
+              {available ? "Reemplazar" : "Subir"}
+            </Button>
+          </>
+        ) : null}
+      </div>
     </li>
   );
 }

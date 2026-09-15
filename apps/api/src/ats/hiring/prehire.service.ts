@@ -14,6 +14,7 @@ import { ATS_AUDIT } from '../ats.constants';
 import type { UpdatePreHireDto } from './dto/prehire.dto';
 import {
   PREHIRE_ERRORS,
+  PREHIRE_MAX_BYTES,
   PREHIRE_MIME,
   type AllowedPreHireMime,
   isPreHireClear,
@@ -243,6 +244,9 @@ export class PreHireService {
     }
     if (!file.buffer?.length) {
       throw new BadRequestException(PREHIRE_ERRORS.EMPTY);
+    }
+    if (file.size > PREHIRE_MAX_BYTES) {
+      throw new BadRequestException(PREHIRE_ERRORS.SIZE);
     }
   }
 

@@ -1,7 +1,8 @@
 import { COMPANY_ID_PATTERN } from '../../core/companies/branding/branding.constants';
 
 export const PREHIRE_FIELD_NAME = 'file';
-export const PREHIRE_MAX_BYTES = 10 * 1024 * 1024;
+/** Keep nginx `client_max_body_size` above this (see infrastructure/nginx.example.conf). */
+export const PREHIRE_MAX_BYTES = 20 * 1024 * 1024;
 
 export const PREHIRE_MIME = {
   PDF: 'application/pdf',
@@ -31,7 +32,7 @@ export { COMPANY_ID_PATTERN };
 export const PREHIRE_ERRORS = {
   MISSING: 'Adjunta el documento (PDF, DOCX, JPG o PNG).',
   TYPE: 'El documento debe ser PDF, DOCX, JPG o PNG.',
-  SIZE: 'El documento supera el tamaño máximo (10 MB).',
+  SIZE: 'El documento supera el tamaño máximo (20 MB).',
   EMPTY: 'El archivo está vacío.',
   NOT_FOUND: 'No hay documento cargado para este requisito.',
   INVALID_KIND: 'Tipo de documento no válido.',

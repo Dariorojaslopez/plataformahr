@@ -596,7 +596,15 @@ function PreHireChecklistSection({
                   onChange={(e) => {
                     const file = e.target.files?.[0];
                     e.target.value = "";
-                    if (file) uploadMutation.mutate({ kind, file });
+                    if (!file) return;
+                    if (file.size > 20 * 1024 * 1024) {
+                      notifyError(
+                        new Error("El documento supera el tamaño máximo (20 MB)."),
+                        "El documento supera el tamaño máximo (20 MB).",
+                      );
+                      return;
+                    }
+                    uploadMutation.mutate({ kind, file });
                   }}
                 />
                 <Button
