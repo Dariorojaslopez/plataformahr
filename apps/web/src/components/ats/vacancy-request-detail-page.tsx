@@ -36,8 +36,7 @@ import {
   formatDate,
   formatEmployeeName,
   VACANCY_REQUEST_MOTIVE_LABELS,
-  VACANCY_REQUEST_STATUS_LABELS,
-  vacancyRequestStatusVariant,
+  vacancyRequestStatusPresentation,
 } from "@/lib/ats/labels";
 import {
   buildApprovalTimeline,
@@ -153,14 +152,18 @@ export function VacancyRequestDetailPageClient() {
   const approveMutation = useMutation({
     mutationFn: () =>
       atsApi.approveVacancyRequest(id, {
-        comment: approveComment.trim() || undefined,
+        comment: approveComment.trim(),
       }),
-    onSuccess: async () => {
+    onSuccess: async (data) => {
       await invalidate();
       setApproveOpen(false);
       setApproveComment("");
       setActionError(null);
-      notifySuccess("Paso de aprobación confirmado");
+      notifySuccess(
+        data.status === "APPROVED"
+          ? "Solicitud aprobada. El proceso queda listo para asignar reclutador."
+          : "Paso de aprobación confirmado. Continúa con el siguiente aprobador.",
+      );
     },
     onError: (error) => {
       setActionError(getErrorMessage(error, "No se pudo aprobar."));
@@ -179,7 +182,7 @@ export function VacancyRequestDetailPageClient() {
       setRejectOpen(false);
       setRejectComment("");
       setActionError(null);
-      notifySuccess("Solicitud rechazada");
+      notifySuccess("Solicitud devuelta al solicitante");
     },
     onError: (error) => {
       setActionError(getErrorMessage(error, "No se pudo rechazar."));
@@ -236,7 +239,9 @@ export function VacancyRequestDetailPageClient() {
                   Editar
                 </Button>
                 <Button type="button" onClick={() => setSubmitOpen(true)}>
-                  Enviar a aprobación
+                  {request.returnedAt
+                    ? "Reenviar a aprobación"
+                    : "Enviar a aprobación"}
                 </Button>
               </>
             ) : null}
@@ -273,8 +278,10 @@ export function VacancyRequestDetailPageClient() {
 
       <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <Info label="Estado">
-          <Badge variant={vacancyRequestStatusVariant(request.status)}>
-            {VACANCY_REQUEST_STATUS_LABELS[request.status]}
+          <Badge
+            variant={vacancyRequestStatusPresentation(request).variant}
+          >
+            {vacancyRequestStatusPresentation(request).label}
           </Badge>
         </Info>
         <Info label="Motivo">
@@ -299,7 +306,22 @@ export function VacancyRequestDetailPageClient() {
         <Info label="Creada">{formatDate(request.createdAt)}</Info>
         <Info label="Enviada">{formatDate(request.submittedAt)}</Info>
         <Info label="Decidida">{formatDate(request.decidedAt)}</Info>
+        {request.returnedAt ? (
+          <Info label="Devuelta">{formatDate(request.returnedAt)}</Info>
+        ) : null}
       </section>
+
+      {request.status === "DRAFT" && request.lastReturnComment ? (
+        <section className="space-y-2 rounded-lg border border-warning/40 bg-warning/10 p-4">
+          <h2 className="text-lg font-semibold">Devuelta al solicitante</h2>
+          <p className="text-sm text-muted-foreground">
+            Corrige la solicitud y vuelve a enviarla. Motivo de rechazo:
+          </p>
+          <p className="whitespace-pre-wrap text-sm">
+            {request.lastReturnComment}
+          </p>
+        </section>
+      ) : null}
 
       {request.justification.trim() ? (
         <section className="space-y-2">
@@ -440,11 +462,12 @@ export function VacancyRequestDetailPageClient() {
             <DialogTitle>Aprobar paso</DialogTitle>
           </DialogHeader>
           <div className="space-y-2">
-            <Label htmlFor="approve-comment">Comentario (opcional)</Label>
+            <Label htmlFor="approve-comment">Motivo de aprobación *</Label>
             <Textarea
               id="approve-comment"
               value={approveComment}
               onChange={(e) => setApproveComment(e.target.value)}
+              required
               maxLength={1000}
             />
           </div>
@@ -458,7 +481,9 @@ export function VacancyRequestDetailPageClient() {
             </Button>
             <Button
               type="button"
-              disabled={approveMutation.isPending}
+              disabled={
+                approveMutation.isPending || approveComment.trim().length === 0
+              }
               onClick={() => approveMutation.mutate()}
             >
               Aprobar
@@ -470,10 +495,10 @@ export function VacancyRequestDetailPageClient() {
       <Dialog open={rejectOpen} onOpenChange={setRejectOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Rechazar solicitud</DialogTitle>
+            <DialogTitle>Devolver al solicitante</DialogTitle>
           </DialogHeader>
           <div className="space-y-2">
-            <Label htmlFor="reject-comment">Comentario *</Label>
+            <Label htmlFor="reject-comment">Motivo de rechazo *</Label>
             <Textarea
               id="reject-comment"
               value={rejectComment}
@@ -498,7 +523,7 @@ export function VacancyRequestDetailPageClient() {
               }
               onClick={() => rejectMutation.mutate()}
             >
-              Rechazar
+              Rechazar y devolver
             </Button>
           </DialogFooter>
         </DialogContent>

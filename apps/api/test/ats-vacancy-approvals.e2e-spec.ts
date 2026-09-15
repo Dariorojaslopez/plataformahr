@@ -611,14 +611,20 @@ describe('ATS vacancy approval workflows (e2e)', () => {
 
     await request(app.getHttpServer())
       .post(`/ats/vacancy-requests/${sequentialId}/approve`)
-      .set(auth(adminToken))
+      .set(auth(managerToken))
       .send({})
+      .expect(400);
+
+    await request(app.getHttpServer())
+      .post(`/ats/vacancy-requests/${sequentialId}/approve`)
+      .set(auth(adminToken))
+      .send({ comment: 'ok' })
       .expect(403);
 
     await request(app.getHttpServer())
       .post(`/ats/vacancy-requests/${sequentialId}/approve`)
       .set(auth(otherLeaderToken))
-      .send({})
+      .send({ comment: 'ok' })
       .expect(403);
 
     const afterManager = await request(app.getHttpServer())
@@ -637,13 +643,13 @@ describe('ATS vacancy approval workflows (e2e)', () => {
     await request(app.getHttpServer())
       .post(`/ats/vacancy-requests/${sequentialId}/approve`)
       .set(auth(managerToken))
-      .send({})
+      .send({ comment: 'ok' })
       .expect(403);
 
     const final = await request(app.getHttpServer())
       .post(`/ats/vacancy-requests/${sequentialId}/approve`)
       .set(auth(adminToken))
-      .send({})
+      .send({ comment: 'ok' })
       .expect(201);
     expect((final.body as { status: string }).status).toBe('APPROVED');
     expect((final.body as { vacancy: { id: string } }).vacancy).toBeDefined();
@@ -658,7 +664,11 @@ describe('ATS vacancy approval workflows (e2e)', () => {
       .set(auth(managerToken))
       .send({ comment: 'No budget' })
       .expect(201);
-    expect((rejected.body as { status: string }).status).toBe('REJECTED');
+    expect((rejected.body as { status: string }).status).toBe('DRAFT');
+    expect(
+      (rejected.body as { lastReturnComment: string | null }).lastReturnComment,
+    ).toBe('No budget');
+    expect((rejected.body as { returnedAt: string | null }).returnedAt).toBeTruthy();
     const rejectedSteps = (
       rejected.body as {
         approvals: Array<{ status: string; comment: string | null }>;
@@ -673,7 +683,7 @@ describe('ATS vacancy approval workflows (e2e)', () => {
     await request(app.getHttpServer())
       .post(`/ats/vacancy-requests/${rejectId}/approve`)
       .set(auth(adminToken))
-      .send({})
+      .send({ comment: 'ok' })
       .expect(404);
 
     const concurrentId = await createDraft();
@@ -685,11 +695,11 @@ describe('ATS vacancy approval workflows (e2e)', () => {
       request(app.getHttpServer())
         .post(`/ats/vacancy-requests/${concurrentId}/approve`)
         .set(auth(managerToken))
-        .send({}),
+        .send({ comment: 'ok' }),
       request(app.getHttpServer())
         .post(`/ats/vacancy-requests/${concurrentId}/approve`)
         .set(auth(managerToken))
-        .send({}),
+        .send({ comment: 'ok' }),
     ]);
     const statuses = [first.status, second.status].sort((a, b) => a - b);
     expect(statuses).toEqual([201, 409]);
@@ -758,7 +768,7 @@ describe('ATS vacancy approval workflows (e2e)', () => {
     await request(app.getHttpServer())
       .post(`/ats/vacancy-requests/${id}/approve`)
       .set(auth(recruiterToken))
-      .send({})
+      .send({ comment: 'ok' })
       .expect(403);
 
     await request(app.getHttpServer())

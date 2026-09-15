@@ -213,14 +213,19 @@ export class ListVacancyRequestsQueryDto {
   limit?: number = DEFAULT_LIMIT;
 }
 
+const trim = ({ value }: { value: unknown }) =>
+  typeof value === 'string' ? value.trim() : value;
+
 export class ApprovalDecisionDto {
-  @IsOptional()
+  @Transform(trim)
   @IsString()
+  @MinLength(1)
   @MaxLength(1000)
-  comment?: string;
+  comment!: string;
 }
 
 export class RejectDecisionDto {
+  @Transform(trim)
   @IsString()
   @MinLength(1)
   @MaxLength(1000)

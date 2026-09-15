@@ -24,7 +24,6 @@ import type {
   ParseLinkedInDto,
   PublicEducationDto,
   PublicJobApplicationDto,
-  PublicScreeningAnswerDto,
   PublicWorkExperienceDto,
 } from './dto/public-job.dto';
 import { extractCvText, inspectCvFile, type InspectedCv } from './cv-extract';
@@ -40,6 +39,13 @@ import {
   buildJobFitText,
   computeProfileFit,
 } from './profile-fit';
+import {
+  evaluateScreeningAnswers,
+  parseScreeningOptions,
+  screeningJson,
+  toPublicScreeningOptions,
+  type ScreeningQuestionRecord,
+} from './screening-questions';
 import { CV_ERRORS } from './cv.constants';
 import { buildCvFileName, deleteCvFile, writeCvFile } from './cv.storage';
 
@@ -155,12 +161,6 @@ export class PublicJobsService {
             screeningMinCorrect: true,
             screeningQuestions: {
               orderBy: { sortOrder: 'asc' },
-              select: {
-                id: true,
-                prompt: true,
-                correctAnswer: true,
-                sortOrder: true,
-              },
             },
             position: {
               select: {
@@ -176,10 +176,11 @@ export class PublicJobsService {
           throw new NotFoundException(PUBLIC_JOB_NOT_FOUND);
         }
 
-        const screening = this.evaluateScreening(
-          vacancy.screeningQuestions,
+        const screening = evaluateScreeningAnswers(
+          vacancy.screeningQuestions as ScreeningQuestionRecord[],
           vacancy.screeningMinCorrect,
           dto.screeningAnswers ?? [],
+          SCREENING_FAIL,
         );
 
         const profileFit = computeProfileFit({
@@ -325,9 +326,13 @@ export class PublicJobsService {
               create: screening.answers.map((item) => ({
                 companyId: vacancy.companyId,
                 questionId: item.questionId,
+                questionType: item.questionType,
                 questionPrompt: item.questionPrompt,
+                optionsSnapshot: screeningJson(item.optionsSnapshot),
                 correctAnswer: item.correctAnswer,
                 answer: item.answer,
+                correctOptionIds: screeningJson(item.correctOptionIds),
+                selectedOptionIds: screeningJson(item.selectedOptionIds),
                 isCorrect: item.isCorrect,
                 sortOrder: item.sortOrder,
               })),
@@ -446,65 +451,6 @@ export class PublicJobsService {
         Boolean(item.startDate?.trim()),
     );
     return filled.length > 0 ? filled.slice(0, MAX_PROFILE_SEGMENTS) : [];
-  }
-
-  private evaluateScreening(
-    questions: Array<{
-      id: string;
-      prompt: string;
-      correctAnswer: boolean;
-      sortOrder: number;
-    }>,
-    minCorrect: number | null,
-    answers: PublicScreeningAnswerDto[],
-  ) {
-    if (questions.length === 0) {
-      return {
-        correctCount: 0,
-        passed: true,
-        answers: [] as Array<{
-          questionId: string;
-          questionPrompt: string;
-          correctAnswer: boolean;
-          answer: boolean;
-          isCorrect: boolean;
-          sortOrder: number;
-        }>,
-      };
-    }
-
-    const byId = new Map(answers.map((item) => [item.questionId, item.answer]));
-    if (answers.length !== questions.length) {
-      throw new BadRequestException(
-        'Debes responder todas las preguntas de screening.',
-      );
-    }
-    for (const question of questions) {
-      if (!byId.has(question.id)) {
-        throw new BadRequestException(
-          'Debes responder todas las preguntas de screening.',
-        );
-      }
-    }
-
-    const scored = questions.map((question) => {
-      const answer = byId.get(question.id)!;
-      return {
-        questionId: question.id,
-        questionPrompt: question.prompt,
-        correctAnswer: question.correctAnswer,
-        answer,
-        isCorrect: answer === question.correctAnswer,
-        sortOrder: question.sortOrder,
-      };
-    });
-    const correctCount = scored.filter((item) => item.isCorrect).length;
-    const required = minCorrect ?? questions.length;
-    const passed = correctCount >= required;
-    if (!passed) {
-      throw new BadRequestException(SCREENING_FAIL);
-    }
-    return { correctCount, passed, answers: scored };
   }
 
   private toWorkExperienceCreate(
@@ -678,6 +624,8 @@ export class PublicJobsService {
           select: {
             id: true,
             prompt: true,
+            type: true,
+            options: true,
             sortOrder: true,
           },
         },
@@ -733,7 +681,9 @@ export class PublicJobsService {
       screeningQuestions: vacancy.screeningQuestions.map((question) => ({
         id: question.id,
         prompt: question.prompt,
+        type: question.type,
         sortOrder: question.sortOrder,
+        options: toPublicScreeningOptions(parseScreeningOptions(question.options)),
       })),
     };
   }

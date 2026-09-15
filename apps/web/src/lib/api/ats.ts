@@ -22,6 +22,8 @@ import type {
   ParsedPublicCv,
   RejectDecisionInput,
   ReplacePositionOccupantStepsInput,
+  ScreeningOption,
+  ScreeningQuestionType,
   UpdateCandidateInput,
   UpdateVacancyApprovalWorkflowInput,
   UpdateVacancyInput,
@@ -86,7 +88,7 @@ export const atsApi = {
       method: "POST",
     }),
 
-  approveVacancyRequest: (id: string, body: ApprovalDecisionInput = {}) =>
+  approveVacancyRequest: (id: string, body: ApprovalDecisionInput) =>
     apiRequest<VacancyRequest>(`/ats/vacancy-requests/${id}/approve`, {
       method: "POST",
       body,
@@ -174,10 +176,19 @@ export const atsApi = {
   getVacancyScreening: (id: string) =>
     apiRequest<VacancyScreeningConfig>(`/ats/vacancies/${id}/screening`),
 
-  updateVacancyScreening: (id: string, body: {
-    minCorrect?: number | null;
-    questions: Array<{ prompt: string; correctAnswer: boolean }>;
-  }) =>
+  updateVacancyScreening: (
+    id: string,
+    body: {
+      minCorrect?: number | null;
+      questions: Array<{
+        prompt: string;
+        type?: ScreeningQuestionType;
+        correctAnswer?: boolean;
+        options?: ScreeningOption[];
+        correctOptionIds?: string[];
+      }>;
+    },
+  ) =>
     apiRequest<VacancyScreeningConfig>(`/ats/vacancies/${id}/screening`, {
       method: "PUT",
       body,
@@ -317,10 +328,18 @@ export const publicJobsApi = {
       workExperience: body.workExperience,
       education: body.education,
       screeningAnswers: body.screeningAnswers
-        .filter((item) => item.answer !== null)
+        .filter(
+          (item) =>
+            item.answer !== null && item.answer !== undefined
+              ? true
+              : (item.selectedOptionIds?.length ?? 0) > 0,
+        )
         .map((item) => ({
           questionId: item.questionId,
-          answer: Boolean(item.answer),
+          ...(typeof item.answer === "boolean" ? { answer: item.answer } : {}),
+          ...((item.selectedOptionIds?.length ?? 0) > 0
+            ? { selectedOptionIds: item.selectedOptionIds }
+            : {}),
         })),
     };
     if (!file) {

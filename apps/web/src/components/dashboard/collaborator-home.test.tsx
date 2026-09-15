@@ -328,6 +328,27 @@ describe("CollaboratorHome", () => {
     );
   });
 
+  it("requires an approval reason before accepting a pending request", async () => {
+    const user = userEvent.setup();
+    approveVacancyRequest.mockResolvedValue({
+      id: "req-1",
+      status: "PENDING_APPROVAL",
+    });
+    renderHome();
+    await screen.findByText("Aprobaciones pendientes");
+    await user.click(screen.getByRole("button", { name: "Aceptar" }));
+    expect(screen.getByText("Motivo de aprobación *")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Aprobar" })).toBeDisabled();
+    await user.type(
+      screen.getByLabelText("Motivo de aprobación *"),
+      "Perfil alineado al cargo",
+    );
+    await user.click(screen.getByRole("button", { name: "Aprobar" }));
+    expect(approveVacancyRequest).toHaveBeenCalledWith("req-1", {
+      comment: "Perfil alineado al cargo",
+    });
+  });
+
   it("hides approval and evaluation sections when they are empty", async () => {
     getFeed.mockResolvedValue({
       ...feed,

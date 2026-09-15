@@ -6,6 +6,7 @@ import type {
   EducationLevel,
   PreHireCheckStatus,
   PreHireDocumentKind,
+  ScreeningQuestionType,
   VacancyApprovalStep,
   VacancyApproverType,
   VacancyRequestMotive,
@@ -155,6 +156,19 @@ export const PRE_HIRE_DOCUMENT_KIND_LABELS: Record<PreHireDocumentKind, string> 
     MEDICAL_EXAM: "Exámenes médicos",
   };
 
+export function vacancyRequestStatusPresentation(request: {
+  status: VacancyRequestStatus;
+  returnedAt?: string | null;
+}): { label: string; variant: BadgeVariant } {
+  if (request.status === "DRAFT" && request.returnedAt) {
+    return { label: "Devuelta", variant: "warning" };
+  }
+  return {
+    label: VACANCY_REQUEST_STATUS_LABELS[request.status],
+    variant: vacancyRequestStatusVariant(request.status),
+  };
+}
+
 export function vacancyRequestStatusVariant(
   status: VacancyRequestStatus,
 ): BadgeVariant {
@@ -289,6 +303,23 @@ export const INTERVIEW_QUESTION_TYPE_LABELS: Record<
   RATING: "Calificación 1–5",
   YES_NO: "Sí / No",
 };
+
+export const SCREENING_QUESTION_TYPE_LABELS: Record<
+  ScreeningQuestionType,
+  string
+> = {
+  YES_NO: "Sí / No",
+  TRUE_FALSE: "Verdadero / Falso",
+  SINGLE_CHOICE: "Opción única (ABCD)",
+  MULTIPLE_CHOICE: "Opción múltiple",
+};
+
+export const SCREENING_QUESTION_TYPES: ScreeningQuestionType[] = [
+  "YES_NO",
+  "TRUE_FALSE",
+  "SINGLE_CHOICE",
+  "MULTIPLE_CHOICE",
+];
 
 export const TRANSCRIPT_KIND_LABELS: Record<TranscriptSegmentKind, string> = {
   QUESTION: "Pregunta",

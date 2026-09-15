@@ -18,12 +18,19 @@ import { publicJobsApi } from "@/lib/api/ats";
 import { brandCssVars, companyInitials } from "@/lib/company/brand-tokens";
 import { PublicJobContent } from "@/components/ats/public-job-content";
 import { EDUCATION_LEVEL_LABELS } from "@/lib/ats/labels";
+import {
+  formatBooleanScreeningAnswer,
+  isBooleanScreeningType,
+  optionLetter,
+  toggleMultipleChoiceSelection,
+} from "@/lib/ats/screening";
 import type {
   EducationLevel,
   ParsedPublicCv,
   PublicEducationInput,
   PublicJob,
   PublicJobApplicationInput,
+  PublicScreeningQuestion,
   PublicWorkExperienceInput,
 } from "@/types/ats";
 
@@ -102,15 +109,25 @@ function compactForm(form: PublicJobApplicationInput): PublicJobApplicationInput
 function upsertScreeningAnswer(
   answers: PublicJobApplicationInput["screeningAnswers"],
   questionId: string,
-  answer: boolean,
+  patch: { answer?: boolean | null; selectedOptionIds?: string[] },
 ): PublicJobApplicationInput["screeningAnswers"] {
   const existing = answers.find((item) => item.questionId === questionId);
   if (!existing) {
-    return [...answers, { questionId, answer }];
+    return [...answers, { questionId, ...patch }];
   }
   return answers.map((item) =>
-    item.questionId === questionId ? { ...item, answer } : item,
+    item.questionId === questionId ? { ...item, ...patch } : item,
   );
+}
+
+function isScreeningAnswered(
+  question: PublicScreeningQuestion,
+  answers: PublicJobApplicationInput["screeningAnswers"],
+) {
+  const current = answers.find((item) => item.questionId === question.id);
+  const type = question.type ?? "YES_NO";
+  if (isBooleanScreeningType(type)) return typeof current?.answer === "boolean";
+  return (current?.selectedOptionIds?.length ?? 0) > 0;
 }
 
 export function PublicJobPage({
@@ -137,17 +154,20 @@ export function PublicJobPage({
   const job = jobOverride ?? jobQuery.data;
   const applyMutation = useMutation({
     mutationFn: () => {
-      const screeningAnswers = (job?.screeningQuestions ?? []).map(
-        (question) => {
-          const existing = form.screeningAnswers.find(
-            (item) => item.questionId === question.id,
-          );
-          return {
-            questionId: question.id,
-            answer: existing?.answer ?? null,
-          };
-        },
-      );
+      const questions = job?.screeningQuestions ?? [];
+      if (questions.some((question) => !isScreeningAnswered(question, form.screeningAnswers))) {
+        throw new Error("Debes responder todas las preguntas de screening.");
+      }
+      const screeningAnswers = questions.map((question) => {
+        const existing = form.screeningAnswers.find(
+          (item) => item.questionId === question.id,
+        );
+        return {
+          questionId: question.id,
+          answer: existing?.answer ?? null,
+          selectedOptionIds: existing?.selectedOptionIds ?? [],
+        };
+      });
       return publicJobsApi.apply(
         publicId!,
         compactForm({ ...form, screeningAnswers }),
@@ -492,51 +512,100 @@ export function PublicJobPage({
                   const current = form.screeningAnswers.find(
                     (item) => item.questionId === question.id,
                   );
+                  const type = question.type ?? "YES_NO";
                   return (
                     <fieldset key={question.id} className="space-y-2 rounded-md border p-3">
                       <legend className="px-1 text-sm font-medium">
                         {question.prompt}
                       </legend>
-                      <div className="flex gap-4">
-                        <label className="flex items-center gap-2 text-sm">
-                          <input
-                            type="radio"
-                            name={`screen-${question.id}`}
-                            checked={current?.answer === true}
-                            required
-                            onChange={() =>
-                              update(
-                                "screeningAnswers",
-                                upsertScreeningAnswer(
-                                  form.screeningAnswers,
-                                  question.id,
-                                  true,
-                                ),
-                              )
-                            }
-                          />
-                          Sí
-                        </label>
-                        <label className="flex items-center gap-2 text-sm">
-                          <input
-                            type="radio"
-                            name={`screen-${question.id}`}
-                            checked={current?.answer === false}
-                            required
-                            onChange={() =>
-                              update(
-                                "screeningAnswers",
-                                upsertScreeningAnswer(
-                                  form.screeningAnswers,
-                                  question.id,
-                                  false,
-                                ),
-                              )
-                            }
-                          />
-                          No
-                        </label>
-                      </div>
+                      {isBooleanScreeningType(type) ? (
+                        <div className="flex gap-4">
+                          <label className="flex items-center gap-2 text-sm">
+                            <input
+                              type="radio"
+                              name={`screen-${question.id}`}
+                              checked={current?.answer === true}
+                              required
+                              onChange={() =>
+                                update(
+                                  "screeningAnswers",
+                                  upsertScreeningAnswer(
+                                    form.screeningAnswers,
+                                    question.id,
+                                    { answer: true },
+                                  ),
+                                )
+                              }
+                            />
+                            {formatBooleanScreeningAnswer(type, true)}
+                          </label>
+                          <label className="flex items-center gap-2 text-sm">
+                            <input
+                              type="radio"
+                              name={`screen-${question.id}`}
+                              checked={current?.answer === false}
+                              required
+                              onChange={() =>
+                                update(
+                                  "screeningAnswers",
+                                  upsertScreeningAnswer(
+                                    form.screeningAnswers,
+                                    question.id,
+                                    { answer: false },
+                                  ),
+                                )
+                              }
+                            />
+                            {formatBooleanScreeningAnswer(type, false)}
+                          </label>
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          {(question.options ?? []).map((option, optionIndex) => {
+                            const selected = current?.selectedOptionIds ?? [];
+                            const checked = selected.includes(option.id);
+                            const multiple = type === "MULTIPLE_CHOICE";
+                            return (
+                              <label
+                                key={option.id}
+                                className="flex items-center gap-2 text-sm"
+                              >
+                                <input
+                                  type={multiple ? "checkbox" : "radio"}
+                                  name={
+                                    multiple
+                                      ? undefined
+                                      : `screen-${question.id}`
+                                  }
+                                  checked={checked}
+                                  required={multiple ? undefined : true}
+                                  onChange={() =>
+                                    update(
+                                      "screeningAnswers",
+                                      upsertScreeningAnswer(
+                                        form.screeningAnswers,
+                                        question.id,
+                                        {
+                                          selectedOptionIds: multiple
+                                            ? toggleMultipleChoiceSelection(
+                                                selected,
+                                                option.id,
+                                                question.options ?? [],
+                                              )
+                                            : [option.id],
+                                        },
+                                      ),
+                                    )
+                                  }
+                                />
+                                <span>
+                                  {optionLetter(optionIndex)}. {option.label}
+                                </span>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      )}
                     </fieldset>
                   );
                 })}

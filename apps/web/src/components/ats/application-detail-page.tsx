@@ -36,6 +36,11 @@ import {
   INTERVIEW_TYPE_LABELS,
   interviewStatusVariant,
 } from "@/lib/ats/labels";
+import {
+  formatBooleanScreeningAnswer,
+  formatScreeningChoiceLabels,
+  isBooleanScreeningType,
+} from "@/lib/ats/screening";
 
 export function ApplicationDetailPageClient() {
   const companyId = useCompanyId();
@@ -275,15 +280,24 @@ export function ApplicationDetailPageClient() {
             <div className="space-y-2">
               <p className="text-sm font-medium">Respuestas de screening</p>
               <ul className="space-y-2">
-                {application.screeningAnswers!.map((item) => (
-                  <li key={item.id} className="rounded-md border p-3 text-sm">
-                    <p>{item.questionPrompt}</p>
-                    <p className="text-muted-foreground">
-                      Respuesta: {item.answer ? "Sí" : "No"} ·{" "}
-                      {item.isCorrect ? "Correcta" : "Incorrecta"}
-                    </p>
-                  </li>
-                ))}
+                {application.screeningAnswers!.map((item) => {
+                  const type = item.questionType ?? "YES_NO";
+                  const response = isBooleanScreeningType(type)
+                    ? formatBooleanScreeningAnswer(type, item.answer)
+                    : formatScreeningChoiceLabels(
+                        item.optionsSnapshot,
+                        item.selectedOptionIds,
+                      );
+                  return (
+                    <li key={item.id} className="rounded-md border p-3 text-sm">
+                      <p>{item.questionPrompt}</p>
+                      <p className="text-muted-foreground">
+                        Respuesta: {response} ·{" "}
+                        {item.isCorrect ? "Correcta" : "Incorrecta"}
+                      </p>
+                    </li>
+                  );
+                })}
               </ul>
             </div>
           ) : null}

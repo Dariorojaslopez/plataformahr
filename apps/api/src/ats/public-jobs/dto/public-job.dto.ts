@@ -19,7 +19,7 @@ import {
   ValidateIf,
   ValidateNested,
 } from 'class-validator';
-import { EducationLevel } from '@prisma/client';
+import { EducationLevel, VacancyScreeningQuestionType } from '@prisma/client';
 import { CANDIDATE_DOCUMENT_TYPE_CODES } from '@talento/shared';
 
 const trim = ({ value }: { value: unknown }) =>
@@ -118,9 +118,17 @@ export class PublicScreeningAnswerDto {
   @IsUUID()
   questionId!: string;
 
+  @IsOptional()
   @Transform(toBoolean)
+  @ValidateIf((_, value) => value !== undefined && value !== null)
   @IsBoolean()
-  answer!: boolean;
+  answer?: boolean | null;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(8)
+  @IsUUID(undefined, { each: true })
+  selectedOptionIds?: string[];
 }
 
 export class PublicJobApplicationDto {
@@ -231,6 +239,23 @@ export class ParseLinkedInDto {
   profileText?: string | null;
 }
 
+export class VacancyScreeningOptionInputDto {
+  @IsOptional()
+  @IsUUID()
+  id?: string;
+
+  @Transform(trim)
+  @IsString()
+  @MinLength(1)
+  @MaxLength(300)
+  label!: string;
+
+  @IsOptional()
+  @Transform(toBoolean)
+  @IsBoolean()
+  isAllOfTheAbove?: boolean;
+}
+
 export class VacancyScreeningQuestionInputDto {
   @IsOptional()
   @IsUUID()
@@ -242,8 +267,28 @@ export class VacancyScreeningQuestionInputDto {
   @MaxLength(500)
   prompt!: string;
 
+  @IsOptional()
+  @IsEnum(VacancyScreeningQuestionType)
+  type?: VacancyScreeningQuestionType;
+
+  @IsOptional()
+  @Transform(toBoolean)
+  @ValidateIf((_, value) => value !== undefined && value !== null)
   @IsBoolean()
-  correctAnswer!: boolean;
+  correctAnswer?: boolean;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(8)
+  @ValidateNested({ each: true })
+  @Type(() => VacancyScreeningOptionInputDto)
+  options?: VacancyScreeningOptionInputDto[];
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(8)
+  @IsUUID(undefined, { each: true })
+  correctOptionIds?: string[];
 }
 
 export class UpdateVacancyScreeningDto {

@@ -7,6 +7,14 @@ import { randomUUID } from 'node:crypto';
 import type { TenantContext } from '../../auth/auth.types';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { UpdateVacancyScreeningDto } from '../public-jobs/dto/public-job.dto';
+import {
+  isBooleanScreeningType,
+  normalizeScreeningQuestionInput,
+  parseScreeningOptions,
+  parseStringIds,
+  screeningJson,
+  toPublicScreeningOptions,
+} from '../public-jobs/screening-questions';
 
 @Injectable()
 export class VacancyScreeningService {
@@ -22,17 +30,24 @@ export class VacancyScreeningService {
       this.prisma.vacancyScreeningQuestion.findMany({
         where: { companyId: tenant.companyId, vacancyId },
         orderBy: { sortOrder: 'asc' },
-        select: {
-          id: true,
-          prompt: true,
-          correctAnswer: true,
-          sortOrder: true,
-        },
       }),
     ]);
     return {
       minCorrect: vacancy.screeningMinCorrect,
-      questions,
+      questions: questions.map((question) => {
+        const options = parseScreeningOptions(question.options);
+        return {
+          id: question.id,
+          prompt: question.prompt,
+          type: question.type,
+          correctAnswer: isBooleanScreeningType(question.type)
+            ? (question.correctAnswer ?? false)
+            : null,
+          options: options.length > 0 ? toPublicScreeningOptions(options) : [],
+          correctOptionIds: parseStringIds(question.correctOptionIds),
+          sortOrder: question.sortOrder,
+        };
+      }),
     };
   }
 
@@ -42,7 +57,9 @@ export class VacancyScreeningService {
     dto: UpdateVacancyScreeningDto,
   ) {
     await this.requireVacancy(tenant.companyId, vacancyId);
-    const questions = dto.questions ?? [];
+    const questions = (dto.questions ?? []).map((question) =>
+      normalizeScreeningQuestionInput(question),
+    );
     const minCorrect =
       dto.minCorrect === undefined
         ? questions.length > 0
@@ -71,8 +88,11 @@ export class VacancyScreeningService {
             id: randomUUID(),
             companyId: tenant.companyId,
             vacancyId,
-            prompt: question.prompt.trim(),
+            prompt: question.prompt,
+            type: question.type,
             correctAnswer: question.correctAnswer,
+            options: screeningJson(question.options),
+            correctOptionIds: screeningJson(question.correctOptionIds),
             sortOrder: index + 1,
             updatedAt: new Date(),
           })),

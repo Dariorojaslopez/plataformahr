@@ -28,6 +28,10 @@ import type {
   ListApplicationsQueryDto,
   MoveApplicationDto,
 } from './dto/application.dto';
+import {
+  parseScreeningOptions,
+  parseStringIds,
+} from '../public-jobs/screening-questions';
 
 const ALLOWED_STAGE_TRANSITIONS: Record<ApplicationStage, ApplicationStage[]> =
   {
@@ -196,7 +200,15 @@ export class ApplicationsService {
     if (!application) {
       throw new NotFoundException('Application not found');
     }
-    return application;
+    return {
+      ...application,
+      screeningAnswers: application.screeningAnswers.map((item) => ({
+        ...item,
+        optionsSnapshot: parseScreeningOptions(item.optionsSnapshot),
+        correctOptionIds: parseStringIds(item.correctOptionIds),
+        selectedOptionIds: parseStringIds(item.selectedOptionIds),
+      })),
+    };
   }
 
   async create(

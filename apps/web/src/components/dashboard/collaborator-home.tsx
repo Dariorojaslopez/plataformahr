@@ -519,13 +519,24 @@ function ProfileSection({ profile }: { profile: HomeProfile | null }) {
 function ApprovalsSection({ items }: { items: HomePendingApproval[] }) {
   const companyId = useCompanyId();
   const queryClient = useQueryClient();
+  const [approving, setApproving] = useState<HomePendingApproval | null>(null);
   const [rejecting, setRejecting] = useState<HomePendingApproval | null>(null);
+  const [approveComment, setApproveComment] = useState("");
   const [comment, setComment] = useState("");
 
   const approveMutation = useMutation({
-    mutationFn: (id: string) => atsApi.approveVacancyRequest(id, {}),
-    onSuccess: async () => {
-      notifySuccess("Solicitud aprobada");
+    mutationFn: () =>
+      atsApi.approveVacancyRequest(approving!.id, {
+        comment: approveComment.trim(),
+      }),
+    onSuccess: async (data) => {
+      notifySuccess(
+        data.status === "APPROVED"
+          ? "Solicitud aprobada. El proceso queda listo para asignar reclutador."
+          : "Paso de aprobación confirmado. Continúa con el siguiente aprobador.",
+      );
+      setApproving(null);
+      setApproveComment("");
       await queryClient.invalidateQueries({ queryKey: homeKeys.feed(companyId) });
       await queryClient.invalidateQueries({
         queryKey: atsKeys.vacancyRequests(companyId),
@@ -540,7 +551,7 @@ function ApprovalsSection({ items }: { items: HomePendingApproval[] }) {
     mutationFn: () =>
       atsApi.rejectVacancyRequest(rejecting!.id, { comment: comment.trim() }),
     onSuccess: async () => {
-      notifySuccess("Solicitud rechazada");
+      notifySuccess("Solicitud devuelta al solicitante");
       setRejecting(null);
       setComment("");
       await queryClient.invalidateQueries({ queryKey: homeKeys.feed(companyId) });
@@ -570,8 +581,10 @@ function ApprovalsSection({ items }: { items: HomePendingApproval[] }) {
               <Button
                 type="button"
                 size="sm"
-                disabled={approveMutation.isPending}
-                onClick={() => approveMutation.mutate(item.id)}
+                onClick={() => {
+                  setApproving(item);
+                  setApproveComment("");
+                }}
               >
                 Aceptar
               </Button>
@@ -594,6 +607,41 @@ function ApprovalsSection({ items }: { items: HomePendingApproval[] }) {
         ))}
       </div>
       <Dialog
+        open={Boolean(approving)}
+        onOpenChange={(open) => {
+          if (!open) setApproving(null);
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Aprobar solicitud</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor="home-approve-comment">Motivo de aprobación *</Label>
+            <Textarea
+              id="home-approve-comment"
+              value={approveComment}
+              onChange={(event) => setApproveComment(event.target.value)}
+              maxLength={1000}
+            />
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setApproving(null)}>
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              disabled={
+                approveMutation.isPending || approveComment.trim().length === 0
+              }
+              onClick={() => approveMutation.mutate()}
+            >
+              Aprobar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Dialog
         open={Boolean(rejecting)}
         onOpenChange={(open) => {
           if (!open) setRejecting(null);
@@ -601,10 +649,10 @@ function ApprovalsSection({ items }: { items: HomePendingApproval[] }) {
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Rechazar solicitud</DialogTitle>
+            <DialogTitle>Devolver al solicitante</DialogTitle>
           </DialogHeader>
           <div className="space-y-2">
-            <Label htmlFor="home-reject-comment">Comentario *</Label>
+            <Label htmlFor="home-reject-comment">Motivo de rechazo *</Label>
             <Textarea
               id="home-reject-comment"
               value={comment}
@@ -622,7 +670,7 @@ function ApprovalsSection({ items }: { items: HomePendingApproval[] }) {
               disabled={rejectMutation.isPending || comment.trim().length === 0}
               onClick={() => rejectMutation.mutate()}
             >
-              Rechazar
+              Rechazar y devolver
             </Button>
           </DialogFooter>
         </DialogContent>

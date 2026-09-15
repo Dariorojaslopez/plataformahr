@@ -477,11 +477,21 @@ export class VacancyRequestsService {
         data: {
           status: VacancyRequestStatus.PENDING_APPROVAL,
           submittedAt: new Date(),
+          returnedAt: null,
+          lastReturnComment: null,
+          rejectedAt: null,
         },
       });
       if (transition.count !== 1) {
         throw new ConflictException('Vacancy request is not in DRAFT status');
       }
+
+      await tx.vacancyApproval.deleteMany({
+        where: { companyId: tenant.companyId, vacancyRequestId: id },
+      });
+      await tx.vacancyRequestEvaluator.deleteMany({
+        where: { companyId: tenant.companyId, vacancyRequestId: id },
+      });
 
       await tx.vacancyApproval.createMany({ data: approvalsData });
       if (evaluatorsData.length > 0) {
@@ -552,6 +562,15 @@ export class VacancyRequestsService {
     const actor = await this.resolveActor(tenant);
     this.assertCanDecideStep(current, actor);
 
+    const trimmedComment = comment?.trim() ?? '';
+    if (!trimmedComment) {
+      throw new BadRequestException(
+        decision === 'reject'
+          ? 'El motivo de rechazo es obligatorio.'
+          : 'El motivo de aprobación es obligatorio.',
+      );
+    }
+
     if (decision === 'reject') {
       const rejected = await this.prisma.$transaction(async (tx) => {
         const stepUpdate = await tx.vacancyApproval.updateMany({
@@ -564,7 +583,7 @@ export class VacancyRequestsService {
             status: ApprovalStatus.REJECTED,
             decidedByUserId: tenant.userId,
             decidedAt: new Date(),
-            comment: comment?.trim() ?? null,
+            comment: trimmedComment,
           },
         });
         if (stepUpdate.count !== 1) {
@@ -578,8 +597,11 @@ export class VacancyRequestsService {
             status: VacancyRequestStatus.PENDING_APPROVAL,
           },
           data: {
-            status: VacancyRequestStatus.REJECTED,
+            status: VacancyRequestStatus.DRAFT,
+            submittedAt: null,
             rejectedAt: new Date(),
+            returnedAt: new Date(),
+            lastReturnComment: trimmedComment,
           },
         });
         if (requestUpdate.count !== 1) {
@@ -615,8 +637,8 @@ export class VacancyRequestsService {
           id,
           step: current.step,
           sequence: current.sequence,
-          status: VacancyRequestStatus.REJECTED,
-          comment: comment?.trim() ?? null,
+          status: VacancyRequestStatus.DRAFT,
+          comment: trimmedComment,
         },
       });
 
@@ -634,7 +656,7 @@ export class VacancyRequestsService {
           status: ApprovalStatus.APPROVED,
           decidedByUserId: tenant.userId,
           decidedAt: new Date(),
-          comment: comment?.trim() ?? null,
+          comment: trimmedComment,
         },
       });
       if (stepUpdate.count !== 1) {
@@ -669,6 +691,8 @@ export class VacancyRequestsService {
         data: {
           status: VacancyRequestStatus.APPROVED,
           approvedAt: new Date(),
+          returnedAt: null,
+          lastReturnComment: null,
         },
       });
       if (finalize.count !== 1) {
@@ -702,6 +726,7 @@ export class VacancyRequestsService {
         step: current.step,
         sequence: current.sequence,
         status: approved.status,
+        comment: trimmedComment,
       },
     });
 

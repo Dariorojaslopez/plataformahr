@@ -647,14 +647,14 @@ describe('ATS vacancy core (e2e)', () => {
     await request(app.getHttpServer())
       .post(`/ats/vacancy-requests/${id}/approve`)
       .set(auth(adminToken))
-      .send({})
+      .send({ comment: 'ok' })
       .expect(403);
 
     // Other leader cannot approve DIRECT_MANAGER
     await request(app.getHttpServer())
       .post(`/ats/vacancy-requests/${id}/approve`)
       .set(auth(otherLeaderToken))
-      .send({})
+      .send({ comment: 'ok' })
       .expect(403);
 
     await request(app.getHttpServer())
@@ -667,14 +667,14 @@ describe('ATS vacancy core (e2e)', () => {
     await request(app.getHttpServer())
       .post(`/ats/vacancy-requests/${id}/approve`)
       .set(auth(collaboratorToken))
-      .send({})
+      .send({ comment: 'ok' })
       .expect(403);
 
     // Leader without CLIENT_ADMIN cannot approve HR
     await request(app.getHttpServer())
       .post(`/ats/vacancy-requests/${id}/approve`)
       .set(auth(managerToken))
-      .send({})
+      .send({ comment: 'ok' })
       .expect(403);
 
     const before = await prisma.position.findUniqueOrThrow({
@@ -684,7 +684,7 @@ describe('ATS vacancy core (e2e)', () => {
     const final = await request(app.getHttpServer())
       .post(`/ats/vacancy-requests/${id}/approve`)
       .set(auth(adminToken))
-      .send({})
+      .send({ comment: 'ok' })
       .expect(201);
 
     expect((final.body as { status: string }).status).toBe('APPROVED');
@@ -706,11 +706,11 @@ describe('ATS vacancy core (e2e)', () => {
     await request(app.getHttpServer())
       .post(`/ats/vacancy-requests/${id}/approve`)
       .set(auth(adminToken))
-      .send({})
+      .send({ comment: 'ok' })
       .expect(404);
   });
 
-  it('rejects request and stops workflow', async () => {
+  it('returns a rejected request to the requester as draft', async () => {
     const created = await request(app.getHttpServer())
       .post('/ats/vacancy-requests')
       .set(auth(adminToken))
@@ -739,10 +739,24 @@ describe('ATS vacancy core (e2e)', () => {
     const requestRow = await prisma.vacancyRequest.findUniqueOrThrow({
       where: { id },
     });
-    expect(requestRow.status).toBe('REJECTED');
+    expect(requestRow.status).toBe('DRAFT');
+    expect(requestRow.lastReturnComment).toBe('Not needed');
+    expect(requestRow.returnedAt).toBeTruthy();
     expect(
       await prisma.vacancy.count({ where: { vacancyRequestId: id } }),
     ).toBe(0);
+
+    const resubmitted = await request(app.getHttpServer())
+      .post(`/ats/vacancy-requests/${id}/submit`)
+      .set(auth(adminToken))
+      .expect(201);
+    expect((resubmitted.body as { status: string }).status).toBe(
+      'PENDING_APPROVAL',
+    );
+    expect(
+      (resubmitted.body as { lastReturnComment: string | null })
+        .lastReturnComment,
+    ).toBeNull();
   });
 
   it('creates VACANT_PLAZA for an existing cargo with free slots', async () => {
@@ -804,12 +818,12 @@ describe('ATS vacancy core (e2e)', () => {
     await request(app.getHttpServer())
       .post(`/ats/vacancy-requests/${id}/approve`)
       .set(auth(managerToken))
-      .send({})
+      .send({ comment: 'ok' })
       .expect(201);
     const approved = await request(app.getHttpServer())
       .post(`/ats/vacancy-requests/${id}/approve`)
       .set(auth(adminToken))
-      .send({})
+      .send({ comment: 'ok' })
       .expect(201);
 
     const vacancyId = (

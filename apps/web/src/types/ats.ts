@@ -120,6 +120,8 @@ export type VacancyRequest = {
   generalManagerApprovalRequired: boolean;
   submittedAt: string | null;
   decidedAt: string | null;
+  returnedAt?: string | null;
+  lastReturnComment?: string | null;
   createdAt: string;
   updatedAt: string;
   existingPosition?: PositionRef | null;
@@ -188,7 +190,21 @@ export type PublicJob = {
 export type PublicScreeningQuestion = {
   id: string;
   prompt: string;
+  type?: ScreeningQuestionType;
   sortOrder: number;
+  options?: ScreeningOption[];
+};
+
+export type ScreeningQuestionType =
+  | "YES_NO"
+  | "TRUE_FALSE"
+  | "SINGLE_CHOICE"
+  | "MULTIPLE_CHOICE";
+
+export type ScreeningOption = {
+  id: string;
+  label: string;
+  isAllOfTheAbove?: boolean;
 };
 
 export type EducationLevel =
@@ -238,7 +254,11 @@ export type PublicJobApplicationInput = {
   linkedinUrl: string;
   workExperience: PublicWorkExperienceInput[];
   education: PublicEducationInput[];
-  screeningAnswers: Array<{ questionId: string; answer: boolean | null }>;
+  screeningAnswers: Array<{
+    questionId: string;
+    answer?: boolean | null;
+    selectedOptionIds?: string[];
+  }>;
 };
 
 export type VacancyScreeningConfig = {
@@ -246,7 +266,10 @@ export type VacancyScreeningConfig = {
   questions: Array<{
     id: string;
     prompt: string;
-    correctAnswer: boolean;
+    type: ScreeningQuestionType;
+    correctAnswer: boolean | null;
+    options: ScreeningOption[];
+    correctOptionIds: string[];
     sortOrder: number;
   }>;
 };
@@ -359,8 +382,12 @@ export type ApplicationEducation = {
 export type ApplicationScreeningAnswer = {
   id: string;
   questionPrompt: string;
-  correctAnswer: boolean;
-  answer: boolean;
+  questionType?: ScreeningQuestionType;
+  correctAnswer: boolean | null;
+  answer: boolean | null;
+  optionsSnapshot?: ScreeningOption[] | null;
+  correctOptionIds?: string[] | null;
+  selectedOptionIds?: string[] | null;
   isCorrect: boolean;
   sortOrder: number;
 };
@@ -584,7 +611,7 @@ export type UpdateVacancyRequestInput = {
 };
 
 export type ApprovalDecisionInput = {
-  comment?: string;
+  comment: string;
 };
 
 export type RejectDecisionInput = {

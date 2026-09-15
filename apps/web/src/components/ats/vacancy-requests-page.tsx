@@ -43,7 +43,7 @@ import {
   VACANCY_REQUEST_MOTIVE_LABELS,
   VACANCY_REQUEST_STATUS_LABELS,
   VACANCY_REQUEST_TYPE_LABELS,
-  vacancyRequestStatusVariant,
+  vacancyRequestStatusPresentation,
 } from "@/lib/ats/labels";
 import {
   describeVacancyRequesterField,
@@ -586,8 +586,10 @@ function VacancyRequestList({
                 </TableCell>
                 <TableCell>{request.requestedHeadcount}</TableCell>
                 <TableCell>
-                  <Badge variant={vacancyRequestStatusVariant(request.status)}>
-                    {VACANCY_REQUEST_STATUS_LABELS[request.status]}
+                  <Badge
+                    variant={vacancyRequestStatusPresentation(request).variant}
+                  >
+                    {vacancyRequestStatusPresentation(request).label}
                   </Badge>
                 </TableCell>
                 <TableCell>{formatDateShort(request.createdAt)}</TableCell>
@@ -633,8 +635,10 @@ function VacancyRequestList({
                   {formatEmployeeName(request.requestedByEmployee)}
                 </p>
               </div>
-              <Badge variant={vacancyRequestStatusVariant(request.status)}>
-                {VACANCY_REQUEST_STATUS_LABELS[request.status]}
+              <Badge
+                variant={vacancyRequestStatusPresentation(request).variant}
+              >
+                {vacancyRequestStatusPresentation(request).label}
               </Badge>
             </div>
             <p className="mt-2 text-sm text-muted-foreground">
