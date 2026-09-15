@@ -93,7 +93,6 @@ const previewJob: PublicJob = {
       prompt: "¿Tienes disponibilidad inmediata?",
       type: "TRUE_FALSE",
       sortOrder: 0,
-      options: null,
     },
     {
       id: "q-mc",
