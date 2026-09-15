@@ -4,7 +4,7 @@ import { CANDIDATE_DOCUMENT_TYPES } from "@talento/shared";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { CheckCircle2, ChevronDown, Plus, Trash2, Upload } from "lucide-react";
 import { useTheme } from "next-themes";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { FormSelect } from "@/components/organization/form-select";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -18,6 +18,7 @@ import { publicJobsApi } from "@/lib/api/ats";
 import { brandCssVars, companyInitials } from "@/lib/company/brand-tokens";
 import { PublicJobContent } from "@/components/ats/public-job-content";
 import { EDUCATION_LEVEL_LABELS } from "@/lib/ats/labels";
+import { displayDateToIso, isoDateToDisplay } from "@/lib/ats/date-input";
 import {
   formatBooleanScreeningAnswer,
   isBooleanScreeningType,
@@ -161,8 +162,6 @@ export function PublicJobPage({
   const [cvFile, setCvFile] = useState<File | null>(null);
   const [cvHint, setCvHint] = useState<string | null>(null);
   const [cvDragOver, setCvDragOver] = useState(false);
-  const [linkedinPaste, setLinkedinPaste] = useState("");
-  const [linkedinHint, setLinkedinHint] = useState<string | null>(null);
   const { resolvedTheme } = useTheme();
   const jobQuery = useQuery({
     queryKey: ["public-job", publicId],
@@ -211,29 +210,6 @@ export function PublicJobPage({
         getErrorMessage(
           error,
           "No se pudo leer la hoja de vida. Completa el formulario.",
-        ),
-      );
-    },
-  });
-  const parseLinkedInMutation = useMutation({
-    mutationFn: () =>
-      publicJobsApi.parseLinkedIn(publicId!, {
-        linkedinUrl: form.linkedinUrl || undefined,
-        profileText: linkedinPaste || undefined,
-      }),
-    onSuccess: (parsed) => {
-      setForm((current) => applyParsedCv(current, parsed));
-      setLinkedinHint(
-        hasParsedContact(parsed)
-          ? "Revisa y corrige los datos tomados de LinkedIn."
-          : "Guardamos el enlace. Completa el resto del formulario.",
-      );
-    },
-    onError: (error) => {
-      setLinkedinHint(
-        getErrorMessage(
-          error,
-          "No se pudo leer el perfil de LinkedIn. Completa el formulario.",
         ),
       );
     },
@@ -360,12 +336,12 @@ export function PublicJobPage({
             className="space-y-8 rounded-xl border bg-card p-6"
             onSubmit={(event) => {
               event.preventDefault();
-              if (
-                preview ||
-                !cvFile ||
-                applyMutation.isPending ||
-                parseCvMutation.isPending
-              ) {
+              if (preview || applyMutation.isPending || parseCvMutation.isPending) {
+                return;
+              }
+              if (!cvFile) {
+                setCvHint("Adjunta tu hoja de vida (PDF, DOC, DOCX o TXT).");
+                document.getElementById("job-cv")?.focus();
                 return;
               }
               applyMutation.mutate();
@@ -433,12 +409,14 @@ export function PublicJobPage({
                     <input
                       id="job-cv"
                       type="file"
-                      required={!preview}
                       accept={CV_ACCEPT}
                       className="sr-only"
                       disabled={parseCvMutation.isPending}
+                      aria-required={!preview}
+                      aria-invalid={Boolean(cvHint && !cvFile)}
                       onChange={(event) => {
                         onCvFile(event.target.files?.[0]);
+                        // Allow selecting the same file again; selection lives in React state.
                         event.target.value = "";
                       }}
                     />
@@ -463,45 +441,6 @@ export function PublicJobPage({
                 onChange={(value) => update("linkedinUrl", value)}
                 required={false}
               />
-              <div className="space-y-2">
-                <Label htmlFor="job-linkedin-paste">
-                  Pegar texto del perfil
-                </Label>
-                <Textarea
-                  id="job-linkedin-paste"
-                  rows={5}
-                  value={linkedinPaste}
-                  onChange={(event) => setLinkedinPaste(event.target.value)}
-                  placeholder="Copia About / Experience / Education desde LinkedIn y pégalo aquí para autocompletar."
-                />
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    disabled={
-                      preview ||
-                      parseLinkedInMutation.isPending ||
-                      (!form.linkedinUrl.trim() && !linkedinPaste.trim()) ||
-                      !publicId
-                    }
-                    onClick={() => parseLinkedInMutation.mutate()}
-                  >
-                    {parseLinkedInMutation.isPending
-                      ? "Leyendo…"
-                      : "Completar desde LinkedIn"}
-                  </Button>
-                </div>
-                {linkedinHint ? (
-                  <p className="text-xs text-muted-foreground">{linkedinHint}</p>
-                ) : (
-                  <p className="text-xs text-muted-foreground">
-                    No conectamos con OAuth de LinkedIn: guarda el enlace y, si
-                    quieres, pega el texto del perfil para rellenar el
-                    formulario.
-                  </p>
-                )}
-              </div>
             </section>
 
             <section className="grid gap-4 sm:grid-cols-2">
@@ -535,10 +474,9 @@ export function PublicJobPage({
                 onChange={(value) => update("phone", value)}
                 required={!preview}
               />
-              <TextField
+              <DateField
                 id="job-birth-date"
                 label="Fecha de nacimiento"
-                type="date"
                 value={form.birthDate}
                 onChange={(value) => update("birthDate", value)}
                 required={!preview}
@@ -880,10 +818,9 @@ function ExperienceEditor({
                     }
                     required={required}
                   />
-                  <TextField
+                  <DateField
                     id={`exp-start-${index}`}
                     label="Fecha inicio"
-                    type="date"
                     value={item.startDate}
                     onChange={(startDate) =>
                       onChange(
@@ -894,10 +831,9 @@ function ExperienceEditor({
                     }
                     required={required}
                   />
-                  <TextField
+                  <DateField
                     id={`exp-end-${index}`}
                     label="Fecha fin"
-                    type="date"
                     value={item.endDate}
                     onChange={(endDate) =>
                       onChange(
@@ -1101,10 +1037,9 @@ function EducationEditor({
                     }
                     options={EDUCATION_OPTIONS}
                   />
-                  <TextField
+                  <DateField
                     id={`edu-start-${index}`}
                     label="Fecha inicio"
-                    type="date"
                     value={item.startDate}
                     onChange={(startDate) =>
                       onChange(
@@ -1115,10 +1050,9 @@ function EducationEditor({
                     }
                     required={required}
                   />
-                  <TextField
+                  <DateField
                     id={`edu-end-${index}`}
                     label="Fecha fin"
-                    type="date"
                     value={item.endDate}
                     onChange={(endDate) =>
                       onChange(
@@ -1238,7 +1172,7 @@ function TextField({
   label: string;
   value: string;
   onChange: (value: string) => void;
-  type?: "text" | "email" | "tel" | "date";
+  type?: "text" | "email" | "tel";
   required?: boolean;
   disabled?: boolean;
 }) {
@@ -1257,6 +1191,84 @@ function TextField({
         value={value}
         onChange={(event) => onChange(event.target.value)}
       />
+    </div>
+  );
+}
+
+/** Fecha visible como día/mes/año; valor interno ISO `YYYY-MM-DD`. */
+function DateField({
+  id,
+  label,
+  value,
+  onChange,
+  required = true,
+  disabled = false,
+}: {
+  id: string;
+  label: string;
+  value: string;
+  onChange: (isoDate: string) => void;
+  required?: boolean;
+  disabled?: boolean;
+}) {
+  const [text, setText] = useState(() => isoDateToDisplay(value));
+  const [hint, setHint] = useState<string | null>(null);
+
+  useEffect(() => {
+    setText(isoDateToDisplay(value));
+  }, [value]);
+
+  return (
+    <div className="space-y-2">
+      <Label htmlFor={id}>
+        {label}
+        {required ? " *" : ""}
+      </Label>
+      <Input
+        id={id}
+        type="text"
+        inputMode="numeric"
+        autoComplete="bday"
+        placeholder="DD/MM/AAAA"
+        required={required}
+        disabled={disabled}
+        maxLength={10}
+        pattern="\d{1,2}/\d{1,2}/\d{4}"
+        title="Usa día/mes/año, por ejemplo 15/03/1990"
+        value={text}
+        onChange={(event) => {
+          const next = event.target.value;
+          setText(next);
+          if (!next.trim()) {
+            setHint(null);
+            onChange("");
+            return;
+          }
+          const iso = displayDateToIso(next);
+          if (iso) {
+            setHint(null);
+            onChange(iso);
+          }
+        }}
+        onBlur={() => {
+          if (!text.trim()) {
+            setHint(null);
+            onChange("");
+            return;
+          }
+          const iso = displayDateToIso(text);
+          if (!iso) {
+            setHint("Usa el formato día/mes/año (ej. 15/03/1990).");
+            return;
+          }
+          setText(isoDateToDisplay(iso));
+          setHint(null);
+          onChange(iso);
+        }}
+      />
+      <p className="text-xs text-muted-foreground">
+        {hint ?? "Formato: día/mes/año (DD/MM/AAAA)"}
+      </p>
     </div>
   );
 }
