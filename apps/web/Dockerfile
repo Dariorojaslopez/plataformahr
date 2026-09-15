@@ -30,7 +30,9 @@ ENV NEXT_PUBLIC_STT_LANGUAGE=$NEXT_PUBLIC_STT_LANGUAGE
 ENV NEXT_TELEMETRY_DISABLED=1
 COPY packages/shared packages/shared
 COPY apps/web apps/web
-RUN pnpm --filter @talento/shared build \
+# Tests are not needed in the production image and must not block next build.
+RUN find apps/web -type f \( -name '*.test.ts' -o -name '*.test.tsx' \) -delete \
+  && pnpm --filter @talento/shared build \
   && pnpm --filter web build
 
 FROM node:${NODE_VERSION}-bookworm-slim AS runner
