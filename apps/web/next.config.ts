@@ -11,6 +11,22 @@ const connectSrc = isDev
   ? "connect-src 'self' http://localhost:3001 https:"
   : "connect-src 'self' https:";
 
+/** Allow logos from NEXT_PUBLIC_API_URL when API is on another host (e.g. api.*). */
+function apiOriginForImgSrc(): string | null {
+  const raw = process.env.NEXT_PUBLIC_API_URL;
+  if (!raw) return null;
+  try {
+    return new URL(raw).origin;
+  } catch {
+    return null;
+  }
+}
+
+const apiImgOrigin = apiOriginForImgSrc();
+const imgSrc = ["img-src 'self' data: blob:", apiImgOrigin]
+  .filter(Boolean)
+  .join(" ");
+
 const securityHeaders = [
   { key: "X-Content-Type-Options", value: "nosniff" },
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
@@ -25,7 +41,7 @@ const securityHeaders = [
       "default-src 'self'",
       "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
       "style-src 'self' 'unsafe-inline'",
-      "img-src 'self' data: blob:",
+      imgSrc,
       "font-src 'self' data:",
       connectSrc,
       "frame-ancestors 'none'",

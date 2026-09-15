@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   apiRequest,
+  publicApiAssetUrl,
   refreshAccessToken,
   registerRefreshHandler,
   runSingleFlightRefresh,
@@ -24,6 +25,34 @@ describe("api client", () => {
     vi.unstubAllGlobals();
     clearSession();
     registerRefreshHandler(refreshAccessToken);
+    vi.unstubAllEnvs();
+  });
+
+  it("publicApiAssetUrl uses relative /api path for same-site proxy", () => {
+    vi.stubEnv("NEXT_PUBLIC_API_URL", "https://talentgrowthos.com/api");
+    expect(publicApiAssetUrl("/public/jobs/abc/logo")).toBe(
+      "/api/public/jobs/abc/logo",
+    );
+  });
+
+  it("publicApiAssetUrl keeps absolute URL for split API host", () => {
+    vi.stubEnv("NEXT_PUBLIC_API_URL", "https://api.example.com");
+    expect(publicApiAssetUrl("/public/jobs/abc/logo")).toBe(
+      "https://api.example.com/public/jobs/abc/logo",
+    );
+  });
+
+  it("publicApiAssetUrl aligns www with the page origin", () => {
+    vi.stubEnv("NEXT_PUBLIC_API_URL", "https://talentgrowthos.com/api");
+    vi.stubGlobal("window", {
+      location: {
+        hostname: "www.talentgrowthos.com",
+        origin: "https://www.talentgrowthos.com",
+      },
+    });
+    expect(publicApiAssetUrl("/public/jobs/abc/logo")).toBe(
+      "/api/public/jobs/abc/logo",
+    );
   });
 
   it("adds Authorization and X-Company-Id headers", async () => {

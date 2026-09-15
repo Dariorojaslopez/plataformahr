@@ -34,6 +34,41 @@ export function getApiBaseUrl(): string {
   );
 }
 
+function stripWww(hostname: string): string {
+  return hostname.replace(/^www\./i, "");
+}
+
+/**
+ * URL for public media (e.g. vacancy logo) safe under CSP `img-src 'self'`.
+ * When the API is same-site under `/api`, returns a relative path so www/apex
+ * both resolve to the page origin (absolute apex URLs break on www).
+ */
+export function publicApiAssetUrl(apiPath: string): string {
+  const path = apiPath.startsWith("/") ? apiPath : `/${apiPath}`;
+  const configured = getApiBaseUrl();
+  try {
+    const api = new URL(configured);
+    const apiBasePath = api.pathname.replace(/\/$/, "") || "";
+    const sameSiteApiProxy =
+      apiBasePath === "/api" || apiBasePath.startsWith("/api/");
+
+    // Same-origin `/api` proxy: relative URL respects www vs apex + CSP 'self'.
+    if (sameSiteApiProxy) {
+      return `${apiBasePath}${path}`;
+    }
+
+    if (
+      typeof window !== "undefined" &&
+      stripWww(api.hostname) === stripWww(window.location.hostname)
+    ) {
+      return `${window.location.origin}${apiBasePath}${path}`;
+    }
+  } catch {
+    /* fall through */
+  }
+  return `${configured}${path}`;
+}
+
 type RefreshHandler = () => Promise<boolean>;
 
 let refreshHandler: RefreshHandler | null = null;

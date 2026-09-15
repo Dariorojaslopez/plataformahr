@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
-import { getApiBaseUrl } from "@/lib/api/client";
+import { publicApiAssetUrl } from "@/lib/api/client";
 import { getErrorMessage } from "@/lib/api/errors";
 import { publicJobsApi } from "@/lib/api/ats";
 import { brandCssVars, companyInitials } from "@/lib/company/brand-tokens";
@@ -257,7 +257,9 @@ export function PublicJobPage({
     preview && previewLogoSrc
       ? previewLogoSrc
       : job.hasLogo && logoPublicId
-        ? `${getApiBaseUrl()}/public/jobs/${encodeURIComponent(logoPublicId)}/logo`
+        ? publicApiAssetUrl(
+            `/public/jobs/${encodeURIComponent(logoPublicId)}/logo`,
+          )
         : null;
   const update = <K extends keyof PublicJobApplicationInput>(
     field: K,
