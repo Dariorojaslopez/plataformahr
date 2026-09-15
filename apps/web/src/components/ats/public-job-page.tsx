@@ -4,7 +4,7 @@ import { CANDIDATE_DOCUMENT_TYPES } from "@talento/shared";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { CheckCircle2, ChevronDown, Plus, Trash2, Upload } from "lucide-react";
 import { useTheme } from "next-themes";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { FormSelect } from "@/components/organization/form-select";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -1211,12 +1211,9 @@ function DateField({
   required?: boolean;
   disabled?: boolean;
 }) {
-  const [text, setText] = useState(() => isoDateToDisplay(value));
+  const [draft, setDraft] = useState<string | null>(null);
   const [hint, setHint] = useState<string | null>(null);
-
-  useEffect(() => {
-    setText(isoDateToDisplay(value));
-  }, [value]);
+  const text = draft ?? isoDateToDisplay(value);
 
   return (
     <div className="space-y-2">
@@ -1236,9 +1233,12 @@ function DateField({
         pattern="\d{1,2}/\d{1,2}/\d{4}"
         title="Usa día/mes/año, por ejemplo 15/03/1990"
         value={text}
+        onFocus={() => {
+          setDraft(isoDateToDisplay(value));
+        }}
         onChange={(event) => {
           const next = event.target.value;
-          setText(next);
+          setDraft(next);
           if (!next.trim()) {
             setHint(null);
             onChange("");
@@ -1254,6 +1254,7 @@ function DateField({
           if (!text.trim()) {
             setHint(null);
             onChange("");
+            setDraft(null);
             return;
           }
           const iso = displayDateToIso(text);
@@ -1261,9 +1262,9 @@ function DateField({
             setHint("Usa el formato día/mes/año (ej. 15/03/1990).");
             return;
           }
-          setText(isoDateToDisplay(iso));
           setHint(null);
           onChange(iso);
+          setDraft(null);
         }}
       />
       <p className="text-xs text-muted-foreground">
