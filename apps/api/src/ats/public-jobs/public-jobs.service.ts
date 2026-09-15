@@ -44,7 +44,6 @@ import {
   parseScreeningOptions,
   screeningJson,
   toPublicScreeningOptions,
-  type ScreeningQuestionRecord,
 } from './screening-questions';
 import { CV_ERRORS } from './cv.constants';
 import { buildCvFileName, deleteCvFile, writeCvFile } from './cv.storage';
@@ -177,7 +176,7 @@ export class PublicJobsService {
         }
 
         const screening = evaluateScreeningAnswers(
-          vacancy.screeningQuestions as ScreeningQuestionRecord[],
+          vacancy.screeningQuestions,
           vacancy.screeningMinCorrect,
           dto.screeningAnswers ?? [],
           SCREENING_FAIL,
@@ -683,7 +682,9 @@ export class PublicJobsService {
         prompt: question.prompt,
         type: question.type,
         sortOrder: question.sortOrder,
-        options: toPublicScreeningOptions(parseScreeningOptions(question.options)),
+        options: toPublicScreeningOptions(
+          parseScreeningOptions(question.options),
+        ),
       })),
     };
   }
