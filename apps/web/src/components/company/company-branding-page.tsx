@@ -19,7 +19,7 @@ import {
   brandCssVars,
   normalizeBrandColor,
 } from "@/lib/company/brand-tokens";
-import { validateCompanyLogoFile } from "@/lib/company/logo";
+import { validateCompanyLogoFile, prepareCompanyLogoForUpload } from "@/lib/company/logo";
 import { updateSessionCompany } from "@/lib/auth/session-store";
 import type { CompanyBranding } from "@/types/company";
 
@@ -135,7 +135,10 @@ function CompanyBrandingForm({
   });
 
   const uploadMutation = useMutation({
-    mutationFn: (file: File) => companyApi.uploadLogo(file),
+    mutationFn: async (file: File) => {
+      const prepared = await prepareCompanyLogoForUpload(file);
+      return companyApi.uploadLogo(prepared);
+    },
     onSuccess: async (result) => {
       queryClient.setQueryData(companyKeys.branding(companyId), result);
       await queryClient.invalidateQueries({
@@ -147,7 +150,7 @@ function CompanyBrandingForm({
       if (error instanceof TypeError) {
         notifyError(
           new Error(
-            "No se pudo subir el logo. Usa PNG, JPEG o WebP de máximo 10 MB e inténtalo de nuevo.",
+            "No se pudo subir el logo por un problema de conexión o del servidor. Revisa tu red e inténtalo de nuevo.",
           ),
           "No se pudo subir el logo.",
         );
@@ -295,7 +298,8 @@ function CompanyBrandingForm({
             }}
           />
           <p className="text-xs text-muted-foreground">
-            PNG, JPEG o WebP. Máximo 10 MB y 2048×2048 px.
+            PNG, JPEG o WebP. Máximo 10 MB. Si es muy pesado, lo optimizamos
+            automáticamente antes de subirlo (hasta 2048×2048).
             {uploadMutation.isPending ? " Subiendo…" : ""}
           </p>
           {branding.hasLogo ? (
