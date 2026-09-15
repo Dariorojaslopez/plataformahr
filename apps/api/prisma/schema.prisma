@@ -1118,17 +1118,17 @@ model Vacancy {
 }
 
 model VacancyScreeningQuestion {
-  id               String                        @id @default(uuid()) @db.Uuid
-  companyId        String                        @db.Uuid
-  vacancyId        String                        @db.Uuid
+  id               String                       @id @default(uuid()) @db.Uuid
+  companyId        String                       @db.Uuid
+  vacancyId        String                       @db.Uuid
   prompt           String
-  type             VacancyScreeningQuestionType  @default(YES_NO)
+  type             VacancyScreeningQuestionType @default(YES_NO)
   correctAnswer    Boolean?
   options          Json?
   correctOptionIds Json?
   sortOrder        Int
-  createdAt        DateTime                      @default(now())
-  updatedAt        DateTime                      @updatedAt
+  createdAt        DateTime                     @default(now())
+  updatedAt        DateTime                     @updatedAt
 
   company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
   vacancy Vacancy @relation(fields: [vacancyId], references: [id], onDelete: Cascade)
