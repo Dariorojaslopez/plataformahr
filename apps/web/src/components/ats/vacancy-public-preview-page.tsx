@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { PublicJobPage } from "@/components/ats/public-job-page";
+import { useCompanyBranding } from "@/components/company/company-branding-provider";
 import { Button } from "@/components/ui/button";
 import { ErrorState } from "@/components/ui/error-state";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -14,6 +15,7 @@ import { getErrorMessage } from "@/lib/api/errors";
 export function VacancyPublicPreviewPage() {
   const companyId = useCompanyId();
   const { id } = useParams<{ id: string }>();
+  const branding = useCompanyBranding();
 
   const previewQuery = useQuery({
     queryKey: atsKeys.vacancyPublicPreview(companyId, id),
@@ -47,7 +49,13 @@ export function VacancyPublicPreviewPage() {
       <Button variant="outline" asChild>
         <Link href={`/ats/vacancies/${id}`}>Volver a la vacante</Link>
       </Button>
-      <PublicJobPage job={previewQuery.data} preview />
+      <PublicJobPage
+        job={previewQuery.data}
+        preview
+        previewLogoSrc={
+          previewQuery.data.hasLogo ? branding.logoSrc : null
+        }
+      />
     </div>
   );
 }

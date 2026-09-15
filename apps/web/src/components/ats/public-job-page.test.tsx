@@ -161,7 +161,11 @@ describe("PublicJobPage", () => {
     });
     render(
       <QueryClientProvider client={queryClient}>
-        <PublicJobPage job={previewJob} preview />
+        <PublicJobPage
+          job={{ ...previewJob, hasLogo: true }}
+          preview
+          previewLogoSrc="blob:logo-preview"
+        />
       </QueryClientProvider>,
     );
 
@@ -188,6 +192,10 @@ describe("PublicJobPage", () => {
         name: "Enviar postulación (solo vista previa)",
       }),
     ).toBeDisabled();
+    expect(screen.getByAltText("Logo de Acme")).toHaveAttribute(
+      "src",
+      "blob:logo-preview",
+    );
     expect(screen.queryByText(/COP/)).not.toBeInTheDocument();
   });
 

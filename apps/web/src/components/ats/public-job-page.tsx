@@ -134,10 +134,13 @@ export function PublicJobPage({
   publicId,
   job: jobOverride,
   preview = false,
+  previewLogoSrc = null,
 }: {
   publicId?: string;
   job?: PublicJob;
   preview?: boolean;
+  /** Logo autenticado para vista previa cuando aún no hay publicId. */
+  previewLogoSrc?: string | null;
 }) {
   const [form, setForm] = useState(emptyForm);
   const [cvFile, setCvFile] = useState<File | null>(null);
@@ -250,6 +253,12 @@ export function PublicJobPage({
     return null;
   }
   const logoPublicId = publicId ?? job.publicId;
+  const logoSrc =
+    preview && previewLogoSrc
+      ? previewLogoSrc
+      : job.hasLogo && logoPublicId
+        ? `${getApiBaseUrl()}/public/jobs/${encodeURIComponent(logoPublicId)}/logo`
+        : null;
   const update = <K extends keyof PublicJobApplicationInput>(
     field: K,
     value: PublicJobApplicationInput[K],
@@ -264,10 +273,10 @@ export function PublicJobPage({
     >
       <header className="border-b bg-card">
         <div className="mx-auto flex max-w-5xl items-center gap-4 px-6 py-6">
-          {job.hasLogo && logoPublicId ? (
+          {logoSrc ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
-              src={`${getApiBaseUrl()}/public/jobs/${encodeURIComponent(logoPublicId)}/logo`}
+              src={logoSrc}
               alt={`Logo de ${job.companyName}`}
               className="size-12 rounded-md object-contain"
             />
