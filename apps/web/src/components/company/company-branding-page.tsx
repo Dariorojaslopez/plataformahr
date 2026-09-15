@@ -19,6 +19,7 @@ import {
   brandCssVars,
   normalizeBrandColor,
 } from "@/lib/company/brand-tokens";
+import { validateCompanyLogoFile } from "@/lib/company/logo";
 import { updateSessionCompany } from "@/lib/auth/session-store";
 import type { CompanyBranding } from "@/types/company";
 
@@ -135,17 +136,34 @@ function CompanyBrandingForm({
 
   const uploadMutation = useMutation({
     mutationFn: (file: File) => companyApi.uploadLogo(file),
-    onSuccess: (result) => {
+    onSuccess: async (result) => {
       queryClient.setQueryData(companyKeys.branding(companyId), result);
+      await queryClient.invalidateQueries({
+        queryKey: companyKeys.all(companyId),
+      });
       notifySuccess("Logo actualizado.");
     },
-    onError: (error) => notifyError(error, "No se pudo subir el logo."),
+    onError: (error) => {
+      if (error instanceof TypeError) {
+        notifyError(
+          new Error(
+            "No se pudo subir el logo. Usa PNG, JPEG o WebP de máximo 1 MB e inténtalo de nuevo.",
+          ),
+          "No se pudo subir el logo.",
+        );
+        return;
+      }
+      notifyError(error, "No se pudo subir el logo.");
+    },
   });
 
   const removeLogoMutation = useMutation({
     mutationFn: () => companyApi.removeLogo(),
-    onSuccess: (result) => {
+    onSuccess: async (result) => {
       queryClient.setQueryData(companyKeys.branding(companyId), result);
+      await queryClient.invalidateQueries({
+        queryKey: companyKeys.all(companyId),
+      });
       notifySuccess("Logo eliminado.");
     },
     onError: (error) => notifyError(error, "No se pudo eliminar el logo."),
@@ -263,12 +281,23 @@ function CompanyBrandingForm({
             id="company-logo"
             type="file"
             accept="image/png,image/jpeg,image/webp"
+            disabled={uploadMutation.isPending}
             onChange={(event) => {
               const file = event.target.files?.[0];
               event.target.value = "";
-              if (file) uploadMutation.mutate(file);
+              if (!file) return;
+              const validationError = validateCompanyLogoFile(file);
+              if (validationError) {
+                notifyError(new Error(validationError), validationError);
+                return;
+              }
+              uploadMutation.mutate(file);
             }}
           />
+          <p className="text-xs text-muted-foreground">
+            PNG, JPEG o WebP. Máximo 1 MB y 2048×2048 px.
+            {uploadMutation.isPending ? " Subiendo…" : ""}
+          </p>
           {branding.hasLogo ? (
             <Button
               type="button"

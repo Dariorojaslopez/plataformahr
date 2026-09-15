@@ -278,10 +278,10 @@ export function PublicJobPage({
             <img
               src={logoSrc}
               alt={`Logo de ${job.companyName}`}
-              className="size-12 rounded-md object-contain"
+              className="size-20 rounded-md object-contain"
             />
           ) : (
-            <div className="flex size-12 items-center justify-center rounded-md bg-primary font-semibold text-primary-foreground">
+            <div className="flex size-20 items-center justify-center rounded-md bg-primary text-lg font-semibold text-primary-foreground">
               {companyInitials(job.companyName)}
             </div>
           )}
