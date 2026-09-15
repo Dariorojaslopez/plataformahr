@@ -237,7 +237,7 @@ export function PipelinePageClient() {
     }) => atsApi.moveApplication(applicationId, { stage, comment: moveComment }),
     onSuccess: async (_data, vars) => {
       const openedCard =
-        vars.stage === "FINALISTS"
+        vars.stage === "OFFER"
           ? (vars.card ?? pendingMove?.card ?? null)
           : null;
       await invalidatePipeline();
@@ -246,7 +246,7 @@ export function PipelinePageClient() {
       setMoveError(null);
       notifySuccess("Aplicación movida de etapa");
       if (openedCard) {
-        setResumeCard({ ...openedCard, stage: "FINALISTS" });
+        setResumeCard({ ...openedCard, stage: "OFFER" });
       }
     },
     onError: (error) => {
