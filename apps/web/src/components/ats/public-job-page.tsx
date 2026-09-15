@@ -2,9 +2,9 @@
 
 import { CANDIDATE_DOCUMENT_TYPES } from "@talento/shared";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { CheckCircle2, ChevronDown, Plus, Trash2, Upload } from "lucide-react";
+import { CheckCircle2, ChevronDown, Calendar, Plus, Trash2, Upload } from "lucide-react";
 import { useTheme } from "next-themes";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { FormSelect } from "@/components/organization/form-select";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -1211,9 +1211,20 @@ function DateField({
   required?: boolean;
   disabled?: boolean;
 }) {
+  const pickerRef = useRef<HTMLInputElement>(null);
   const [draft, setDraft] = useState<string | null>(null);
   const [hint, setHint] = useState<string | null>(null);
   const text = draft ?? isoDateToDisplay(value);
+
+  const openCalendar = () => {
+    const el = pickerRef.current;
+    if (!el || disabled) return;
+    try {
+      el.showPicker();
+    } catch {
+      el.click();
+    }
+  };
 
   return (
     <div className="space-y-2">
@@ -1221,54 +1232,81 @@ function DateField({
         {label}
         {required ? " *" : ""}
       </Label>
-      <Input
-        id={id}
-        type="text"
-        inputMode="numeric"
-        autoComplete="bday"
-        placeholder="DD/MM/AAAA"
-        required={required}
-        disabled={disabled}
-        maxLength={10}
-        pattern="\d{1,2}/\d{1,2}/\d{4}"
-        title="Usa día/mes/año, por ejemplo 15/03/1990"
-        value={text}
-        onFocus={() => {
-          setDraft(isoDateToDisplay(value));
-        }}
-        onChange={(event) => {
-          const next = event.target.value;
-          setDraft(next);
-          if (!next.trim()) {
-            setHint(null);
-            onChange("");
-            return;
-          }
-          const iso = displayDateToIso(next);
-          if (iso) {
+      <div className="flex gap-2">
+        <Input
+          id={id}
+          type="text"
+          inputMode="numeric"
+          autoComplete="bday"
+          placeholder="DD/MM/AAAA"
+          required={required}
+          disabled={disabled}
+          maxLength={10}
+          pattern="\d{1,2}/\d{1,2}/\d{4}"
+          title="Usa día/mes/año, por ejemplo 15/03/1990"
+          className="flex-1"
+          value={text}
+          onFocus={() => {
+            setDraft(isoDateToDisplay(value));
+          }}
+          onChange={(event) => {
+            const next = event.target.value;
+            setDraft(next);
+            if (!next.trim()) {
+              setHint(null);
+              onChange("");
+              return;
+            }
+            const iso = displayDateToIso(next);
+            if (iso) {
+              setHint(null);
+              onChange(iso);
+            }
+          }}
+          onBlur={() => {
+            if (!text.trim()) {
+              setHint(null);
+              onChange("");
+              setDraft(null);
+              return;
+            }
+            const iso = displayDateToIso(text);
+            if (!iso) {
+              setHint("Usa el formato día/mes/año (ej. 15/03/1990).");
+              return;
+            }
             setHint(null);
             onChange(iso);
-          }
-        }}
-        onBlur={() => {
-          if (!text.trim()) {
-            setHint(null);
-            onChange("");
             setDraft(null);
-            return;
-          }
-          const iso = displayDateToIso(text);
-          if (!iso) {
-            setHint("Usa el formato día/mes/año (ej. 15/03/1990).");
-            return;
-          }
-          setHint(null);
-          onChange(iso);
-          setDraft(null);
-        }}
-      />
+          }}
+        />
+        <input
+          ref={pickerRef}
+          type="date"
+          className="sr-only"
+          tabIndex={-1}
+          aria-hidden
+          value={value || ""}
+          disabled={disabled}
+          onChange={(event) => {
+            setDraft(null);
+            setHint(null);
+            onChange(event.target.value);
+          }}
+        />
+        <Button
+          type="button"
+          variant="outline"
+          size="icon"
+          disabled={disabled}
+          aria-label={`Abrir calendario para ${label}`}
+          onClick={openCalendar}
+        >
+          <Calendar className="h-4 w-4" />
+        </Button>
+      </div>
       <p className="text-xs text-muted-foreground">
-        {hint ?? "Formato: día/mes/año (DD/MM/AAAA)"}
+        {hint ?? "Formato: día/mes/año (DD/MM/AAAA). También puedes usar el calendario."}
       </p>
     </div>
   );
