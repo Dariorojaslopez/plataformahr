@@ -86,6 +86,27 @@ const previewJob: PublicJob = {
   publishedAt: null,
   salaryAmount: null,
   salaryCurrency: null,
+  screeningMinCorrect: 1,
+  screeningQuestions: [
+    {
+      id: "q-tf",
+      prompt: "¿Tienes disponibilidad inmediata?",
+      type: "TRUE_FALSE",
+      sortOrder: 0,
+      options: null,
+    },
+    {
+      id: "q-mc",
+      prompt: "¿Qué herramientas dominas?",
+      type: "MULTIPLE_CHOICE",
+      sortOrder: 1,
+      options: [
+        { id: "o1", label: "Excel" },
+        { id: "o2", label: "ATS" },
+        { id: "o3", label: "Todas las anteriores", isAllOfTheAbove: true },
+      ],
+    },
+  ],
 };
 
 beforeAll(() => {
@@ -134,7 +155,7 @@ describe("PublicJobPage", () => {
     expect(screen.queryByText("Dashboard")).not.toBeInTheDocument();
   });
 
-  it("shows a recruiter preview without the application form", () => {
+  it("shows the application form and screening questions in recruiter preview", () => {
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false } },
     });
@@ -150,8 +171,23 @@ describe("PublicJobPage", () => {
     expect(screen.getByText(/Vista previa de la página pública/))
       .toBeInTheDocument();
     expect(screen.getByText("Atraer talento.")).toBeInTheDocument();
-    expect(screen.queryByRole("heading", { name: "Formulario de postulación" }))
-      .not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Formulario de postulación" }))
+      .toBeInTheDocument();
+    expect(screen.getByLabelText("Archivo PDF o Word *")).toBeInTheDocument();
+    expect(screen.getByText("Experiencia laboral")).toBeInTheDocument();
+    expect(screen.getByText("Preguntas de screening")).toBeInTheDocument();
+    expect(
+      screen.getByText("¿Tienes disponibilidad inmediata?"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Verdadero")).toBeInTheDocument();
+    expect(screen.getByText("Falso")).toBeInTheDocument();
+    expect(screen.getByText("¿Qué herramientas dominas?")).toBeInTheDocument();
+    expect(screen.getByText(/Todas las anteriores/)).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", {
+        name: "Enviar postulación (solo vista previa)",
+      }),
+    ).toBeDisabled();
     expect(screen.queryByText(/COP/)).not.toBeInTheDocument();
   });
 

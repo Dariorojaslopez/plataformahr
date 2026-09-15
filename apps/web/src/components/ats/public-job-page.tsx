@@ -293,12 +293,7 @@ export function PublicJobPage({
       <div className="mx-auto max-w-5xl space-y-8 px-6 py-10">
         <PublicJobContent job={job} />
 
-        {preview ? (
-          <aside className="rounded-xl border bg-card p-6 text-sm text-muted-foreground">
-            En la publicación real, los candidatos completarán aquí el formulario
-            de postulación, incluyendo experiencia, formación y screening.
-          </aside>
-        ) : applyMutation.isSuccess ? (
+        {!preview && applyMutation.isSuccess ? (
           <div
             className="rounded-xl border bg-card p-8 text-center"
             role="status"
@@ -315,6 +310,7 @@ export function PublicJobPage({
             onSubmit={(event) => {
               event.preventDefault();
               if (
+                preview ||
                 !cvFile ||
                 applyMutation.isPending ||
                 parseCvMutation.isPending
@@ -324,7 +320,15 @@ export function PublicJobPage({
               applyMutation.mutate();
             }}
           >
-            <h2 className="text-xl font-semibold">Formulario de postulación</h2>
+            <div className="space-y-1">
+              <h2 className="text-xl font-semibold">Formulario de postulación</h2>
+              {preview ? (
+                <p className="text-sm text-muted-foreground">
+                  Así lo verá el candidato. En vista previa puedes recorrer el
+                  formulario, pero no se envía la postulación.
+                </p>
+              ) : null}
+            </div>
 
             <section className="space-y-4">
               <h3 className="text-sm font-semibold">Hoja de vida</h3>
@@ -333,11 +337,20 @@ export function PublicJobPage({
                 <Input
                   id="job-cv"
                   type="file"
-                  required
+                  required={!preview}
                   accept=".pdf,.doc,.docx,.txt,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain"
                   onChange={(event) => {
                     const file = event.target.files?.[0];
-                    if (!file || !publicId) return;
+                    if (!file) return;
+                    if (preview || !publicId) {
+                      setCvFile(file);
+                      setCvHint(
+                        preview
+                          ? "Vista previa: el archivo no se analiza aquí."
+                          : "Selecciona un archivo para adjuntarlo.",
+                      );
+                      return;
+                    }
                     parseCvMutation.mutate(file);
                   }}
                 />
@@ -378,6 +391,7 @@ export function PublicJobPage({
                     size="sm"
                     variant="outline"
                     disabled={
+                      preview ||
                       parseLinkedInMutation.isPending ||
                       (!form.linkedinUrl.trim() && !linkedinPaste.trim()) ||
                       !publicId
@@ -407,12 +421,14 @@ export function PublicJobPage({
                 label="Nombres"
                 value={form.firstName}
                 onChange={(value) => update("firstName", value)}
+                required={!preview}
               />
               <TextField
                 id="job-last-name"
                 label="Apellidos"
                 value={form.lastName}
                 onChange={(value) => update("lastName", value)}
+                required={!preview}
               />
               <TextField
                 id="job-email"
@@ -420,6 +436,7 @@ export function PublicJobPage({
                 type="email"
                 value={form.email}
                 onChange={(value) => update("email", value)}
+                required={!preview}
               />
               <TextField
                 id="job-phone"
@@ -427,6 +444,7 @@ export function PublicJobPage({
                 type="tel"
                 value={form.phone}
                 onChange={(value) => update("phone", value)}
+                required={!preview}
               />
               <TextField
                 id="job-birth-date"
@@ -434,11 +452,12 @@ export function PublicJobPage({
                 type="date"
                 value={form.birthDate}
                 onChange={(value) => update("birthDate", value)}
+                required={!preview}
               />
               <FormSelect
                 id="job-document-type"
                 label="Tipo de documento"
-                required
+                required={!preview}
                 value={form.documentType}
                 onChange={(value) => update("documentType", value)}
                 options={CANDIDATE_DOCUMENT_TYPES.map(({ code, label }) => ({
@@ -451,24 +470,28 @@ export function PublicJobPage({
                 label="Número de documento"
                 value={form.documentNumber}
                 onChange={(value) => update("documentNumber", value)}
+                required={!preview}
               />
               <TextField
                 id="job-country"
                 label="País"
                 value={form.country}
                 onChange={(value) => update("country", value)}
+                required={!preview}
               />
               <TextField
                 id="job-state"
                 label="Departamento / estado"
                 value={form.state}
                 onChange={(value) => update("state", value)}
+                required={!preview}
               />
               <TextField
                 id="job-city"
                 label="Ciudad"
                 value={form.city}
                 onChange={(value) => update("city", value)}
+                required={!preview}
               />
             </section>
 
@@ -476,7 +499,7 @@ export function PublicJobPage({
               <Label htmlFor="job-profile">Perfil profesional *</Label>
               <Textarea
                 id="job-profile"
-                required
+                required={!preview}
                 rows={4}
                 maxLength={4000}
                 value={form.professionalProfile}
@@ -525,7 +548,7 @@ export function PublicJobPage({
                               type="radio"
                               name={`screen-${question.id}`}
                               checked={current?.answer === true}
-                              required
+                              required={!preview}
                               onChange={() =>
                                 update(
                                   "screeningAnswers",
@@ -544,7 +567,7 @@ export function PublicJobPage({
                               type="radio"
                               name={`screen-${question.id}`}
                               checked={current?.answer === false}
-                              required
+                              required={!preview}
                               onChange={() =>
                                 update(
                                   "screeningAnswers",
@@ -578,7 +601,9 @@ export function PublicJobPage({
                                       : `screen-${question.id}`
                                   }
                                   checked={checked}
-                                  required={multiple ? undefined : true}
+                                  required={
+                                    preview || multiple ? undefined : true
+                                  }
                                   onChange={() =>
                                     update(
                                       "screeningAnswers",
@@ -612,7 +637,7 @@ export function PublicJobPage({
               </section>
             ) : null}
 
-            {applyMutation.isError ? (
+            {applyMutation.isError && !preview ? (
               <p className="text-sm text-destructive" role="alert">
                 {getErrorMessage(
                   applyMutation.error,
@@ -625,10 +650,17 @@ export function PublicJobPage({
               type="submit"
               className="w-full sm:w-auto"
               disabled={
-                applyMutation.isPending || parseCvMutation.isPending || !cvFile
+                preview ||
+                applyMutation.isPending ||
+                parseCvMutation.isPending ||
+                !cvFile
               }
             >
-              {applyMutation.isPending ? "Enviando…" : "Enviar postulación"}
+              {preview
+                ? "Enviar postulación (solo vista previa)"
+                : applyMutation.isPending
+                  ? "Enviando…"
+                  : "Enviar postulación"}
             </Button>
           </form>
         )}
