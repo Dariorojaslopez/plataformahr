@@ -182,7 +182,7 @@ the same public not-available response.
 Public apply reuses Candidate by `(companyId, email)`, creates Application and
 initial history transactionally, and relies on the existing
 `(candidateId, vacancyId)` unique key for concurrent duplicate protection.
-The public form uploads a CV (`PDF`, `DOCX` or `TXT`, max 5 MB):
+The public form uploads a CV (`PDF`, `DOCX` or `TXT`, max 15 MB):
 `POST /public/jobs/:publicId/parse-cv` extracts name, email, phone and
 document to prefill the form; apply stores the file on the candidate so
 recruiters can download it from the pipeline or candidate profile.

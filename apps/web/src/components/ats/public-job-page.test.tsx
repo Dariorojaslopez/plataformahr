@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { PublicJobPage } from "@/components/ats/public-job-page";
@@ -224,5 +224,32 @@ describe("PublicJobPage", () => {
     expect(
       screen.getByText("Revisa y corrige los datos extraídos de tu hoja de vida."),
     ).toBeInTheDocument();
+  });
+
+  it("accepts a CV dropped onto the upload zone", async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    render(
+      <QueryClientProvider client={queryClient}>
+        <PublicJobPage publicId="PublicJobId00001" />
+      </QueryClientProvider>,
+    );
+
+    await screen.findByRole("heading", { name: "Formulario de postulación" });
+    const zone = screen.getByText("Arrastra tu hoja de vida aquí").closest("div");
+    expect(zone).toBeTruthy();
+    const file = new File(["Ana Ruiz\nana@acme.test"], "cv.txt", {
+      type: "text/plain",
+    });
+    const dataTransfer = {
+      files: [file],
+      items: [{ kind: "file", type: file.type, getAsFile: () => file }],
+      types: ["Files"],
+    };
+    fireEvent.drop(zone!, { dataTransfer });
+
+    expect(publicJobsApi.parseCv).toHaveBeenCalled();
+    expect(await screen.findByDisplayValue("Ana")).toBeInTheDocument();
   });
 });

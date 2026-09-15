@@ -2,7 +2,7 @@
 
 import { CANDIDATE_DOCUMENT_TYPES } from "@talento/shared";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { CheckCircle2, ChevronDown, Plus, Trash2 } from "lucide-react";
+import { CheckCircle2, ChevronDown, Plus, Trash2, Upload } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useState } from "react";
 import { FormSelect } from "@/components/organization/form-select";
@@ -24,6 +24,7 @@ import {
   optionLetter,
   toggleMultipleChoiceSelection,
 } from "@/lib/ats/screening";
+import { cn } from "@/lib/utils";
 import type {
   EducationLevel,
   ParsedPublicCv,
@@ -33,6 +34,20 @@ import type {
   PublicScreeningQuestion,
   PublicWorkExperienceInput,
 } from "@/types/ats";
+
+const CV_ACCEPT =
+  ".pdf,.doc,.docx,.txt,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain";
+const CV_MAX_BYTES = 15 * 1024 * 1024;
+
+function isAllowedCvFile(file: File): boolean {
+  const name = file.name.toLowerCase();
+  return (
+    name.endsWith(".pdf") ||
+    name.endsWith(".doc") ||
+    name.endsWith(".docx") ||
+    name.endsWith(".txt")
+  );
+}
 
 const emptyExperience = (): PublicWorkExperienceInput => ({
   companyName: "",
@@ -145,6 +160,7 @@ export function PublicJobPage({
   const [form, setForm] = useState(emptyForm);
   const [cvFile, setCvFile] = useState<File | null>(null);
   const [cvHint, setCvHint] = useState<string | null>(null);
+  const [cvDragOver, setCvDragOver] = useState(false);
   const [linkedinPaste, setLinkedinPaste] = useState("");
   const [linkedinHint, setLinkedinHint] = useState<string | null>(null);
   const { resolvedTheme } = useTheme();
@@ -266,6 +282,28 @@ export function PublicJobPage({
     value: PublicJobApplicationInput[K],
   ) => setForm((current) => ({ ...current, [field]: value }));
 
+  const onCvFile = (file: File | undefined) => {
+    if (!file) return;
+    if (!isAllowedCvFile(file)) {
+      setCvHint("La hoja de vida debe ser PDF, DOC, DOCX o TXT.");
+      return;
+    }
+    if (file.size > CV_MAX_BYTES) {
+      setCvHint("La hoja de vida supera el tamaño máximo (15 MB).");
+      return;
+    }
+    if (preview || !publicId) {
+      setCvFile(file);
+      setCvHint(
+        preview
+          ? "Vista previa: el archivo no se analiza aquí."
+          : "Selecciona un archivo para adjuntarlo.",
+      );
+      return;
+    }
+    parseCvMutation.mutate(file);
+  };
+
   return (
     <main
       className="min-h-screen bg-muted/30"
@@ -347,30 +385,68 @@ export function PublicJobPage({
               <h3 className="text-sm font-semibold">Hoja de vida</h3>
               <div className="space-y-2">
                 <Label htmlFor="job-cv">Archivo PDF o Word *</Label>
-                <Input
-                  id="job-cv"
-                  type="file"
-                  required={!preview}
-                  accept=".pdf,.doc,.docx,.txt,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain"
-                  onChange={(event) => {
-                    const file = event.target.files?.[0];
-                    if (!file) return;
-                    if (preview || !publicId) {
-                      setCvFile(file);
-                      setCvHint(
-                        preview
-                          ? "Vista previa: el archivo no se analiza aquí."
-                          : "Selecciona un archivo para adjuntarlo.",
-                      );
-                      return;
-                    }
-                    parseCvMutation.mutate(file);
+                <div
+                  className={cn(
+                    "rounded-lg border border-dashed transition-colors",
+                    cvDragOver
+                      ? "border-primary bg-primary/5"
+                      : "border-border bg-muted/20",
+                    parseCvMutation.isPending && "opacity-70",
+                  )}
+                  onDragEnter={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    setCvDragOver(true);
                   }}
-                />
+                  onDragOver={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    setCvDragOver(true);
+                  }}
+                  onDragLeave={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    setCvDragOver(false);
+                  }}
+                  onDrop={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    setCvDragOver(false);
+                    onCvFile(event.dataTransfer.files?.[0]);
+                  }}
+                >
+                  <label
+                    htmlFor="job-cv"
+                    className="flex cursor-pointer flex-col items-center justify-center px-6 py-8 text-center"
+                  >
+                    <Upload className="mb-2 h-6 w-6 text-muted-foreground" />
+                    <span className="text-sm font-medium">
+                      {cvFile
+                        ? cvFile.name
+                        : "Arrastra tu hoja de vida aquí"}
+                    </span>
+                    <span className="mt-1 text-xs text-muted-foreground">
+                      {parseCvMutation.isPending
+                        ? "Leyendo archivo…"
+                        : "o haz clic para seleccionar · PDF, DOC, DOCX o TXT (máx. 15 MB)"}
+                    </span>
+                    <input
+                      id="job-cv"
+                      type="file"
+                      required={!preview}
+                      accept={CV_ACCEPT}
+                      className="sr-only"
+                      disabled={parseCvMutation.isPending}
+                      onChange={(event) => {
+                        onCvFile(event.target.files?.[0]);
+                        event.target.value = "";
+                      }}
+                    />
+                  </label>
+                </div>
                 <p className="text-xs text-muted-foreground">
-                  {cvFile
-                    ? cvFile.name
-                    : "PDF, DOC, DOCX o TXT (máx. 5 MB). Completaremos contacto, perfil, experiencia y formación si podemos leerlos."}
+                  Completaremos contacto, perfil, experiencia y formación si
+                  podemos leerlos.
                 </p>
                 {cvHint ? (
                   <p className="text-xs text-muted-foreground">{cvHint}</p>

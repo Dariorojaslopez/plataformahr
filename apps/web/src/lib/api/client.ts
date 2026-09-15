@@ -28,7 +28,7 @@ export type ApiRequestOptions = {
 
 const DEFAULT_API_URL = "http://localhost:3001";
 
-export function getApiBaseUrl(): string {
+function configuredApiBaseUrl(): string {
   return (
     process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") || DEFAULT_API_URL
   );
@@ -39,13 +39,38 @@ function stripWww(hostname: string): string {
 }
 
 /**
+ * API base for browser/SSR fetches.
+ * On same-site `/api` proxy deployments, the browser uses a relative `/api`
+ * so www and apex stay same-origin (avoids CSP/CORS masking nginx 413s).
+ */
+export function getApiBaseUrl(): string {
+  const configured = configuredApiBaseUrl();
+  if (typeof window === "undefined") return configured;
+  try {
+    const api = new URL(configured);
+    const apiBasePath = api.pathname.replace(/\/$/, "") || "";
+    const sameSiteApiProxy =
+      apiBasePath === "/api" || apiBasePath.startsWith("/api/");
+    if (
+      sameSiteApiProxy &&
+      stripWww(api.hostname) === stripWww(window.location.hostname)
+    ) {
+      return apiBasePath;
+    }
+  } catch {
+    /* fall through */
+  }
+  return configured;
+}
+
+/**
  * URL for public media (e.g. vacancy logo) safe under CSP `img-src 'self'`.
  * When the API is same-site under `/api`, returns a relative path so www/apex
  * both resolve to the page origin (absolute apex URLs break on www).
  */
 export function publicApiAssetUrl(apiPath: string): string {
   const path = apiPath.startsWith("/") ? apiPath : `/${apiPath}`;
-  const configured = getApiBaseUrl();
+  const configured = configuredApiBaseUrl();
   try {
     const api = new URL(configured);
     const apiBasePath = api.pathname.replace(/\/$/, "") || "";
@@ -105,7 +130,11 @@ async function parseError(response: Response): Promise<ApiError> {
       message = Array.isArray(raw) ? raw.join(", ") : raw;
     }
   } catch {
-    // non-JSON body
+    // nginx 413 often returns HTML without CORS-friendly Nest JSON.
+    if (response.status === 413) {
+      message =
+        "El archivo es demasiado grande para el servidor (máx. 15 MB en hojas de vida).";
+    }
   }
   const headerId = response.headers.get("X-Request-Id");
   return new ApiError(response.status, message, details, headerId);

@@ -1,7 +1,8 @@
 import { COMPANY_ID_PATTERN } from '../../core/companies/branding/branding.constants';
 
 export const CV_FIELD_NAME = 'cv';
-export const CV_MAX_BYTES = 5 * 1024 * 1024;
+/** Max CV upload size (parse + apply). Keep nginx `client_max_body_size` above this. */
+export const CV_MAX_BYTES = 15 * 1024 * 1024;
 
 export const CV_MIME = {
   PDF: 'application/pdf',
@@ -30,7 +31,7 @@ export { COMPANY_ID_PATTERN };
 export const CV_ERRORS = {
   MISSING: 'Adjunta tu hoja de vida (PDF, DOC, DOCX o TXT).',
   TYPE: 'La hoja de vida debe ser PDF, DOC, DOCX o TXT.',
-  SIZE: 'La hoja de vida supera el tamaño máximo (5 MB).',
+  SIZE: 'La hoja de vida supera el tamaño máximo (15 MB).',
   EMPTY: 'El archivo de la hoja de vida está vacío.',
   READ: 'No se pudo leer la hoja de vida.',
   NOT_FOUND: 'Este candidato no tiene una hoja de vida cargada.',

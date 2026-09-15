@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   apiRequest,
+  getApiBaseUrl,
   publicApiAssetUrl,
   refreshAccessToken,
   registerRefreshHandler,
@@ -53,6 +54,17 @@ describe("api client", () => {
     expect(publicApiAssetUrl("/public/jobs/abc/logo")).toBe(
       "/api/public/jobs/abc/logo",
     );
+  });
+
+  it("getApiBaseUrl uses relative /api on matching www host", () => {
+    vi.stubEnv("NEXT_PUBLIC_API_URL", "https://talentgrowthos.com/api");
+    vi.stubGlobal("window", {
+      location: {
+        hostname: "www.talentgrowthos.com",
+        origin: "https://www.talentgrowthos.com",
+      },
+    });
+    expect(getApiBaseUrl()).toBe("/api");
   });
 
   it("adds Authorization and X-Company-Id headers", async () => {
