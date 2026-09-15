@@ -147,7 +147,7 @@ function CompanyBrandingForm({
       if (error instanceof TypeError) {
         notifyError(
           new Error(
-            "No se pudo subir el logo. Usa PNG, JPEG o WebP de máximo 1 MB e inténtalo de nuevo.",
+            "No se pudo subir el logo. Usa PNG, JPEG o WebP de máximo 10 MB e inténtalo de nuevo.",
           ),
           "No se pudo subir el logo.",
         );
@@ -295,7 +295,7 @@ function CompanyBrandingForm({
             }}
           />
           <p className="text-xs text-muted-foreground">
-            PNG, JPEG o WebP. Máximo 1 MB y 2048×2048 px.
+            PNG, JPEG o WebP. Máximo 10 MB y 2048×2048 px.
             {uploadMutation.isPending ? " Subiendo…" : ""}
           </p>
           {branding.hasLogo ? (

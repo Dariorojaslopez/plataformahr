@@ -17,12 +17,12 @@ describe("validateCompanyLogoFile", () => {
     expect(validateCompanyLogoFile(file)).toMatch(/PNG, JPEG o WebP/);
   });
 
-  it("rejects files over 1 MB", () => {
+  it("rejects files over 10 MB", () => {
     const file = new File(
       [new Uint8Array(COMPANY_LOGO_MAX_BYTES + 1)],
       "logo.png",
       { type: "image/png" },
     );
-    expect(validateCompanyLogoFile(file)).toMatch(/1 MB/);
+    expect(validateCompanyLogoFile(file)).toMatch(/10 MB/);
   });
 });

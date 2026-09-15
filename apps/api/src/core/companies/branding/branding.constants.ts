@@ -11,7 +11,7 @@ export const PLATFORM_BRAND_PRIMARY = '#0F5C5A';
 
 export const BRAND_COLOR_PATTERN = /^#[0-9A-F]{6}$/;
 
-export const LOGO_MAX_BYTES = 1_048_576;
+export const LOGO_MAX_BYTES = 10_485_760;
 export const LOGO_MAX_DIMENSION = 2048;
 export const LOGO_MIN_DIMENSION = 1;
 

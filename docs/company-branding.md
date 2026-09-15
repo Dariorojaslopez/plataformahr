@@ -39,7 +39,7 @@ Logos are **files**, not PostgreSQL bytes and not base64.
 
 Layout: `{uploadsDir}/{companyId}/{uuid}.png` for logos and `{uploadsDir}/{companyId}/info-{uuid}.png` (or `.jpg`, `.webp`, `.mp4`, `.webm`) for HOME company information. The API never returns the filesystem path.
 
-Allowed logo types: PNG, JPEG, WebP (magic bytes). Max 1 MiB, max 2048×2048. SVG is rejected.
+Allowed logo types: PNG, JPEG, WebP (magic bytes). Max 10 MiB, max 2048×2048. SVG is rejected.
 
 HOME company information uses the same volume: PNG/JPEG/WebP (max 5 MiB, 4096×4096) or MP4/WebM (max 20 MiB, no transcoding). Unpublished files are not streamed to users without `company.manage`.
 
