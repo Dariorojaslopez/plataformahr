@@ -1,4 +1,4 @@
-import { Transform, Type } from 'class-transformer';
+import { plainToInstance, Transform, Type } from 'class-transformer';
 import {
   ArrayMaxSize,
   IsArray,
@@ -25,16 +25,24 @@ import { CANDIDATE_DOCUMENT_TYPE_CODES } from '@talento/shared';
 const trim = ({ value }: { value: unknown }) =>
   typeof value === 'string' ? value.trim() : value;
 
-const parseJson = ({ value }: { value: unknown }) => {
-  if (typeof value !== 'string') return value;
-  const trimmed = value.trim();
-  if (!trimmed) return undefined;
-  try {
-    return JSON.parse(trimmed) as unknown;
-  } catch {
-    return value;
-  }
-};
+/** Multipart sends nested arrays as JSON strings; whitelist needs class instances. */
+function parseJsonArrayOf<T>(cls: new () => T) {
+  return ({ value }: { value: unknown }): unknown => {
+    let parsed: unknown = value;
+    if (typeof value === 'string') {
+      const trimmed = value.trim();
+      if (!trimmed) return undefined;
+      try {
+        parsed = JSON.parse(trimmed) as unknown;
+      } catch {
+        return value;
+      }
+    }
+    if (parsed === undefined || parsed === null) return parsed;
+    if (!Array.isArray(parsed)) return parsed;
+    return plainToInstance(cls, parsed);
+  };
+}
 
 const toBoolean = ({ value }: { value: unknown }) => {
   if (typeof value === 'boolean') return value;
@@ -66,6 +74,10 @@ export class PublicWorkExperienceDto {
   startDate!: string;
 
   @IsOptional()
+  @Transform(({ value }: { value: unknown }) =>
+    value === '' || value === null || value === undefined ? null : value,
+  )
+  @ValidateIf((_, value) => value !== null && value !== undefined)
   @IsDateString()
   endDate?: string | null;
 
@@ -106,6 +118,10 @@ export class PublicEducationDto {
   startDate!: string;
 
   @IsOptional()
+  @Transform(({ value }: { value: unknown }) =>
+    value === '' || value === null || value === undefined ? null : value,
+  )
+  @ValidateIf((_, value) => value !== null && value !== undefined)
   @IsDateString()
   endDate?: string | null;
 
@@ -202,14 +218,14 @@ export class PublicJobApplicationDto {
   @MaxLength(300)
   linkedinUrl?: string | null;
 
-  @Transform(parseJson)
+  @Transform(parseJsonArrayOf(PublicWorkExperienceDto))
   @IsArray()
   @ArrayMaxSize(10)
   @ValidateNested({ each: true })
   @Type(() => PublicWorkExperienceDto)
   workExperience!: PublicWorkExperienceDto[];
 
-  @Transform(parseJson)
+  @Transform(parseJsonArrayOf(PublicEducationDto))
   @IsArray()
   @ArrayMaxSize(10)
   @ValidateNested({ each: true })
@@ -217,7 +233,7 @@ export class PublicJobApplicationDto {
   education!: PublicEducationDto[];
 
   @IsOptional()
-  @Transform(parseJson)
+  @Transform(parseJsonArrayOf(PublicScreeningAnswerDto))
   @IsArray()
   @ArrayMaxSize(50)
   @ValidateNested({ each: true })
