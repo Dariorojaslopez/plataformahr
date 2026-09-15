@@ -84,9 +84,11 @@ pnpm dev:web
 
 Incluye: multi-tenant core, auth JWT/sesiones con **refresh HttpOnly cookie** (Fase 10), organización API, ATS completo hasta Hiring 06B, STT browser (Fase 07), **Performance 08A–08E**, **Goals/OKRs 09A–09E**, hardening de seguridad de producción (CORS, headers, validación de env, CSRF-lite), frontend shell/Organization/ATS/Offers/Hiring/Performance/Goals.
 
+Kanban (Finalistas / etapa `OFFER`): modal de documentos con **subida y descarga** de estudio de seguridad y exámenes médicos (máx. 20 MB; PDF/DOCX/JPG/PNG). Vacante pública: CV dropzone, fechas DD/MM/AAAA y postulación multipart corregida.
+
 Incluye también **Fase 11** (Docker/prod-like), **Fase 12** (GitHub Actions CI, logs estructurados, requestId, métricas Prometheus `/metrics`) y **Fase 13** (staging readiness, QA final, release candidate docs/checklists — sin deploy/tag remoto).
 
-Pendiente post-V1: Whisper local/WASM, diarización/IA, observabilidad hosted (Grafana/etc.), cloud provisioning, proxy same-origin `/api`.
+Pendiente post-V1: Whisper local/WASM, diarización/IA, observabilidad hosted (Grafana/etc.), cloud provisioning.
 
 ## Production-like (local lab)
 
