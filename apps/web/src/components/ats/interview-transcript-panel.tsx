@@ -135,7 +135,7 @@ export function InterviewTranscriptPanel({
         <h2 className="text-lg font-semibold">Transcripción</h2>
         <p className="text-sm text-muted-foreground">
           {hasInterviewRecording
-            ? "Puedes dictar con el micrófono o agregar segmentos manualmente. El servidor solo guarda texto."
+            ? "Puedes dictar con el micrófono (se concatena en un solo campo) o agregar texto manualmente. El servidor solo guarda texto."
             : "Agrega segmentos de transcripción de forma manual. El servidor solo guarda texto."}
         </p>
       </div>
