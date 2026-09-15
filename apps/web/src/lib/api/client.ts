@@ -19,6 +19,11 @@ export type ApiRequestOptions = {
   signal?: AbortSignal;
   /** Include cookies (refresh). Default true for same API origin only. */
   credentials?: RequestCredentials;
+  /**
+   * Override API base. Use `""` for same-origin Next.js routes
+   * (e.g. logo upload proxy).
+   */
+  baseUrl?: string;
 };
 
 const DEFAULT_API_URL = "http://localhost:3001";
@@ -85,6 +90,7 @@ async function executeFetch(
     companyId,
     signal,
     credentials = "include",
+    baseUrl,
   } = options;
 
   const requestHeaders: Record<string, string> = {
@@ -114,8 +120,11 @@ async function executeFetch(
     requestHeaders["X-Company-Id"] = resolvedCompanyId;
   }
 
+  const resolvedBase =
+    baseUrl !== undefined ? baseUrl.replace(/\/$/, "") : getApiBaseUrl();
+
   try {
-    return await fetch(`${getApiBaseUrl()}${path}`, {
+    return await fetch(`${resolvedBase}${path}`, {
       method,
       headers: requestHeaders,
       body:

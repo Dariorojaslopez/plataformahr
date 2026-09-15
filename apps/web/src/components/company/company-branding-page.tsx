@@ -298,9 +298,9 @@ function CompanyBrandingForm({
             }}
           />
           <p className="text-xs text-muted-foreground">
-            PNG, JPEG o WebP. Máximo 10 MB. Si es muy pesado, lo optimizamos
-            automáticamente antes de subirlo (hasta 2048×2048).
-            {uploadMutation.isPending ? " Subiendo…" : ""}
+            PNG, JPEG o WebP (máx. 10 MB). Optimizamos el archivo automáticamente
+            antes de subirlo para que pase el servidor.
+            {uploadMutation.isPending ? " Optimizando y subiendo…" : ""}
           </p>
           {branding.hasLogo ? (
             <Button

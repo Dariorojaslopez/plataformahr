@@ -1,8 +1,11 @@
 /** Keep in sync with API `LOGO_MAX_BYTES` (10 MiB). */
 export const COMPANY_LOGO_MAX_BYTES = 10_485_760;
 
-/** Keep under common reverse-proxy defaults (often 1m) with multipart overhead. */
-export const COMPANY_LOGO_UPLOAD_SAFE_BYTES = 900_000;
+/**
+ * Stay under common reverse-proxy defaults (`client_max_body_size 1m`)
+ * including multipart overhead.
+ */
+export const COMPANY_LOGO_UPLOAD_SAFE_BYTES = 500_000;
 
 /** Keep in sync with API `LOGO_MAX_DIMENSION`. */
 export const COMPANY_LOGO_MAX_DIMENSION = 2048;
@@ -76,8 +79,7 @@ function canvasToBlob(
 }
 
 /**
- * Resize/compress large logos so uploads survive reverse-proxy body limits.
- * Small valid files are returned unchanged.
+ * Always normalize logos before upload so 413 from reverse proxies is avoided.
  */
 export async function prepareCompanyLogoForUpload(file: File): Promise<File> {
   const validationError = validateCompanyLogoFile(file);
@@ -86,49 +88,40 @@ export async function prepareCompanyLogoForUpload(file: File): Promise<File> {
   }
 
   const image = await loadImageElement(file);
-  const scaled = scaleLogoDimensions(image.naturalWidth, image.naturalHeight);
-  const needsResize =
-    scaled.width !== image.naturalWidth ||
-    scaled.height !== image.naturalHeight;
-  const needsCompress = file.size > COMPANY_LOGO_UPLOAD_SAFE_BYTES;
+  let scaled = scaleLogoDimensions(image.naturalWidth, image.naturalHeight);
+  const qualities = [0.85, 0.75, 0.65, 0.55, 0.45, 0.35];
 
-  if (!needsResize && !needsCompress) {
-    return file;
-  }
-
-  const canvas = document.createElement("canvas");
-  canvas.width = scaled.width;
-  canvas.height = scaled.height;
-  const context = canvas.getContext("2d");
-  if (!context) {
-    throw new Error("No se pudo preparar el logo en este navegador.");
-  }
-  context.fillStyle = "#ffffff";
-  context.fillRect(0, 0, canvas.width, canvas.height);
-  context.drawImage(image, 0, 0, scaled.width, scaled.height);
-
-  const qualities = [0.9, 0.8, 0.7, 0.6, 0.5];
-  let best: Blob | null = null;
-  for (const quality of qualities) {
-    const blob = await canvasToBlob(canvas, "image/jpeg", quality);
-    best = blob;
-    if (blob.size <= COMPANY_LOGO_UPLOAD_SAFE_BYTES) {
-      break;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const canvas = document.createElement("canvas");
+    canvas.width = scaled.width;
+    canvas.height = scaled.height;
+    const context = canvas.getContext("2d");
+    if (!context) {
+      throw new Error("No se pudo preparar el logo en este navegador.");
     }
+    context.fillStyle = "#ffffff";
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    context.drawImage(image, 0, 0, scaled.width, scaled.height);
+
+    for (const quality of qualities) {
+      const blob = await canvasToBlob(canvas, "image/jpeg", quality);
+      if (blob.size <= COMPANY_LOGO_UPLOAD_SAFE_BYTES) {
+        const baseName = file.name.replace(/\.[^.]+$/, "") || "logo";
+        return new File([blob], `${baseName}.jpg`, {
+          type: "image/jpeg",
+          lastModified: Date.now(),
+        });
+      }
+    }
+
+    // Still too heavy: shrink further and retry.
+    scaled = {
+      width: Math.max(1, Math.round(scaled.width * 0.75)),
+      height: Math.max(1, Math.round(scaled.height * 0.75)),
+    };
   }
 
-  if (!best) {
-    throw new Error("No se pudo optimizar el logo.");
-  }
-  if (best.size > COMPANY_LOGO_MAX_BYTES) {
-    throw new Error(
-      "No se pudo dejar el logo por debajo de 10 MB. Usa una imagen más liviana.",
-    );
-  }
-
-  const baseName = file.name.replace(/\.[^.]+$/, "") || "logo";
-  return new File([best], `${baseName}.jpg`, {
-    type: "image/jpeg",
-    lastModified: Date.now(),
-  });
+  throw new Error(
+    "No se pudo optimizar el logo lo suficiente. Prueba con una imagen más simple.",
+  );
 }

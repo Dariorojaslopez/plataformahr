@@ -71,9 +71,11 @@ export const companyApi = {
   uploadLogo: (file: File) => {
     const formData = new FormData();
     formData.append("file", file);
-    return apiRequest<CompanyBranding>("/companies/current/branding/logo", {
+    // Same-origin Next proxy → Nest over Docker network (avoids public 413/CORS mask).
+    return apiRequest<CompanyBranding>("/api/company/branding/logo", {
       method: "POST",
       formData,
+      baseUrl: "",
     });
   },
 

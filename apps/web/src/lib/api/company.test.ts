@@ -64,8 +64,9 @@ describe("company branding API and keys", () => {
       ),
     );
     await companyApi.uploadLogo(new File(["x"], "logo.png", { type: "image/png" }));
-    const init = vi.mocked(fetch).mock.calls[0]?.[1] as RequestInit;
+    const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit];
     const headers = init.headers as Record<string, string>;
+    expect(url).toBe("/api/company/branding/logo");
     expect(init.body).toBeInstanceOf(FormData);
     expect(headers["Content-Type"]).toBeUndefined();
   });

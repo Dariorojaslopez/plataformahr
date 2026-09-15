@@ -119,6 +119,8 @@ services:
       PORT: 3000
       TZ: UTC
       HOSTNAME: 0.0.0.0
+      # Server-side proxy target (Nest in Docker). Not exposed to the browser.
+      INTERNAL_API_URL: ${INTERNAL_API_URL:-http://api:3001}
     networks:
       - edge
     depends_on:
