@@ -30,6 +30,7 @@ import {
   createIdleSessionWatcher,
   writeLastActivityAt,
 } from "@/lib/auth/idle-session";
+import { resolveSelectableCompanies } from "@/lib/auth/platform-session-companies";
 import {
   clearSession,
   getAccessToken,
@@ -124,14 +125,12 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       try {
         const me = await meRequest();
         if (cancelled) return;
-        let companies = me.companies;
-        if (me.isPlatformOwner && companies.length === 0) {
-          try {
-            companies = await platformCompaniesRequest();
-          } catch {
-            companies = [];
-          }
-        }
+        const companies = await resolveSelectableCompanies({
+          user: me,
+          membershipCompanies: me.companies,
+          loadPlatformCompanies: platformCompaniesRequest,
+        });
+        if (cancelled) return;
         setSessionIdentity(me, companies);
         const existingCompany = getActiveCompanyId();
         if (
@@ -160,19 +159,24 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const login = useCallback(async (email: string, password: string) => {
     const result = await loginRequest(email, password);
     setAccessToken(result.accessToken);
-    setSessionIdentity(result.user, result.companies);
-    if (result.companies.length === 1) {
+    const companies = await resolveSelectableCompanies({
+      user: result.user,
+      membershipCompanies: result.companies,
+      loadPlatformCompanies: platformCompaniesRequest,
+    });
+    setSessionIdentity(result.user, companies);
+    if (result.user.isPlatformOwner || companies.length !== 1) {
+      setCompanyAccessError(null);
+      setActiveCompanyId(null);
+    } else {
       setCompanyAccess(null);
       setCompanyAccessError(null);
       setCompanyAccessLoading(true);
-      setActiveCompanyId(result.companies[0].id);
-    } else {
-      setCompanyAccessError(null);
-      setActiveCompanyId(null);
+      setActiveCompanyId(companies[0].id);
     }
     writeLastActivityAt(Date.now());
     setStatus("authenticated");
-    return { user: result.user, companies: result.companies };
+    return { user: result.user, companies };
   }, []);
 
   const logout = useCallback(async () => {

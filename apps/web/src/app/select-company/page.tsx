@@ -36,7 +36,7 @@ export default function SelectCompanyPage() {
       router.replace("/login");
       return;
     }
-    if (!user.isPlatformOwner || companies.length > 0) return;
+    if (!user.isPlatformOwner) return;
 
     let cancelled = false;
     void platformCompaniesRequest()
@@ -57,7 +57,7 @@ export default function SelectCompanyPage() {
     return () => {
       cancelled = true;
     };
-  }, [status, user, companies.length, router, setPlatformCompanies]);
+  }, [status, user, router, setPlatformCompanies]);
 
   if (status === "loading" || !user || loadingPlatform) {
     return (
@@ -166,7 +166,7 @@ export default function SelectCompanyPage() {
           className="self-start"
           onClick={() => router.push("/platform")}
         >
-          Volver a Platform
+          Volver a todas las compañías
         </Button>
       ) : null}
     </div>

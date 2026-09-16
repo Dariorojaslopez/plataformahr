@@ -394,7 +394,7 @@ export function resolvePageTitle(pathname: string): string {
   if (pathname === "/organization/settings") return "Ajustes de resultados";
   if (pathname === "/my-goals") return "Mis objetivos";
   if (pathname === "/select-company") return "Seleccionar compañía";
-  if (pathname === "/platform") return "Platform";
+  if (pathname === "/platform") return "Administración de compañías";
   if (pathname === "/settings/branding") return "Apariencia";
   if (pathname === "/settings/roles") return "Permisos de menú";
   return "Talentgrowthos";

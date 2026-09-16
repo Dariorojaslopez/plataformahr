@@ -100,12 +100,23 @@ export function AppHeader({ onToggleSidebar }: AppHeaderProps) {
                   </div>
                 </DropdownMenuItem>
               ))}
-              {companies.length > 1 ? (
+              {user.isPlatformOwner || companies.length > 1 ? (
                 <>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem onSelect={() => router.push("/select-company")}>
-                    Ver todas
-                  </DropdownMenuItem>
+                  {user.isPlatformOwner ? (
+                    <DropdownMenuItem
+                      onSelect={() => router.push("/platform")}
+                    >
+                      Todas las compañías
+                    </DropdownMenuItem>
+                  ) : null}
+                  {companies.length > 1 ? (
+                    <DropdownMenuItem
+                      onSelect={() => router.push("/select-company")}
+                    >
+                      Cambiar de compañía
+                    </DropdownMenuItem>
+                  ) : null}
                 </>
               ) : null}
             </DropdownMenuContent>
@@ -143,7 +154,7 @@ export function AppHeader({ onToggleSidebar }: AppHeaderProps) {
             <DropdownMenuSeparator />
             {user.isPlatformOwner ? (
               <DropdownMenuItem onSelect={() => router.push("/platform")}>
-                Platform
+                Todas las compañías
               </DropdownMenuItem>
             ) : null}
             <DropdownMenuItem
