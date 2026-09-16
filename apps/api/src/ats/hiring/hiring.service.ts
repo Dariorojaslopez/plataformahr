@@ -12,6 +12,7 @@ import {
   EmployeeStatus,
   JobOfferStatus,
   PreHireCheckStatus,
+  PreHireDocumentKind,
   Prisma,
   VacancyStatus,
 } from '@prisma/client';
@@ -23,7 +24,11 @@ import { ATS_AUDIT } from '../ats.constants';
 import { HirePdiService } from './hire-pdi.service';
 import { renderThankYouLetter } from './thank-you-letter';
 import type { CreateHiringDto } from './dto/hiring.dto';
-import { isPreHireClear } from './prehire.constants';
+import {
+  hireDocumentsRequiredMessage,
+  isPreHireClear,
+  missingRequiredHireDocuments,
+} from './prehire.constants';
 
 const HIRING_INCLUDE = {
   employee: {
@@ -145,6 +150,30 @@ export class HiringService {
         if (application.status !== ApplicationStatus.ACTIVE) {
           throw new BadRequestException('Application is not active');
         }
+
+        const candidate = await tx.candidate.findFirst({
+          where: { id: application.candidateId, companyId, deletedAt: null },
+          select: { cvFileName: true },
+        });
+        const preHireDocs = await tx.applicationPreHireDocument.findMany({
+          where: { applicationId, companyId },
+          select: { kind: true },
+        });
+        const missingDocs = missingRequiredHireDocuments({
+          hasCv: Boolean(candidate?.cvFileName),
+          hasSecurityStudyDoc: preHireDocs.some(
+            (doc) => doc.kind === PreHireDocumentKind.SECURITY_STUDY,
+          ),
+          hasMedicalExamDoc: preHireDocs.some(
+            (doc) => doc.kind === PreHireDocumentKind.MEDICAL_EXAM,
+          ),
+        });
+        if (missingDocs.length > 0) {
+          throw new BadRequestException(
+            hireDocumentsRequiredMessage(missingDocs),
+          );
+        }
+
         if (
           !isPreHireClear(application.securityStudyStatus) ||
           !isPreHireClear(application.medicalExamStatus)

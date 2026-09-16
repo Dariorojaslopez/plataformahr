@@ -41,3 +41,29 @@ export const PREHIRE_ERRORS = {
 export function isPreHireClear(status: string): boolean {
   return status === 'APPROVED' || status === 'NOT_REQUIRED';
 }
+
+export const HIRE_DOCUMENT_LABELS = {
+  CV: 'Hoja de vida',
+  SECURITY_STUDY: 'Estudio de seguridad',
+  MEDICAL_EXAM: 'Exámenes médicos',
+} as const;
+
+export function missingRequiredHireDocuments(input: {
+  hasCv: boolean;
+  hasSecurityStudyDoc: boolean;
+  hasMedicalExamDoc: boolean;
+}): string[] {
+  const missing: string[] = [];
+  if (!input.hasCv) missing.push(HIRE_DOCUMENT_LABELS.CV);
+  if (!input.hasSecurityStudyDoc) {
+    missing.push(HIRE_DOCUMENT_LABELS.SECURITY_STUDY);
+  }
+  if (!input.hasMedicalExamDoc) {
+    missing.push(HIRE_DOCUMENT_LABELS.MEDICAL_EXAM);
+  }
+  return missing;
+}
+
+export function hireDocumentsRequiredMessage(missing: string[]): string {
+  return `Para contratar debes cargar: ${missing.join(', ')}. El candidato permanece en Finalistas.`;
+}

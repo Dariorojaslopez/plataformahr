@@ -129,10 +129,39 @@ export type HireRequirementId =
   | "OFFER_STAGE"
   | "OFFER_ACCEPTED"
   | "VACANCY_CAPACITY"
+  | "CV"
+  | "SECURITY_STUDY_DOC"
+  | "MEDICAL_EXAM_DOC"
   | "SECURITY_STUDY"
   | "MEDICAL_EXAM"
   | "CONTRACT_APPROVAL"
   | "SIGNED_OFFER_LETTER";
+
+export const FINALIST_HIRE_DOCUMENT_LABELS = {
+  CV: "Hoja de vida",
+  SECURITY_STUDY: "Estudio de seguridad",
+  MEDICAL_EXAM: "Exámenes médicos",
+} as const;
+
+export function missingFinalistHireDocuments(card: {
+  hasCv?: boolean;
+  hasSecurityStudyDoc?: boolean;
+  hasMedicalExamDoc?: boolean;
+}): string[] {
+  const missing: string[] = [];
+  if (!card.hasCv) missing.push(FINALIST_HIRE_DOCUMENT_LABELS.CV);
+  if (!card.hasSecurityStudyDoc) {
+    missing.push(FINALIST_HIRE_DOCUMENT_LABELS.SECURITY_STUDY);
+  }
+  if (!card.hasMedicalExamDoc) {
+    missing.push(FINALIST_HIRE_DOCUMENT_LABELS.MEDICAL_EXAM);
+  }
+  return missing;
+}
+
+export function finalistHireDocumentsBlockedMessage(missing: string[]): string {
+  return `Para pasar a Contratar carga: ${missing.join(", ")}. El candidato permanece en Finalistas.`;
+}
 
 export type HireRequirementCheck = {
   id: HireRequirementId;
@@ -167,6 +196,9 @@ export function hireRequirementChecks(input: {
   offerStatus: string | null;
   headcount: number;
   filledCount: number;
+  hasCv?: boolean | null;
+  hasSecurityStudyDoc?: boolean | null;
+  hasMedicalExamDoc?: boolean | null;
   securityStudyStatus?: string | null;
   medicalExamStatus?: string | null;
   contractApprovalStatus?: string | null;
@@ -188,6 +220,21 @@ export function hireRequirementChecks(input: {
       id: "VACANCY_CAPACITY",
       label: "Hay cupo disponible en la vacante",
       met: input.headcount - input.filledCount > 0,
+    },
+    {
+      id: "CV",
+      label: "Hoja de vida cargada",
+      met: Boolean(input.hasCv),
+    },
+    {
+      id: "SECURITY_STUDY_DOC",
+      label: "Estudio de seguridad cargado",
+      met: Boolean(input.hasSecurityStudyDoc),
+    },
+    {
+      id: "MEDICAL_EXAM_DOC",
+      label: "Exámenes médicos cargados",
+      met: Boolean(input.hasMedicalExamDoc),
     },
     {
       id: "SECURITY_STUDY",

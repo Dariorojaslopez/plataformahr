@@ -2,12 +2,14 @@ import { describe, expect, it } from "vitest";
 import {
   fitLevelFromRatings,
   finalistCardsForDocs,
+  finalistHireDocumentsBlockedMessage,
   getValidKanbanTargets,
   groupCardsByKanbanColumn,
   hireRequirementChecks,
   interviewPhaseDecisionOptions,
   KANBAN_COLUMNS,
   kanbanColumnForStage,
+  missingFinalistHireDocuments,
   nextStageForInterviewAdvance,
   stageForKanbanColumn,
 } from "@/lib/ats/pipeline-kanban";
@@ -104,6 +106,9 @@ describe("pipeline kanban", () => {
         offerStatus: "ACCEPTED",
         headcount: 2,
         filledCount: 1,
+        hasCv: true,
+        hasSecurityStudyDoc: true,
+        hasMedicalExamDoc: true,
         securityStudyStatus: "APPROVED",
         medicalExamStatus: "NOT_REQUIRED",
         contractApprovalStatus: "APPROVED",
@@ -115,6 +120,9 @@ describe("pipeline kanban", () => {
         offerStatus: "ACCEPTED",
         headcount: 2,
         filledCount: 1,
+        hasCv: true,
+        hasSecurityStudyDoc: true,
+        hasMedicalExamDoc: true,
         securityStudyStatus: "APPROVED",
         medicalExamStatus: "APPROVED",
         contractApprovalStatus: "NOT_REQUIRED",
@@ -128,11 +136,48 @@ describe("pipeline kanban", () => {
         offerStatus: "ACCEPTED",
         headcount: 2,
         filledCount: 1,
+        hasCv: true,
+        hasSecurityStudyDoc: false,
+        hasMedicalExamDoc: true,
         securityStudyStatus: "PENDING",
         medicalExamStatus: "APPROVED",
         contractApprovalStatus: "NOT_REQUIRED",
       }).find((item) => item.id === "SECURITY_STUDY")?.met,
     ).toBe(false);
+    expect(
+      hireRequirementChecks({
+        stage: "OFFER",
+        offerStatus: "ACCEPTED",
+        headcount: 2,
+        filledCount: 1,
+        hasCv: false,
+        hasSecurityStudyDoc: true,
+        hasMedicalExamDoc: true,
+        securityStudyStatus: "APPROVED",
+        medicalExamStatus: "APPROVED",
+        contractApprovalStatus: "NOT_REQUIRED",
+      }).find((item) => item.id === "CV")?.met,
+    ).toBe(false);
+  });
+
+  it("keeps the candidate in Finalistas until HV and prehire docs are uploaded", () => {
+    expect(
+      missingFinalistHireDocuments({
+        hasCv: true,
+        hasSecurityStudyDoc: true,
+        hasMedicalExamDoc: true,
+      }),
+    ).toEqual([]);
+    expect(
+      missingFinalistHireDocuments({
+        hasCv: false,
+        hasSecurityStudyDoc: true,
+        hasMedicalExamDoc: false,
+      }),
+    ).toEqual(["Hoja de vida", "Exámenes médicos"]);
+    expect(
+      finalistHireDocumentsBlockedMessage(["Hoja de vida"]),
+    ).toContain("permanece en Finalistas");
   });
 });
 

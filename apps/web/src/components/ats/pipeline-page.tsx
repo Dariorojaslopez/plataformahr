@@ -57,10 +57,12 @@ import {
   FIT_LEVEL_LABELS,
   KANBAN_COLUMNS,
   finalistCardsForDocs,
+  finalistHireDocumentsBlockedMessage,
   getValidKanbanTargets,
   groupCardsByKanbanColumn,
   hireRequirementChecks,
   kanbanColumnForStage,
+  missingFinalistHireDocuments,
   stageForKanbanColumn,
   type FitLevel,
   type KanbanColumnId,
@@ -189,6 +191,17 @@ export function PipelinePageClient() {
       offerStatus: data.offer?.status ?? null,
       headcount: data.vacancy.headcount,
       filledCount: data.vacancy.filledCount,
+      hasCv: Boolean(data.application.candidate?.cvFileName),
+      hasSecurityStudyDoc: Boolean(
+        data.application.preHireDocuments?.some(
+          (doc) => doc.kind === "SECURITY_STUDY",
+        ),
+      ),
+      hasMedicalExamDoc: Boolean(
+        data.application.preHireDocuments?.some(
+          (doc) => doc.kind === "MEDICAL_EXAM",
+        ),
+      ),
       securityStudyStatus: data.application.securityStudyStatus,
       medicalExamStatus: data.application.medicalExamStatus,
       contractApprovalStatus: data.offer?.contractApprovalStatus,
@@ -321,6 +334,15 @@ export function PipelinePageClient() {
     if (currentColumn === columnId) return;
     if (!getValidKanbanTargets(card.stage).includes(columnId)) return;
     if (columnId === "HIRED") {
+      const missingDocs = missingFinalistHireDocuments(card);
+      if (missingDocs.length > 0) {
+        notifyError(
+          new Error(finalistHireDocumentsBlockedMessage(missingDocs)),
+          finalistHireDocumentsBlockedMessage(missingDocs),
+        );
+        setResumeCard(card);
+        return;
+      }
       setPendingHire(card);
       setHireConfirmed(false);
       setHireDate(new Date().toISOString().slice(0, 10));
@@ -597,8 +619,10 @@ export function PipelinePageClient() {
           ) : null}
           {!canConfirmHire && hirePrepQuery.isSuccess ? (
             <p className="text-sm text-muted-foreground">
-              Completa la oferta, el cupo de la vacante y el checklist de seguridad/médicos
-              antes de contratar. La contratación formal no se puede saltar.
+              Completa la oferta, los tres documentos (hoja de vida, estudio de
+              seguridad y exámenes médicos) y el checklist de aprobación antes
+              de contratar. Si falta un documento, el candidato permanece en
+              Finalistas.
             </p>
           ) : null}
           {canConfirmHire ? (
@@ -777,7 +801,8 @@ function RecruiterDocsTable({
       <div>
         <h3 className="text-base font-semibold">Documentos · Finalistas</h3>
         <p className="text-sm text-muted-foreground">
-          HV, estudio de seguridad y exámenes médicos para el reclutador.
+          HV, estudio de seguridad y exámenes médicos. Los tres deben estar
+          cargados para pasar a Contratar.
         </p>
       </div>
       <Table>

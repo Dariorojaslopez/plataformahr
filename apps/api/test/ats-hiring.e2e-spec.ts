@@ -12,6 +12,7 @@ import {
   JobOfferStatus,
   MembershipStatus,
   PreHireCheckStatus,
+  PreHireDocumentKind,
   PrismaClient,
   RoleScope,
   SalaryPeriod,
@@ -22,6 +23,7 @@ import {
   VacancyStatus,
 } from '@prisma/client';
 import { join } from 'node:path';
+import { randomUUID } from 'node:crypto';
 import { loadOptionalEnvFile } from './load-env';
 import request from 'supertest';
 import { App } from 'supertest/types';
@@ -47,6 +49,7 @@ describe('ATS hiring (e2e)', () => {
   let vacancyId = '';
 
   let adminToken = '';
+  let adminUserId = '';
   let recruiterToken = '';
   let leaderToken = '';
   let collaboratorToken = '';
@@ -132,6 +135,44 @@ describe('ATS hiring (e2e)', () => {
     };
   };
 
+  const attachHireDocuments = async (
+    candidateId: string,
+    applicationId: string,
+  ) => {
+    await prisma.candidate.update({
+      where: { id: candidateId },
+      data: {
+        cvFileName: `cv-${randomUUID()}.pdf`,
+        cvOriginalName: 'cv.pdf',
+        cvMimeType: 'application/pdf',
+      },
+    });
+    const securityId = randomUUID();
+    const medicalId = randomUUID();
+    await prisma.applicationPreHireDocument.createMany({
+      data: [
+        {
+          companyId: companyAId,
+          applicationId,
+          kind: PreHireDocumentKind.SECURITY_STUDY,
+          fileName: `prehire-security_study-${securityId}.pdf`,
+          originalName: 'seguridad.pdf',
+          mimeType: 'application/pdf',
+          uploadedByUserId: adminUserId,
+        },
+        {
+          companyId: companyAId,
+          applicationId,
+          kind: PreHireDocumentKind.MEDICAL_EXAM,
+          fileName: `prehire-medical_exam-${medicalId}.pdf`,
+          originalName: 'examenes.pdf',
+          mimeType: 'application/pdf',
+          uploadedByUserId: adminUserId,
+        },
+      ],
+    });
+  };
+
   const completeInterviewWithTextarea = async (appId: string) => {
     const template = await request(app.getHttpServer())
       .post('/ats/interview-form-templates')
@@ -206,6 +247,8 @@ describe('ATS hiring (e2e)', () => {
       .post(`/ats/offers/${offerId}/accept`)
       .set(auth(recruiterToken))
       .expect(201);
+
+    await attachHireDocuments(seeded.candidateId, seeded.applicationId);
 
     return { ...seeded, offerId };
   };
@@ -439,6 +482,7 @@ describe('ATS hiring (e2e)', () => {
       'CLIENT_ADMIN',
       companyAId,
     );
+    adminUserId = admin.id;
     await createUser(
       `hire-recruiter-${suffix}@example.com`,
       'RECRUITER',
@@ -625,6 +669,32 @@ describe('ATS hiring (e2e)', () => {
       loser.candidateEmail.toLowerCase(),
     );
     expect(['SENT', 'SKIPPED', 'FAILED']).toContain(metadata?.delivery);
+  });
+
+  it('rejects hire when HV or prehire documents are missing', async () => {
+    const seeded = await createAcceptedOffer('docs-block');
+    await prisma.applicationPreHireDocument.deleteMany({
+      where: { applicationId: seeded.applicationId },
+    });
+    await prisma.candidate.update({
+      where: { id: seeded.candidateId },
+      data: { cvFileName: null, cvOriginalName: null, cvMimeType: null },
+    });
+
+    const res = await request(app.getHttpServer())
+      .post(`/ats/applications/${seeded.applicationId}/hire`)
+      .set(auth(adminToken))
+      .send({ hireDate: '2026-08-02' })
+      .expect(400);
+    expect(JSON.stringify(res.body)).toMatch(/Hoja de vida|Finalistas/i);
+
+    await attachHireDocuments(seeded.candidateId, seeded.applicationId);
+
+    await request(app.getHttpServer())
+      .post(`/ats/applications/${seeded.applicationId}/hire`)
+      .set(auth(adminToken))
+      .send({ hireDate: '2026-08-02' })
+      .expect(201);
   });
 
   it('rejects hire when pre-hire checklist is still pending', async () => {
