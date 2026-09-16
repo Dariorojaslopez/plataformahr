@@ -1,12 +1,20 @@
 import { OfferLetterSendMode } from '@prisma/client';
+import type { SendMailInput, SendMailResult } from '../../mail/mail.types';
 import { OfferLetterSendService } from './offer-letter-send.service';
 
 jest.mock('./offer-letter.storage', () => ({
   resolveCompanyUploadsDir: () => '/tmp/uploads',
-  readOfferSignedFile: jest.fn().mockResolvedValue(
-    Buffer.from('Hola [Nombre], cargo [Cargo]', 'utf8'),
-  ),
+  readOfferSignedFile: jest
+    .fn()
+    .mockResolvedValue(Buffer.from('Hola [Nombre], cargo [Cargo]', 'utf8')),
 }));
+
+type OfferLetterUpdateArg = {
+  data?: {
+    offerLetterSendMode?: OfferLetterSendMode;
+    offerLetterSignToken?: string | null;
+  };
+};
 
 describe('OfferLetterSendService', () => {
   const offer = {
@@ -18,7 +26,8 @@ describe('OfferLetterSendService', () => {
     employmentType: 'FULL_TIME',
     startDate: null,
     notes: null,
-    signedOfferLetterFileName: 'offer-signed-aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa.docx',
+    signedOfferLetterFileName:
+      'offer-signed-aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa.docx',
     signedOfferLetterMimeType:
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     signedOfferLetterOriginalName: 'carta-[Nombre].docx',
@@ -38,31 +47,36 @@ describe('OfferLetterSendService', () => {
   };
 
   function build(options?: { digitalSignature?: boolean }) {
+    const updateOffer: jest.MockedFunction<
+      (arg: OfferLetterUpdateArg) => Promise<unknown>
+    > = jest.fn().mockResolvedValue({});
     const prisma = {
       jobOffer: {
         findFirst: jest.fn().mockResolvedValue(offer),
-        update: jest.fn().mockResolvedValue({}),
+        update: updateOffer,
       },
       companyFeature: {
         findFirst: jest
           .fn()
-          .mockResolvedValue(options?.digitalSignature ? { id: 'feat-1' } : null),
+          .mockResolvedValue(
+            options?.digitalSignature ? { id: 'feat-1' } : null,
+          ),
       },
     };
-    const mail = {
-      sendText: jest.fn().mockResolvedValue({ status: 'SENT' }),
-    };
+    const sendText: jest.MockedFunction<
+      (input: SendMailInput) => Promise<SendMailResult>
+    > = jest.fn().mockResolvedValue({ status: 'SENT' });
     const audit = { create: jest.fn().mockResolvedValue({}) };
     const service = new OfferLetterSendService(
       prisma as never,
       audit as never,
-      mail as never,
+      { sendText } as never,
     );
-    return { service, prisma, mail };
+    return { service, updateOffer, sendText };
   }
 
   it('sends the customized email with the filled letter attached when digital signature is off', async () => {
-    const { service, mail, prisma } = build();
+    const { service, sendText, updateOffer } = build();
     const result = await service.sendApprovedLetter({
       companyId: 'company-1',
       userId: 'user-1',
@@ -70,30 +84,20 @@ describe('OfferLetterSendService', () => {
       signerName: 'Clara Pasos',
     });
     expect(result.sendMode).toBe(OfferLetterSendMode.ATTACHMENT);
-    expect(mail.sendText).toHaveBeenCalledWith(
-      expect.objectContaining({
-        to: 'pedro@example.com',
-        subject: 'Oferta para Pedro Julian',
-        html: expect.stringContaining('Hola Pedro Julian, cargo Reclutador'),
-        attachments: [
-          expect.objectContaining({
-            filename: 'carta-Pedro Julian.docx',
-          }),
-        ],
-      }),
+    const payload = sendText.mock.calls[0]?.[0];
+    expect(payload?.to).toBe('pedro@example.com');
+    expect(payload?.subject).toBe('Oferta para Pedro Julian');
+    expect(payload?.html).toContain('Hola Pedro Julian, cargo Reclutador');
+    expect(payload?.attachments?.[0]?.filename).toBe('carta-Pedro Julian.docx');
+    const updateArg = updateOffer.mock.calls[0]?.[0];
+    expect(updateArg?.data?.offerLetterSendMode).toBe(
+      OfferLetterSendMode.ATTACHMENT,
     );
-    expect(prisma.jobOffer.update).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({
-          offerLetterSendMode: OfferLetterSendMode.ATTACHMENT,
-          offerLetterSignToken: null,
-        }),
-      }),
-    );
+    expect(updateArg?.data?.offerLetterSignToken).toBeNull();
   });
 
   it('appends a public sign URL and does not attach the file when digital signature is on', async () => {
-    const { service, mail } = build({ digitalSignature: true });
+    const { service, sendText } = build({ digitalSignature: true });
     const result = await service.sendApprovedLetter({
       companyId: 'company-1',
       userId: 'user-1',
@@ -101,11 +105,8 @@ describe('OfferLetterSendService', () => {
     });
     expect(result.sendMode).toBe(OfferLetterSendMode.DIGITAL_SIGNATURE);
     expect(result.signUrl).toMatch(/\/sign\/offer-letter\/[a-f0-9]+$/);
-    const payload = mail.sendText.mock.calls[0][0] as {
-      html: string;
-      attachments?: unknown;
-    };
-    expect(payload.html).toContain(result.signUrl);
-    expect(payload.attachments).toBeUndefined();
+    const payload = sendText.mock.calls[0]?.[0];
+    expect(payload?.html).toContain(result.signUrl);
+    expect(payload?.attachments).toBeUndefined();
   });
 });
