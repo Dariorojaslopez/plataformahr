@@ -53,6 +53,7 @@ describe('HomeService', () => {
     requests?: unknown[];
     interviews?: unknown[];
     contractApprovals?: unknown[];
+    offerLetterApprovals?: unknown[];
     readyForOfferApplications?: unknown[];
     roleCodes?: string[];
     orgEmployees?: unknown[];
@@ -119,6 +120,11 @@ describe('HomeService', () => {
           .fn()
           .mockResolvedValue(overrides?.contractApprovals ?? []),
       },
+      jobOfferOfferLetterApproval: {
+        findMany: jest
+          .fn()
+          .mockResolvedValue(overrides?.offerLetterApprovals ?? []),
+      },
     };
     const rbac = {
       getRoleCodesForMembership: jest
@@ -151,6 +157,7 @@ describe('HomeService', () => {
     expect(feed.pendingApprovals).toEqual([]);
     expect(feed.pendingEvaluations).toEqual([]);
     expect(feed.pendingContractApprovals).toEqual([]);
+    expect(feed.pendingOfferLetterApprovals).toEqual([]);
     expect(feed.readyForOffer).toEqual([]);
     expect(feed.assignedVacancies).toEqual([]);
     expect(feed.teamMembers).toEqual([]);
@@ -299,6 +306,48 @@ describe('HomeService', () => {
     const feed = await service.getFeed(tenant);
     expect(feed.pendingApprovals).toEqual([
       { id: 'req-1', title: 'Líder de turno', requesterName: 'Luis Díaz' },
+    ]);
+  });
+
+  it('lists pending offer-letter approvals only for the current sequential step', async () => {
+    const { service } = build({
+      offerLetterApprovals: [
+        {
+          id: 'step-1',
+          sequence: 1,
+          jobOfferId: 'offer-1',
+          jobOffer: {
+            application: {
+              candidate: { firstName: 'Pedro', lastName: 'Julian' },
+              vacancy: { title: 'Reclutador' },
+            },
+            offerLetterApprovals: [{ id: 'step-1' }],
+          },
+        },
+        {
+          id: 'step-later',
+          sequence: 2,
+          jobOfferId: 'offer-2',
+          jobOffer: {
+            application: {
+              candidate: { firstName: 'Ana', lastName: 'Ruiz' },
+              vacancy: { title: 'Analista' },
+            },
+            offerLetterApprovals: [{ id: 'step-first' }],
+          },
+        },
+      ],
+    });
+    const feed = await service.getFeed(tenant);
+    expect(feed.pendingOfferLetterApprovals).toEqual([
+      {
+        offerId: 'offer-1',
+        stepId: 'step-1',
+        sequence: 1,
+        isLastStep: true,
+        candidateName: 'Pedro Julian',
+        vacancyTitle: 'Reclutador',
+      },
     ]);
   });
 });

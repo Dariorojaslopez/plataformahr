@@ -234,7 +234,7 @@ export class HiringService {
           !offer.signedOfferLetterFileName
         ) {
           throw new BadRequestException(
-            'Debes cargar la carta oferta firmada antes de contratar',
+            'Debes cargar la carta oferta diligenciada antes de contratar',
           );
         }
 

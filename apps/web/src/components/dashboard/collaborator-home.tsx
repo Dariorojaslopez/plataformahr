@@ -44,6 +44,7 @@ import {
   type HomeOpenVacancy,
   type HomePendingApproval,
   type HomePendingContractApproval,
+  type HomePendingOfferLetterApproval,
   type HomeProfile,
   type HomeReadyForOffer,
   type HomeTeamMember,
@@ -56,6 +57,7 @@ import {
   vacancyStatusVariant,
 } from "@/lib/ats/labels";
 import { notifyError, notifySuccess } from "@/lib/ui/notify";
+import { offerKeys, offersApi } from "@/lib/api/offers";
 import type { Vacancy, VacancyStatus } from "@/types/ats";
 
 export function CollaboratorHome({
@@ -145,6 +147,11 @@ export function CollaboratorHome({
       {(feed.pendingContractApprovals?.length ?? 0) > 0 ? (
         <ContractApprovalsHomeSection
           items={feed.pendingContractApprovals ?? []}
+        />
+      ) : null}
+      {(feed.pendingOfferLetterApprovals?.length ?? 0) > 0 ? (
+        <OfferLetterApprovalsHomeSection
+          items={feed.pendingOfferLetterApprovals ?? []}
         />
       ) : null}
       {features.has("ats.interviews") && feed.pendingEvaluations.length > 0 ? (
@@ -674,6 +681,136 @@ function ContractApprovalsHomeSection({
             <CardContent>
               <Button type="button" size="sm" asChild>
                 <Link href={`/ats/offers/${item.offerId}`}>Revisar contrato</Link>
+              </Button>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function OfferLetterApprovalsHomeSection({
+  items,
+}: {
+  items: HomePendingOfferLetterApproval[];
+}) {
+  const companyId = useCompanyId();
+  const queryClient = useQueryClient();
+  const [pendingId, setPendingId] = useState<string | null>(null);
+
+  const decideMutation = useMutation({
+    mutationFn: async ({
+      offerId,
+      stepId,
+      decision,
+    }: {
+      offerId: string;
+      stepId: string;
+      decision: "APPROVE" | "REJECT";
+      isLastStep: boolean;
+    }) => {
+      if (decision === "REJECT") {
+        return offersApi.rejectOfferLetterStep(offerId, stepId);
+      }
+      return offersApi.approveOfferLetterStep(offerId, stepId);
+    },
+    onSuccess: async (_data, vars) => {
+      await queryClient.invalidateQueries({ queryKey: homeKeys.feed(companyId) });
+      await queryClient.invalidateQueries({
+        queryKey: offerKeys.all(companyId),
+      });
+      notifySuccess(
+        vars.decision === "REJECT"
+          ? "Carta oferta rechazada"
+          : vars.isLastStep
+            ? "Carta oferta aprobada y enviada"
+            : "Carta oferta aprobada",
+      );
+    },
+    onError: (error) => {
+      notifyError(error, "No se pudo registrar la decisión.");
+    },
+    onSettled: () => setPendingId(null),
+  });
+
+  async function downloadLetter(offerId: string) {
+    try {
+      const { blob, filename } = await offersApi.downloadSignedLetter(offerId);
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = filename || "carta-oferta";
+      anchor.click();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      notifyError(error, "No se pudo descargar la carta oferta.");
+    }
+  }
+
+  return (
+    <section className="space-y-3">
+      <div>
+        <h2 className="text-lg font-semibold">Cartas oferta por aprobar</h2>
+        <p className="text-sm text-muted-foreground">
+          Revisa el documento diligenciado. Al aprobar se envía el correo
+          personalizado al candidato.
+        </p>
+      </div>
+      <div className="grid gap-3 md:grid-cols-2">
+        {items.map((item) => (
+          <Card key={item.stepId}>
+            <CardHeader>
+              <CardTitle className="text-base">{item.candidateName}</CardTitle>
+              <CardDescription>
+                {item.vacancyTitle} · paso {item.sequence}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => void downloadLetter(item.offerId)}
+              >
+                Ver carta
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                disabled={decideMutation.isPending}
+                onClick={() => {
+                  setPendingId(item.stepId);
+                  decideMutation.mutate({
+                    offerId: item.offerId,
+                    stepId: item.stepId,
+                    decision: "APPROVE",
+                    isLastStep: item.isLastStep,
+                  });
+                }}
+              >
+                {pendingId === item.stepId
+                  ? "Enviando…"
+                  : item.isLastStep
+                    ? "Aprobar y enviar"
+                    : "Aprobar"}
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={decideMutation.isPending}
+                onClick={() => {
+                  setPendingId(item.stepId);
+                  decideMutation.mutate({
+                    offerId: item.offerId,
+                    stepId: item.stepId,
+                    decision: "REJECT",
+                    isLastStep: item.isLastStep,
+                  });
+                }}
+              >
+                Rechazar
               </Button>
             </CardContent>
           </Card>

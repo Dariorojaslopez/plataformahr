@@ -139,12 +139,15 @@ export const FINALIST_HIRE_DOCUMENT_LABELS = {
   CV: "Hoja de vida",
   SECURITY_STUDY: "Estudio de seguridad",
   MEDICAL_EXAM: "Exámenes médicos",
+  OFFER_LETTER: "Carta oferta",
 } as const;
 
 export function missingFinalistHireDocuments(card: {
   hasCv?: boolean;
   hasSecurityStudyDoc?: boolean;
   hasMedicalExamDoc?: boolean;
+  hasCompanyOfferLetterTemplate?: boolean | null;
+  hasSignedOfferLetter?: boolean | null;
 }): string[] {
   const missing: string[] = [];
   if (!card.hasCv) missing.push(FINALIST_HIRE_DOCUMENT_LABELS.CV);
@@ -153,6 +156,9 @@ export function missingFinalistHireDocuments(card: {
   }
   if (!card.hasMedicalExamDoc) {
     missing.push(FINALIST_HIRE_DOCUMENT_LABELS.MEDICAL_EXAM);
+  }
+  if (card.hasCompanyOfferLetterTemplate && !card.hasSignedOfferLetter) {
+    missing.push(FINALIST_HIRE_DOCUMENT_LABELS.OFFER_LETTER);
   }
   return missing;
 }
@@ -235,7 +241,7 @@ export function hireRequirementChecks(input: {
     },
     {
       id: "SIGNED_OFFER_LETTER",
-      label: "Carta oferta firmada cargada (si hay plantilla)",
+      label: "Carta oferta diligenciada cargada (si hay plantilla)",
       met: isSignedOfferLetterClear({
         hasCompanyOfferLetterTemplate: input.hasCompanyOfferLetterTemplate,
         hasSignedOfferLetter: input.hasSignedOfferLetter,

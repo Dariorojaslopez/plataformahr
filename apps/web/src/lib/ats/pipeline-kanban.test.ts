@@ -156,6 +156,26 @@ describe("pipeline kanban", () => {
         hasCv: true,
         hasSecurityStudyDoc: true,
         hasMedicalExamDoc: true,
+        hasCompanyOfferLetterTemplate: true,
+        hasSignedOfferLetter: false,
+      }),
+    ).toEqual(["Carta oferta"]);
+    expect(
+      missingFinalistHireDocuments({
+        hasCv: true,
+        hasSecurityStudyDoc: true,
+        hasMedicalExamDoc: true,
+        hasCompanyOfferLetterTemplate: true,
+        hasSignedOfferLetter: true,
+      }),
+    ).toEqual([]);
+    expect(
+      missingFinalistHireDocuments({
+        hasCv: true,
+        hasSecurityStudyDoc: true,
+        hasMedicalExamDoc: true,
+        hasCompanyOfferLetterTemplate: false,
+        hasSignedOfferLetter: false,
       }),
     ).toEqual([]);
     expect(

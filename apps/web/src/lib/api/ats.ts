@@ -132,6 +132,17 @@ export const atsApi = {
       body,
     }),
 
+  getOfferLetterTemplateApprovers: () =>
+    apiRequest<EvaluatorDefaults>("/ats/offer-letter-template-approvers"),
+
+  updateOfferLetterTemplateApprovers: (
+    body: ReplacePositionOccupantStepsInput,
+  ) =>
+    apiRequest<EvaluatorDefaults>("/ats/offer-letter-template-approvers", {
+      method: "PUT",
+      body,
+    }),
+
   listActiveProcesses: () =>
     apiRequest<{ items: ActiveSelectionProcess[] }>("/ats/active-processes"),
 
@@ -403,6 +414,8 @@ export const atsKeys = {
     [...atsKeys.all(companyId), "evaluator-defaults"] as const,
   contractTemplateApprovers: (companyId: string) =>
     [...atsKeys.all(companyId), "contract-template-approvers"] as const,
+  offerLetterTemplateApprovers: (companyId: string) =>
+    [...atsKeys.all(companyId), "offer-letter-template-approvers"] as const,
   activeProcesses: (companyId: string) =>
     [...atsKeys.all(companyId), "active-processes"] as const,
   activeProcessApprovals: (companyId: string, id: string) =>

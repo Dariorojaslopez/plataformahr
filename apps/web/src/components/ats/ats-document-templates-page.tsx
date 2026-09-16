@@ -3,6 +3,7 @@
 import { OFFER_LETTER_PLACEHOLDERS } from "@talento/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRef, useState } from "react";
+import { EmailHtmlEditor } from "@/components/ats/email-html-editor";
 import { Button } from "@/components/ui/button";
 import { ErrorState } from "@/components/ui/error-state";
 import { Input } from "@/components/ui/input";
@@ -60,6 +61,8 @@ export function AtsDocumentTemplatesPageClient() {
         contractName={companyQuery.data.contractTemplateOriginalName}
         hasOffer={Boolean(companyQuery.data.hasOfferLetterTemplate)}
         hasContract={Boolean(companyQuery.data.hasContractTemplate)}
+        offerEmailSubject={companyQuery.data.atsOfferLetterEmailSubject ?? ""}
+        offerEmailBody={companyQuery.data.atsOfferLetterEmailBody ?? ""}
       />
     </div>
   );
@@ -141,12 +144,16 @@ function DocumentTemplatesSection({
   contractName,
   hasOffer,
   hasContract,
+  offerEmailSubject,
+  offerEmailBody,
 }: {
   companyId: string;
   offerName?: string | null;
   contractName?: string | null;
   hasOffer: boolean;
   hasContract: boolean;
+  offerEmailSubject: string;
+  offerEmailBody: string;
 }) {
   return (
     <section className="space-y-4">
@@ -157,13 +164,15 @@ function DocumentTemplatesSection({
           DOCX (máx. 10 MB).
         </p>
       </div>
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid gap-4 lg:grid-cols-2">
         <TemplateCard
           companyId={companyId}
           kind="offer-letter"
           title="Carta de oferta"
           hasFile={hasOffer}
           fileName={offerName}
+          emailSubject={offerEmailSubject}
+          emailBody={offerEmailBody}
         />
         <TemplateCard
           companyId={companyId}
@@ -183,12 +192,16 @@ function TemplateCard({
   title,
   hasFile,
   fileName,
+  emailSubject,
+  emailBody,
 }: {
   companyId: string;
   kind: TemplateKind;
   title: string;
   hasFile: boolean;
   fileName?: string | null;
+  emailSubject?: string;
+  emailBody?: string;
 }) {
   const queryClient = useQueryClient();
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -239,7 +252,11 @@ function TemplateCard({
   }
 
   return (
-    <div className="space-y-3 rounded-md border border-border p-4">
+    <div
+      className={`space-y-3 rounded-md border border-border p-4 ${
+        isOfferLetter ? "lg:col-span-2" : ""
+      }`}
+    >
       <div>
         <h3 className="font-medium">{title}</h3>
         <p className="text-sm text-muted-foreground">
@@ -327,6 +344,83 @@ function TemplateCard({
           </>
         ) : null}
       </div>
+      {isOfferLetter ? (
+        <OfferLetterEmailForm
+          companyId={companyId}
+          initialSubject={emailSubject ?? ""}
+          initialBody={emailBody ?? ""}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+function OfferLetterEmailForm({
+  companyId,
+  initialSubject,
+  initialBody,
+}: {
+  companyId: string;
+  initialSubject: string;
+  initialBody: string;
+}) {
+  const queryClient = useQueryClient();
+  const [subject, setSubject] = useState(initialSubject);
+  const [body, setBody] = useState(initialBody);
+  const saveMutation = useMutation({
+    mutationFn: () =>
+      companyApi.updateAtsSettings({
+        atsOfferLetterEmailSubject: subject,
+        atsOfferLetterEmailBody: body,
+      }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: companyKeys.current(companyId),
+      });
+      notifySuccess("Correo de envío de plantilla guardado");
+    },
+    onError: (error) => {
+      notifyError(error, "No se pudo guardar el correo.");
+    },
+  });
+
+  return (
+    <div className="space-y-3 border-t border-border pt-4">
+      <div>
+        <h4 className="font-medium">
+          Configuración de correo de envío de plantilla
+        </h4>
+        <p className="text-sm text-muted-foreground">
+          Este correo acompañará el envío de la carta de oferta. Puedes cambiar
+          la fuente y pegar o insertar un logo.
+        </p>
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="offer-letter-email-subject">Asunto</Label>
+        <Input
+          id="offer-letter-email-subject"
+          value={subject}
+          onChange={(event) => setSubject(event.target.value)}
+          maxLength={200}
+          placeholder="Te hacemos una oferta…"
+        />
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="offer-letter-email-body">Cuerpo del mensaje</Label>
+        <EmailHtmlEditor
+          id="offer-letter-email-body"
+          value={body}
+          onChange={setBody}
+          disabled={saveMutation.isPending}
+        />
+      </div>
+      <Button
+        type="button"
+        disabled={saveMutation.isPending}
+        onClick={() => saveMutation.mutate()}
+      >
+        {saveMutation.isPending ? "Guardando…" : "Guardar correo"}
+      </Button>
     </div>
   );
 }

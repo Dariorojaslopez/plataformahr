@@ -409,6 +409,9 @@ export type PipelineCard = {
   hasCv?: boolean;
   hasSecurityStudyDoc?: boolean;
   hasMedicalExamDoc?: boolean;
+  jobOfferId?: string | null;
+  hasCompanyOfferLetterTemplate?: boolean;
+  hasSignedOfferLetter?: boolean;
   securityStudyStatus?: PreHireCheckStatus;
   medicalExamStatus?: PreHireCheckStatus;
   stage: ApplicationStage;

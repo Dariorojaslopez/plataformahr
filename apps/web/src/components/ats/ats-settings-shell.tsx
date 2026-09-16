@@ -14,6 +14,10 @@ const TABS = [
     label: "Asignación de reclutador",
   },
   {
+    href: "/ats/settings/offer-letter-approvers",
+    label: "Aprobadores de carta oferta",
+  },
+  {
     href: "/ats/settings/contract-approvers",
     label: "Aprobadores de contrato",
   },

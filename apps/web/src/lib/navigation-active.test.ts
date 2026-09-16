@@ -93,6 +93,8 @@ describe("resolveActiveNavHref", () => {
       "/ats/settings/approvals",
       "/ats/settings/evaluators",
       "/ats/settings/active-processes",
+      "/ats/settings/offer-letter-approvers",
+      "/ats/settings/contract-approvers",
       "/performance/cycles/c-1",
       "/performance/9box",
       "/performance/calibration",

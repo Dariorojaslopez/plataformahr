@@ -105,9 +105,12 @@ export class OffersService {
     if (application.status !== ApplicationStatus.ACTIVE) {
       throw new BadRequestException('Application is not active');
     }
-    if (application.stage !== ApplicationStage.INTERVIEW) {
+    if (
+      application.stage !== ApplicationStage.INTERVIEW &&
+      application.stage !== ApplicationStage.OFFER
+    ) {
       throw new BadRequestException(
-        'Offer can only be created when Application is in INTERVIEW',
+        'Offer can only be created when Application is in INTERVIEW or OFFER',
       );
     }
 

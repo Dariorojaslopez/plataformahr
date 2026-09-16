@@ -4,8 +4,10 @@ import { COMPANY_ID_PATTERN } from '../../core/companies/branding/branding.const
 import { resolveCompanyUploadsDir } from '../../core/companies/branding/branding.storage';
 import {
   OFFER_LETTER_EXTENSION_BY_MIME,
+  OFFER_SIGN_IMAGE_EXTENSION_BY_MIME,
   OFFER_SIGNED_FILE_NAME_PATTERN,
   type AllowedOfferLetterMime,
+  type AllowedOfferSignImageMime,
 } from './offer-letter.constants';
 
 export { resolveCompanyUploadsDir };
@@ -27,6 +29,20 @@ export function buildOfferSignedFileName(
   id: string = crypto.randomUUID(),
 ): string {
   return `offer-signed-${id}.${OFFER_LETTER_EXTENSION_BY_MIME[mime]}`;
+}
+
+export function buildOfferSignImageFileName(
+  mime: AllowedOfferSignImageMime,
+  id: string = crypto.randomUUID(),
+): string {
+  return `offer-signimg-${id}.${OFFER_SIGN_IMAGE_EXTENSION_BY_MIME[mime]}`;
+}
+
+export function buildOfferCandidateSignedFileName(
+  mime: AllowedOfferLetterMime,
+  id: string = crypto.randomUUID(),
+): string {
+  return `offer-candsigned-${id}.${OFFER_LETTER_EXTENSION_BY_MIME[mime]}`;
 }
 
 export function resolveOfferSignedAbsolutePath(

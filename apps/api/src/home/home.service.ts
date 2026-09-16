@@ -13,6 +13,7 @@ import {
   EmployeeStatus,
   InterviewStatus,
   JobOfferStatus,
+  OfferLetterApprovalStatus,
   Prisma,
   VacancyRequestStatus,
   VacancyStatus,
@@ -41,6 +42,7 @@ import type {
   HomeOpenVacancy,
   HomePendingApproval,
   HomePendingContractApproval,
+  HomePendingOfferLetterApproval,
   HomePendingEvaluation,
   HomeProfile,
   HomeReadyForOffer,
@@ -73,6 +75,7 @@ export class HomeService {
       pendingApprovals,
       pendingEvaluations,
       pendingContractApprovals,
+      pendingOfferLetterApprovals,
       readyForOffer,
       assigned,
       teamMembers,
@@ -85,6 +88,9 @@ export class HomeService {
       employee
         ? this.listPendingContractApprovals(tenant.companyId, employee.id)
         : Promise.resolve([] as HomePendingContractApproval[]),
+      employee
+        ? this.listPendingOfferLetterApprovals(tenant.companyId, employee.id)
+        : Promise.resolve([] as HomePendingOfferLetterApproval[]),
       employee
         ? this.listReadyForOffer(tenant.companyId, employee.id)
         : Promise.resolve([] as HomeReadyForOffer[]),
@@ -106,6 +112,7 @@ export class HomeService {
       pendingApprovals,
       pendingEvaluations,
       pendingContractApprovals,
+      pendingOfferLetterApprovals,
       readyForOffer,
       assignedVacancies: assigned.assignedVacancies,
       assignedMetrics: {
@@ -483,6 +490,56 @@ export class HomeService {
         offerId: row.jobOfferId,
         stepId: row.id,
         sequence: row.sequence,
+        candidateName:
+          `${row.jobOffer.application.candidate.firstName} ${row.jobOffer.application.candidate.lastName}`.trim(),
+        vacancyTitle: row.jobOffer.application.vacancy.title,
+      }));
+  }
+
+  private async listPendingOfferLetterApprovals(
+    companyId: string,
+    employeeId: string,
+  ): Promise<HomePendingOfferLetterApproval[]> {
+    const rows = await this.prisma.jobOfferOfferLetterApproval.findMany({
+      where: {
+        companyId,
+        status: ApprovalStatus.PENDING,
+        approverEmployeeId: employeeId,
+        jobOffer: {
+          offerLetterApprovalStatus: OfferLetterApprovalStatus.PENDING,
+        },
+      },
+      select: {
+        id: true,
+        sequence: true,
+        jobOfferId: true,
+        jobOffer: {
+          select: {
+            application: {
+              select: {
+                candidate: { select: { firstName: true, lastName: true } },
+                vacancy: { select: { title: true } },
+              },
+            },
+            offerLetterApprovals: {
+              where: { status: ApprovalStatus.PENDING },
+              orderBy: { sequence: 'asc' },
+              select: { id: true },
+            },
+          },
+        },
+      },
+      orderBy: { sequence: 'asc' },
+      take: 20,
+    });
+
+    return rows
+      .filter((row) => row.jobOffer.offerLetterApprovals[0]?.id === row.id)
+      .map((row) => ({
+        offerId: row.jobOfferId,
+        stepId: row.id,
+        sequence: row.sequence,
+        isLastStep: row.jobOffer.offerLetterApprovals.length === 1,
         candidateName:
           `${row.jobOffer.application.candidate.firstName} ${row.jobOffer.application.candidate.lastName}`.trim(),
         vacancyTitle: row.jobOffer.application.vacancy.title,

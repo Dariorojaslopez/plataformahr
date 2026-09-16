@@ -156,6 +156,15 @@ export type HomePendingContractApproval = {
   sequence: number;
 };
 
+export type HomePendingOfferLetterApproval = {
+  offerId: string;
+  stepId: string;
+  candidateName: string;
+  vacancyTitle: string;
+  sequence: number;
+  isLastStep: boolean;
+};
+
 export class UpdateHomeCompanyInfoDto {
   @Transform(trim)
   @IsString()
@@ -220,6 +229,7 @@ export type CollaboratorHomeFeed = {
   pendingApprovals: HomePendingApproval[];
   pendingEvaluations: HomePendingEvaluation[];
   pendingContractApprovals: HomePendingContractApproval[];
+  pendingOfferLetterApprovals: HomePendingOfferLetterApproval[];
   readyForOffer: HomeReadyForOffer[];
   assignedVacancies: HomeAssignedVacancy[];
   assignedMetrics: HomeAssignedMetrics;

@@ -239,6 +239,7 @@ const NAV_FEATURE_BY_HREF: Record<string, CompanyFeatureCode> = {
   "/ats/settings/active-processes": "ats.approvals",
   "/ats/settings/templates": "ats.approvals",
   "/ats/settings/recruiter-assignment": "ats.approvals",
+  "/ats/settings/offer-letter-approvers": "ats.approvals",
   "/ats/settings/contract-approvers": "ats.approvals",
   "/performance/cycles": "performance.cycles",
   "/performance/population": "performance.population",

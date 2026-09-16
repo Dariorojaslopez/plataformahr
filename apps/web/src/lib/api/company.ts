@@ -36,6 +36,8 @@ export const companyApi = {
     vacancyHiringSlaDays?: number;
     atsThankYouLetterSubject?: string | null;
     atsThankYouLetterBody?: string | null;
+    atsOfferLetterEmailSubject?: string | null;
+    atsOfferLetterEmailBody?: string | null;
   }) =>
     apiRequest<CurrentCompanyResponse>("/companies/current/ats-settings", {
       method: "PATCH",

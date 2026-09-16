@@ -26,6 +26,7 @@ import { CompanyContextGuard } from '../../tenant/guards/company-context.guard';
 import { DecideContractApprovalDto } from './dto/contract-approval.dto';
 import { UpdateJobOfferDto } from './dto/offer.dto';
 import { ContractApprovalsService } from './contract-approvals.service';
+import { OfferLetterApprovalsService } from './offer-letter-approvals.service';
 import {
   OFFER_LETTER_FIELD_NAME,
   OFFER_LETTER_MAX_BYTES,
@@ -40,6 +41,7 @@ export class OffersController {
     private readonly offersService: OffersService,
     private readonly contractApprovals: ContractApprovalsService,
     private readonly offerLetter: OfferLetterService,
+    private readonly offerLetterApprovals: OfferLetterApprovalsService,
   ) {}
 
   @Get(':id')
@@ -213,6 +215,57 @@ export class OffersController {
     @Body() dto: DecideContractApprovalDto,
   ) {
     return this.contractApprovals.decide(
+      tenant.companyId,
+      user.userId,
+      id,
+      stepId,
+      'REJECT',
+      dto.comment,
+    );
+  }
+
+  @Get(':id/offer-letter-approvals')
+  @RequirePermissions('ats.offer.read')
+  getOfferLetterApprovals(
+    @CurrentTenant() tenant: TenantContext,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.offerLetterApprovals.getByOffer(tenant.companyId, id);
+  }
+
+  @Post(':id/offer-letter-approvals/:stepId/approve')
+  @UseGuards(ThrottlerGuard)
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  @RequirePermissions('ats.offer.read')
+  approveOfferLetterStep(
+    @CurrentTenant() tenant: TenantContext,
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('stepId', ParseUUIDPipe) stepId: string,
+    @Body() dto: DecideContractApprovalDto,
+  ) {
+    return this.offerLetterApprovals.decide(
+      tenant.companyId,
+      user.userId,
+      id,
+      stepId,
+      'APPROVE',
+      dto.comment,
+    );
+  }
+
+  @Post(':id/offer-letter-approvals/:stepId/reject')
+  @UseGuards(ThrottlerGuard)
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  @RequirePermissions('ats.offer.read')
+  rejectOfferLetterStep(
+    @CurrentTenant() tenant: TenantContext,
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('stepId', ParseUUIDPipe) stepId: string,
+    @Body() dto: DecideContractApprovalDto,
+  ) {
+    return this.offerLetterApprovals.decide(
       tenant.companyId,
       user.userId,
       id,

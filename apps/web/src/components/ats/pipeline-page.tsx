@@ -16,7 +16,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { FileText, MoreHorizontal } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useSession } from "@/components/auth/session-provider";
 import { FormSelect } from "@/components/organization/form-select";
 import { Badge } from "@/components/ui/badge";
@@ -44,6 +44,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { useCompanyId } from "@/hooks/use-company-id";
 import { atsApi, atsKeys } from "@/lib/api/ats";
+import { companyApi } from "@/lib/api/company";
 import { ApiError, getErrorMessage } from "@/lib/api/errors";
 import { hiringApi, hiringKeys, type HirePdiSyncResult } from "@/lib/api/hiring";
 import { offerKeys, offersApi } from "@/lib/api/offers";
@@ -95,6 +96,9 @@ type PendingMove = {
 const PREHIRE_UPLOAD_MAX_BYTES = 20 * 1024 * 1024;
 const PREHIRE_UPLOAD_ACCEPT =
   ".pdf,.docx,.jpg,.jpeg,.png,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,image/jpeg,image/png";
+const OFFER_LETTER_UPLOAD_MAX_BYTES = 10 * 1024 * 1024;
+const OFFER_LETTER_UPLOAD_ACCEPT =
+  ".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 
 const FIT_DOT_CLASS: Record<FitLevel, string> = {
   green: "bg-emerald-500",
@@ -125,6 +129,8 @@ export function PipelinePageClient() {
     new Date().toISOString().slice(0, 10),
   );
   const [hireConfirmed, setHireConfirmed] = useState(false);
+  const offerLetterInputRef = useRef<HTMLInputElement>(null);
+  const offerLetterTargetRef = useRef<PipelineCard | null>(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
@@ -304,6 +310,38 @@ export function PipelinePageClient() {
     },
   });
 
+  const uploadOfferLetterMutation = useMutation({
+    mutationFn: async ({
+      applicationId,
+      file,
+    }: {
+      applicationId: string;
+      file: File;
+    }) => {
+      if (file.size > OFFER_LETTER_UPLOAD_MAX_BYTES) {
+        throw new Error("La carta oferta supera el tamaño máximo (10 MB).");
+      }
+      return offersApi.uploadFilledLetter(applicationId, file);
+    },
+    onSuccess: async (data, vars) => {
+      await invalidatePipeline();
+      setResumeCard((current) => {
+        if (!current || current.applicationId !== vars.applicationId) {
+          return current;
+        }
+        return {
+          ...current,
+          jobOfferId: data.offerId,
+          hasSignedOfferLetter: true,
+        };
+      });
+      notifySuccess("Carta oferta cargada");
+    },
+    onError: (error) => {
+      notifyError(error, "No se pudo cargar la carta oferta.");
+    },
+  });
+
   const hireMutation = useMutation({
     mutationFn: (applicationId: string) =>
       hiringApi.hire(applicationId, {
@@ -377,6 +415,33 @@ export function PipelinePageClient() {
       toStage: "REJECTED",
       candidateName: card.candidateName,
     });
+  }
+
+  async function downloadOfferTemplate() {
+    try {
+      const { blob, filename } = await companyApi.downloadAtsTemplate(
+        "offer-letter",
+      );
+      triggerBlobDownload(blob, filename || "carta-oferta.docx");
+    } catch (error) {
+      notifyError(error, "No se pudo descargar la plantilla de carta oferta.");
+    }
+  }
+
+  function requestOfferLetterUpload(card: PipelineCard) {
+    offerLetterTargetRef.current = card;
+    offerLetterInputRef.current?.click();
+  }
+
+  async function downloadFilledOfferLetter(card: PipelineCard) {
+    try {
+      const { blob, filename } = await offersApi.downloadFilledLetter(
+        card.applicationId,
+      );
+      triggerBlobDownload(blob, filename || "carta-oferta");
+    } catch (error) {
+      notifyError(error, "No se pudo descargar la carta oferta.");
+    }
   }
 
   function onDragStart(event: DragStartEvent) {
@@ -485,6 +550,9 @@ export function PipelinePageClient() {
                   onMoveRequest={requestKanbanMove}
                   onDiscard={requestDiscard}
                   onOpenResume={setResumeCard}
+                  onDownloadOfferTemplate={downloadOfferTemplate}
+                  onUploadOfferLetter={requestOfferLetterUpload}
+                  uploadingOfferLetter={uploadOfferLetterMutation.isPending}
                 />
               ))}
             </div>
@@ -497,9 +565,31 @@ export function PipelinePageClient() {
             </DragOverlay>
           </DndContext>
 
+          <input
+            ref={offerLetterInputRef}
+            type="file"
+            accept={OFFER_LETTER_UPLOAD_ACCEPT}
+            className="sr-only"
+            onChange={(event) => {
+              const file = event.target.files?.[0];
+              event.target.value = "";
+              const card = offerLetterTargetRef.current;
+              offerLetterTargetRef.current = null;
+              if (!file || !card) return;
+              uploadOfferLetterMutation.mutate({
+                applicationId: card.applicationId,
+                file,
+              });
+            }}
+          />
+
           <RecruiterDocsTable
             cards={finalistDocsRows}
             onOpenDocs={setResumeCard}
+            onDownloadOfferTemplate={downloadOfferTemplate}
+            onUploadOfferLetter={requestOfferLetterUpload}
+            onDownloadFilledOfferLetter={downloadFilledOfferLetter}
+            uploadingOfferLetter={uploadOfferLetterMutation.isPending}
           />
         </div>
       ) : null}
@@ -617,9 +707,9 @@ export function PipelinePageClient() {
           ) : null}
           {!canConfirmHire && hirePrepQuery.isSuccess ? (
             <p className="text-sm text-muted-foreground">
-              Completa la oferta y carga hoja de vida, estudio de seguridad y
-              exámenes médicos. Si falta un documento, el candidato permanece en
-              Finalistas.
+              Completa la oferta y carga hoja de vida, estudio de seguridad,
+              exámenes médicos y la carta oferta diligenciada si hay plantilla.
+              Si falta un documento, el candidato permanece en Finalistas.
             </p>
           ) : null}
           {canConfirmHire ? (
@@ -702,8 +792,9 @@ export function PipelinePageClient() {
           {resumeCard ? (
             <div className="space-y-3">
               <p className="text-sm text-muted-foreground">
-                {resumeCard.candidateName} · HV y pre-contratación (máx. 20 MB;
-                PDF, DOCX, JPG o PNG).
+                {resumeCard.candidateName} · HV, pre-contratación y carta
+                oferta (máx. 20 MB en HV/prehire; carta en PDF o DOCX, máx. 10
+                MB).
               </p>
               <ul className="space-y-2 text-sm">
                 <DocDownloadRow
@@ -763,6 +854,43 @@ export function PipelinePageClient() {
                   }
                   uploading={uploadPreHireMutation.isPending}
                 />
+                {resumeCard.hasCompanyOfferLetterTemplate ? (
+                  <DocDownloadRow
+                    label="Carta oferta"
+                    available={Boolean(resumeCard.hasSignedOfferLetter)}
+                    statusLabel={
+                      resumeCard.hasSignedOfferLetter
+                        ? "Diligenciada"
+                        : "Pendiente para aprobación"
+                    }
+                    onDownload={() =>
+                      void downloadFilledOfferLetter(resumeCard)
+                    }
+                    extraActions={
+                      <>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={() => void downloadOfferTemplate()}
+                        >
+                          Descargar plantilla
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          disabled={uploadOfferLetterMutation.isPending}
+                          onClick={() => requestOfferLetterUpload(resumeCard)}
+                        >
+                          {resumeCard.hasSignedOfferLetter
+                            ? "Reemplazar"
+                            : "Cargar carta"}
+                        </Button>
+                      </>
+                    }
+                  />
+                ) : null}
               </ul>
             </div>
           ) : null}
@@ -787,19 +915,32 @@ export function PipelinePageClient() {
 function RecruiterDocsTable({
   cards,
   onOpenDocs,
+  onDownloadOfferTemplate,
+  onUploadOfferLetter,
+  onDownloadFilledOfferLetter,
+  uploadingOfferLetter,
 }: {
   cards: PipelineCard[];
   onOpenDocs: (card: PipelineCard) => void;
+  onDownloadOfferTemplate: () => void;
+  onUploadOfferLetter: (card: PipelineCard) => void;
+  onDownloadFilledOfferLetter: (card: PipelineCard) => void;
+  uploadingOfferLetter: boolean;
 }) {
   if (cards.length === 0) return null;
+
+  const showOfferLetter = cards.some(
+    (card) => card.hasCompanyOfferLetterTemplate,
+  );
 
   return (
     <section className="space-y-3 rounded-md border border-border p-4">
       <div>
         <h3 className="text-base font-semibold">Documentos · Finalistas</h3>
         <p className="text-sm text-muted-foreground">
-          HV, estudio de seguridad y exámenes médicos. Los tres deben estar
-          cargados para pasar a Contratar.
+          {showOfferLetter
+            ? "HV, estudio de seguridad, exámenes médicos y carta oferta diligenciada. Deben estar cargados para pasar a Contratar."
+            : "HV, estudio de seguridad y exámenes médicos. Deben estar cargados para pasar a Contratar."}
         </p>
       </div>
       <Table>
@@ -809,6 +950,7 @@ function RecruiterDocsTable({
             <TableHead>HV</TableHead>
             <TableHead>Seguridad</TableHead>
             <TableHead>Médicos</TableHead>
+            {showOfferLetter ? <TableHead>Carta oferta</TableHead> : null}
             <TableHead className="text-right">Acciones</TableHead>
           </TableRow>
         </TableHeader>
@@ -863,6 +1005,51 @@ function RecruiterDocsTable({
                   ) : null}
                 </div>
               </TableCell>
+              {showOfferLetter ? (
+                <TableCell>
+                  {card.hasCompanyOfferLetterTemplate ? (
+                    <div className="flex flex-wrap gap-1">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => void onDownloadOfferTemplate()}
+                      >
+                        Descargar plantilla
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        disabled={uploadingOfferLetter}
+                        onClick={() => onUploadOfferLetter(card)}
+                      >
+                        {card.hasSignedOfferLetter
+                          ? "Reemplazar"
+                          : "Cargar carta"}
+                      </Button>
+                      {card.hasSignedOfferLetter ? (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={() => void onDownloadFilledOfferLetter(card)}
+                        >
+                          Descargar
+                        </Button>
+                      ) : (
+                        <p className="text-xs text-muted-foreground">
+                          Sin archivo
+                        </p>
+                      )}
+                    </div>
+                  ) : (
+                    <span className="text-xs text-muted-foreground">
+                      Sin plantilla
+                    </span>
+                  )}
+                </TableCell>
+              ) : null}
               <TableCell className="text-right">
                 <div className="flex flex-wrap justify-end gap-2">
                   <Button
@@ -911,6 +1098,7 @@ function DocDownloadRow({
   statusLabel,
   onDownload,
   onUpload,
+  extraActions,
   uploading = false,
 }: {
   label: string;
@@ -918,6 +1106,7 @@ function DocDownloadRow({
   statusLabel?: string;
   onDownload: () => void;
   onUpload?: (file: File) => void;
+  extraActions?: ReactNode;
   uploading?: boolean;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
@@ -946,6 +1135,7 @@ function DocDownloadRow({
         >
           Descargar
         </Button>
+        {extraActions}
         {onUpload ? (
           <>
             <input
@@ -1016,6 +1206,9 @@ function PipelineColumnView({
   onMoveRequest,
   onDiscard,
   onOpenResume,
+  onDownloadOfferTemplate,
+  onUploadOfferLetter,
+  uploadingOfferLetter,
 }: {
   columnId: KanbanColumnId;
   label: string;
@@ -1025,6 +1218,9 @@ function PipelineColumnView({
   onMoveRequest: (card: PipelineCard, columnId: KanbanColumnId) => void;
   onDiscard: (card: PipelineCard) => void;
   onOpenResume: (card: PipelineCard) => void;
+  onDownloadOfferTemplate: () => void;
+  onUploadOfferLetter: (card: PipelineCard) => void;
+  uploadingOfferLetter: boolean;
 }) {
   const acceptDrop =
     activeFromStage !== null &&
@@ -1063,6 +1259,9 @@ function PipelineColumnView({
             onMoveRequest={onMoveRequest}
             onDiscard={onDiscard}
             onOpenResume={onOpenResume}
+            onDownloadOfferTemplate={onDownloadOfferTemplate}
+            onUploadOfferLetter={onUploadOfferLetter}
+            uploadingOfferLetter={uploadingOfferLetter}
           />
         ))}
       </div>
@@ -1075,11 +1274,17 @@ function PipelineCardView({
   onMoveRequest,
   onDiscard,
   onOpenResume,
+  onDownloadOfferTemplate,
+  onUploadOfferLetter,
+  uploadingOfferLetter,
 }: {
   card: PipelineCard;
   onMoveRequest: (card: PipelineCard, columnId: KanbanColumnId) => void;
   onDiscard: (card: PipelineCard) => void;
   onOpenResume: (card: PipelineCard) => void;
+  onDownloadOfferTemplate: () => void;
+  onUploadOfferLetter: (card: PipelineCard) => void;
+  uploadingOfferLetter: boolean;
 }) {
   const targets = getValidKanbanTargets(card.stage);
   const draggable = targets.length > 0;
@@ -1175,6 +1380,44 @@ function PipelineCardView({
           </DropdownMenu>
         </div>
       </div>
+      {card.stage === "OFFER" && card.hasCompanyOfferLetterTemplate ? (
+        <div
+          className="mt-2 flex flex-wrap gap-1"
+          onPointerDown={(event) => event.stopPropagation()}
+        >
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="h-7 px-2 text-[11px]"
+            onClick={() => void onDownloadOfferTemplate()}
+          >
+            Descargar plantilla
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            className="h-7 px-2 text-[11px]"
+            disabled={uploadingOfferLetter}
+            onClick={() => onUploadOfferLetter(card)}
+          >
+            {uploadingOfferLetter
+              ? "Subiendo…"
+              : card.hasSignedOfferLetter
+                ? "Reemplazar carta"
+                : "Cargar carta"}
+          </Button>
+          {card.hasSignedOfferLetter ? (
+            <p className="w-full text-[11px] text-emerald-600">
+              Carta diligenciada cargada
+            </p>
+          ) : (
+            <p className="w-full text-[11px] text-muted-foreground">
+              Pendiente para aprobación
+            </p>
+          )}
+        </div>
+      ) : null}
     </article>
   );
 }
@@ -1235,6 +1478,15 @@ function PipelineCardHeader({ card }: { card: PipelineCard }) {
       ) : null}
     </div>
   );
+}
+
+function triggerBlobDownload(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.click();
+  URL.revokeObjectURL(url);
 }
 
 async function downloadCandidateCv(candidateId: string) {

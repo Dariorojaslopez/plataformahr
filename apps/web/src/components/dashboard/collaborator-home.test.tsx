@@ -66,6 +66,17 @@ vi.mock("@/lib/ui/notify", () => ({
   notifySuccess: vi.fn(),
 }));
 
+vi.mock("@/lib/api/offers", () => ({
+  offersApi: {
+    approveOfferLetterStep: vi.fn(),
+    rejectOfferLetterStep: vi.fn(),
+    downloadSignedLetter: vi.fn(),
+  },
+  offerKeys: {
+    all: (companyId: string) => ["ats", companyId, "offers"],
+  },
+}));
+
 const feed: CollaboratorHomeFeed = {
   profile: {
     id: "emp-1",
@@ -109,6 +120,7 @@ const feed: CollaboratorHomeFeed = {
     },
   ],
   pendingContractApprovals: [],
+  pendingOfferLetterApprovals: [],
   readyForOffer: [],
   assignedVacancies: [],
   teamMembers: [],
@@ -384,5 +396,30 @@ describe("CollaboratorHome", () => {
     await screen.findByText("Procesos de selección activos");
     expect(screen.queryByText("Aprobaciones pendientes")).not.toBeInTheDocument();
     expect(screen.queryByText("Candidatos por evaluar")).not.toBeInTheDocument();
+  });
+
+  it("shows pending offer letters so the approver can approve and send", async () => {
+    getFeed.mockResolvedValue({
+      ...feed,
+      pendingOfferLetterApprovals: [
+        {
+          offerId: "offer-1",
+          stepId: "step-1",
+          candidateName: "Pedro Julian",
+          vacancyTitle: "Reclutador",
+          sequence: 1,
+          isLastStep: true,
+        },
+      ],
+    });
+    renderHome();
+    expect(
+      await screen.findByText("Cartas oferta por aprobar"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Pedro Julian")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Aprobar y enviar" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Ver carta" })).toBeInTheDocument();
   });
 });

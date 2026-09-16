@@ -76,6 +76,7 @@ model User {
   employees                        Employee[]
   vacancyApprovalsDecided          VacancyApproval[]
   jobOfferContractApprovalsDecided JobOfferContractApproval[]
+  jobOfferOfferLetterApprovalsDecided JobOfferOfferLetterApproval[]
   applicationStageHistories        ApplicationStageHistory[]
   interviewAnswers                 InterviewAnswer[]
   interviewTranscriptSegments      InterviewTranscriptSegment[]
@@ -142,6 +143,9 @@ model Company {
   /// Thank-you letter sent when other finalists are discarded after a hire.
   atsThankYouLetterSubject        String?
   atsThankYouLetterBody           String?
+  /// Email that will accompany the offer-letter Word template.
+  atsOfferLetterEmailSubject      String?
+  atsOfferLetterEmailBody         String?
   /// Stored template files for offer letter / employment contract (PDF/DOCX).
   offerLetterTemplateFileName     String?
   offerLetterTemplateOriginalName String?
@@ -176,7 +180,9 @@ model Company {
   vacancyRequestEvaluators          VacancyRequestEvaluator[]
   vacancyRequestApprovalPlanSteps   VacancyRequestApprovalPlanStep[]
   contractTemplateApprovers         ContractTemplateApprover[]
+  offerLetterTemplateApprovers      OfferLetterTemplateApprover[]
   jobOfferContractApprovals         JobOfferContractApproval[]
+  jobOfferOfferLetterApprovals      JobOfferOfferLetterApproval[]
   vacancies                         Vacancy[]
   vacancyScreeningQuestions         VacancyScreeningQuestion[]
   candidates                        Candidate[]
@@ -583,7 +589,9 @@ model Position {
   vacancyRequestEvaluators        VacancyRequestEvaluator[]
   vacancyRequestApprovalPlanSteps VacancyRequestApprovalPlanStep[]
   contractTemplateApprovers       ContractTemplateApprover[]
+  offerLetterTemplateApprovers    OfferLetterTemplateApprover[]
   jobOfferContractApprovals       JobOfferContractApproval[]
+  jobOfferOfferLetterApprovals    JobOfferOfferLetterApproval[]
   vacancies                       Vacancy[]
   customFieldValues               PositionCustomFieldValue[]
 
@@ -740,7 +748,9 @@ model Employee {
   vacancyRequestEvaluators          VacancyRequestEvaluator[]              @relation("RequestEvaluatorEmployee")
   vacancyRequestApprovalPlanSteps   VacancyRequestApprovalPlanStep[]       @relation("PlanStepApprover")
   contractTemplateApprovers         ContractTemplateApprover[]             @relation("ContractTemplateApproverEmployee")
+  offerLetterTemplateApprovers      OfferLetterTemplateApprover[]          @relation("OfferLetterTemplateApproverEmployee")
   jobOfferContractApprovals         JobOfferContractApproval[]             @relation("ContractApproverEmployee")
+  jobOfferOfferLetterApprovals      JobOfferOfferLetterApproval[]          @relation("OfferLetterApproverEmployee")
   interviewAssignments              InterviewInterviewer[]
   hiring                            Hiring?
   performanceParticipations         PerformanceCycleParticipant[]
@@ -1047,6 +1057,27 @@ model ContractTemplateApprover {
   @@index([positionId])
   @@index([employeeId])
   @@map("contract_template_approvers")
+}
+
+/// Default approvers for the offer-letter Word template.
+model OfferLetterTemplateApprover {
+  id         String   @id @default(uuid()) @db.Uuid
+  companyId  String   @db.Uuid
+  sequence   Int
+  positionId String   @db.Uuid
+  employeeId String?  @db.Uuid
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  company  Company   @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  position Position  @relation(fields: [positionId], references: [id], onDelete: Restrict)
+  employee Employee? @relation("OfferLetterTemplateApproverEmployee", fields: [employeeId], references: [id], onDelete: Restrict)
+
+  @@unique([companyId, sequence])
+  @@index([companyId])
+  @@index([positionId])
+  @@index([employeeId])
+  @@map("offer_letter_template_approvers")
 }
 
 /// Snapshot of evaluators for a submitted selection process.
@@ -1596,6 +1627,18 @@ enum ContractApprovalStatus {
   REJECTED
 }
 
+enum OfferLetterApprovalStatus {
+  NOT_REQUIRED
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum OfferLetterSendMode {
+  ATTACHMENT
+  DIGITAL_SIGNATURE
+}
+
 enum SalaryPeriod {
   MONTHLY
   ANNUAL
@@ -1631,6 +1674,20 @@ model JobOffer {
   contractApprovalStatus            ContractApprovalStatus @default(NOT_REQUIRED)
   contractApprovalStartedAt         DateTime?
   contractApprovalCompletedAt       DateTime?
+  offerLetterApprovalStatus         OfferLetterApprovalStatus @default(NOT_REQUIRED)
+  offerLetterApprovalStartedAt      DateTime?
+  offerLetterApprovalCompletedAt    DateTime?
+  offerLetterSentAt                 DateTime?
+  offerLetterSendMode               OfferLetterSendMode?
+  offerLetterSignToken              String?                @unique
+  offerLetterSignTokenExpiresAt     DateTime?
+  offerLetterCandidateSignedAt      DateTime?
+  offerLetterSignatureFileName      String?
+  offerLetterSignatureOriginalName  String?
+  offerLetterSignatureMimeType      String?
+  candidateSignedLetterFileName     String?
+  candidateSignedLetterOriginalName String?
+  candidateSignedLetterMimeType     String?
   /// Candidate/recruiter-uploaded signed offer letter (PDF/DOCX).
   signedOfferLetterFileName         String?
   signedOfferLetterOriginalName     String?
@@ -1647,11 +1704,13 @@ model JobOffer {
   signedOfferLetterUploadedBy User?                      @relation("OfferSignedLetterUploader", fields: [signedOfferLetterUploadedByUserId], references: [id], onDelete: SetNull)
   hiring                      Hiring?
   contractApprovals           JobOfferContractApproval[]
+  offerLetterApprovals        JobOfferOfferLetterApproval[]
 
   @@index([companyId])
   @@index([status])
   @@index([createdByUserId])
   @@index([contractApprovalStatus])
+  @@index([offerLetterApprovalStatus])
   @@map("job_offers")
 }
 
@@ -1682,6 +1741,35 @@ model JobOfferContractApproval {
   @@index([status])
   @@index([approverEmployeeId])
   @@map("job_offer_contract_approvals")
+}
+
+/// Snapshot of company offer-letter template approvers for one filled letter.
+model JobOfferOfferLetterApproval {
+  id                 String         @id @default(uuid()) @db.Uuid
+  companyId          String         @db.Uuid
+  jobOfferId         String         @db.Uuid
+  sequence           Int
+  positionId         String         @db.Uuid
+  approverEmployeeId String         @db.Uuid
+  status             ApprovalStatus @default(PENDING)
+  decidedByUserId    String?        @db.Uuid
+  decidedAt          DateTime?
+  comment            String?
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+
+  company          Company  @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  jobOffer         JobOffer @relation(fields: [jobOfferId], references: [id], onDelete: Restrict)
+  position         Position @relation(fields: [positionId], references: [id], onDelete: Restrict)
+  approverEmployee Employee @relation("OfferLetterApproverEmployee", fields: [approverEmployeeId], references: [id], onDelete: Restrict)
+  decidedByUser    User?    @relation(fields: [decidedByUserId], references: [id], onDelete: SetNull)
+
+  @@unique([jobOfferId, sequence])
+  @@index([companyId])
+  @@index([jobOfferId])
+  @@index([status])
+  @@index([approverEmployeeId])
+  @@map("job_offer_offer_letter_approvals")
 }
 
 // ---------------------------------------------------------------------------

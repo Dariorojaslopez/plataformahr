@@ -64,6 +64,11 @@ export class MailService {
         text: input.text,
         html: input.html,
         replyTo: input.replyTo,
+        attachments: input.attachments?.map((item) => ({
+          filename: item.filename,
+          content: item.content,
+          contentType: item.contentType,
+        })),
       });
       return {
         status: 'SENT',

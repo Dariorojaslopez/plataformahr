@@ -55,6 +55,21 @@ export const offersApi = {
   downloadSignedLetter: (id: string) =>
     apiRequestBlob(`/ats/offers/${id}/signed-letter`),
 
+  uploadFilledLetter: (applicationId: string, file: File) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    return apiRequest<OfferLetterStatus>(
+      `/ats/applications/${applicationId}/signed-offer-letter`,
+      {
+        method: "POST",
+        formData,
+      },
+    );
+  },
+
+  downloadFilledLetter: (applicationId: string) =>
+    apiRequestBlob(`/ats/applications/${applicationId}/signed-offer-letter`),
+
   removeSignedLetter: (id: string) =>
     apiRequest<OfferLetterStatus>(`/ats/offers/${id}/signed-letter`, {
       method: "DELETE",
@@ -74,7 +89,56 @@ export const offersApi = {
       `/ats/offers/${id}/contract-approvals/${stepId}/reject`,
       { method: "POST", body: { comment } },
     ),
+
+  approveOfferLetterStep: (id: string, stepId: string, comment?: string) =>
+    apiRequest<unknown>(
+      `/ats/offers/${id}/offer-letter-approvals/${stepId}/approve`,
+      { method: "POST", body: { comment } },
+    ),
+
+  rejectOfferLetterStep: (id: string, stepId: string, comment?: string) =>
+    apiRequest<unknown>(
+      `/ats/offers/${id}/offer-letter-approvals/${stepId}/reject`,
+      { method: "POST", body: { comment } },
+    ),
 };
+
+export type PublicOfferLetterView = {
+  token: string;
+  companyName: string;
+  candidateName: string;
+  positionTitle: string;
+  signed: boolean;
+  signedAt: string | null;
+  documentName: string | null;
+  documentMime: string | null;
+};
+
+export const publicOfferLetterApi = {
+  get: (token: string) =>
+    apiRequest<PublicOfferLetterView>(
+      `/public/offer-letters/${encodeURIComponent(token)}`,
+      { auth: false, companyId: null },
+    ),
+  sign: (token: string, file: File, accepted: boolean) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("accepted", accepted ? "true" : "false");
+    return apiRequest<PublicOfferLetterView>(
+      `/public/offer-letters/${encodeURIComponent(token)}/sign`,
+      {
+        method: "POST",
+        formData,
+        auth: false,
+        companyId: null,
+      },
+    );
+  },
+};
+
+export function publicOfferLetterDocumentUrl(token: string) {
+  return `/public/offer-letters/${encodeURIComponent(token)}/document`;
+}
 
 export const offerKeys = {
   all: (companyId: string) => ["ats", companyId, "offers"] as const,

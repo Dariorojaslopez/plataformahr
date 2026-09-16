@@ -11,6 +11,7 @@ import { ORG_CHART_EMPLOYEE_SELECT } from '../../organization/org-chart/org-char
 import { listOrgChartReports } from '../../organization/org-chart/org-chart.tree';
 import { PrismaService } from '../../prisma/prisma.service';
 import { RbacService } from '../rbac/rbac.service';
+import { normalizeOfferLetterEmailHtml } from './ats-templates/offer-letter-email-html';
 import { RoleMenuService } from './role-menu/role-menu.service';
 
 export type CompanyEnabledAccess = {
@@ -123,6 +124,8 @@ export class CompaniesService {
       vacancyHiringSlaDays: company.vacancyHiringSlaDays,
       atsThankYouLetterSubject: company.atsThankYouLetterSubject,
       atsThankYouLetterBody: company.atsThankYouLetterBody,
+      atsOfferLetterEmailSubject: company.atsOfferLetterEmailSubject,
+      atsOfferLetterEmailBody: company.atsOfferLetterEmailBody,
       offerLetterTemplateOriginalName: company.offerLetterTemplateOriginalName,
       contractTemplateOriginalName: company.contractTemplateOriginalName,
       hasOfferLetterTemplate: Boolean(company.offerLetterTemplateFileName),
@@ -157,6 +160,8 @@ export class CompaniesService {
       vacancyHiringSlaDays?: number;
       atsThankYouLetterSubject?: string | null;
       atsThankYouLetterBody?: string | null;
+      atsOfferLetterEmailSubject?: string | null;
+      atsOfferLetterEmailBody?: string | null;
     },
   ) {
     const company = await this.prisma.company.update({
@@ -174,6 +179,19 @@ export class CompaniesService {
         ...(data.atsThankYouLetterBody !== undefined
           ? {
               atsThankYouLetterBody: data.atsThankYouLetterBody?.trim() || null,
+            }
+          : {}),
+        ...(data.atsOfferLetterEmailSubject !== undefined
+          ? {
+              atsOfferLetterEmailSubject:
+                data.atsOfferLetterEmailSubject?.trim() || null,
+            }
+          : {}),
+        ...(data.atsOfferLetterEmailBody !== undefined
+          ? {
+              atsOfferLetterEmailBody: normalizeOfferLetterEmailHtml(
+                data.atsOfferLetterEmailBody,
+              ),
             }
           : {}),
       },

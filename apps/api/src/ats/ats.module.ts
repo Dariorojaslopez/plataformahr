@@ -34,6 +34,8 @@ import { VacancyEvaluatorDefaultsController } from './process-defaults/vacancy-e
 import { VacancyEvaluatorDefaultsService } from './process-defaults/vacancy-evaluator-defaults.service';
 import { ContractTemplateApproversController } from './process-defaults/contract-template-approvers.controller';
 import { ContractTemplateApproversService } from './process-defaults/contract-template-approvers.service';
+import { OfferLetterTemplateApproversController } from './process-defaults/offer-letter-template-approvers.controller';
+import { OfferLetterTemplateApproversService } from './process-defaults/offer-letter-template-approvers.service';
 import { ActiveProcessesController } from './process-defaults/active-processes.controller';
 import { ActiveProcessesService } from './process-defaults/active-processes.service';
 import { VacanciesController } from './vacancies/vacancies.controller';
@@ -41,6 +43,10 @@ import { VacanciesService } from './vacancies/vacancies.service';
 import { VacancyScreeningService } from './vacancies/vacancy-screening.service';
 import { PublicJobsController } from './public-jobs/public-jobs.controller';
 import { PublicJobsService } from './public-jobs/public-jobs.service';
+import { OfferLetterApprovalsService } from './offers/offer-letter-approvals.service';
+import { OfferLetterSendService } from './offers/offer-letter-send.service';
+import { PublicOfferLetterController } from './offers/public-offer-letter.controller';
+import { PublicOfferLetterService } from './offers/public-offer-letter.service';
 
 @Module({
   imports: [AuthModule, RbacModule, AuditModule, CompaniesModule],
@@ -50,6 +56,7 @@ import { PublicJobsService } from './public-jobs/public-jobs.service';
     PositionOccupantsController,
     VacancyEvaluatorDefaultsController,
     ContractTemplateApproversController,
+    OfferLetterTemplateApproversController,
     ActiveProcessesController,
     VacanciesController,
     PipelineController,
@@ -62,6 +69,7 @@ import { PublicJobsService } from './public-jobs/public-jobs.service';
     InterviewFormTemplatesController,
     OffersController,
     PublicJobsController,
+    PublicOfferLetterController,
   ],
   providers: [
     CompanyContextGuard,
@@ -72,6 +80,7 @@ import { PublicJobsService } from './public-jobs/public-jobs.service';
     PositionOccupantsService,
     VacancyEvaluatorDefaultsService,
     ContractTemplateApproversService,
+    OfferLetterTemplateApproversService,
     ActiveProcessesService,
     VacanciesService,
     VacancyScreeningService,
@@ -81,6 +90,9 @@ import { PublicJobsService } from './public-jobs/public-jobs.service';
     OffersService,
     ContractApprovalsService,
     OfferLetterService,
+    OfferLetterApprovalsService,
+    OfferLetterSendService,
+    PublicOfferLetterService,
     HiringService,
     PreHireService,
     HirePdiService,

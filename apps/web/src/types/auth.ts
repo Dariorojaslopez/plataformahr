@@ -135,6 +135,8 @@ export type CurrentCompanyResponse = {
   vacancyHiringSlaDays: number;
   atsThankYouLetterSubject?: string | null;
   atsThankYouLetterBody?: string | null;
+  atsOfferLetterEmailSubject?: string | null;
+  atsOfferLetterEmailBody?: string | null;
   offerLetterTemplateOriginalName?: string | null;
   contractTemplateOriginalName?: string | null;
   hasOfferLetterTemplate?: boolean;

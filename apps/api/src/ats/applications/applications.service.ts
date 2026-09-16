@@ -464,50 +464,65 @@ export class ApplicationsService {
       throw new NotFoundException('Vacancy not found');
     }
 
-    const applications = await this.prisma.application.findMany({
-      where: {
-        companyId,
-        vacancyId,
-        deletedAt: null,
-      },
-      include: {
-        candidate: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            email: true,
-            cvFileName: true,
-          },
+    const [applications, company] = await Promise.all([
+      this.prisma.application.findMany({
+        where: {
+          companyId,
+          vacancyId,
+          deletedAt: null,
         },
-        preHireDocuments: {
-          select: { kind: true },
-        },
-        interviews: {
-          where: {
-            deletedAt: null,
-            status: { not: InterviewStatus.CANCELLED },
-          },
-          select: {
-            status: true,
-            questions: {
-              select: {
-                answers: { select: { rating: true } },
-              },
+        include: {
+          candidate: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              email: true,
+              cvFileName: true,
             },
-            interviewers: {
-              select: {
-                employeeId: true,
-                employee: {
-                  select: { id: true, firstName: true, lastName: true },
+          },
+          preHireDocuments: {
+            select: { kind: true },
+          },
+          jobOffer: {
+            select: {
+              id: true,
+              signedOfferLetterFileName: true,
+            },
+          },
+          interviews: {
+            where: {
+              deletedAt: null,
+              status: { not: InterviewStatus.CANCELLED },
+            },
+            select: {
+              status: true,
+              questions: {
+                select: {
+                  answers: { select: { rating: true } },
+                },
+              },
+              interviewers: {
+                select: {
+                  employeeId: true,
+                  employee: {
+                    select: { id: true, firstName: true, lastName: true },
+                  },
                 },
               },
             },
           },
         },
-      },
-      orderBy: { lastStageChangedAt: 'desc' },
-    });
+        orderBy: { lastStageChangedAt: 'desc' },
+      }),
+      this.prisma.company.findFirst({
+        where: { id: companyId },
+        select: { offerLetterTemplateFileName: true },
+      }),
+    ]);
+    const hasCompanyOfferLetterTemplate = Boolean(
+      company?.offerLetterTemplateFileName,
+    );
 
     const configuredEvaluators =
       vacancy.vacancyRequest?.evaluators.map((item) => ({
@@ -550,6 +565,11 @@ export class ApplicationsService {
               ),
               hasMedicalExamDoc: item.preHireDocuments.some(
                 (doc) => doc.kind === 'MEDICAL_EXAM',
+              ),
+              jobOfferId: item.jobOffer?.id ?? null,
+              hasCompanyOfferLetterTemplate,
+              hasSignedOfferLetter: Boolean(
+                item.jobOffer?.signedOfferLetterFileName,
               ),
               securityStudyStatus: item.securityStudyStatus,
               medicalExamStatus: item.medicalExamStatus,

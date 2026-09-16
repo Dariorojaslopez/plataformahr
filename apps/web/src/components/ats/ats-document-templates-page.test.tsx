@@ -20,9 +20,29 @@ vi.mock("@/lib/api/company", async () => {
       ...actual.companyApi,
       getCurrent: vi.fn(),
       uploadAtsTemplate: vi.fn(),
+      updateAtsSettings: vi.fn(),
     },
   };
 });
+
+vi.mock("@/components/ats/email-html-editor", () => ({
+  EmailHtmlEditor: ({
+    value,
+    onChange,
+    id,
+  }: {
+    value: string;
+    onChange: (html: string) => void;
+    id?: string;
+  }) => (
+    <textarea
+      id={id}
+      aria-label="Cuerpo del mensaje"
+      value={value}
+      onChange={(event) => onChange(event.target.value)}
+    />
+  ),
+}));
 
 vi.mock("@/lib/ui/notify", () => ({
   notifySuccess: vi.fn(),
@@ -90,5 +110,51 @@ describe("AtsDocumentTemplatesPageClient offer letter", () => {
       docx,
     );
     expect(notifyError).not.toHaveBeenCalled();
+  });
+
+  it("saves the offer-letter email subject and body", async () => {
+    vi.mocked(companyApi.getCurrent).mockResolvedValue({
+      id: "company-1",
+      name: "Acme",
+      slug: "acme",
+      status: "ACTIVE",
+      defaultLanguage: "ES",
+      goalsCascadeEnabled: false,
+      showNineBoxOnMyResults: true,
+      vacancyHiringSlaDays: 14,
+      hasOfferLetterTemplate: false,
+      hasContractTemplate: false,
+    } as Awaited<ReturnType<typeof companyApi.getCurrent>>);
+    vi.mocked(companyApi.updateAtsSettings).mockResolvedValue({
+      id: "company-1",
+      name: "Acme",
+      slug: "acme",
+      status: "ACTIVE",
+      defaultLanguage: "ES",
+      goalsCascadeEnabled: false,
+      showNineBoxOnMyResults: true,
+      vacancyHiringSlaDays: 14,
+    } as Awaited<ReturnType<typeof companyApi.updateAtsSettings>>);
+
+    const user = userEvent.setup();
+    renderPage();
+
+    expect(
+      await screen.findByText("Configuración de correo de envío de plantilla"),
+    ).toBeInTheDocument();
+    await user.type(
+      screen.getByPlaceholderText("Te hacemos una oferta…"),
+      "Tu oferta",
+    );
+    await user.type(
+      screen.getByLabelText("Cuerpo del mensaje"),
+      "Adjunto la carta",
+    );
+    await user.click(screen.getByRole("button", { name: "Guardar correo" }));
+
+    expect(companyApi.updateAtsSettings).toHaveBeenCalledWith({
+      atsOfferLetterEmailSubject: "Tu oferta",
+      atsOfferLetterEmailBody: "Adjunto la carta",
+    });
   });
 });
