@@ -1,5 +1,6 @@
 "use client";
 
+import { OFFER_LETTER_PLACEHOLDERS } from "@talento/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -152,8 +153,8 @@ function DocumentTemplatesSection({
       <div>
         <h2 className="text-lg font-semibold">Carta oferta y contrato</h2>
         <p className="text-sm text-muted-foreground">
-          Sube las plantillas PDF o DOCX que usará el equipo de selección.
-          Formatos permitidos: PDF y DOCX (máx. 10 MB).
+          La carta de oferta debe ser Word (.docx). El contrato admite PDF o
+          DOCX (máx. 10 MB).
         </p>
       </div>
       <div className="grid gap-4 md:grid-cols-2">
@@ -221,6 +222,21 @@ function TemplateCard({
   });
 
   const busy = uploadMutation.isPending || removeMutation.isPending;
+  const isOfferLetter = kind === "offer-letter";
+  const accept = isOfferLetter
+    ? ".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    : ".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+
+  function handleSelectedFile(file: File) {
+    if (isOfferLetter && !file.name.toLowerCase().endsWith(".docx")) {
+      notifyError(
+        new Error("La carta de oferta debe ser un archivo Word (.docx)."),
+        "La carta de oferta debe ser un archivo Word (.docx).",
+      );
+      return;
+    }
+    uploadMutation.mutate(file);
+  }
 
   return (
     <div className="space-y-3 rounded-md border border-border p-4">
@@ -229,16 +245,38 @@ function TemplateCard({
         <p className="text-sm text-muted-foreground">
           {hasFile ? fileName || "Archivo cargado" : "Sin plantilla cargada"}
         </p>
+        {isOfferLetter ? (
+          <div className="mt-3 space-y-2">
+            <p className="text-sm text-muted-foreground">
+              Obligatorio Word (.docx). En el documento usa variables con
+              corchetes, exactamente así:
+            </p>
+            <ul className="flex flex-wrap gap-1.5">
+              {OFFER_LETTER_PLACEHOLDERS.map((item) => (
+                <li
+                  key={item.key}
+                  className="rounded-md border border-border bg-muted/40 px-2 py-0.5 font-mono text-xs"
+                >
+                  {item.token}
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : (
+          <p className="mt-2 text-sm text-muted-foreground">
+            Formatos permitidos: PDF o DOCX.
+          </p>
+        )}
       </div>
       <input
         ref={inputRef}
         type="file"
-        accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        accept={accept}
         className="hidden"
         onChange={(event) => {
           const file = event.target.files?.[0];
           event.target.value = "";
-          if (file) uploadMutation.mutate(file);
+          if (file) handleSelectedFile(file);
         }}
       />
       <div className="flex flex-wrap gap-2">
@@ -264,7 +302,10 @@ function TemplateCard({
                   const url = URL.createObjectURL(blob);
                   const a = document.createElement("a");
                   a.href = url;
-                  a.download = filename || fileName || `${kind}.pdf`;
+                  a.download =
+                    filename ||
+                    fileName ||
+                    (kind === "offer-letter" ? `${kind}.docx` : `${kind}.pdf`);
                   a.click();
                   URL.revokeObjectURL(url);
                 } catch (error) {

@@ -484,3 +484,16 @@ export type {
   ConfigurableCompanyRole,
   RoleMenuHref,
 } from './role-menu';
+export {
+  OFFER_LETTER_PLACEHOLDERS,
+  OFFER_LETTER_PLACEHOLDER_TOKENS,
+  buildOfferLetterPlaceholderValues,
+  emptyOfferLetterPlaceholderValues,
+  fillOfferLetterPlaceholders,
+} from './offer-letter-placeholders';
+export type {
+  OfferLetterPlaceholder,
+  OfferLetterPlaceholderKey,
+  OfferLetterPlaceholderToken,
+  OfferLetterPlaceholderValues,
+} from './offer-letter-placeholders';

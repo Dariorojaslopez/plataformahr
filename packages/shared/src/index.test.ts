@@ -28,6 +28,10 @@ import {
   resolveCompanyHomeRole,
   ROLE_MENU_CATALOG,
   navGrantCoversPath,
+  OFFER_LETTER_PLACEHOLDER_TOKENS,
+  OFFER_LETTER_PLACEHOLDERS,
+  buildOfferLetterPlaceholderValues,
+  fillOfferLetterPlaceholders,
   resolveAllowedNavHrefs,
   splitCompanyAccess,
 } from './index.ts';
@@ -216,4 +220,51 @@ test('role menu defaults hide company admin pages from collaborators', () => {
   assert.ok(customized.includes('/organization/employees'));
   assert.equal(customized.includes('/ats/vacancy-requests'), false);
   assert.equal(navGrantCoversPath(customized, '/organization/employees/abc'), true);
+});
+
+test('offer letter placeholders use [variable] tokens for Word merge', () => {
+  assert.deepEqual(OFFER_LETTER_PLACEHOLDER_TOKENS, [
+    '[Nombre]',
+    '[Cargo]',
+    '[Fecha del documento]',
+    '[Salario]',
+    '[Forma de Pago]',
+    '[Tipo de Contrato]',
+    '[Fecha de Inicio]',
+    '[Beneficios]',
+    '[Ciudad]',
+    '[Quien firma]',
+  ]);
+  assert.equal(OFFER_LETTER_PLACEHOLDERS.length, 10);
+
+  const values = buildOfferLetterPlaceholderValues({
+    candidateName: 'Ana Ruiz',
+    positionTitle: 'Analista',
+    documentDate: '15/09/2026',
+    salary: 'COP 4.500.000',
+    paymentForm: 'Mensual',
+    contractType: 'Tiempo completo',
+    startDate: '01/10/2026',
+    benefits: 'Prepago médico',
+    city: 'Bogotá',
+    signerName: 'Laura Pérez',
+  });
+  assert.equal(
+    fillOfferLetterPlaceholders(
+      'Hola [Nombre], cargo [Cargo], el [Fecha del documento].',
+      values,
+    ),
+    'Hola Ana Ruiz, cargo Analista, el 15/09/2026.',
+  );
+  assert.equal(
+    fillOfferLetterPlaceholders(
+      '[Salario] / [Forma de Pago] / [Tipo de Contrato] desde [Fecha de Inicio]. [Beneficios]',
+      values,
+    ),
+    'COP 4.500.000 / Mensual / Tiempo completo desde 01/10/2026. Prepago médico',
+  );
+  assert.equal(
+    fillOfferLetterPlaceholders('[Ciudad], [Quien firma]', values),
+    'Bogotá, Laura Pérez',
+  );
 });

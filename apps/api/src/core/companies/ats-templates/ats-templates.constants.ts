@@ -33,6 +33,14 @@ export const ATS_TEMPLATE_EXTENSION_BY_MIME: Record<
   [ATS_TEMPLATE_MIME.DOCX]: 'docx',
 };
 
+export const ATS_TEMPLATE_ALLOWED_MIMES: Record<
+  AtsTemplateKind,
+  readonly AllowedAtsTemplateMime[]
+> = {
+  [ATS_TEMPLATE_KIND.OFFER_LETTER]: [ATS_TEMPLATE_MIME.DOCX],
+  [ATS_TEMPLATE_KIND.CONTRACT]: [ATS_TEMPLATE_MIME.PDF, ATS_TEMPLATE_MIME.DOCX],
+};
+
 export const ATS_TEMPLATE_FILE_NAME_PATTERN =
   /^ats-tmpl-(offer|contract)-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.(pdf|docx)$/;
 
@@ -43,7 +51,10 @@ export const ATS_TEMPLATES_AUDIT = {
 
 export const ATS_TEMPLATE_ERRORS = {
   MISSING: 'Adjunta la plantilla (PDF o DOCX).',
+  MISSING_OFFER_LETTER: 'Adjunta la carta de oferta en Word (.docx).',
   TYPE: 'La plantilla debe ser PDF o DOCX.',
+  TYPE_OFFER_LETTER:
+    'La carta de oferta debe ser un archivo Word (.docx), no PDF.',
   SIZE: 'La plantilla supera el tamaño máximo (10 MB).',
   EMPTY: 'El archivo de la plantilla está vacío.',
   NOT_FOUND: 'No hay plantilla cargada.',
@@ -58,4 +69,16 @@ export function parseAtsTemplateKind(raw: string): AtsTemplateKind {
     return raw;
   }
   throw new Error(ATS_TEMPLATE_ERRORS.INVALID_KIND);
+}
+
+export function atsTemplateMissingError(kind: AtsTemplateKind): string {
+  return kind === ATS_TEMPLATE_KIND.OFFER_LETTER
+    ? ATS_TEMPLATE_ERRORS.MISSING_OFFER_LETTER
+    : ATS_TEMPLATE_ERRORS.MISSING;
+}
+
+export function atsTemplateTypeError(kind: AtsTemplateKind): string {
+  return kind === ATS_TEMPLATE_KIND.OFFER_LETTER
+    ? ATS_TEMPLATE_ERRORS.TYPE_OFFER_LETTER
+    : ATS_TEMPLATE_ERRORS.TYPE;
 }

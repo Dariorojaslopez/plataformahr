@@ -123,14 +123,16 @@ describe("company branding API and keys", () => {
           showNineBoxOnMyResults: true,
           vacancyHiringSlaDays: 14,
           hasOfferLetterTemplate: true,
-          offerLetterTemplateOriginalName: "offer.pdf",
+          offerLetterTemplateOriginalName: "offer.docx",
         }),
         { status: 201, headers: { "Content-Type": "application/json" } },
       ),
     );
     await companyApi.uploadAtsTemplate(
       "offer-letter",
-      new File(["%PDF"], "offer.pdf", { type: "application/pdf" }),
+      new File(["PK"], "offer.docx", {
+        type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      }),
     );
     expect(fetch).toHaveBeenCalledWith(
       "http://localhost:3001/companies/current/ats-templates/offer-letter",

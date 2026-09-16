@@ -13,11 +13,13 @@ import {
   ATS_TEMPLATE_ERRORS,
   ATS_TEMPLATE_KIND,
   ATS_TEMPLATE_MAX_BYTES,
-  ATS_TEMPLATE_MIME,
   ATS_TEMPLATES_AUDIT,
+  atsTemplateMissingError,
+  atsTemplateTypeError,
   type AllowedAtsTemplateMime,
   type AtsTemplateKind,
 } from './ats-templates.constants';
+import { resolveAtsTemplateMime } from './ats-templates.file';
 import {
   buildAtsTemplateFileName,
   deleteAtsTemplateFile,
@@ -40,8 +42,8 @@ export class AtsTemplatesService {
     kind: AtsTemplateKind,
     file: Express.Multer.File | undefined,
   ) {
-    this.assertFile(file);
-    const mime = this.resolveMime(file.mimetype);
+    this.assertFile(kind, file);
+    const mime = this.resolveMime(kind, file);
     const company = await this.requireCompany(companyId);
     const previous = this.metaForKind(company, kind);
     const fileName = buildAtsTemplateFileName(kind, mime);
@@ -198,10 +200,11 @@ export class AtsTemplatesService {
   }
 
   private assertFile(
+    kind: AtsTemplateKind,
     file: Express.Multer.File | undefined,
   ): asserts file is Express.Multer.File {
     if (!file) {
-      throw new BadRequestException(ATS_TEMPLATE_ERRORS.MISSING);
+      throw new BadRequestException(atsTemplateMissingError(kind));
     }
     if (!file.buffer?.length) {
       throw new BadRequestException(ATS_TEMPLATE_ERRORS.EMPTY);
@@ -211,11 +214,14 @@ export class AtsTemplatesService {
     }
   }
 
-  private resolveMime(mimetype: string): AllowedAtsTemplateMime {
-    const allowed = Object.values(ATS_TEMPLATE_MIME) as string[];
-    if (!allowed.includes(mimetype)) {
-      throw new UnsupportedMediaTypeException(ATS_TEMPLATE_ERRORS.TYPE);
+  private resolveMime(
+    kind: AtsTemplateKind,
+    file: Express.Multer.File,
+  ): AllowedAtsTemplateMime {
+    const mime = resolveAtsTemplateMime(kind, file);
+    if (!mime) {
+      throw new UnsupportedMediaTypeException(atsTemplateTypeError(kind));
     }
-    return mimetype as AllowedAtsTemplateMime;
+    return mime;
   }
 }
