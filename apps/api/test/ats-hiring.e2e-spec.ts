@@ -697,8 +697,8 @@ describe('ATS hiring (e2e)', () => {
       .expect(201);
   });
 
-  it('rejects hire when pre-hire checklist is still pending', async () => {
-    const seeded = await createAcceptedOffer('prehire-block');
+  it('allows hire when pre-hire status is still pending if documents are uploaded', async () => {
+    const seeded = await createAcceptedOffer('prehire-pending');
     await prisma.application.update({
       where: { id: seeded.applicationId },
       data: {
@@ -706,21 +706,6 @@ describe('ATS hiring (e2e)', () => {
         medicalExamStatus: PreHireCheckStatus.PENDING,
       },
     });
-
-    await request(app.getHttpServer())
-      .post(`/ats/applications/${seeded.applicationId}/hire`)
-      .set(auth(adminToken))
-      .send({ hireDate: '2026-08-02' })
-      .expect(400);
-
-    await request(app.getHttpServer())
-      .patch(`/ats/applications/${seeded.applicationId}/prehire`)
-      .set(auth(adminToken))
-      .send({
-        securityStudyStatus: PreHireCheckStatus.APPROVED,
-        medicalExamStatus: PreHireCheckStatus.NOT_REQUIRED,
-      })
-      .expect(200);
 
     await request(app.getHttpServer())
       .post(`/ats/applications/${seeded.applicationId}/hire`)

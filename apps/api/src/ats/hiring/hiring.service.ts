@@ -26,7 +26,6 @@ import { renderThankYouLetter } from './thank-you-letter';
 import type { CreateHiringDto } from './dto/hiring.dto';
 import {
   hireDocumentsRequiredMessage,
-  isPreHireClear,
   missingRequiredHireDocuments,
 } from './prehire.constants';
 
@@ -189,15 +188,6 @@ export class HiringService {
         if (missingDocs.length > 0) {
           throw new BadRequestException(
             hireDocumentsRequiredMessage(missingDocs),
-          );
-        }
-
-        if (
-          !isPreHireClear(application.securityStudyStatus) ||
-          !isPreHireClear(application.medicalExamStatus)
-        ) {
-          throw new BadRequestException(
-            'Estudio de seguridad y exámenes médicos deben estar aprobados o no requeridos antes de contratar',
           );
         }
 

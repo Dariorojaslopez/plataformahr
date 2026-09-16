@@ -132,8 +132,6 @@ export type HireRequirementId =
   | "CV"
   | "SECURITY_STUDY_DOC"
   | "MEDICAL_EXAM_DOC"
-  | "SECURITY_STUDY"
-  | "MEDICAL_EXAM"
   | "CONTRACT_APPROVAL"
   | "SIGNED_OFFER_LETTER";
 
@@ -169,10 +167,6 @@ export type HireRequirementCheck = {
   met: boolean;
 };
 
-export function isPreHireClear(status: string | null | undefined): boolean {
-  return status === "APPROVED" || status === "NOT_REQUIRED";
-}
-
 export function isContractApprovalClear(
   status: string | null | undefined,
 ): boolean {
@@ -199,8 +193,6 @@ export function hireRequirementChecks(input: {
   hasCv?: boolean | null;
   hasSecurityStudyDoc?: boolean | null;
   hasMedicalExamDoc?: boolean | null;
-  securityStudyStatus?: string | null;
-  medicalExamStatus?: string | null;
   contractApprovalStatus?: string | null;
   hasCompanyOfferLetterTemplate?: boolean | null;
   hasSignedOfferLetter?: boolean | null;
@@ -235,16 +227,6 @@ export function hireRequirementChecks(input: {
       id: "MEDICAL_EXAM_DOC",
       label: "Exámenes médicos cargados",
       met: Boolean(input.hasMedicalExamDoc),
-    },
-    {
-      id: "SECURITY_STUDY",
-      label: "Estudio de seguridad aprobado o no requerido",
-      met: isPreHireClear(input.securityStudyStatus),
-    },
-    {
-      id: "MEDICAL_EXAM",
-      label: "Exámenes médicos aprobados o no requeridos",
-      met: isPreHireClear(input.medicalExamStatus),
     },
     {
       id: "CONTRACT_APPROVAL",

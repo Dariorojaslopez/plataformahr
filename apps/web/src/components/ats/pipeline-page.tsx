@@ -202,8 +202,6 @@ export function PipelinePageClient() {
           (doc) => doc.kind === "MEDICAL_EXAM",
         ),
       ),
-      securityStudyStatus: data.application.securityStudyStatus,
-      medicalExamStatus: data.application.medicalExamStatus,
       contractApprovalStatus: data.offer?.contractApprovalStatus,
       hasCompanyOfferLetterTemplate: data.letter?.hasCompanyTemplate,
       hasSignedOfferLetter: data.letter?.hasSignedLetter,
@@ -619,9 +617,8 @@ export function PipelinePageClient() {
           ) : null}
           {!canConfirmHire && hirePrepQuery.isSuccess ? (
             <p className="text-sm text-muted-foreground">
-              Completa la oferta, los tres documentos (hoja de vida, estudio de
-              seguridad y exámenes médicos) y el checklist de aprobación antes
-              de contratar. Si falta un documento, el candidato permanece en
+              Completa la oferta y carga hoja de vida, estudio de seguridad y
+              exámenes médicos. Si falta un documento, el candidato permanece en
               Finalistas.
             </p>
           ) : null}

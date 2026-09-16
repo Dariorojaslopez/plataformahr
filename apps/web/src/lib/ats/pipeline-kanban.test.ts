@@ -93,8 +93,6 @@ describe("pipeline kanban", () => {
       offerStatus: null,
       headcount: 1,
       filledCount: 1,
-      securityStudyStatus: "PENDING",
-      medicalExamStatus: "PENDING",
       contractApprovalStatus: "PENDING",
       hasCompanyOfferLetterTemplate: true,
       hasSignedOfferLetter: false,
@@ -109,8 +107,6 @@ describe("pipeline kanban", () => {
         hasCv: true,
         hasSecurityStudyDoc: true,
         hasMedicalExamDoc: true,
-        securityStudyStatus: "APPROVED",
-        medicalExamStatus: "NOT_REQUIRED",
         contractApprovalStatus: "APPROVED",
       }).every((item) => item.met),
     ).toBe(true);
@@ -123,8 +119,6 @@ describe("pipeline kanban", () => {
         hasCv: true,
         hasSecurityStudyDoc: true,
         hasMedicalExamDoc: true,
-        securityStudyStatus: "APPROVED",
-        medicalExamStatus: "APPROVED",
         contractApprovalStatus: "NOT_REQUIRED",
         hasCompanyOfferLetterTemplate: true,
         hasSignedOfferLetter: false,
@@ -139,10 +133,8 @@ describe("pipeline kanban", () => {
         hasCv: true,
         hasSecurityStudyDoc: false,
         hasMedicalExamDoc: true,
-        securityStudyStatus: "PENDING",
-        medicalExamStatus: "APPROVED",
         contractApprovalStatus: "NOT_REQUIRED",
-      }).find((item) => item.id === "SECURITY_STUDY")?.met,
+      }).find((item) => item.id === "SECURITY_STUDY_DOC")?.met,
     ).toBe(false);
     expect(
       hireRequirementChecks({
@@ -153,8 +145,6 @@ describe("pipeline kanban", () => {
         hasCv: false,
         hasSecurityStudyDoc: true,
         hasMedicalExamDoc: true,
-        securityStudyStatus: "APPROVED",
-        medicalExamStatus: "APPROVED",
         contractApprovalStatus: "NOT_REQUIRED",
       }).find((item) => item.id === "CV")?.met,
     ).toBe(false);
