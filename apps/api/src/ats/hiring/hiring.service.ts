@@ -152,15 +152,33 @@ export class HiringService {
         }
 
         const candidate = await tx.candidate.findFirst({
-          where: { id: application.candidateId, companyId, deletedAt: null },
-          select: { cvFileName: true },
+          where: {
+            id: application.candidateId,
+            companyId,
+            deletedAt: null,
+          },
+          select: {
+            id: true,
+            email: true,
+            firstName: true,
+            lastName: true,
+            phone: true,
+            country: true,
+            state: true,
+            city: true,
+            cvFileName: true,
+          },
         });
+        if (!candidate) {
+          throw new NotFoundException('Candidate not found');
+        }
+
         const preHireDocs = await tx.applicationPreHireDocument.findMany({
           where: { applicationId, companyId },
           select: { kind: true },
         });
         const missingDocs = missingRequiredHireDocuments({
-          hasCv: Boolean(candidate?.cvFileName),
+          hasCv: Boolean(candidate.cvFileName),
           hasSecurityStudyDoc: preHireDocs.some(
             (doc) => doc.kind === PreHireDocumentKind.SECURITY_STUDY,
           ),
@@ -228,17 +246,6 @@ export class HiringService {
           throw new BadRequestException(
             'Debes cargar la carta oferta firmada antes de contratar',
           );
-        }
-
-        const candidate = await tx.candidate.findFirst({
-          where: {
-            id: application.candidateId,
-            companyId,
-            deletedAt: null,
-          },
-        });
-        if (!candidate) {
-          throw new NotFoundException('Candidate not found');
         }
 
         const email = candidate.email.trim().toLowerCase();
