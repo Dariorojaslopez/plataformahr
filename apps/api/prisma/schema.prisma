@@ -70,30 +70,30 @@ model User {
   updatedAt          DateTime   @updatedAt
   deletedAt          DateTime?
 
-  memberships                      CompanyMembership[]
-  sessions                         UserSession[]
-  auditLogs                        AuditLog[]
-  employees                        Employee[]
-  vacancyApprovalsDecided          VacancyApproval[]
-  jobOfferContractApprovalsDecided JobOfferContractApproval[]
+  memberships                         CompanyMembership[]
+  sessions                            UserSession[]
+  auditLogs                           AuditLog[]
+  employees                           Employee[]
+  vacancyApprovalsDecided             VacancyApproval[]
+  jobOfferContractApprovalsDecided    JobOfferContractApproval[]
   jobOfferOfferLetterApprovalsDecided JobOfferOfferLetterApproval[]
-  applicationStageHistories        ApplicationStageHistory[]
-  interviewAnswers                 InterviewAnswer[]
-  interviewTranscriptSegments      InterviewTranscriptSegment[]
-  jobOffersCreated                 JobOffer[]
-  jobOffersSignedLetterUploaded    JobOffer[]                   @relation("OfferSignedLetterUploader")
-  hiringsCompleted                 Hiring[]
-  applicationPreHireDocuments      ApplicationPreHireDocument[]
-  performanceCyclesCreated         PerformanceCycle[]
-  performanceResultsReleased       PerformanceResult[]          @relation("PerformanceResultReleasedBy")
-  goalCyclesCreated                GoalCycle[]
-  goalsCreated                     Goal[]
-  goalCheckInsCreated              GoalCheckIn[]
-  goalCompletionRequestsRequested  GoalCompletionRequest[]      @relation("GoalCompletionRequestedBy")
-  goalCompletionRequestsReviewed   GoalCompletionRequest[]      @relation("GoalCompletionReviewedBy")
-  goalResultsRequested             GoalResult[]                 @relation("GoalResultRequestedBy")
-  goalResultsApproved              GoalResult[]                 @relation("GoalResultApprovedBy")
-  calibrationPlacementsMoved       CalibrationPlacement[]
+  applicationStageHistories           ApplicationStageHistory[]
+  interviewAnswers                    InterviewAnswer[]
+  interviewTranscriptSegments         InterviewTranscriptSegment[]
+  jobOffersCreated                    JobOffer[]
+  jobOffersSignedLetterUploaded       JobOffer[]                    @relation("OfferSignedLetterUploader")
+  hiringsCompleted                    Hiring[]
+  applicationPreHireDocuments         ApplicationPreHireDocument[]
+  performanceCyclesCreated            PerformanceCycle[]
+  performanceResultsReleased          PerformanceResult[]           @relation("PerformanceResultReleasedBy")
+  goalCyclesCreated                   GoalCycle[]
+  goalsCreated                        Goal[]
+  goalCheckInsCreated                 GoalCheckIn[]
+  goalCompletionRequestsRequested     GoalCompletionRequest[]       @relation("GoalCompletionRequestedBy")
+  goalCompletionRequestsReviewed      GoalCompletionRequest[]       @relation("GoalCompletionReviewedBy")
+  goalResultsRequested                GoalResult[]                  @relation("GoalResultRequestedBy")
+  goalResultsApproved                 GoalResult[]                  @relation("GoalResultApprovedBy")
+  calibrationPlacementsMoved          CalibrationPlacement[]
 
   @@map("users")
 }
@@ -1654,16 +1654,16 @@ enum OfferEmploymentType {
 }
 
 model JobOffer {
-  id                                String                 @id @default(uuid()) @db.Uuid
-  companyId                         String                 @db.Uuid
-  applicationId                     String                 @unique @db.Uuid
-  status                            JobOfferStatus         @default(DRAFT)
+  id                                String                    @id @default(uuid()) @db.Uuid
+  companyId                         String                    @db.Uuid
+  applicationId                     String                    @unique @db.Uuid
+  status                            JobOfferStatus            @default(DRAFT)
   positionTitle                     String
-  salaryAmount                      Decimal                @db.Decimal(14, 2)
-  salaryCurrency                    String                 @default("COP") @db.VarChar(3)
-  salaryPeriod                      SalaryPeriod           @default(MONTHLY)
-  employmentType                    OfferEmploymentType    @default(FULL_TIME)
-  startDate                         DateTime?              @db.Date
+  salaryAmount                      Decimal                   @db.Decimal(14, 2)
+  salaryCurrency                    String                    @default("COP") @db.VarChar(3)
+  salaryPeriod                      SalaryPeriod              @default(MONTHLY)
+  employmentType                    OfferEmploymentType       @default(FULL_TIME)
+  startDate                         DateTime?                 @db.Date
   expiresAt                         DateTime?
   notes                             String?
   sentAt                            DateTime?
@@ -1671,7 +1671,7 @@ model JobOffer {
   rejectedAt                        DateTime?
   withdrawnAt                       DateTime?
   expiredAt                         DateTime?
-  contractApprovalStatus            ContractApprovalStatus @default(NOT_REQUIRED)
+  contractApprovalStatus            ContractApprovalStatus    @default(NOT_REQUIRED)
   contractApprovalStartedAt         DateTime?
   contractApprovalCompletedAt       DateTime?
   offerLetterApprovalStatus         OfferLetterApprovalStatus @default(NOT_REQUIRED)
@@ -1679,7 +1679,7 @@ model JobOffer {
   offerLetterApprovalCompletedAt    DateTime?
   offerLetterSentAt                 DateTime?
   offerLetterSendMode               OfferLetterSendMode?
-  offerLetterSignToken              String?                @unique
+  offerLetterSignToken              String?                   @unique
   offerLetterSignTokenExpiresAt     DateTime?
   offerLetterCandidateSignedAt      DateTime?
   offerLetterSignatureFileName      String?
@@ -1693,15 +1693,15 @@ model JobOffer {
   signedOfferLetterOriginalName     String?
   signedOfferLetterMimeType         String?
   signedOfferLetterUploadedAt       DateTime?
-  signedOfferLetterUploadedByUserId String?                @db.Uuid
-  createdByUserId                   String                 @db.Uuid
-  createdAt                         DateTime               @default(now())
-  updatedAt                         DateTime               @updatedAt
+  signedOfferLetterUploadedByUserId String?                   @db.Uuid
+  createdByUserId                   String                    @db.Uuid
+  createdAt                         DateTime                  @default(now())
+  updatedAt                         DateTime                  @updatedAt
 
-  company                     Company                    @relation(fields: [companyId], references: [id], onDelete: Restrict)
-  application                 Application                @relation(fields: [applicationId], references: [id], onDelete: Restrict)
-  createdBy                   User                       @relation(fields: [createdByUserId], references: [id], onDelete: Restrict)
-  signedOfferLetterUploadedBy User?                      @relation("OfferSignedLetterUploader", fields: [signedOfferLetterUploadedByUserId], references: [id], onDelete: SetNull)
+  company                     Company                       @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  application                 Application                   @relation(fields: [applicationId], references: [id], onDelete: Restrict)
+  createdBy                   User                          @relation(fields: [createdByUserId], references: [id], onDelete: Restrict)
+  signedOfferLetterUploadedBy User?                         @relation("OfferSignedLetterUploader", fields: [signedOfferLetterUploadedByUserId], references: [id], onDelete: SetNull)
   hiring                      Hiring?
   contractApprovals           JobOfferContractApproval[]
   offerLetterApprovals        JobOfferOfferLetterApproval[]
