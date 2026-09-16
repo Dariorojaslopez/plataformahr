@@ -29,7 +29,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useCompanyId } from "@/hooks/use-company-id";
 import { atsApi, atsKeys } from "@/lib/api/ats";
 import { companyApi, companyKeys } from "@/lib/api/company";
-import { ApiError, getErrorMessage } from "@/lib/api/errors";
+import { getErrorMessage } from "@/lib/api/errors";
 import { organizationApi, orgKeys } from "@/lib/api/organization";
 import {
   approvalStatusVariant,
@@ -62,11 +62,8 @@ export function VacancyRequestDetailPageClient() {
   const [form, setForm] = useState(emptyVacancyRequestForm());
   const [formError, setFormError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
-  const [approveOpen, setApproveOpen] = useState(false);
-  const [rejectOpen, setRejectOpen] = useState(false);
   const [submitOpen, setSubmitOpen] = useState(false);
-  const [approveComment, setApproveComment] = useState("");
-  const [rejectComment, setRejectComment] = useState("");
+  const [decisionComment, setDecisionComment] = useState("");
 
   const detailQuery = useQuery({
     queryKey: atsKeys.vacancyRequest(companyId, id),
@@ -152,12 +149,11 @@ export function VacancyRequestDetailPageClient() {
   const approveMutation = useMutation({
     mutationFn: () =>
       atsApi.approveVacancyRequest(id, {
-        comment: approveComment.trim(),
+        comment: decisionComment.trim(),
       }),
     onSuccess: async (data) => {
       await invalidate();
-      setApproveOpen(false);
-      setApproveComment("");
+      setDecisionComment("");
       setActionError(null);
       notifySuccess(
         data.status === "APPROVED"
@@ -168,19 +164,15 @@ export function VacancyRequestDetailPageClient() {
     onError: (error) => {
       setActionError(getErrorMessage(error, "No se pudo aprobar."));
       notifyError(error, "No se pudo aprobar.");
-      if (error instanceof ApiError && error.status === 403) {
-        setApproveOpen(false);
-      }
     },
   });
 
   const rejectMutation = useMutation({
     mutationFn: () =>
-      atsApi.rejectVacancyRequest(id, { comment: rejectComment.trim() }),
+      atsApi.rejectVacancyRequest(id, { comment: decisionComment.trim() }),
     onSuccess: async () => {
       await invalidate();
-      setRejectOpen(false);
-      setRejectComment("");
+      setDecisionComment("");
       setActionError(null);
       notifySuccess("Solicitud devuelta al solicitante");
     },
@@ -245,20 +237,6 @@ export function VacancyRequestDetailPageClient() {
                 </Button>
               </>
             ) : null}
-            {canShowVacancyDecisionActions(request) ? (
-              <>
-                <Button type="button" onClick={() => setApproveOpen(true)}>
-                  Aprobar
-                </Button>
-                <Button
-                  type="button"
-                  variant="destructive"
-                  onClick={() => setRejectOpen(true)}
-                >
-                  Rechazar
-                </Button>
-              </>
-            ) : null}
             {request.vacancy ? (
               <Button variant="secondary" asChild>
                 <Link href={`/ats/vacancies/${request.vacancy.id}`}>
@@ -274,6 +252,52 @@ export function VacancyRequestDetailPageClient() {
         <p className="text-sm text-destructive" role="alert">
           {actionError}
         </p>
+      ) : null}
+
+      {canShowVacancyDecisionActions(request) ? (
+        <section className="space-y-3 rounded-lg border p-4">
+          <div>
+            <h2 className="text-lg font-semibold">Decisión de aprobación</h2>
+            <p className="text-sm text-muted-foreground">
+              Agrega observaciones y luego aprueba o rechaza esta solicitud.
+            </p>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="decision-comment">Observaciones *</Label>
+            <Textarea
+              id="decision-comment"
+              value={decisionComment}
+              onChange={(event) => setDecisionComment(event.target.value)}
+              maxLength={1000}
+              placeholder="Escribe tus observaciones antes de aceptar o rechazar."
+            />
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              disabled={
+                approveMutation.isPending ||
+                rejectMutation.isPending ||
+                decisionComment.trim().length === 0
+              }
+              onClick={() => approveMutation.mutate()}
+            >
+              Aprobar
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={
+                approveMutation.isPending ||
+                rejectMutation.isPending ||
+                decisionComment.trim().length === 0
+              }
+              onClick={() => rejectMutation.mutate()}
+            >
+              Rechazar
+            </Button>
+          </div>
+        </section>
       ) : null}
 
       <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -456,78 +480,6 @@ export function VacancyRequestDetailPageClient() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={approveOpen} onOpenChange={setApproveOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Aprobar paso</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-2">
-            <Label htmlFor="approve-comment">Motivo de aprobación *</Label>
-            <Textarea
-              id="approve-comment"
-              value={approveComment}
-              onChange={(e) => setApproveComment(e.target.value)}
-              required
-              maxLength={1000}
-            />
-          </div>
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setApproveOpen(false)}
-            >
-              Cancelar
-            </Button>
-            <Button
-              type="button"
-              disabled={
-                approveMutation.isPending || approveComment.trim().length === 0
-              }
-              onClick={() => approveMutation.mutate()}
-            >
-              Aprobar
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={rejectOpen} onOpenChange={setRejectOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Devolver al solicitante</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-2">
-            <Label htmlFor="reject-comment">Motivo de rechazo *</Label>
-            <Textarea
-              id="reject-comment"
-              value={rejectComment}
-              onChange={(e) => setRejectComment(e.target.value)}
-              required
-              maxLength={1000}
-            />
-          </div>
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setRejectOpen(false)}
-            >
-              Cancelar
-            </Button>
-            <Button
-              type="button"
-              variant="destructive"
-              disabled={
-                rejectMutation.isPending || rejectComment.trim().length === 0
-              }
-              onClick={() => rejectMutation.mutate()}
-            >
-              Rechazar y devolver
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

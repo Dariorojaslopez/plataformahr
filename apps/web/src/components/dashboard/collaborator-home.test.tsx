@@ -9,6 +9,7 @@ const getFeed = vi.fn();
 const updateProfile = vi.fn();
 const applyToVacancy = vi.fn();
 const approveVacancyRequest = vi.fn();
+const rejectVacancyRequest = vi.fn();
 const listVacancies = vi.fn();
 
 vi.mock("@/hooks/use-company-id", () => ({
@@ -46,7 +47,8 @@ vi.mock("@/lib/api/ats", () => ({
   atsApi: {
     approveVacancyRequest: (...args: unknown[]) =>
       approveVacancyRequest(...args),
-    rejectVacancyRequest: vi.fn(),
+    rejectVacancyRequest: (...args: unknown[]) =>
+      rejectVacancyRequest(...args),
     listVacancies: (...args: unknown[]) => listVacancies(...args),
   },
   atsKeys: {
@@ -150,6 +152,7 @@ describe("CollaboratorHome", () => {
     updateProfile.mockReset();
     applyToVacancy.mockReset();
     approveVacancyRequest.mockReset();
+    rejectVacancyRequest.mockReset();
     listVacancies.mockReset();
     getFeed.mockResolvedValue(feed);
     applyToVacancy.mockResolvedValue({ ok: true });
@@ -328,24 +331,46 @@ describe("CollaboratorHome", () => {
     );
   });
 
-  it("requires an approval reason before accepting a pending request", async () => {
+  it("requires observations before accepting or rejecting a pending request", async () => {
     const user = userEvent.setup();
     approveVacancyRequest.mockResolvedValue({
       id: "req-1",
       status: "PENDING_APPROVAL",
     });
+    rejectVacancyRequest.mockResolvedValue({
+      id: "req-1",
+      status: "REJECTED",
+    });
     renderHome();
     await screen.findByText("Aprobaciones pendientes");
-    await user.click(screen.getByRole("button", { name: "Aceptar" }));
-    expect(screen.getByText("Motivo de aprobación *")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Aprobar" })).toBeDisabled();
+    expect(screen.getByLabelText("Observaciones *")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Aceptar" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Rechazar" })).toBeDisabled();
     await user.type(
-      screen.getByLabelText("Motivo de aprobación *"),
+      screen.getByLabelText("Observaciones *"),
       "Perfil alineado al cargo",
     );
-    await user.click(screen.getByRole("button", { name: "Aprobar" }));
+    await user.click(screen.getByRole("button", { name: "Aceptar" }));
     expect(approveVacancyRequest).toHaveBeenCalledWith("req-1", {
       comment: "Perfil alineado al cargo",
+    });
+  });
+
+  it("sends observations when rejecting a pending request", async () => {
+    const user = userEvent.setup();
+    rejectVacancyRequest.mockResolvedValue({
+      id: "req-1",
+      status: "REJECTED",
+    });
+    renderHome();
+    await screen.findByText("Aprobaciones pendientes");
+    await user.type(
+      screen.getByLabelText("Observaciones *"),
+      "Falta justificación de headcount",
+    );
+    await user.click(screen.getByRole("button", { name: "Rechazar" }));
+    expect(rejectVacancyRequest).toHaveBeenCalledWith("req-1", {
+      comment: "Falta justificación de headcount",
     });
   });
 

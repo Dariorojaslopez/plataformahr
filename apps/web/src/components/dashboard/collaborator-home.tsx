@@ -519,44 +519,56 @@ function ProfileSection({ profile }: { profile: HomeProfile | null }) {
 function ApprovalsSection({ items }: { items: HomePendingApproval[] }) {
   const companyId = useCompanyId();
   const queryClient = useQueryClient();
-  const [approving, setApproving] = useState<HomePendingApproval | null>(null);
-  const [rejecting, setRejecting] = useState<HomePendingApproval | null>(null);
-  const [approveComment, setApproveComment] = useState("");
-  const [comment, setComment] = useState("");
+  const [comments, setComments] = useState<Record<string, string>>({});
+  const [actingId, setActingId] = useState<string | null>(null);
+
+  function commentFor(id: string) {
+    return (comments[id] ?? "").trim();
+  }
+
+  function clearComment(id: string) {
+    setComments((current) => {
+      const next = { ...current };
+      delete next[id];
+      return next;
+    });
+  }
 
   const approveMutation = useMutation({
-    mutationFn: () =>
-      atsApi.approveVacancyRequest(approving!.id, {
-        comment: approveComment.trim(),
+    mutationFn: (item: HomePendingApproval) =>
+      atsApi.approveVacancyRequest(item.id, {
+        comment: commentFor(item.id),
       }),
-    onSuccess: async (data) => {
+    onSuccess: async (data, item) => {
       notifySuccess(
         data.status === "APPROVED"
           ? "Solicitud aprobada. El proceso queda listo para asignar reclutador."
           : "Paso de aprobación confirmado. Continúa con el siguiente aprobador.",
       );
-      setApproving(null);
-      setApproveComment("");
+      clearComment(item.id);
+      setActingId(null);
       await queryClient.invalidateQueries({ queryKey: homeKeys.feed(companyId) });
       await queryClient.invalidateQueries({
         queryKey: atsKeys.vacancyRequests(companyId),
       });
     },
     onError: (error) => {
+      setActingId(null);
       notifyError(error, "No se pudo aprobar.");
     },
   });
 
   const rejectMutation = useMutation({
-    mutationFn: () =>
-      atsApi.rejectVacancyRequest(rejecting!.id, { comment: comment.trim() }),
-    onSuccess: async () => {
+    mutationFn: (item: HomePendingApproval) =>
+      atsApi.rejectVacancyRequest(item.id, { comment: commentFor(item.id) }),
+    onSuccess: async (_data, item) => {
       notifySuccess("Solicitud devuelta al solicitante");
-      setRejecting(null);
-      setComment("");
+      clearComment(item.id);
+      setActingId(null);
       await queryClient.invalidateQueries({ queryKey: homeKeys.feed(companyId) });
     },
     onError: (error) => {
+      setActingId(null);
       notifyError(error, "No se pudo rechazar.");
     },
   });
@@ -566,115 +578,73 @@ function ApprovalsSection({ items }: { items: HomePendingApproval[] }) {
       <div>
         <h2 className="text-lg font-semibold">Aprobaciones pendientes</h2>
         <p className="text-sm text-muted-foreground">
-          Te eligieron como aprobador de estos procesos. Puedes aceptar o
-          rechazar aquí.
+          Te eligieron como aprobador de estos procesos. Agrega observaciones y
+          luego acepta o rechaza.
         </p>
       </div>
       <div className="space-y-3">
-        {items.map((item) => (
-          <Card key={item.id}>
-            <CardHeader>
-              <CardTitle className="text-base">{item.title}</CardTitle>
-              <CardDescription>Solicita {item.requesterName}</CardDescription>
-            </CardHeader>
-            <CardContent className="flex flex-wrap gap-2">
-              <Button
-                type="button"
-                size="sm"
-                onClick={() => {
-                  setApproving(item);
-                  setApproveComment("");
-                }}
-              >
-                Aceptar
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                onClick={() => {
-                  setRejecting(item);
-                  setComment("");
-                }}
-              >
-                Rechazar
-              </Button>
-              <Button type="button" size="sm" variant="ghost" asChild>
-                <Link href={`/ats/vacancy-requests/${item.id}`}>Ver detalle</Link>
-              </Button>
-            </CardContent>
-          </Card>
-        ))}
+        {items.map((item) => {
+          const comment = comments[item.id] ?? "";
+          const hasComment = comment.trim().length > 0;
+          const isActing = actingId === item.id;
+          const fieldId = `home-approval-comment-${item.id}`;
+          return (
+            <Card key={item.id}>
+              <CardHeader>
+                <CardTitle className="text-base">{item.title}</CardTitle>
+                <CardDescription>Solicita {item.requesterName}</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="space-y-2">
+                  <Label htmlFor={fieldId}>Observaciones *</Label>
+                  <Textarea
+                    id={fieldId}
+                    value={comment}
+                    onChange={(event) =>
+                      setComments((current) => ({
+                        ...current,
+                        [item.id]: event.target.value,
+                      }))
+                    }
+                    maxLength={1000}
+                    placeholder="Escribe tus observaciones antes de aceptar o rechazar."
+                  />
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    disabled={!hasComment || isActing}
+                    onClick={() => {
+                      setActingId(item.id);
+                      approveMutation.mutate(item);
+                    }}
+                  >
+                    Aceptar
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    disabled={!hasComment || isActing}
+                    onClick={() => {
+                      setActingId(item.id);
+                      rejectMutation.mutate(item);
+                    }}
+                  >
+                    Rechazar
+                  </Button>
+                  <Button type="button" size="sm" variant="ghost" asChild>
+                    <Link href={`/ats/vacancy-requests/${item.id}`}>
+                      Ver detalle
+                    </Link>
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })}
       </div>
-      <Dialog
-        open={Boolean(approving)}
-        onOpenChange={(open) => {
-          if (!open) setApproving(null);
-        }}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Aprobar solicitud</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-2">
-            <Label htmlFor="home-approve-comment">Motivo de aprobación *</Label>
-            <Textarea
-              id="home-approve-comment"
-              value={approveComment}
-              onChange={(event) => setApproveComment(event.target.value)}
-              maxLength={1000}
-            />
-          </div>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setApproving(null)}>
-              Cancelar
-            </Button>
-            <Button
-              type="button"
-              disabled={
-                approveMutation.isPending || approveComment.trim().length === 0
-              }
-              onClick={() => approveMutation.mutate()}
-            >
-              Aprobar
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-      <Dialog
-        open={Boolean(rejecting)}
-        onOpenChange={(open) => {
-          if (!open) setRejecting(null);
-        }}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Devolver al solicitante</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-2">
-            <Label htmlFor="home-reject-comment">Motivo de rechazo *</Label>
-            <Textarea
-              id="home-reject-comment"
-              value={comment}
-              onChange={(event) => setComment(event.target.value)}
-              maxLength={1000}
-            />
-          </div>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setRejecting(null)}>
-              Cancelar
-            </Button>
-            <Button
-              type="button"
-              variant="destructive"
-              disabled={rejectMutation.isPending || comment.trim().length === 0}
-              onClick={() => rejectMutation.mutate()}
-            >
-              Rechazar y devolver
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </section>
   );
 }
