@@ -4,25 +4,24 @@ import {
   OfferLetterSendMode,
 } from '@prisma/client';
 
-export function isOfferReadyToHire(offer: {
-  status: JobOfferStatus;
+type OfferLetterHireFields = {
   signedOfferLetterFileName?: string | null;
-  offerLetterApprovalStatus?: OfferLetterApprovalStatus | string | null;
+  offerLetterApprovalStatus?: string | null;
   offerLetterSentAt?: Date | string | null;
-  offerLetterSendMode?: OfferLetterSendMode | string | null;
+  offerLetterSendMode?: string | null;
   offerLetterCandidateSignedAt?: Date | string | null;
-}): boolean {
+};
+
+export function isOfferReadyToHire(
+  offer: OfferLetterHireFields & { status: string },
+): boolean {
   if (offer.status === JobOfferStatus.ACCEPTED) return true;
   return isOfferLetterCompleteForHire(offer);
 }
 
-export function isOfferLetterCompleteForHire(offer: {
-  signedOfferLetterFileName?: string | null;
-  offerLetterApprovalStatus?: OfferLetterApprovalStatus | string | null;
-  offerLetterSentAt?: Date | string | null;
-  offerLetterSendMode?: OfferLetterSendMode | string | null;
-  offerLetterCandidateSignedAt?: Date | string | null;
-}): boolean {
+export function isOfferLetterCompleteForHire(
+  offer: OfferLetterHireFields,
+): boolean {
   if (!offer.signedOfferLetterFileName) return false;
   const approval = offer.offerLetterApprovalStatus;
   if (
