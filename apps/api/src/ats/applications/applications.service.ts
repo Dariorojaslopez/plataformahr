@@ -545,6 +545,7 @@ export class ApplicationsService {
         title: vacancy.title,
         status: vacancy.status,
       },
+      hasCompanyOfferLetterTemplate,
       columns: PIPELINE_STAGES.map((stage) => {
         const items = byStage.get(stage) ?? [];
         return {

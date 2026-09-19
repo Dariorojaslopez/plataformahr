@@ -292,10 +292,7 @@ export class OfferLetterService {
     if (application.status !== ApplicationStatus.ACTIVE) {
       throw new BadRequestException('Application is not active');
     }
-    if (
-      application.stage !== ApplicationStage.INTERVIEW &&
-      application.stage !== ApplicationStage.OFFER
-    ) {
+    if (application.stage !== ApplicationStage.OFFER) {
       throw new BadRequestException(OFFER_LETTER_ERRORS.STAGE);
     }
     if (application.jobOffer) {

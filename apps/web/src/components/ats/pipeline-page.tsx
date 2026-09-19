@@ -169,7 +169,9 @@ export function PipelinePageClient() {
     queryFn: () => companyApi.getCurrent(),
   });
   const companyHasOfferLetterTemplate = Boolean(
-    companyQuery.data?.hasOfferLetterTemplate,
+    companyQuery.data?.hasOfferLetterTemplate ||
+      companyQuery.data?.offerLetterTemplateOriginalName ||
+      pipelineQuery.data?.hasCompanyOfferLetterTemplate,
   );
 
   const hirePrepQuery = useQuery({
@@ -468,6 +470,13 @@ export function PipelinePageClient() {
   }
 
   function requestOfferLetterUpload(card: PipelineCard) {
+    if (card.stage !== "OFFER") {
+      notifyError(
+        new Error("Solo puedes cargar la carta oferta en Finalistas."),
+        "Solo puedes cargar la carta oferta en Finalistas.",
+      );
+      return;
+    }
     offerLetterTargetRef.current = card;
     offerLetterInputRef.current?.click();
   }
@@ -831,9 +840,9 @@ export function PipelinePageClient() {
           {resumeCard ? (
             <div className="space-y-3">
               <p className="text-sm text-muted-foreground">
-                {resumeCard.candidateName} · HV, pre-contratación y carta
-                oferta (máx. 20 MB en HV/prehire; carta en PDF o DOCX, máx. 10
-                MB). Al cargar la carta diligenciada se inicia la aprobación.
+                {resumeCard.stage === "OFFER"
+                  ? `${resumeCard.candidateName} · HV, pre-contratación y carta oferta (máx. 20 MB en HV/prehire; carta en PDF o DOCX, máx. 10 MB). La carta solo se gestiona en Finalistas. Al cargar la diligenciada se inicia la aprobación.`
+                  : `${resumeCard.candidateName} · HV y pre-contratación (máx. 20 MB). La carta oferta se gestiona cuando el candidato esté en Finalistas.`}
               </p>
               <ul className="space-y-2 text-sm">
                 <DocDownloadRow
@@ -893,15 +902,14 @@ export function PipelinePageClient() {
                   }
                   uploading={uploadPreHireMutation.isPending}
                 />
-                {resumeCard.hasCompanyOfferLetterTemplate ||
-                companyHasOfferLetterTemplate ? (
+                {resumeCard.stage === "OFFER" ? (
                   <>
                     <DocDownloadRow
                       label="Plantilla de carta oferta"
                       available
                       statusLabel={
                         companyQuery.data?.offerLetterTemplateOriginalName ??
-                        "Configurada en ATS"
+                        "Word configurada en ATS"
                       }
                       onDownload={() => void downloadOfferTemplate()}
                     />
@@ -921,7 +929,9 @@ export function PipelinePageClient() {
                           size="sm"
                           variant="outline"
                           disabled={uploadOfferLetterMutation.isPending}
-                          onClick={() => requestOfferLetterUpload(resumeCard)}
+                          onClick={() =>
+                            requestOfferLetterUpload(resumeCard)
+                          }
                         >
                           {uploadOfferLetterMutation.isPending
                             ? "Subiendo…"
@@ -971,18 +981,13 @@ function RecruiterDocsTable({
 }) {
   if (cards.length === 0) return null;
 
-  const showOfferLetter = cards.some(
-    (card) => card.hasCompanyOfferLetterTemplate,
-  );
-
   return (
     <section className="space-y-3 rounded-md border border-border p-4">
       <div>
         <h3 className="text-base font-semibold">Documentos · Finalistas</h3>
         <p className="text-sm text-muted-foreground">
-          {showOfferLetter
-            ? "HV, estudio de seguridad, exámenes médicos y carta oferta diligenciada. Deben estar cargados para pasar a Contratar."
-            : "HV, estudio de seguridad y exámenes médicos. Deben estar cargados para pasar a Contratar."}
+          HV, estudio de seguridad, exámenes médicos y carta oferta
+          diligenciada. Deben estar cargados para pasar a Contratar.
         </p>
       </div>
       <Table>
@@ -992,7 +997,7 @@ function RecruiterDocsTable({
             <TableHead>HV</TableHead>
             <TableHead>Seguridad</TableHead>
             <TableHead>Médicos</TableHead>
-            {showOfferLetter ? <TableHead>Carta oferta</TableHead> : null}
+            <TableHead>Carta oferta</TableHead>
             <TableHead className="text-right">Acciones</TableHead>
           </TableRow>
         </TableHeader>
@@ -1047,57 +1052,49 @@ function RecruiterDocsTable({
                   ) : null}
                 </div>
               </TableCell>
-              {showOfferLetter ? (
-                <TableCell>
-                  {card.hasCompanyOfferLetterTemplate ? (
-                    <div className="flex flex-wrap gap-1">
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        onClick={() => void onDownloadOfferTemplate()}
-                      >
-                        Descargar plantilla
-                      </Button>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        disabled={uploadingOfferLetter}
-                        onClick={() => onUploadOfferLetter(card)}
-                      >
-                        {card.hasSignedOfferLetter
-                          ? "Reemplazar"
-                          : "Cargar carta"}
-                      </Button>
-                      {card.hasSignedOfferLetter ? (
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          onClick={() => void onDownloadFilledOfferLetter(card)}
-                        >
-                          Descargar
-                        </Button>
-                      ) : (
-                        <p className="text-xs text-muted-foreground">
-                          Sin archivo
-                        </p>
-                      )}
-                      <p className="w-full text-[11px] text-muted-foreground">
-                        {filledOfferLetterStatusLabel(
-                          Boolean(card.hasSignedOfferLetter),
-                          card.offerLetterApprovalStatus,
-                        )}
-                      </p>
-                    </div>
+              <TableCell>
+                <div className="flex flex-wrap gap-1">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => void onDownloadOfferTemplate()}
+                  >
+                    Descargar plantilla
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    disabled={uploadingOfferLetter}
+                    onClick={() => onUploadOfferLetter(card)}
+                  >
+                    {card.hasSignedOfferLetter
+                      ? "Reemplazar"
+                      : "Cargar carta"}
+                  </Button>
+                  {card.hasSignedOfferLetter ? (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => void onDownloadFilledOfferLetter(card)}
+                    >
+                      Descargar
+                    </Button>
                   ) : (
-                    <span className="text-xs text-muted-foreground">
-                      Sin plantilla
-                    </span>
+                    <p className="text-xs text-muted-foreground">
+                      Sin archivo
+                    </p>
                   )}
-                </TableCell>
-              ) : null}
+                  <p className="w-full text-[11px] text-muted-foreground">
+                    {filledOfferLetterStatusLabel(
+                      Boolean(card.hasSignedOfferLetter),
+                      card.offerLetterApprovalStatus,
+                    )}
+                  </p>
+                </div>
+              </TableCell>
               <TableCell className="text-right">
                 <div className="flex flex-wrap justify-end gap-2">
                   <Button
@@ -1428,7 +1425,7 @@ function PipelineCardView({
           </DropdownMenu>
         </div>
       </div>
-      {card.stage === "OFFER" && card.hasCompanyOfferLetterTemplate ? (
+      {card.stage === "OFFER" ? (
         <div
           className="mt-2 flex flex-wrap gap-1"
           onPointerDown={(event) => event.stopPropagation()}

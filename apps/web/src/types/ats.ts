@@ -439,6 +439,7 @@ export type PipelineColumn = {
 
 export type PipelineResponse = {
   vacancy: { id: string; title: string; status: VacancyStatus };
+  hasCompanyOfferLetterTemplate?: boolean;
   columns: PipelineColumn[];
 };
 

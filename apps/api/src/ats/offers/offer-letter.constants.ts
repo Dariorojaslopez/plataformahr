@@ -50,7 +50,7 @@ export const OFFER_LETTER_ERRORS = {
   TEMPLATE_NOT_FOUND:
     'No hay plantilla de carta oferta cargada en la compañía.',
   SIGNED_NOT_FOUND: 'No hay carta oferta diligenciada cargada.',
-  STAGE: 'Solo puedes cargar la carta oferta en Evaluación o Finalistas.',
+  STAGE: 'Solo puedes cargar la carta oferta cuando el candidato está en Finalistas.',
   EMAIL_NOT_CONFIGURED:
     'Configura el asunto y el cuerpo del correo de carta oferta en ATS.',
   CANDIDATE_EMAIL: 'El candidato no tiene un correo válido.',
