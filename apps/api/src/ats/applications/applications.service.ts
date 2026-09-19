@@ -488,6 +488,7 @@ export class ApplicationsService {
             select: {
               id: true,
               signedOfferLetterFileName: true,
+              offerLetterApprovalStatus: true,
             },
           },
           interviews: {
@@ -571,6 +572,8 @@ export class ApplicationsService {
               hasSignedOfferLetter: Boolean(
                 item.jobOffer?.signedOfferLetterFileName,
               ),
+              offerLetterApprovalStatus:
+                item.jobOffer?.offerLetterApprovalStatus ?? null,
               securityStudyStatus: item.securityStudyStatus,
               medicalExamStatus: item.medicalExamStatus,
               stage: item.stage,

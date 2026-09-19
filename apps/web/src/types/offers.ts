@@ -103,6 +103,12 @@ export type OfferLetterStatus = {
   hasSignedLetter: boolean;
   signedLetterName: string | null;
   signedLetterUploadedAt: string | null;
+  offerLetterApprovalStatus?:
+    | "NOT_REQUIRED"
+    | "PENDING"
+    | "APPROVED"
+    | "REJECTED"
+    | null;
   readyForHire: boolean;
 };
 

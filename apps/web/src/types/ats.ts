@@ -412,6 +412,12 @@ export type PipelineCard = {
   jobOfferId?: string | null;
   hasCompanyOfferLetterTemplate?: boolean;
   hasSignedOfferLetter?: boolean;
+  offerLetterApprovalStatus?:
+    | "NOT_REQUIRED"
+    | "PENDING"
+    | "APPROVED"
+    | "REJECTED"
+    | null;
   securityStudyStatus?: PreHireCheckStatus;
   medicalExamStatus?: PreHireCheckStatus;
   stage: ApplicationStage;

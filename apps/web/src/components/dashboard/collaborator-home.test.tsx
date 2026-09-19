@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { CollaboratorHome } from "@/components/dashboard/collaborator-home";
 import type { CollaboratorHomeFeed } from "@/lib/api/home";
+import { offersApi } from "@/lib/api/offers";
 
 const getFeed = vi.fn();
 const updateProfile = vi.fn();
@@ -399,8 +400,10 @@ describe("CollaboratorHome", () => {
   });
 
   it("shows pending offer letters so the approver can approve and send", async () => {
+    const user = userEvent.setup();
     getFeed.mockResolvedValue({
       ...feed,
+      pendingApprovals: [],
       pendingOfferLetterApprovals: [
         {
           offerId: "offer-1",
@@ -417,9 +420,20 @@ describe("CollaboratorHome", () => {
       await screen.findByText("Cartas oferta por aprobar"),
     ).toBeInTheDocument();
     expect(screen.getByText("Pedro Julian")).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: "Aprobar y enviar" }),
-    ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Ver carta" })).toBeInTheDocument();
+    const approve = screen.getByRole("button", { name: "Aprobar y enviar" });
+    const reject = screen.getByRole("button", { name: "Rechazar" });
+    expect(approve).toBeDisabled();
+    expect(reject).toBeDisabled();
+    await user.type(
+      screen.getByLabelText("Observaciones *"),
+      "Revisada y lista para envío",
+    );
+    await user.click(approve);
+    expect(offersApi.approveOfferLetterStep).toHaveBeenCalledWith(
+      "offer-1",
+      "step-1",
+      "Revisada y lista para envío",
+    );
   });
 });

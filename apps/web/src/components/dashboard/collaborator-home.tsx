@@ -697,25 +697,42 @@ function OfferLetterApprovalsHomeSection({
 }) {
   const companyId = useCompanyId();
   const queryClient = useQueryClient();
-  const [pendingId, setPendingId] = useState<string | null>(null);
+  const [comments, setComments] = useState<Record<string, string>>({});
+  const [actingId, setActingId] = useState<string | null>(null);
+
+  function commentFor(id: string) {
+    return (comments[id] ?? "").trim();
+  }
+
+  function clearComment(id: string) {
+    setComments((current) => {
+      const next = { ...current };
+      delete next[id];
+      return next;
+    });
+  }
 
   const decideMutation = useMutation({
     mutationFn: async ({
       offerId,
       stepId,
       decision,
+      comment,
     }: {
       offerId: string;
       stepId: string;
       decision: "APPROVE" | "REJECT";
       isLastStep: boolean;
+      comment: string;
     }) => {
       if (decision === "REJECT") {
-        return offersApi.rejectOfferLetterStep(offerId, stepId);
+        return offersApi.rejectOfferLetterStep(offerId, stepId, comment);
       }
-      return offersApi.approveOfferLetterStep(offerId, stepId);
+      return offersApi.approveOfferLetterStep(offerId, stepId, comment);
     },
     onSuccess: async (_data, vars) => {
+      clearComment(vars.stepId);
+      setActingId(null);
       await queryClient.invalidateQueries({ queryKey: homeKeys.feed(companyId) });
       await queryClient.invalidateQueries({
         queryKey: offerKeys.all(companyId),
@@ -729,9 +746,9 @@ function OfferLetterApprovalsHomeSection({
       );
     },
     onError: (error) => {
+      setActingId(null);
       notifyError(error, "No se pudo registrar la decisión.");
     },
-    onSettled: () => setPendingId(null),
   });
 
   async function downloadLetter(offerId: string) {
@@ -753,68 +770,93 @@ function OfferLetterApprovalsHomeSection({
       <div>
         <h2 className="text-lg font-semibold">Cartas oferta por aprobar</h2>
         <p className="text-sm text-muted-foreground">
-          Revisa el documento diligenciado. Al aprobar se envía el correo
-          personalizado al candidato.
+          Te eligieron como aprobador de carta oferta. Revisa el documento,
+          agrega una observación y acepta o rechaza.
         </p>
       </div>
       <div className="grid gap-3 md:grid-cols-2">
-        {items.map((item) => (
-          <Card key={item.stepId}>
-            <CardHeader>
-              <CardTitle className="text-base">{item.candidateName}</CardTitle>
-              <CardDescription>
-                {item.vacancyTitle} · paso {item.sequence}
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="flex flex-wrap gap-2">
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                onClick={() => void downloadLetter(item.offerId)}
-              >
-                Ver carta
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                disabled={decideMutation.isPending}
-                onClick={() => {
-                  setPendingId(item.stepId);
-                  decideMutation.mutate({
-                    offerId: item.offerId,
-                    stepId: item.stepId,
-                    decision: "APPROVE",
-                    isLastStep: item.isLastStep,
-                  });
-                }}
-              >
-                {pendingId === item.stepId
-                  ? "Enviando…"
-                  : item.isLastStep
-                    ? "Aprobar y enviar"
-                    : "Aprobar"}
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                disabled={decideMutation.isPending}
-                onClick={() => {
-                  setPendingId(item.stepId);
-                  decideMutation.mutate({
-                    offerId: item.offerId,
-                    stepId: item.stepId,
-                    decision: "REJECT",
-                    isLastStep: item.isLastStep,
-                  });
-                }}
-              >
-                Rechazar
-              </Button>
-            </CardContent>
-          </Card>
-        ))}
+        {items.map((item) => {
+          const comment = comments[item.stepId] ?? "";
+          const hasComment = comment.trim().length > 0;
+          const isActing = actingId === item.stepId;
+          const fieldId = `home-offer-letter-comment-${item.stepId}`;
+          return (
+            <Card key={item.stepId}>
+              <CardHeader>
+                <CardTitle className="text-base">{item.candidateName}</CardTitle>
+                <CardDescription>
+                  {item.vacancyTitle} · paso {item.sequence}
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="space-y-2">
+                  <Label htmlFor={fieldId}>Observaciones *</Label>
+                  <Textarea
+                    id={fieldId}
+                    value={comment}
+                    onChange={(event) =>
+                      setComments((current) => ({
+                        ...current,
+                        [item.stepId]: event.target.value,
+                      }))
+                    }
+                    maxLength={2000}
+                    placeholder="Escribe tus observaciones antes de aceptar o rechazar."
+                  />
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => void downloadLetter(item.offerId)}
+                  >
+                    Ver carta
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    disabled={!hasComment || isActing}
+                    onClick={() => {
+                      setActingId(item.stepId);
+                      decideMutation.mutate({
+                        offerId: item.offerId,
+                        stepId: item.stepId,
+                        decision: "APPROVE",
+                        isLastStep: item.isLastStep,
+                        comment: commentFor(item.stepId),
+                      });
+                    }}
+                  >
+                    {isActing
+                      ? "Enviando…"
+                      : item.isLastStep
+                        ? "Aprobar y enviar"
+                        : "Aprobar"}
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    disabled={!hasComment || isActing}
+                    onClick={() => {
+                      setActingId(item.stepId);
+                      decideMutation.mutate({
+                        offerId: item.offerId,
+                        stepId: item.stepId,
+                        decision: "REJECT",
+                        isLastStep: item.isLastStep,
+                        comment: commentFor(item.stepId),
+                      });
+                    }}
+                  >
+                    Rechazar
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })}
       </div>
     </section>
   );

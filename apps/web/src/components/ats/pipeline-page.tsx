@@ -44,7 +44,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { useCompanyId } from "@/hooks/use-company-id";
 import { atsApi, atsKeys } from "@/lib/api/ats";
-import { companyApi } from "@/lib/api/company";
+import { companyApi, companyKeys } from "@/lib/api/company";
 import { ApiError, getErrorMessage } from "@/lib/api/errors";
 import { hiringApi, hiringKeys, type HirePdiSyncResult } from "@/lib/api/hiring";
 import { offerKeys, offersApi } from "@/lib/api/offers";
@@ -100,6 +100,23 @@ const OFFER_LETTER_UPLOAD_MAX_BYTES = 10 * 1024 * 1024;
 const OFFER_LETTER_UPLOAD_ACCEPT =
   ".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 
+type OfferLetterApprovalStatus =
+  | "NOT_REQUIRED"
+  | "PENDING"
+  | "APPROVED"
+  | "REJECTED";
+
+function filledOfferLetterStatusLabel(
+  hasFile: boolean,
+  status?: OfferLetterApprovalStatus | null,
+): string {
+  if (!hasFile) return "Pendiente de carga";
+  if (status === "PENDING") return "En aprobación";
+  if (status === "APPROVED") return "Aprobada";
+  if (status === "REJECTED") return "Rechazada";
+  return "Diligenciada";
+}
+
 const FIT_DOT_CLASS: Record<FitLevel, string> = {
   green: "bg-emerald-500",
   yellow: "bg-amber-400",
@@ -147,6 +164,14 @@ export function PipelinePageClient() {
     enabled: Boolean(vacancyId),
   });
 
+  const companyQuery = useQuery({
+    queryKey: companyKeys.current(companyId),
+    queryFn: () => companyApi.getCurrent(),
+  });
+  const companyHasOfferLetterTemplate = Boolean(
+    companyQuery.data?.hasOfferLetterTemplate,
+  );
+
   const hirePrepQuery = useQuery({
     queryKey: [
       ...atsKeys.pipeline(companyId, vacancyId),
@@ -183,11 +208,16 @@ export function PipelinePageClient() {
   );
 
   const kanbanCards = useMemo(() => {
-    const cards = (pipelineQuery.data?.columns ?? []).flatMap(
-      (column) => column.applications,
+    const cards = (pipelineQuery.data?.columns ?? []).flatMap((column) =>
+      column.applications.map((card) => ({
+        ...card,
+        hasCompanyOfferLetterTemplate:
+          Boolean(card.hasCompanyOfferLetterTemplate) ||
+          companyHasOfferLetterTemplate,
+      })),
     );
     return groupCardsByKanbanColumn(cards);
-  }, [pipelineQuery.data]);
+  }, [companyHasOfferLetterTemplate, pipelineQuery.data]);
 
   const hireChecks = useMemo(() => {
     const data = hirePrepQuery.data;
@@ -333,9 +363,18 @@ export function PipelinePageClient() {
           ...current,
           jobOfferId: data.offerId,
           hasSignedOfferLetter: true,
+          hasCompanyOfferLetterTemplate:
+            current.hasCompanyOfferLetterTemplate || data.hasCompanyTemplate,
+          offerLetterApprovalStatus: data.offerLetterApprovalStatus ?? null,
         };
       });
-      notifySuccess("Carta oferta cargada");
+      notifySuccess(
+        data.offerLetterApprovalStatus === "PENDING"
+          ? "Carta oferta cargada. El aprobador de carta oferta ya puede revisarla en su inicio."
+          : data.offerLetterApprovalStatus === "NOT_REQUIRED"
+            ? "Carta oferta cargada. Configura un aprobador de carta oferta en ATS para iniciar el flujo."
+            : "Carta oferta cargada",
+      );
     },
     onError: (error) => {
       notifyError(error, "No se pudo cargar la carta oferta.");
@@ -794,7 +833,7 @@ export function PipelinePageClient() {
               <p className="text-sm text-muted-foreground">
                 {resumeCard.candidateName} · HV, pre-contratación y carta
                 oferta (máx. 20 MB en HV/prehire; carta en PDF o DOCX, máx. 10
-                MB).
+                MB). Al cargar la carta diligenciada se inicia la aprobación.
               </p>
               <ul className="space-y-2 text-sm">
                 <DocDownloadRow
@@ -854,28 +893,29 @@ export function PipelinePageClient() {
                   }
                   uploading={uploadPreHireMutation.isPending}
                 />
-                {resumeCard.hasCompanyOfferLetterTemplate ? (
-                  <DocDownloadRow
-                    label="Carta oferta"
-                    available={Boolean(resumeCard.hasSignedOfferLetter)}
-                    statusLabel={
-                      resumeCard.hasSignedOfferLetter
-                        ? "Diligenciada"
-                        : "Pendiente para aprobación"
-                    }
-                    onDownload={() =>
-                      void downloadFilledOfferLetter(resumeCard)
-                    }
-                    extraActions={
-                      <>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          onClick={() => void downloadOfferTemplate()}
-                        >
-                          Descargar plantilla
-                        </Button>
+                {resumeCard.hasCompanyOfferLetterTemplate ||
+                companyHasOfferLetterTemplate ? (
+                  <>
+                    <DocDownloadRow
+                      label="Plantilla de carta oferta"
+                      available
+                      statusLabel={
+                        companyQuery.data?.offerLetterTemplateOriginalName ??
+                        "Configurada en ATS"
+                      }
+                      onDownload={() => void downloadOfferTemplate()}
+                    />
+                    <DocDownloadRow
+                      label="Carta oferta diligenciada"
+                      available={Boolean(resumeCard.hasSignedOfferLetter)}
+                      statusLabel={filledOfferLetterStatusLabel(
+                        Boolean(resumeCard.hasSignedOfferLetter),
+                        resumeCard.offerLetterApprovalStatus,
+                      )}
+                      onDownload={() =>
+                        void downloadFilledOfferLetter(resumeCard)
+                      }
+                      extraActions={
                         <Button
                           type="button"
                           size="sm"
@@ -883,13 +923,15 @@ export function PipelinePageClient() {
                           disabled={uploadOfferLetterMutation.isPending}
                           onClick={() => requestOfferLetterUpload(resumeCard)}
                         >
-                          {resumeCard.hasSignedOfferLetter
-                            ? "Reemplazar"
-                            : "Cargar carta"}
+                          {uploadOfferLetterMutation.isPending
+                            ? "Subiendo…"
+                            : resumeCard.hasSignedOfferLetter
+                              ? "Reemplazar"
+                              : "Cargar carta"}
                         </Button>
-                      </>
-                    }
-                  />
+                      }
+                    />
+                  </>
                 ) : null}
               </ul>
             </div>
@@ -1042,6 +1084,12 @@ function RecruiterDocsTable({
                           Sin archivo
                         </p>
                       )}
+                      <p className="w-full text-[11px] text-muted-foreground">
+                        {filledOfferLetterStatusLabel(
+                          Boolean(card.hasSignedOfferLetter),
+                          card.offerLetterApprovalStatus,
+                        )}
+                      </p>
                     </div>
                   ) : (
                     <span className="text-xs text-muted-foreground">
@@ -1358,7 +1406,7 @@ function PipelineCardView({
                 </DropdownMenuItem>
               )}
               <DropdownMenuItem onSelect={() => onOpenResume(card)}>
-                Documentos (HV / prehire)
+                Documentos (HV / prehire / carta)
               </DropdownMenuItem>
               {targets.map((columnId) => (
                 <DropdownMenuItem
@@ -1407,15 +1455,22 @@ function PipelineCardView({
                 ? "Reemplazar carta"
                 : "Cargar carta"}
           </Button>
-          {card.hasSignedOfferLetter ? (
-            <p className="w-full text-[11px] text-emerald-600">
-              Carta diligenciada cargada
-            </p>
-          ) : (
-            <p className="w-full text-[11px] text-muted-foreground">
-              Pendiente para aprobación
-            </p>
-          )}
+          <p
+            className={cn(
+              "w-full text-[11px]",
+              card.hasSignedOfferLetter &&
+                card.offerLetterApprovalStatus === "APPROVED"
+                ? "text-emerald-600"
+                : card.offerLetterApprovalStatus === "REJECTED"
+                  ? "text-destructive"
+                  : "text-muted-foreground",
+            )}
+          >
+            {filledOfferLetterStatusLabel(
+              Boolean(card.hasSignedOfferLetter),
+              card.offerLetterApprovalStatus,
+            )}
+          </p>
         </div>
       ) : null}
     </article>
