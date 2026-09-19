@@ -28,7 +28,7 @@ describe("pipeline kanban", () => {
         "Aplicantes",
         "Evaluación",
         "Finalistas",
-        "a Contratar",
+        "A Contratar",
       ].every((label, index) => KANBAN_COLUMNS[index]?.label === label),
     ).toBe(true);
   });

@@ -30,7 +30,7 @@ export const KANBAN_COLUMNS: Array<{
   },
   {
     id: "HIRED",
-    label: "a Contratar",
+    label: "A Contratar",
     stages: ["HIRED"],
     dropHint: "Arrastra candidatos aquí",
   },
