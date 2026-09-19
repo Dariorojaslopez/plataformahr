@@ -4,7 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { OfferLetterSendMode } from '@prisma/client';
+import { JobOfferStatus, OfferLetterSendMode } from '@prisma/client';
 import { AuditService } from '../../core/audit/audit.service';
 import { MailService } from '../../mail/mail.service';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -115,6 +115,7 @@ export class OfferLetterSendService {
 
     let sendMode: OfferLetterSendMode = OfferLetterSendMode.ATTACHMENT;
     let signUrl: string | null = null;
+    const now = new Date();
     if (digitalSignature) {
       sendMode = OfferLetterSendMode.DIGITAL_SIGNATURE;
       const token = randomBytes(32).toString('hex');
@@ -124,11 +125,14 @@ export class OfferLetterSendService {
         where: { id: offer.id },
         data: {
           offerLetterSendMode: sendMode,
-          offerLetterSentAt: new Date(),
+          offerLetterSentAt: now,
           offerLetterSignToken: token,
           offerLetterSignTokenExpiresAt: new Date(
             Date.now() + OFFER_SIGN_TOKEN_TTL_MS,
           ),
+          ...(offer.status === JobOfferStatus.DRAFT
+            ? { status: JobOfferStatus.SENT, sentAt: now }
+            : {}),
         },
       });
     } else {
@@ -136,9 +140,17 @@ export class OfferLetterSendService {
         where: { id: offer.id },
         data: {
           offerLetterSendMode: sendMode,
-          offerLetterSentAt: new Date(),
+          offerLetterSentAt: now,
           offerLetterSignToken: null,
           offerLetterSignTokenExpiresAt: null,
+          ...(offer.status === JobOfferStatus.DRAFT ||
+          offer.status === JobOfferStatus.SENT
+            ? {
+                status: JobOfferStatus.ACCEPTED,
+                sentAt: offer.sentAt ?? now,
+                acceptedAt: now,
+              }
+            : {}),
         },
       });
     }

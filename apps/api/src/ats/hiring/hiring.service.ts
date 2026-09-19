@@ -24,6 +24,7 @@ import { ATS_AUDIT } from '../ats.constants';
 import { HirePdiService } from './hire-pdi.service';
 import { renderThankYouLetter } from './thank-you-letter';
 import type { CreateHiringDto } from './dto/hiring.dto';
+import { isOfferReadyToHire } from '../offers/offer-letter-ready';
 import {
   hireDocumentsRequiredMessage,
   missingRequiredHireDocuments,
@@ -198,10 +199,16 @@ export class HiringService {
             applicationId: string;
             contractApprovalStatus: ContractApprovalStatus;
             signedOfferLetterFileName: string | null;
+            offerLetterApprovalStatus: string;
+            offerLetterSentAt: Date | null;
+            offerLetterSendMode: string | null;
+            offerLetterCandidateSignedAt: Date | null;
           }>
         >`
           SELECT id, status, "applicationId", "contractApprovalStatus",
-                 "signedOfferLetterFileName"
+                 "signedOfferLetterFileName", "offerLetterApprovalStatus",
+                 "offerLetterSentAt", "offerLetterSendMode",
+                 "offerLetterCandidateSignedAt"
           FROM job_offers
           WHERE "applicationId" = ${applicationId}::uuid
             AND "companyId" = ${companyId}::uuid
@@ -211,9 +218,9 @@ export class HiringService {
         if (!offer) {
           throw new BadRequestException('Application has no job offer');
         }
-        if (offer.status !== JobOfferStatus.ACCEPTED) {
+        if (!isOfferReadyToHire(offer)) {
           throw new BadRequestException(
-            'Job offer must be ACCEPTED before hiring',
+            'La carta oferta debe estar aprobada y enviada al candidato (y firmada, si aplica) antes de contratar',
           );
         }
         if (

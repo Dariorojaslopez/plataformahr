@@ -113,6 +113,23 @@ describe("pipeline kanban", () => {
     expect(
       hireRequirementChecks({
         stage: "OFFER",
+        offerStatus: "DRAFT",
+        headcount: 2,
+        filledCount: 1,
+        hasCv: true,
+        hasSecurityStudyDoc: true,
+        hasMedicalExamDoc: true,
+        contractApprovalStatus: "NOT_REQUIRED",
+        hasCompanyOfferLetterTemplate: true,
+        hasSignedOfferLetter: true,
+        offerLetterApprovalStatus: "APPROVED",
+        offerLetterSentAt: "2026-09-18T00:00:00.000Z",
+        offerLetterSendMode: "ATTACHMENT",
+      }).find((item) => item.id === "OFFER_ACCEPTED")?.met,
+    ).toBe(true);
+    expect(
+      hireRequirementChecks({
+        stage: "OFFER",
         offerStatus: "ACCEPTED",
         headcount: 2,
         filledCount: 1,

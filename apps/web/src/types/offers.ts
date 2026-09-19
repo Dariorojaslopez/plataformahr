@@ -109,6 +109,9 @@ export type OfferLetterStatus = {
     | "APPROVED"
     | "REJECTED"
     | null;
+  offerLetterSentAt?: string | null;
+  offerLetterSendMode?: "ATTACHMENT" | "DIGITAL_SIGNATURE" | null;
+  offerLetterCandidateSignedAt?: string | null;
   readyForHire: boolean;
 };
 

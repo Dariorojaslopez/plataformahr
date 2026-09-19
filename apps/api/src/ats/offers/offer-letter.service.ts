@@ -65,6 +65,10 @@ export class OfferLetterService {
       signedLetterUploadedAt:
         offer.signedOfferLetterUploadedAt?.toISOString() ?? null,
       offerLetterApprovalStatus: offer.offerLetterApprovalStatus,
+      offerLetterSentAt: offer.offerLetterSentAt?.toISOString() ?? null,
+      offerLetterSendMode: offer.offerLetterSendMode,
+      offerLetterCandidateSignedAt:
+        offer.offerLetterCandidateSignedAt?.toISOString() ?? null,
       readyForHire: this.isSignedReady(
         Boolean(company.offerLetterTemplateFileName),
         Boolean(offer.signedOfferLetterFileName),
@@ -354,6 +358,9 @@ export class OfferLetterService {
         signedOfferLetterMimeType: true,
         signedOfferLetterUploadedAt: true,
         offerLetterApprovalStatus: true,
+        offerLetterSentAt: true,
+        offerLetterSendMode: true,
+        offerLetterCandidateSignedAt: true,
       },
     });
     if (!offer) throw new NotFoundException('Offer not found');

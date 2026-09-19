@@ -243,6 +243,10 @@ export function PipelinePageClient() {
       contractApprovalStatus: data.offer?.contractApprovalStatus,
       hasCompanyOfferLetterTemplate: data.letter?.hasCompanyTemplate,
       hasSignedOfferLetter: data.letter?.hasSignedLetter,
+      offerLetterApprovalStatus: data.letter?.offerLetterApprovalStatus,
+      offerLetterSentAt: data.letter?.offerLetterSentAt,
+      offerLetterSendMode: data.letter?.offerLetterSendMode,
+      offerLetterCandidateSignedAt: data.letter?.offerLetterCandidateSignedAt,
     });
   }, [hirePrepQuery.data]);
 
@@ -755,9 +759,10 @@ export function PipelinePageClient() {
           ) : null}
           {!canConfirmHire && hirePrepQuery.isSuccess ? (
             <p className="text-sm text-muted-foreground">
-              Completa la oferta y carga hoja de vida, estudio de seguridad,
-              exámenes médicos y la carta oferta diligenciada si hay plantilla.
-              Si falta un documento, el candidato permanece en Finalistas.
+              Completa HV, estudio de seguridad, exámenes médicos y la carta
+              oferta. Si la carta ya fue aprobada y enviada (y firmada, si
+              aplica), ya puedes contratar. Si falta un requisito, el
+              candidato permanece en Finalistas.
             </p>
           ) : null}
           {canConfirmHire ? (

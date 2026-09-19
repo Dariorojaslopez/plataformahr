@@ -186,6 +186,27 @@ export function isSignedOfferLetterClear(input: {
   return !input.hasCompanyOfferLetterTemplate || Boolean(input.hasSignedOfferLetter);
 }
 
+export function isOfferAcceptedForHire(input: {
+  offerStatus: string | null;
+  hasCompanyOfferLetterTemplate?: boolean | null;
+  hasSignedOfferLetter?: boolean | null;
+  offerLetterApprovalStatus?: string | null;
+  offerLetterSentAt?: string | null;
+  offerLetterSendMode?: string | null;
+  offerLetterCandidateSignedAt?: string | null;
+}): boolean {
+  if (input.offerStatus === "ACCEPTED") return true;
+  if (!input.hasSignedOfferLetter) return false;
+  const approval = input.offerLetterApprovalStatus;
+  if (approval !== "APPROVED" && approval !== "NOT_REQUIRED") return false;
+  if (approval === "NOT_REQUIRED") return true;
+  if (!input.offerLetterSentAt) return false;
+  if (input.offerLetterSendMode === "DIGITAL_SIGNATURE") {
+    return Boolean(input.offerLetterCandidateSignedAt);
+  }
+  return true;
+}
+
 /** Finalistas (OFFER) for recruiter docs table. */
 export function finalistCardsForDocs(cards: PipelineCard[]): PipelineCard[] {
   return cards.filter((card) => card.stage === "OFFER");
@@ -202,6 +223,10 @@ export function hireRequirementChecks(input: {
   contractApprovalStatus?: string | null;
   hasCompanyOfferLetterTemplate?: boolean | null;
   hasSignedOfferLetter?: boolean | null;
+  offerLetterApprovalStatus?: string | null;
+  offerLetterSentAt?: string | null;
+  offerLetterSendMode?: string | null;
+  offerLetterCandidateSignedAt?: string | null;
 }): HireRequirementCheck[] {
   return [
     {
@@ -211,8 +236,8 @@ export function hireRequirementChecks(input: {
     },
     {
       id: "OFFER_ACCEPTED",
-      label: "La oferta laboral está aceptada",
-      met: input.offerStatus === "ACCEPTED",
+      label: "Oferta aceptada o carta oferta enviada al candidato",
+      met: isOfferAcceptedForHire(input),
     },
     {
       id: "VACANCY_CAPACITY",

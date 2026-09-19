@@ -13,12 +13,15 @@ type OfferLetterUpdateArg = {
   data?: {
     offerLetterSendMode?: OfferLetterSendMode;
     offerLetterSignToken?: string | null;
+    status?: string;
   };
 };
 
 describe('OfferLetterSendService', () => {
   const offer = {
     id: 'offer-1',
+    status: 'DRAFT',
+    sentAt: null,
     positionTitle: 'Reclutador',
     salaryAmount: { toString: () => '3000000' },
     salaryCurrency: 'COP',
@@ -94,6 +97,7 @@ describe('OfferLetterSendService', () => {
       OfferLetterSendMode.ATTACHMENT,
     );
     expect(updateArg?.data?.offerLetterSignToken).toBeNull();
+    expect(updateArg?.data?.status).toBe('ACCEPTED');
   });
 
   it('appends a public sign URL and does not attach the file when digital signature is on', async () => {

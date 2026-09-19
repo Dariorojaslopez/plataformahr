@@ -6,6 +6,7 @@ import {
   PayloadTooLargeException,
   UnsupportedMediaTypeException,
 } from '@nestjs/common';
+import { JobOfferStatus } from '@prisma/client';
 import { AuditService } from '../../core/audit/audit.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ATS_AUDIT } from '../ats.constants';
@@ -162,6 +163,13 @@ export class PublicOfferLetterService {
         candidateSignedLetterOriginalName:
           offer.signedOfferLetterOriginalName,
         candidateSignedLetterMimeType: offer.signedOfferLetterMimeType,
+        ...(offer.status === JobOfferStatus.DRAFT ||
+        offer.status === JobOfferStatus.SENT
+          ? {
+              status: JobOfferStatus.ACCEPTED,
+              acceptedAt: now,
+            }
+          : {}),
       },
     });
 
