@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Header,
   Param,
@@ -123,6 +124,16 @@ export class CandidatesController {
       id,
       dto,
     );
+  }
+
+  @Delete(':id')
+  @RequirePermissions('ats.candidate.manage')
+  remove(
+    @CurrentTenant() tenant: TenantContext,
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.candidatesService.remove(tenant.companyId, user.userId, id);
   }
 
   @Post(':candidateId/applications')

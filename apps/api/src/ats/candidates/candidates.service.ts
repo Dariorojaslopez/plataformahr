@@ -364,6 +364,31 @@ export class CandidatesService {
     }
   }
 
+  async remove(companyId: string, userId: string, id: string) {
+    const candidate = await this.getById(companyId, id);
+    if (candidate.status !== CandidateStatus.INACTIVE) {
+      throw new BadRequestException(
+        'Solo puedes borrar candidatos en estado Inactivo',
+      );
+    }
+
+    await this.prisma.candidate.update({
+      where: { id: candidate.id },
+      data: { deletedAt: new Date() },
+    });
+
+    await this.audit.create({
+      action: ATS_AUDIT.CANDIDATE_DELETED,
+      entity: 'Candidate',
+      entityId: candidate.id,
+      company: { connect: { id: companyId } },
+      user: { connect: { id: userId } },
+      metadata: { candidateId: candidate.id },
+    });
+
+    return { ok: true };
+  }
+
   private resolveLinkedInUrl(value: string | null | undefined): string | null {
     const trimmed = typeof value === 'string' ? value.trim() : '';
     if (!trimmed) return null;

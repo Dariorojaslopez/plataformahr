@@ -579,6 +579,40 @@ describe('ATS candidates & applications (e2e)', () => {
         .send({ status: CandidateStatus.HIRED })
         .expect(400);
     });
+
+    it('deletes only inactive candidates', async () => {
+      const created = await request(app.getHttpServer())
+        .post('/ats/candidates')
+        .set(auth(recruiterToken))
+        .send({
+          firstName: 'Drop',
+          lastName: 'Inactive',
+          email: `drop-inactive-${suffix}@example.com`,
+        })
+        .expect(201);
+      const id = (created.body as { id: string }).id;
+
+      await request(app.getHttpServer())
+        .delete(`/ats/candidates/${id}`)
+        .set(auth(recruiterToken))
+        .expect(400);
+
+      await request(app.getHttpServer())
+        .patch(`/ats/candidates/${id}`)
+        .set(auth(recruiterToken))
+        .send({ status: CandidateStatus.INACTIVE })
+        .expect(200);
+
+      await request(app.getHttpServer())
+        .delete(`/ats/candidates/${id}`)
+        .set(auth(recruiterToken))
+        .expect(200);
+
+      await request(app.getHttpServer())
+        .get(`/ats/candidates/${id}`)
+        .set(auth(recruiterToken))
+        .expect(404);
+    });
   });
 
   describe('Application', () => {

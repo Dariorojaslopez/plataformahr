@@ -264,6 +264,9 @@ export const atsApi = {
       body,
     }),
 
+  deleteCandidate: (id: string) =>
+    apiRequest<{ ok: true }>(`/ats/candidates/${id}`, { method: "DELETE" }),
+
   createApplicationForCandidate: (
     candidateId: string,
     body: CreateApplicationForCandidateInput,

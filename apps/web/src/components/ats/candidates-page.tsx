@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Download, Eye, Pencil, Plus, Search } from "lucide-react";
+import { Download, Eye, Pencil, Plus, Search, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useMemo, useState } from "react";
@@ -18,6 +18,13 @@ import { FormSelect } from "@/components/organization/form-select";
 import { PaginationControls } from "@/components/organization/pagination-controls";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -89,6 +96,7 @@ export function CandidatesPageClient() {
   const [editing, setEditing] = useState<Candidate | null>(null);
   const [form, setForm] = useState(emptyCandidateForm());
   const [formError, setFormError] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState<Candidate | null>(null);
 
   const listQuery = useQuery({
     queryKey: atsKeys.candidates(companyId, params),
@@ -141,6 +149,18 @@ export function CandidatesPageClient() {
       }
       setFormError(getErrorMessage(error, "No se pudo guardar el candidato."));
       notifyError(error, "No se pudo guardar el candidato.");
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => atsApi.deleteCandidate(id),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: atsKeys.all(companyId) });
+      setDeleting(null);
+      notifySuccess("Candidato eliminado");
+    },
+    onError: (error) => {
+      notifyError(error, "No se pudo eliminar el candidato.");
     },
   });
 
@@ -322,6 +342,17 @@ export function CandidatesPageClient() {
                       >
                         <Pencil className="size-4" />
                       </Button>
+                      {candidate.status === "INACTIVE" ? (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          aria-label="Borrar candidato"
+                          onClick={() => setDeleting(candidate)}
+                        >
+                          <Trash2 className="size-4" />
+                        </Button>
+                      ) : null}
                     </TableCell>
                   </TableRow>
                 ))}
@@ -369,6 +400,16 @@ export function CandidatesPageClient() {
                   >
                     Editar
                   </Button>
+                  {candidate.status === "INACTIVE" ? (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="destructive"
+                      onClick={() => setDeleting(candidate)}
+                    >
+                      Borrar
+                    </Button>
+                  ) : null}
                 </div>
               </div>
             ))}
@@ -399,6 +440,43 @@ export function CandidatesPageClient() {
           submitLabel={editing ? "Guardar cambios" : "Crear candidato"}
         />
       </EntityEditorShell>
+
+      <Dialog
+        open={Boolean(deleting)}
+        onOpenChange={(open) => {
+          if (!open) setDeleting(null);
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Borrar candidato</DialogTitle>
+            <p className="text-sm text-muted-foreground">
+              {deleting
+                ? `Vas a borrar a ${deleting.firstName} ${deleting.lastName}. Solo se pueden borrar candidatos inactivos.`
+                : null}
+            </p>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setDeleting(null)}
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={deleteMutation.isPending || !deleting}
+              onClick={() => {
+                if (deleting) deleteMutation.mutate(deleting.id);
+              }}
+            >
+              {deleteMutation.isPending ? "Borrando…" : "Borrar"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

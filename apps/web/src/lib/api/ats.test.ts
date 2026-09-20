@@ -215,6 +215,13 @@ describe("atsApi", () => {
     );
   });
 
+  it("deletes a candidate", async () => {
+    await atsApi.deleteCandidate("c1");
+    expect(mockedRequest).toHaveBeenCalledWith("/ats/candidates/c1", {
+      method: "DELETE",
+    });
+  });
+
   it("moves application and loads history/pipeline", async () => {
     await atsApi.moveApplication("a1", { stage: "CONTACTED" });
     await atsApi.getApplicationHistory("a1");
