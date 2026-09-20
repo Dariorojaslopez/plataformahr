@@ -82,6 +82,16 @@ describe("performance navigation", () => {
         ({ label }) => label,
       ),
     ).not.toContain("Escalas de calificación");
+    expect(
+      APP_NAV.find((s) => s.title === "Organización")?.items.map(
+        ({ label }) => label,
+      ),
+    ).not.toContain("Ajustes de resultados");
+    expect(
+      APP_NAV.find((s) => s.title === "Performance")?.items.map(
+        ({ label }) => label,
+      ),
+    ).not.toContain("Ajustes de resultados");
   });
 
   it("resolves page titles for performance routes", () => {
@@ -113,8 +123,5 @@ describe("performance navigation", () => {
     );
     expect(resolvePageTitle("/performance/calibration")).toBe("Calibración");
     expect(resolvePageTitle("/performance/9box")).toBe("9Box");
-    expect(resolvePageTitle("/organization/settings")).toBe(
-      "Ajustes de resultados",
-    );
   });
 });

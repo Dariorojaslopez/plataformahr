@@ -58,11 +58,6 @@ export const ROLE_MENU_CATALOG = [
     label: 'Escalas de calificación',
   },
   {
-    section: 'Organización',
-    href: '/organization/settings',
-    label: 'Ajustes de resultados',
-  },
-  {
     section: 'ATS',
     href: '/ats/vacancy-requests',
     label: 'Crear proceso de selección',
@@ -173,8 +168,17 @@ export function isConfigurableCompanyRole(
   return (CONFIGURABLE_COMPANY_ROLES as readonly string[]).includes(value);
 }
 
+const LEGACY_ROLE_MENU_HREFS: Record<string, RoleMenuHref> = {
+  '/organization/settings': '/performance/9box',
+  '/performance/settings': '/performance/9box',
+};
+
+export function normalizeRoleMenuHref(href: string): string {
+  return LEGACY_ROLE_MENU_HREFS[href] ?? href;
+}
+
 export function isGrantableNavHref(href: string): href is RoleMenuHref {
-  return ROLE_MENU_HREF_SET.has(href);
+  return ROLE_MENU_HREF_SET.has(normalizeRoleMenuHref(href));
 }
 
 export function defaultMenuHrefsForRole(
@@ -205,7 +209,10 @@ export function resolveAllowedNavHrefs(input: {
   for (const role of roles) {
     const hrefs = input.overrides[role] ?? DEFAULT_ROLE_MENU_HREFS[role];
     for (const href of hrefs) {
-      if (catalog.has(href) && isGrantableNavHref(href)) allowed.add(href);
+      const normalized = normalizeRoleMenuHref(href);
+      if (catalog.has(normalized) && isGrantableNavHref(normalized)) {
+        allowed.add(normalized);
+      }
     }
   }
   return [...allowed];
@@ -221,8 +228,10 @@ export function navGrantCoversPath(
   ) {
     return true;
   }
+  const path = normalizeRoleMenuHref(pathname);
   for (const href of allowedHrefs) {
-    if (pathname === href || pathname.startsWith(`${href}/`)) return true;
+    const allowed = normalizeRoleMenuHref(href);
+    if (path === allowed || path.startsWith(`${allowed}/`)) return true;
   }
   if (
     pathname.startsWith('/ats/settings/') &&

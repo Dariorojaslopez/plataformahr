@@ -107,11 +107,6 @@ export const APP_NAV: NavSection[] = [
         href: "/organization/scales",
         icon: SlidersHorizontal,
       },
-      {
-        label: "Ajustes de resultados",
-        href: "/organization/settings",
-        icon: Settings2,
-      },
     ],
   },
   {
@@ -227,7 +222,8 @@ const NAV_FEATURE_BY_HREF: Record<string, CompanyFeatureCode> = {
   "/organization/job-levels": "organization.job-levels",
   "/organization/competencies": "performance.competencies",
   "/organization/scales": "performance.scales",
-  "/organization/settings": "organization.employees",
+  "/organization/settings": "performance.calibration",
+  "/performance/settings": "performance.calibration",
   "/ats/vacancy-requests": "ats.vacancy-requests",
   "/ats/vacancies": "ats.vacancies",
   "/ats/candidates": "ats.candidates",
@@ -392,7 +388,6 @@ export function resolvePageTitle(pathname: string): string {
   if (pathname === "/performance/calibration") return "Calibración";
   if (pathname.startsWith("/performance/calibration/")) return "Calibración";
   if (pathname === "/performance/9box") return "9Box";
-  if (pathname === "/organization/settings") return "Ajustes de resultados";
   if (pathname === "/my-goals") return "Mis objetivos";
   if (pathname === "/select-company") return "Seleccionar compañía";
   if (pathname === "/platform") return "Administración de compañías";

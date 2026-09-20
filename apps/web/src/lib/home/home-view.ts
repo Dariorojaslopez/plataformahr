@@ -216,12 +216,6 @@ export const HOME_SHORTCUTS: Record<CompanyHomeRole, HomeShortcut[]> = {
       group: "organization",
     },
     {
-      href: "/organization/settings",
-      title: "Ajustes de resultados",
-      description: "Visibilidad del 9Box en mis resultados.",
-      group: "organization",
-    },
-    {
       href: "/organization/position-fields",
       title: "Campos personalizados",
       description: "Campos extra en cargos y personas.",

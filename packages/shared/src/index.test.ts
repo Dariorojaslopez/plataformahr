@@ -220,6 +220,22 @@ test('role menu defaults hide company admin pages from collaborators', () => {
   assert.ok(customized.includes('/organization/employees'));
   assert.equal(customized.includes('/ats/vacancy-requests'), false);
   assert.equal(navGrantCoversPath(customized, '/organization/employees/abc'), true);
+
+  const catalogHrefs = ROLE_MENU_CATALOG.map((item) => item.href);
+  assert.ok(catalogHrefs.includes('/performance/9box'));
+  assert.equal(catalogHrefs.includes('/performance/settings'), false);
+  assert.equal(catalogHrefs.includes('/organization/settings'), false);
+  const legacySettings = resolveAllowedNavHrefs({
+    roleCodes: ['ADMINISTRATOR'],
+    homeRole: 'ADMINISTRATOR',
+    catalogHrefs,
+    overrides: { ADMINISTRATOR: ['/organization/settings'] },
+  });
+  assert.ok(legacySettings.includes('/performance/9box'));
+  assert.equal(
+    navGrantCoversPath(legacySettings, '/organization/settings'),
+    true,
+  );
 });
 
 test('offer letter placeholders use [variable] tokens for Word merge', () => {

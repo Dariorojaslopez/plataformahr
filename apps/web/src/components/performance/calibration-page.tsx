@@ -21,8 +21,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PageHeader } from "@/components/ui/page-header";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { useCompanyId } from "@/hooks/use-company-id";
+import { companyApi, companyKeys } from "@/lib/api/company";
 import { getErrorMessage } from "@/lib/api/errors";
 import { organizationApi, orgKeys } from "@/lib/api/organization";
 import { performanceApi, performanceKeys } from "@/lib/api/performance";
@@ -119,7 +121,9 @@ export function CalibrationPageClient({
             : "Invitados, líderes y ventana de la sesión. El 9Box se abre en el menú 9Box."
         }
         actions={
-          isAdmin ? (
+          isNineBox ? (
+            <NineBoxVisibilitySwitch />
+          ) : isAdmin ? (
             <Button
               type="button"
               onClick={() => createMutation.mutate()}
@@ -152,7 +156,7 @@ export function CalibrationPageClient({
           description={
             isAdmin
               ? isNineBox
-                ? "Crea una sesión para ver el 9Box y configurar etiquetas."
+                ? "Crea la sesión desde Calibración para ver el 9Box y configurar etiquetas."
                 : "Crea una sesión para invitar personas y definir la ventana."
               : "El administrador aún no configuró una sesión."
           }
@@ -174,6 +178,56 @@ export function CalibrationPageClient({
           view={view}
         />
       )}
+    </div>
+  );
+}
+
+function NineBoxVisibilitySwitch() {
+  const companyId = useCompanyId();
+  const queryClient = useQueryClient();
+  const isAdmin = (useSession().companyAccess?.roleCodes ?? []).includes(
+    "CLIENT_ADMIN",
+  );
+
+  const companyQuery = useQuery({
+    queryKey: companyKeys.current(companyId),
+    queryFn: () => companyApi.getCurrent(),
+  });
+
+  const mutation = useMutation({
+    mutationFn: (showNineBoxOnMyResults: boolean) =>
+      companyApi.updatePerformanceSettings({ showNineBoxOnMyResults }),
+    onSuccess: async (company) => {
+      queryClient.setQueryData(companyKeys.current(companyId), company);
+      await queryClient.invalidateQueries({
+        queryKey: performanceKeys.all(companyId),
+      });
+      notifySuccess(
+        company.showNineBoxOnMyResults
+          ? "El 9Box se muestra en mis resultados."
+          : "El 9Box quedó oculto en mis resultados.",
+      );
+    },
+    onError: (error) => notifyError(error, "No se pudo guardar."),
+  });
+
+  const showNineBox = companyQuery.data?.showNineBoxOnMyResults !== false;
+
+  return (
+    <div className="flex max-w-sm items-center justify-between gap-4 rounded-lg border border-border bg-card px-4 py-3">
+      <div className="space-y-1">
+        <Label htmlFor="ninebox-switch">Mostrar 9Box en mis resultados</Label>
+        <p className="text-xs text-muted-foreground">
+          Si se apaga, las personas no ven su posición en el 9Box.
+        </p>
+      </div>
+      <Switch
+        id="ninebox-switch"
+        checked={showNineBox}
+        disabled={!isAdmin || mutation.isPending || companyQuery.isLoading}
+        onCheckedChange={(checked) => mutation.mutate(checked)}
+        aria-label="Mostrar 9Box en mis resultados"
+      />
     </div>
   );
 }

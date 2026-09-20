@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
 
-export default function OrganizationSettingsRedirectPage() {
+export default function PerformanceSettingsRedirectPage() {
   redirect("/performance/9box");
 }
