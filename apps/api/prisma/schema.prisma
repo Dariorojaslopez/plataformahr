@@ -1659,66 +1659,66 @@ enum OfferEmploymentType {
 }
 
 model JobOffer {
-  id                                String                    @id @default(uuid()) @db.Uuid
-  companyId                         String                    @db.Uuid
-  applicationId                     String                    @unique @db.Uuid
-  status                            JobOfferStatus            @default(DRAFT)
-  positionTitle                     String
-  salaryAmount                      Decimal                   @db.Decimal(14, 2)
-  salaryCurrency                    String                    @default("COP") @db.VarChar(3)
-  salaryPeriod                      SalaryPeriod              @default(MONTHLY)
-  employmentType                    OfferEmploymentType       @default(FULL_TIME)
-  startDate                         DateTime?                 @db.Date
-  expiresAt                         DateTime?
-  notes                             String?
-  sentAt                            DateTime?
-  acceptedAt                        DateTime?
-  rejectedAt                        DateTime?
-  withdrawnAt                       DateTime?
-  expiredAt                         DateTime?
-  pendingHireDate                   DateTime?                 @db.Date
-  contractApprovalStatus            ContractApprovalStatus    @default(NOT_REQUIRED)
-  contractApprovalStartedAt         DateTime?
-  contractApprovalCompletedAt       DateTime?
-  signedContractFileName            String?
-  signedContractOriginalName        String?
-  signedContractMimeType            String?
-  signedContractUploadedAt          DateTime?
-  signedContractUploadedByUserId    String?                   @db.Uuid
-  contractSentAt                    DateTime?
-  contractSendMode                  OfferLetterSendMode?
-  contractSignToken                 String?                   @unique
-  contractSignTokenExpiresAt        DateTime?
-  contractCandidateSignedAt         DateTime?
-  contractSignatureFileName         String?
-  contractSignatureOriginalName     String?
-  contractSignatureMimeType         String?
-  candidateSignedContractFileName   String?
+  id                                  String                    @id @default(uuid()) @db.Uuid
+  companyId                           String                    @db.Uuid
+  applicationId                       String                    @unique @db.Uuid
+  status                              JobOfferStatus            @default(DRAFT)
+  positionTitle                       String
+  salaryAmount                        Decimal                   @db.Decimal(14, 2)
+  salaryCurrency                      String                    @default("COP") @db.VarChar(3)
+  salaryPeriod                        SalaryPeriod              @default(MONTHLY)
+  employmentType                      OfferEmploymentType       @default(FULL_TIME)
+  startDate                           DateTime?                 @db.Date
+  expiresAt                           DateTime?
+  notes                               String?
+  sentAt                              DateTime?
+  acceptedAt                          DateTime?
+  rejectedAt                          DateTime?
+  withdrawnAt                         DateTime?
+  expiredAt                           DateTime?
+  pendingHireDate                     DateTime?                 @db.Date
+  contractApprovalStatus              ContractApprovalStatus    @default(NOT_REQUIRED)
+  contractApprovalStartedAt           DateTime?
+  contractApprovalCompletedAt         DateTime?
+  signedContractFileName              String?
+  signedContractOriginalName          String?
+  signedContractMimeType              String?
+  signedContractUploadedAt            DateTime?
+  signedContractUploadedByUserId      String?                   @db.Uuid
+  contractSentAt                      DateTime?
+  contractSendMode                    OfferLetterSendMode?
+  contractSignToken                   String?                   @unique
+  contractSignTokenExpiresAt          DateTime?
+  contractCandidateSignedAt           DateTime?
+  contractSignatureFileName           String?
+  contractSignatureOriginalName       String?
+  contractSignatureMimeType           String?
+  candidateSignedContractFileName     String?
   candidateSignedContractOriginalName String?
-  candidateSignedContractMimeType   String?
-  offerLetterApprovalStatus         OfferLetterApprovalStatus @default(NOT_REQUIRED)
-  offerLetterApprovalStartedAt      DateTime?
-  offerLetterApprovalCompletedAt    DateTime?
-  offerLetterSentAt                 DateTime?
-  offerLetterSendMode               OfferLetterSendMode?
-  offerLetterSignToken              String?                   @unique
-  offerLetterSignTokenExpiresAt     DateTime?
-  offerLetterCandidateSignedAt      DateTime?
-  offerLetterSignatureFileName      String?
-  offerLetterSignatureOriginalName  String?
-  offerLetterSignatureMimeType      String?
-  candidateSignedLetterFileName     String?
-  candidateSignedLetterOriginalName String?
-  candidateSignedLetterMimeType     String?
+  candidateSignedContractMimeType     String?
+  offerLetterApprovalStatus           OfferLetterApprovalStatus @default(NOT_REQUIRED)
+  offerLetterApprovalStartedAt        DateTime?
+  offerLetterApprovalCompletedAt      DateTime?
+  offerLetterSentAt                   DateTime?
+  offerLetterSendMode                 OfferLetterSendMode?
+  offerLetterSignToken                String?                   @unique
+  offerLetterSignTokenExpiresAt       DateTime?
+  offerLetterCandidateSignedAt        DateTime?
+  offerLetterSignatureFileName        String?
+  offerLetterSignatureOriginalName    String?
+  offerLetterSignatureMimeType        String?
+  candidateSignedLetterFileName       String?
+  candidateSignedLetterOriginalName   String?
+  candidateSignedLetterMimeType       String?
   /// Candidate/recruiter-uploaded signed offer letter (PDF/DOCX).
-  signedOfferLetterFileName         String?
-  signedOfferLetterOriginalName     String?
-  signedOfferLetterMimeType         String?
-  signedOfferLetterUploadedAt       DateTime?
-  signedOfferLetterUploadedByUserId String?                   @db.Uuid
-  createdByUserId                   String                    @db.Uuid
-  createdAt                         DateTime                  @default(now())
-  updatedAt                         DateTime                  @updatedAt
+  signedOfferLetterFileName           String?
+  signedOfferLetterOriginalName       String?
+  signedOfferLetterMimeType           String?
+  signedOfferLetterUploadedAt         DateTime?
+  signedOfferLetterUploadedByUserId   String?                   @db.Uuid
+  createdByUserId                     String                    @db.Uuid
+  createdAt                           DateTime                  @default(now())
+  updatedAt                           DateTime                  @updatedAt
 
   company                     Company                       @relation(fields: [companyId], references: [id], onDelete: Restrict)
   application                 Application                   @relation(fields: [applicationId], references: [id], onDelete: Restrict)
