@@ -165,12 +165,11 @@ describe('VacanciesService', () => {
       { data: { confidential?: boolean } },
     ];
     expect(updateArg.data.confidential).toBe(true);
-    expect(audit.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        action: 'VACANCY_CONFIDENTIAL_UPDATED',
-        metadata: expect.objectContaining({ confidential: true }),
-      }),
-    );
+    const [auditArg] = audit.create.mock.calls[0] as [
+      { action: string; metadata: { confidential: boolean } },
+    ];
+    expect(auditArg.action).toBe('VACANCY_CONFIDENTIAL_UPDATED');
+    expect(auditArg.metadata.confidential).toBe(true);
   });
 
   it('lists only vacancies assigned to the recruiter', async () => {
