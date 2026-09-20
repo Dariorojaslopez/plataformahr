@@ -1,14 +1,15 @@
 import { toast } from "sonner";
 import { getErrorMessage } from "@/lib/api/errors";
+import { translateUi } from "@/i18n/locale-store";
 
 export function notifySuccess(message: string): void {
-  toast.success(message);
+  toast.success(translateUi(message));
 }
 
 export function notifyError(error: unknown, fallback: string): void {
-  toast.error(getErrorMessage(error, fallback));
+  toast.error(translateUi(getErrorMessage(error, fallback)));
 }
 
 export function notifyInfo(message: string): void {
-  toast.message(message);
+  toast.message(translateUi(message));
 }

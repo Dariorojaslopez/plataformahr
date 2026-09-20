@@ -9,6 +9,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { platformCompaniesRequest } from "@/lib/api/auth";
+import { LanguageSwitcher } from "@/i18n/language-switcher";
+import { useT } from "@/i18n/locale-provider";
 import { getErrorMessage } from "@/lib/api/errors";
 
 export default function SelectCompanyPage() {
@@ -22,6 +24,7 @@ export default function SelectCompanyPage() {
     setPlatformCompanies,
     refreshCompanyAccess,
   } = useSession();
+  const t = useT();
   const [platformError, setPlatformError] = useState<string | null>(null);
   const [platformFetchFinished, setPlatformFetchFinished] = useState(false);
   const loadingPlatform =
@@ -77,7 +80,7 @@ export default function SelectCompanyPage() {
           description={platformError}
           action={
             <Button type="button" variant="outline" onClick={() => router.refresh()}>
-              Reintentar
+              {t("Reintentar")}
             </Button>
           }
         />
@@ -103,7 +106,7 @@ export default function SelectCompanyPage() {
                 void logout().then(() => router.replace("/login"));
               }}
             >
-              Cerrar sesión
+              {t("Cerrar sesión")}
             </Button>
           }
         />
@@ -113,15 +116,22 @@ export default function SelectCompanyPage() {
 
   return (
     <div className="mx-auto flex min-h-screen w-full max-w-3xl flex-col justify-center gap-8 p-6">
+      <div className="flex justify-end">
+        <LanguageSwitcher />
+      </div>
       <div className="space-y-2">
-        <p className="text-sm font-medium text-primary">Talento</p>
+        <p className="text-sm font-medium text-primary">{t("Talento")}</p>
         <h1 className="text-2xl font-semibold tracking-tight">
-          Selecciona una compañía
+          {t("Selecciona una compañía")}
         </h1>
         <p className="text-sm text-muted-foreground">
-          Hola {user.firstName}, elige el contexto con el que quieres trabajar.
+          {t("Hola {name}, elige el contexto con el que quieres trabajar.", {
+            name: user.firstName,
+          })}
           {user.isPlatformOwner
-            ? " Como Platform Owner puedes entrar a cualquier compañía activa."
+            ? t(
+                " Como Platform Owner puedes entrar a cualquier compañía activa.",
+              )
             : ""}
         </p>
       </div>
@@ -151,7 +161,7 @@ export default function SelectCompanyPage() {
               </CardHeader>
               <CardContent>
                 <span className="text-xs text-muted-foreground">
-                  Continuar al dashboard
+                  {t("Continuar al dashboard")}
                 </span>
               </CardContent>
             </Card>
@@ -166,7 +176,7 @@ export default function SelectCompanyPage() {
           className="self-start"
           onClick={() => router.push("/platform")}
         >
-          Volver a todas las compañías
+          {t("Volver a todas las compañías")}
         </Button>
       ) : null}
     </div>

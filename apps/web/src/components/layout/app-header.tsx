@@ -16,6 +16,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { SidebarNav } from "@/components/layout/sidebar-nav";
+import { LanguageMenuSection } from "@/i18n/language-menu";
+import { useT } from "@/i18n/locale-provider";
 import { resolvePageTitle } from "@/lib/navigation";
 import { getInitials } from "@/lib/utils";
 import { useState } from "react";
@@ -29,6 +31,7 @@ export function AppHeader({ onToggleSidebar }: AppHeaderProps) {
   const router = useRouter();
   const { user, companies, activeCompany, selectCompany, refreshCompanyAccess, logout } =
     useSession();
+  const t = useT();
   const [mobileOpen, setMobileOpen] = useState(false);
 
   if (!user) return null;
@@ -38,7 +41,7 @@ export function AppHeader({ onToggleSidebar }: AppHeaderProps) {
       <div className="flex items-center gap-2 lg:hidden">
         <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
           <SheetTrigger asChild>
-            <Button type="button" variant="outline" size="icon" aria-label="Abrir menú">
+            <Button type="button" variant="outline" size="icon" aria-label={t("Abrir menú")}>
               <Menu className="h-4 w-4" />
             </Button>
           </SheetTrigger>
@@ -55,7 +58,7 @@ export function AppHeader({ onToggleSidebar }: AppHeaderProps) {
           size="icon"
           className="hidden lg:inline-flex"
           onClick={onToggleSidebar}
-          aria-label="Colapsar barra lateral"
+          aria-label={t("Colapsar barra lateral")}
         >
           <Menu className="h-4 w-4" />
         </Button>
@@ -63,7 +66,7 @@ export function AppHeader({ onToggleSidebar }: AppHeaderProps) {
 
       <div className="min-w-0 flex-1">
         <h1 className="truncate text-sm font-semibold text-foreground">
-          {resolvePageTitle(pathname)}
+          {t(resolvePageTitle(pathname))}
         </h1>
       </div>
 
@@ -74,13 +77,13 @@ export function AppHeader({ onToggleSidebar }: AppHeaderProps) {
               <Button type="button" variant="outline" className="max-w-[14rem] gap-2">
                 <Building2 className="h-4 w-4 shrink-0" aria-hidden />
                 <span className="truncate text-xs sm:text-sm">
-                  {activeCompany?.name ?? "Compañía"}
+                  {activeCompany?.name ?? t("Compañía")}
                 </span>
                 <ChevronsUpDown className="h-3.5 w-3.5 opacity-60" aria-hidden />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-64">
-              <DropdownMenuLabel>Compañías</DropdownMenuLabel>
+              <DropdownMenuLabel>{t("Compañías")}</DropdownMenuLabel>
               <DropdownMenuSeparator />
               {companies.map((company) => (
                 <DropdownMenuItem
@@ -107,18 +110,19 @@ export function AppHeader({ onToggleSidebar }: AppHeaderProps) {
                     <DropdownMenuItem
                       onSelect={() => router.push("/platform")}
                     >
-                      Todas las compañías
+                      {t("Todas las compañías")}
                     </DropdownMenuItem>
                   ) : null}
                   {companies.length > 1 ? (
                     <DropdownMenuItem
                       onSelect={() => router.push("/select-company")}
                     >
-                      Cambiar de compañía
+                      {t("Cambiar de compañía")}
                     </DropdownMenuItem>
                   ) : null}
                 </>
               ) : null}
+              <LanguageMenuSection />
             </DropdownMenuContent>
           </DropdownMenu>
         ) : null}
@@ -131,7 +135,7 @@ export function AppHeader({ onToggleSidebar }: AppHeaderProps) {
               type="button"
               variant="ghost"
               className="relative h-9 w-9 rounded-full p-0"
-              aria-label="Menú de usuario"
+              aria-label={t("Menú de usuario")}
             >
               <Avatar>
                 <AvatarFallback>
@@ -154,16 +158,18 @@ export function AppHeader({ onToggleSidebar }: AppHeaderProps) {
             <DropdownMenuSeparator />
             {user.isPlatformOwner ? (
               <DropdownMenuItem onSelect={() => router.push("/platform")}>
-                Todas las compañías
+                {t("Todas las compañías")}
               </DropdownMenuItem>
             ) : null}
+            <LanguageMenuSection />
+            <DropdownMenuSeparator />
             <DropdownMenuItem
               onSelect={() => {
                 void logout().then(() => router.replace("/login"));
               }}
             >
               <LogOut className="mr-2 h-4 w-4" aria-hidden />
-              Cerrar sesión
+              {t("Cerrar sesión")}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

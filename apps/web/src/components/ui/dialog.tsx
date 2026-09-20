@@ -3,6 +3,7 @@
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { X } from "lucide-react";
 import * as React from "react";
+import { useT } from "@/i18n/locale-provider";
 import { cn } from "@/lib/utils";
 
 export const Dialog = DialogPrimitive.Root;
@@ -12,7 +13,9 @@ export const DialogClose = DialogPrimitive.Close;
 export const DialogContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content>
->(({ className, children, ...props }, ref) => (
+>(({ className, children, ...props }, ref) => {
+  const t = useT();
+  return (
   <DialogPrimitive.Portal>
     <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-black/40" />
     <DialogPrimitive.Content
@@ -26,11 +29,12 @@ export const DialogContent = React.forwardRef<
       {children}
       <DialogPrimitive.Close className="absolute right-4 top-4 rounded-sm opacity-70 hover:opacity-100">
         <X className="h-4 w-4" />
-        <span className="sr-only">Cerrar</span>
+        <span className="sr-only">{t("Cerrar")}</span>
       </DialogPrimitive.Close>
     </DialogPrimitive.Content>
   </DialogPrimitive.Portal>
-));
+  );
+});
 DialogContent.displayName = DialogPrimitive.Content.displayName;
 
 export function DialogHeader({
@@ -57,12 +61,16 @@ export function DialogFooter({
 
 export function DialogTitle({
   className,
+  children,
   ...props
 }: React.ComponentPropsWithoutRef<typeof DialogPrimitive.Title>) {
+  const t = useT();
   return (
     <DialogPrimitive.Title
       className={cn("text-lg font-semibold", className)}
       {...props}
-    />
+    >
+      {typeof children === "string" ? t(children) : children}
+    </DialogPrimitive.Title>
   );
 }

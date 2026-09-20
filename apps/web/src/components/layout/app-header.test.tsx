@@ -2,6 +2,9 @@ import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { AppHeader } from "@/components/layout/app-header";
+import { LocaleProvider } from "@/i18n/locale-provider";
+import { LOCALE_STORAGE_KEY } from "@/i18n/locales";
+import { resetLocaleStore } from "@/i18n/locale-store";
 
 const { push, session } = vi.hoisted(() => ({
   push: vi.fn(),
@@ -44,6 +47,8 @@ vi.mock("@/components/auth/session-provider", () => ({
 afterEach(() => {
   cleanup();
   push.mockReset();
+  window.localStorage.removeItem(LOCALE_STORAGE_KEY);
+  resetLocaleStore();
 });
 
 describe("AppHeader platform owner", () => {
@@ -57,5 +62,22 @@ describe("AppHeader platform owner", () => {
     );
 
     expect(push).toHaveBeenCalledWith("/platform");
+  });
+
+  it("changes the platform language from the company menu", async () => {
+    const user = userEvent.setup();
+    render(
+      <LocaleProvider>
+        <AppHeader />
+      </LocaleProvider>,
+    );
+
+    await user.click(screen.getByRole("button", { name: /Plataforma HR/i }));
+    await user.click(await screen.findByRole("menuitem", { name: "English" }));
+
+    expect(await screen.findByText("Language")).toBeInTheDocument();
+    expect(
+      screen.getByRole("menuitem", { name: "All companies" }),
+    ).toBeInTheDocument();
   });
 });

@@ -66,6 +66,8 @@ import {
 } from "@/lib/api/auth";
 import { getErrorMessage } from "@/lib/api/errors";
 import { findBrandPaletteByPrimary } from "@/lib/company/brand-palettes";
+import { LanguageSwitcher } from "@/i18n/language-switcher";
+import { useT } from "@/i18n/locale-provider";
 import { PLATFORM_BRAND_PRIMARY } from "@/lib/company/brand-tokens";
 import { notifyError, notifySuccess } from "@/lib/ui/notify";
 import type {
@@ -101,6 +103,7 @@ function PlatformAdministration() {
   const router = useRouter();
   const { user, logout, selectCompany, setPlatformCompanies, refreshCompanyAccess } =
     useSession();
+  const t = useT();
   const [companies, setCompanies] = useState<ManagedCompany[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -180,17 +183,20 @@ function PlatformAdministration() {
     <div className="min-h-screen bg-background">
       <header className="flex h-14 items-center justify-between border-b px-4 sm:px-6">
         <div>
-          <p className="text-sm font-semibold">Talento</p>
+          <p className="text-sm font-semibold">{t("Talento")}</p>
           <p className="text-xs text-muted-foreground">
-            Superadministración · {user?.firstName}
+            {t("Superadministración")} · {user?.firstName}
           </p>
         </div>
-        <Button
-          variant="outline"
-          onClick={() => void logout().then(() => router.replace("/login"))}
-        >
-          Cerrar sesión
-        </Button>
+        <div className="flex items-center gap-2">
+          <LanguageSwitcher />
+          <Button
+            variant="outline"
+            onClick={() => void logout().then(() => router.replace("/login"))}
+          >
+            {t("Cerrar sesión")}
+          </Button>
+        </div>
       </header>
 
       <main className="mx-auto w-full max-w-6xl space-y-6 px-4 py-8 sm:px-6">

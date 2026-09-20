@@ -35,6 +35,7 @@ import {
 } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatCard } from "@/components/ui/stat-card";
+import { useT } from "@/i18n/locale-provider";
 import {
   HOME_ROLE_LABELS,
   groupedHomeShortcuts,
@@ -96,7 +97,10 @@ export function CompanyHome({
   homeRole,
   shortcuts,
 }: CompanyHomeProps) {
-  const greeting = firstName.trim() ? `Hola, ${firstName.trim()}` : "Hola";
+  const t = useT();
+  const greeting = firstName.trim()
+    ? t("Hola, {name}", { name: firstName.trim() })
+    : t("Hola");
   const isPeopleHome =
     homeRole === "COLLABORATOR" || homeRole === "LEADER";
   const isRecruitmentLeadHome = homeRole === "RECRUITMENT_LEADER";
@@ -118,9 +122,9 @@ export function CompanyHome({
       {homeRole === "CLIENT_ADMIN" ? (
         <Card className="mb-8">
           <CardHeader>
-            <CardTitle className="text-base">Compañía activa</CardTitle>
+            <CardTitle className="text-base">{t("Compañía activa")}</CardTitle>
             <CardDescription>
-              Estás administrando esta compañía con visibilidad completa.
+              {t("Estás administrando esta compañía con visibilidad completa.")}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-1 text-sm">
@@ -147,16 +151,18 @@ export function CompanyHome({
               {configSections.length === 0 ? (
                 <Card>
                   <CardContent className="py-8 text-center text-sm text-muted-foreground">
-                    No hay accesos de configuración habilitados en esta compañía.
+                    {t(
+                      "No hay accesos de configuración habilitados en esta compañía.",
+                    )}
                   </CardContent>
                 </Card>
               ) : (
                 configSections.map((section) => (
                   <section key={section.group} className="space-y-3">
                     <div>
-                      <h2 className="text-lg font-semibold">{section.title}</h2>
+                      <h2 className="text-lg font-semibold">{t(section.title)}</h2>
                       <p className="text-sm text-muted-foreground">
-                        {section.description}
+                        {t(section.description)}
                       </p>
                     </div>
                     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -177,7 +183,7 @@ export function CompanyHome({
           ) : usesFeedHome ? null : shortcuts.length === 0 ? (
             <Card>
               <CardContent className="py-8 text-center text-sm text-muted-foreground">
-                No hay accesos habilitados para tu rol en esta compañía.
+                {t("No hay accesos habilitados para tu rol en esta compañía.")}
               </CardContent>
             </Card>
           ) : (

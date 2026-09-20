@@ -1,4 +1,7 @@
+"use client";
+
 import type { ReactNode } from "react";
+import { useT } from "@/i18n/locale-provider";
 import { cn } from "@/lib/utils";
 
 type PageHeaderProps = {
@@ -14,6 +17,7 @@ export function PageHeader({
   actions,
   className,
 }: PageHeaderProps) {
+  const t = useT();
   return (
     <div
       className={cn(
@@ -23,10 +27,10 @@ export function PageHeader({
     >
       <div className="space-y-1">
         <h1 className="text-2xl font-semibold tracking-tight text-foreground">
-          {title}
+          {t(title)}
         </h1>
         {description ? (
-          <p className="text-sm text-muted-foreground">{description}</p>
+          <p className="text-sm text-muted-foreground">{t(description)}</p>
         ) : null}
       </div>
       {actions ? <div className="flex flex-wrap gap-2">{actions}</div> : null}

@@ -9,6 +9,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useT } from "@/i18n/locale-provider";
 import { cn } from "@/lib/utils";
 
 type Option = { value: string; label: string };
@@ -42,11 +43,11 @@ export function FormSelect({
   required,
   hint,
 }: FormSelectProps) {
+  const t = useT();
   return (
     <div className={cn("space-y-2", className)}>
       <Label htmlFor={id}>
-        {label}
-        {required ? " *" : ""}
+        {required ? `${label} *` : label}
       </Label>
       <Select
         value={value || (allowEmpty ? "__none__" : undefined)}
@@ -56,20 +57,22 @@ export function FormSelect({
         disabled={disabled}
       >
         <SelectTrigger id={id} aria-required={required}>
-          <SelectValue placeholder={placeholder} />
+          <SelectValue placeholder={t(placeholder)} />
         </SelectTrigger>
         <SelectContent>
           {allowEmpty ? (
-            <SelectItem value="__none__">{emptyLabel}</SelectItem>
+            <SelectItem value="__none__">{t(emptyLabel)}</SelectItem>
           ) : null}
           {options.map((option) => (
             <SelectItem key={option.value} value={option.value}>
-              {option.label}
+              {t(option.label)}
             </SelectItem>
           ))}
         </SelectContent>
       </Select>
-      {hint ? <p className="text-xs text-muted-foreground">{hint}</p> : null}
+      {hint ? (
+        <p className="text-xs text-muted-foreground">{t(hint)}</p>
+      ) : null}
     </div>
   );
 }

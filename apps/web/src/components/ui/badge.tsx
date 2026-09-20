@@ -1,4 +1,7 @@
+"use client";
+
 import { cva, type VariantProps } from "class-variance-authority";
+import { useT } from "@/i18n/locale-provider";
 import { cn } from "@/lib/utils";
 
 const badgeVariants = cva(
@@ -21,7 +24,13 @@ const badgeVariants = cva(
 export function Badge({
   className,
   variant,
+  children,
   ...props
 }: React.HTMLAttributes<HTMLDivElement> & VariantProps<typeof badgeVariants>) {
-  return <div className={cn(badgeVariants({ variant }), className)} {...props} />;
+  const t = useT();
+  return (
+    <div className={cn(badgeVariants({ variant }), className)} {...props}>
+      {typeof children === "string" ? t(children) : children}
+    </div>
+  );
 }

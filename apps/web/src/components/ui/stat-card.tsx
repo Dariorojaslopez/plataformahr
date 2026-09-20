@@ -1,7 +1,10 @@
+"use client";
+
 import type { LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { useT } from "@/i18n/locale-provider";
 import { cn } from "@/lib/utils";
 
 type StatCardProps = {
@@ -21,6 +24,7 @@ export function StatCard({
   soon = false,
   className,
 }: StatCardProps) {
+  const t = useT();
   const clickable = Boolean(href) && !soon;
   const content = (
     <Card
@@ -33,8 +37,8 @@ export function StatCard({
     >
       <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0">
         <div className="space-y-1.5">
-          <CardTitle className="text-base">{title}</CardTitle>
-          <CardDescription>{description}</CardDescription>
+          <CardTitle className="text-base">{t(title)}</CardTitle>
+          <CardDescription>{t(description)}</CardDescription>
         </div>
         <div className="rounded-md bg-muted p-2 text-foreground">
           <Icon className="h-4 w-4" aria-hidden />
@@ -45,7 +49,7 @@ export function StatCard({
           {soon ? (
             <Badge variant="secondary">Próximamente</Badge>
           ) : (
-            <span className="text-sm text-primary">Abrir</span>
+            <span className="text-sm text-primary">{t("Abrir")}</span>
           )}
         </CardContent>
       ) : null}

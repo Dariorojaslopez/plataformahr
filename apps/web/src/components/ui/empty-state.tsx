@@ -1,5 +1,8 @@
+"use client";
+
 import { Inbox } from "lucide-react";
 import type { ReactNode } from "react";
+import { useT } from "@/i18n/locale-provider";
 import { cn } from "@/lib/utils";
 
 type EmptyStateProps = {
@@ -15,6 +18,7 @@ export function EmptyState({
   action,
   className,
 }: EmptyStateProps) {
+  const t = useT();
   return (
     <div
       className={cn(
@@ -25,10 +29,10 @@ export function EmptyState({
       <div className="mb-4 rounded-full bg-muted p-3 text-muted-foreground">
         <Inbox className="h-5 w-5" aria-hidden />
       </div>
-      <h2 className="text-base font-semibold text-foreground">{title}</h2>
+      <h2 className="text-base font-semibold text-foreground">{t(title)}</h2>
       {description ? (
         <p className="mt-2 max-w-md text-sm text-muted-foreground">
-          {description}
+          {t(description)}
         </p>
       ) : null}
       {action ? <div className="mt-6">{action}</div> : null}

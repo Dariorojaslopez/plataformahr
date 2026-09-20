@@ -8,11 +8,13 @@ import { getErrorMessage, useSession } from "@/components/auth/session-provider"
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useT } from "@/i18n/locale-provider";
 import { ApiError } from "@/lib/api/errors";
 
 export function LoginForm({ aggressive = false }: { aggressive?: boolean }) {
   const router = useRouter();
   const { login } = useSession();
+  const t = useT();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -127,7 +129,9 @@ export function LoginForm({ aggressive = false }: { aggressive?: boolean }) {
             type="button"
             className="absolute inset-y-0 right-0 flex w-11 items-center justify-center text-muted-foreground hover:text-foreground"
             onClick={() => setShowPassword((value) => !value)}
-            aria-label={showPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
+            aria-label={
+              showPassword ? t("Ocultar contraseña") : t("Mostrar contraseña")
+            }
           >
             {showPassword ? (
               <EyeOff className="h-4 w-4" />
@@ -145,14 +149,14 @@ export function LoginForm({ aggressive = false }: { aggressive?: boolean }) {
                 : "text-sm text-primary hover:underline"
             }
           >
-            ¿Olvidaste tu contraseña?
+            {t("¿Olvidaste tu contraseña?")}
           </Link>
         </div>
       </div>
 
       {error ? (
         <p className="text-sm text-destructive" role="alert">
-          {error}
+          {t(error)}
         </p>
       ) : null}
 
@@ -169,12 +173,12 @@ export function LoginForm({ aggressive = false }: { aggressive?: boolean }) {
         {loading ? (
           <>
             <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-            Entrando…
+            {t("Entrando…")}
           </>
         ) : aggressive ? (
-          "Entrar a Talentgrowthos"
+          t("Entrar a Talentgrowthos")
         ) : (
-          "Iniciar sesión"
+          t("Iniciar sesión")
         )}
       </Button>
     </form>
