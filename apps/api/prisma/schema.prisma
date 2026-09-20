@@ -2646,27 +2646,27 @@ model GoalCycle {
 
 /// GoalAssignment = explicit responsibility/assignment to an Employee (not mass materialization).
 model Goal {
-  id              String             @id @default(uuid()) @db.Uuid
-  companyId       String             @db.Uuid
-  cycleId         String             @db.Uuid
-  title           String
-  description     String?
-  type            GoalType
-  status          GoalStatus         @default(DRAFT)
+  id                 String             @id @default(uuid()) @db.Uuid
+  companyId          String             @db.Uuid
+  cycleId            String             @db.Uuid
+  title              String
+  description        String?
+  type               GoalType
+  status             GoalStatus         @default(DRAFT)
   /// Operational status in definición / seguimiento (No iniciado / En proceso / Finalizado).
-  progressStatus  GoalProgressStatus @default(NOT_STARTED)
+  progressStatus     GoalProgressStatus @default(NOT_STARTED)
   /// Required when type=AREA; null for INDIVIDUAL/COMPANY.
-  areaId          String?            @db.Uuid
-  weight          Decimal?           @db.Decimal(5, 2)
-  scaleId         String?            @db.Uuid
+  areaId             String?            @db.Uuid
+  weight             Decimal?           @db.Decimal(5, 2)
+  scaleId            String?            @db.Uuid
   /// Expected result of an individual cycle objective (configuration, not key results).
-  targetValue          Decimal? @db.Decimal(18, 4)
-  targetScaleLevelId   String?  @db.Uuid
+  targetValue        Decimal?           @db.Decimal(18, 4)
+  targetScaleLevelId String?            @db.Uuid
   /// Source organizational goal when this individual goal was cascaded.
-  parentGoalId    String?            @db.Uuid
-  createdByUserId String             @db.Uuid
-  createdAt       DateTime           @default(now())
-  updatedAt       DateTime           @updatedAt
+  parentGoalId       String?            @db.Uuid
+  createdByUserId    String             @db.Uuid
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
 
   company            Company                 @relation(fields: [companyId], references: [id], onDelete: Restrict)
   cycle              GoalCycle               @relation(fields: [cycleId], references: [id], onDelete: Restrict)
