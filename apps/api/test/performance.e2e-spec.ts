@@ -635,10 +635,13 @@ describe('Performance core (e2e)', () => {
       .set(auth(adminToken))
       .send({ competencyId: competencyIds[1], scaleId, weight: 40 })
       .expect(201);
-    await request(app.getHttpServer())
+    const badWeightActivated = await request(app.getHttpServer())
       .post(`/performance/cycles/${badWeightCycleId}/activate`)
       .set(auth(adminToken))
-      .expect(400);
+      .expect(201);
+    expect((badWeightActivated.body as { status: string }).status).toBe(
+      'ACTIVE',
+    );
 
     const activated = await request(app.getHttpServer())
       .post(`/performance/cycles/${cycleId}/activate`)
