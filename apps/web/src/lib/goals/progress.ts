@@ -51,6 +51,29 @@ export function calculateKeyResultProgress(
   return roundProgress(clamp01to100(raw));
 }
 
+/** Organizational tracking: cumplimiento = resultado / meta. */
+export function calculateOrganizationalKeyResultProgress(
+  input: KeyResultProgressInput,
+): number {
+  if (input.metricType === "BOOLEAN" || input.direction === "DECREASE") {
+    return calculateKeyResultProgress(input);
+  }
+
+  const target = input.targetValue;
+  if (target == null) return 0;
+
+  const resultado =
+    input.hasCheckIn && input.currentNumericValue != null
+      ? input.currentNumericValue
+      : (input.startValue ?? 0);
+
+  if (target === 0) {
+    return resultado === 0 ? 100 : 0;
+  }
+
+  return roundProgress(clamp01to100((resultado / target) * 100));
+}
+
 export function calculateGoalProgress(
   keyResults: Array<{ progressPercentage: number; weight: number | null }>,
 ): number {

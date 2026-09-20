@@ -7,7 +7,10 @@ import {
   assertMetricPayload,
 } from './goals.helpers';
 import { canTransitionGoalCycle } from './cycle-transitions';
-import { canTransitionGoal } from './goal-transitions';
+import {
+  canTransitionGoal,
+  isActiveOrganizationalGoal,
+} from './goal-transitions';
 import { GoalCycleStatus, GoalStatus } from '@prisma/client';
 
 describe('goals helpers', () => {
@@ -40,6 +43,18 @@ describe('goals helpers', () => {
     expect(canTransitionGoal(GoalStatus.COMPLETED, GoalStatus.ACTIVE)).toBe(
       false,
     );
+    expect(
+      isActiveOrganizationalGoal({
+        status: GoalStatus.ACTIVE,
+        type: GoalType.COMPANY,
+      }),
+    ).toBe(true);
+    expect(
+      isActiveOrganizationalGoal({
+        status: GoalStatus.DRAFT,
+        type: GoalType.COMPANY,
+      }),
+    ).toBe(false);
   });
 
   it('validates KR weights', () => {

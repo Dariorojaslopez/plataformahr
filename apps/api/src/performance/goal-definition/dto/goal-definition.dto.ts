@@ -1,18 +1,25 @@
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   ArrayMaxSize,
   IsArray,
   IsEnum,
   IsInt,
+  IsNumber,
   IsOptional,
   IsString,
   IsUUID,
   Max,
   MaxLength,
   Min,
+  ValidateIf,
   ValidateNested,
 } from 'class-validator';
 import { GoalProgressStatus } from '@prisma/client';
+
+function emptyToNull({ value }: { value: unknown }) {
+  if (value === '' || value === undefined) return null;
+  return value;
+}
 
 export class GoalDefinitionItemDto {
   @IsOptional()
@@ -33,6 +40,20 @@ export class GoalDefinitionItemDto {
 
   @IsEnum(GoalProgressStatus)
   progressStatus!: GoalProgressStatus;
+
+  @Transform(({ value }) => {
+    if (value === '' || value === undefined || value === null) return null;
+    return Number(value);
+  })
+  @IsOptional()
+  @ValidateIf((_, value) => value !== null && value !== undefined)
+  @IsNumber({ maxDecimalPlaces: 4 })
+  targetValue?: number | null;
+
+  @Transform(emptyToNull)
+  @IsOptional()
+  @IsUUID()
+  targetScaleLevelId?: string | null;
 }
 
 export class CascadedGoalItemDto extends GoalDefinitionItemDto {

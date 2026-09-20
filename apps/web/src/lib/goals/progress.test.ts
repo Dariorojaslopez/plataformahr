@@ -3,6 +3,7 @@ import {
   buildCheckInPayload,
   calculateGoalProgress,
   calculateKeyResultProgress,
+  calculateOrganizationalKeyResultProgress,
   formatProgressPercent,
 } from "@/lib/goals/progress";
 import { safeHttpUrl } from "@/lib/ui/safe-url";
@@ -123,5 +124,19 @@ describe("goals progress helpers", () => {
   it("progress label has no score wording", () => {
     expect(formatProgressPercent(60)).toBe("60 %");
     expect(formatProgressPercent(60).toLowerCase()).not.toContain("score");
+  });
+
+  it("organizational compliance is resultado / meta", () => {
+    expect(
+      calculateOrganizationalKeyResultProgress({
+        metricType: "CURRENCY",
+        direction: "INCREASE",
+        startValue: 500_000,
+        targetValue: 1_000_000,
+        currentNumericValue: null,
+        currentBooleanValue: null,
+        hasCheckIn: false,
+      }),
+    ).toBe(50);
   });
 });

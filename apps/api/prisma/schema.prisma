@@ -2217,6 +2217,7 @@ model CompetencyScaleLevel {
   company     Company                 @relation(fields: [companyId], references: [id], onDelete: Restrict)
   scale       CompetencyScale         @relation(fields: [scaleId], references: [id], onDelete: Restrict)
   goalRatings PerformanceGoalRating[]
+  goalTargets Goal[]
 
   @@unique([scaleId, value])
   @@unique([scaleId, order])
@@ -2658,6 +2659,9 @@ model Goal {
   areaId          String?            @db.Uuid
   weight          Decimal?           @db.Decimal(5, 2)
   scaleId         String?            @db.Uuid
+  /// Expected result of an individual cycle objective (configuration, not key results).
+  targetValue          Decimal? @db.Decimal(18, 4)
+  targetScaleLevelId   String?  @db.Uuid
   /// Source organizational goal when this individual goal was cascaded.
   parentGoalId    String?            @db.Uuid
   createdByUserId String             @db.Uuid
@@ -2668,6 +2672,7 @@ model Goal {
   cycle              GoalCycle               @relation(fields: [cycleId], references: [id], onDelete: Restrict)
   area               Area?                   @relation(fields: [areaId], references: [id], onDelete: Restrict)
   scale              CompetencyScale?        @relation(fields: [scaleId], references: [id], onDelete: Restrict)
+  targetScaleLevel   CompetencyScaleLevel?   @relation(fields: [targetScaleLevelId], references: [id], onDelete: Restrict)
   parentGoal         Goal?                   @relation("GoalCascade", fields: [parentGoalId], references: [id], onDelete: Restrict)
   childGoals         Goal[]                  @relation("GoalCascade")
   createdBy          User                    @relation(fields: [createdByUserId], references: [id], onDelete: Restrict)
@@ -2686,6 +2691,7 @@ model Goal {
   @@index([status])
   @@index([createdByUserId])
   @@index([scaleId])
+  @@index([targetScaleLevelId])
   @@index([parentGoalId])
   @@map("goals")
 }

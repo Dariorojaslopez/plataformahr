@@ -861,13 +861,39 @@ export type GoalProgressStatus = "NOT_STARTED" | "IN_PROGRESS" | "FINISHED";
 
 export type PdiDerivedStatus = "NOT_STARTED" | "IN_PROGRESS" | "COMPLETED";
 
+export type GoalDefinitionScale = {
+  id: string;
+  name: string;
+  kind: CompetencyScaleKind;
+  format: CompetencyScaleFormat;
+  minValue: string | null;
+  maxValue: string | null;
+  currencyCode: string | null;
+  decimalPlaces: number | null;
+  levels: Array<{
+    id: string;
+    value: number;
+    label: string;
+    order: number;
+  }>;
+};
+
 export type GoalDefinitionGoal = {
   id: string;
   title: string;
   description: string | null;
   progressStatus: GoalProgressStatus;
   scaleId: string | null;
-  scale: { id: string; name: string; kind: CompetencyScaleKind } | null;
+  scale: {
+    id: string;
+    name: string;
+    kind: CompetencyScaleKind;
+    format?: CompetencyScaleFormat;
+    currencyCode?: string | null;
+  } | null;
+  targetValue: string | null;
+  targetScaleLevelId: string | null;
+  targetScaleLevel: { id: string; value: number; label: string } | null;
   parentGoalId: string | null;
   parentGoalTitle: string | null;
   status: "DRAFT" | "ACTIVE" | "COMPLETED" | "CANCELLED";
@@ -937,7 +963,7 @@ export type GoalDefinitionWorkspace = {
   individualGoals: GoalDefinitionGoal[];
   cascadedGoals: GoalDefinitionGoal[];
   pdi: GoalDefinitionPdi | null;
-  scales: Array<{ id: string; name: string; kind: CompetencyScaleKind }>;
+  scales: GoalDefinitionScale[];
   competencies: Array<{ id: string; name: string }>;
   directReports: Array<{ id: string; firstName: string; lastName: string }>;
 };
@@ -949,6 +975,8 @@ export type SaveGoalDefinitionInput = {
     description?: string | null;
     scaleId: string;
     progressStatus: GoalProgressStatus;
+    targetValue?: number | null;
+    targetScaleLevelId?: string | null;
   }>;
   cascadedGoals: Array<{
     id?: string;
@@ -958,6 +986,8 @@ export type SaveGoalDefinitionInput = {
     progressStatus: GoalProgressStatus;
     parentGoalId: string;
     assigneeEmployeeId: string;
+    targetValue?: number | null;
+    targetScaleLevelId?: string | null;
   }>;
   pdi?: {
     name: string;

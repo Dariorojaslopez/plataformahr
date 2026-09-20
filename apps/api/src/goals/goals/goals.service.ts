@@ -16,7 +16,10 @@ import {
 import { AuditService } from '../../core/audit/audit.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { GoalCompletionService } from '../completion/completion.service';
-import { isGoalStructurallyEditable } from '../goal-transitions';
+import {
+  isActiveOrganizationalGoal,
+  isGoalStructurallyEditable,
+} from '../goal-transitions';
 import {
   DEFAULT_LIMIT,
   DEFAULT_PAGE,
@@ -339,7 +342,24 @@ export class GoalsService {
     id: string,
     dto: UpdateGoalDto,
   ) {
-    const existing = await this.requireDraftGoal(companyId, id);
+    const existing = await this.requireGoal(companyId, id);
+    const organizationalValuesEditable = isActiveOrganizationalGoal(existing);
+    if (!isGoalStructurallyEditable(existing.status)) {
+      if (!organizationalValuesEditable) {
+        throw new BadRequestException(
+          'Only DRAFT goals allow structural changes',
+        );
+      }
+      if (
+        dto.type !== undefined ||
+        dto.areaId !== undefined ||
+        dto.weight !== undefined
+      ) {
+        throw new BadRequestException(
+          'En un objetivo organizacional activo solo puedes editar título y descripción.',
+        );
+      }
+    }
     const type = dto.type ?? existing.type;
     const areaId = dto.areaId !== undefined ? dto.areaId : existing.areaId;
 
@@ -355,10 +375,14 @@ export class GoalsService {
         ...(dto.description !== undefined
           ? { description: emptyToNull(dto.description) ?? null }
           : {}),
-        ...(dto.type !== undefined ? { type: dto.type } : {}),
-        areaId: type === GoalType.AREA ? areaId! : null,
-        ...(dto.weight !== undefined
-          ? { weight: parseOptionalWeight(dto.weight) ?? null }
+        ...(isGoalStructurallyEditable(existing.status)
+          ? {
+              ...(dto.type !== undefined ? { type: dto.type } : {}),
+              areaId: type === GoalType.AREA ? areaId! : null,
+              ...(dto.weight !== undefined
+                ? { weight: parseOptionalWeight(dto.weight) ?? null }
+                : {}),
+            }
           : {}),
       },
       include: GOAL_DETAIL_INCLUDE,
@@ -533,7 +557,29 @@ export class GoalsService {
     krId: string,
     dto: UpdateKeyResultDto,
   ) {
-    await this.requireDraftGoal(companyId, goalId);
+    const goal = await this.requireGoal(companyId, goalId);
+    if (!isGoalStructurallyEditable(goal.status)) {
+      if (!isActiveOrganizationalGoal(goal)) {
+        throw new BadRequestException(
+          'Only DRAFT goals allow structural changes',
+        );
+      }
+      const structural =
+        dto.title !== undefined ||
+        dto.description !== undefined ||
+        dto.metricType !== undefined ||
+        dto.direction !== undefined ||
+        dto.startValue !== undefined ||
+        dto.unit !== undefined ||
+        dto.currencyCode !== undefined ||
+        dto.weight !== undefined ||
+        dto.order !== undefined;
+      if (structural) {
+        throw new BadRequestException(
+          'En un objetivo organizacional activo solo puedes editar la meta.',
+        );
+      }
+    }
     const existing = await this.prisma.goalKeyResult.findFirst({
       where: { id: krId, goalId, companyId },
     });

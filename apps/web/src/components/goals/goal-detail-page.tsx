@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Plus, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useSession } from "@/components/auth/session-provider";
 import { CheckInDialog } from "@/components/goals/check-in-dialog";
 import { CheckInHistoryList } from "@/components/goals/check-in-history";
@@ -17,6 +17,7 @@ import { ErrorState } from "@/components/ui/error-state";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PageHeader } from "@/components/ui/page-header";
+import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
@@ -48,7 +49,10 @@ import {
   finalAchievementLabel,
   formatAchievementPercent,
 } from "@/lib/goals/completion";
-import { formatCurrentValue } from "@/lib/goals/progress";
+import {
+  calculateOrganizationalKeyResultProgress,
+  formatCurrentValue,
+} from "@/lib/goals/progress";
 import { notifyError, notifySuccess } from "@/lib/ui/notify";
 import type {
   CreateKeyResultInput,
@@ -85,6 +89,11 @@ export function GoalDetailPageClient() {
   const [historyKrId, setHistoryKrId] = useState<string | null>(null);
   const [requestOpen, setRequestOpen] = useState(false);
   const [requestComment, setRequestComment] = useState("");
+  const [titleDraft, setTitleDraft] = useState("");
+  const [descriptionDraft, setDescriptionDraft] = useState("");
+  const [krDrafts, setKrDrafts] = useState<
+    Record<string, { meta: string; result: string }>
+  >({});
 
   const goalQuery = useQuery({
     queryKey: goalKeys.goal(companyId, goalId),
@@ -188,6 +197,49 @@ export function GoalDetailPageClient() {
     onError: (e) => notifyError(e, "No se pudo quitar."),
   });
 
+  const updateGoalMutation = useMutation({
+    mutationFn: () =>
+      goalsApi.updateGoal(goalId, {
+        title: titleDraft.trim(),
+        description: descriptionDraft.trim() || null,
+      }),
+    onSuccess: async () => {
+      await invalidate();
+      notifySuccess("Objetivo actualizado");
+    },
+    onError: (e) => notifyError(e, "No se pudo actualizar el objetivo."),
+  });
+
+  const saveTrackingMutation = useMutation({
+    mutationFn: async (input: {
+      keyResultId: string;
+      meta?: number | null;
+      result?: number;
+      booleanResult?: boolean;
+    }) => {
+      if (input.meta !== undefined) {
+        await goalsApi.updateKeyResult(goalId, input.keyResultId, {
+          targetValue: input.meta,
+        });
+      }
+      if (input.result !== undefined) {
+        await goalsApi.createKeyResultCheckIn(goalId, input.keyResultId, {
+          numericValue: input.result,
+        });
+      }
+      if (input.booleanResult !== undefined) {
+        await goalsApi.createKeyResultCheckIn(goalId, input.keyResultId, {
+          booleanValue: input.booleanResult,
+        });
+      }
+    },
+    onSuccess: async () => {
+      notifySuccess("Meta y resultado guardados");
+      await invalidate();
+    },
+    onError: (e) => notifyError(e, "No se pudo guardar el seguimiento."),
+  });
+
   const checkInMutation = useMutation({
     mutationFn: (body: {
       numericValue?: number;
@@ -226,6 +278,21 @@ export function GoalDetailPageClient() {
     },
     onError: (e) => notifyError(e, "No se pudo solicitar el cierre."),
   });
+
+  useEffect(() => {
+    const goal = goalQuery.data;
+    if (!goal) return;
+    setTitleDraft(goal.title);
+    setDescriptionDraft(goal.description ?? "");
+    const next: Record<string, { meta: string; result: string }> = {};
+    for (const kr of goal.progress?.keyResults ?? []) {
+      next[kr.keyResultId] = {
+        meta: kr.targetValue ?? "",
+        result: kr.currentNumericValue ?? "",
+      };
+    }
+    setKrDrafts(next);
+  }, [goalQuery.data]);
 
   if (goalQuery.isLoading) return <Skeleton className="h-48 w-full" />;
   if (goalQuery.isError) {
@@ -307,42 +374,217 @@ export function GoalDetailPageClient() {
         {goal.area ? <Badge variant="outline">{goal.area.name}</Badge> : null}
       </div>
 
+      {canManageOrgGoals &&
+      (goal.status === "DRAFT" || goal.status === "ACTIVE") ? (
+        <section className="space-y-3 rounded-lg border border-border p-4">
+          <h2 className="text-sm font-semibold">Datos del objetivo</h2>
+          <div className="space-y-2">
+            <Label htmlFor="org-goal-title">Título</Label>
+            <Input
+              id="org-goal-title"
+              value={titleDraft}
+              onChange={(event) => setTitleDraft(event.target.value)}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="org-goal-desc">Descripción</Label>
+            <Textarea
+              id="org-goal-desc"
+              rows={3}
+              value={descriptionDraft}
+              onChange={(event) => setDescriptionDraft(event.target.value)}
+            />
+          </div>
+          <Button
+            type="button"
+            size="sm"
+            disabled={updateGoalMutation.isPending}
+            onClick={() => updateGoalMutation.mutate()}
+          >
+            Guardar objetivo
+          </Button>
+        </section>
+      ) : null}
+
       {goal.status === "ACTIVE" && goal.progress ? (
         <section className="space-y-4" aria-label="Seguimiento">
           <h2 className="text-lg font-semibold">Seguimiento</h2>
           <p className="text-sm text-muted-foreground">
-            {goal.type === "COMPANY"
-              ? "Carga de resultados: registra el valor actual contra la meta. No es el score de desempeño."
+            {goal.type === "COMPANY" || goal.type === "AREA"
+              ? "Edita la meta y el resultado. El cumplimiento se calcula solo y mueve la barra. No es el score de desempeño."
               : "Progreso operacional derivado de check-ins. No es score final ni rating de desempeño."}
           </p>
           <GoalProgressBar value={goal.progress.progressPercentage} />
           <ul className="space-y-4">
-            {goal.progress.keyResults.map((kr) => (
+            {goal.progress.keyResults.map((kr) => {
+              const draft = krDrafts[kr.keyResultId] ?? {
+                meta: kr.targetValue ?? "",
+                result: kr.currentNumericValue ?? "",
+              };
+              const metaNumber = parseTrackingNumber(draft.meta);
+              const resultNumber = parseTrackingNumber(draft.result);
+              const livePercent =
+                goal.type === "COMPANY" || goal.type === "AREA"
+                  ? calculateOrganizationalKeyResultProgress({
+                      metricType: kr.metricType,
+                      direction: kr.direction,
+                      startValue:
+                        kr.startValue != null ? Number(kr.startValue) : null,
+                      targetValue: metaNumber,
+                      currentNumericValue: resultNumber,
+                      currentBooleanValue: kr.currentBooleanValue,
+                      hasCheckIn:
+                        kr.metricType === "BOOLEAN"
+                          ? kr.lastCheckInAt != null
+                          : resultNumber != null,
+                    })
+                  : kr.progressPercentage;
+              const canEditValues =
+                canManageOrgGoals || Boolean(goal.canCheckIn);
+              return (
               <li
                 key={kr.keyResultId}
-                className="space-y-2 rounded-lg border border-border p-3"
+                className="space-y-3 rounded-lg border border-border p-3"
               >
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <span className="font-medium">{kr.title}</span>
                   <span className="tabular-nums text-sm">
-                    {kr.progressPercentage} %
+                    Cumplimiento: {livePercent} %
                   </span>
                 </div>
-                <p className="text-sm text-muted-foreground">
-                  Actual:{" "}
-                  {formatCurrentValue({
-                    metricType: kr.metricType,
-                    currentNumericValue: kr.currentNumericValue,
-                    currentBooleanValue: kr.currentBooleanValue,
-                    currencyCode: kr.currencyCode,
-                    unit: kr.unit,
-                  })}
-                  {" · Meta: "}
-                  {formatKeyResultTarget(kr)}
-                </p>
-                <GoalProgressBar value={kr.progressPercentage} label="KR" />
+                {kr.metricType === "BOOLEAN" ? (
+                  <p className="text-sm text-muted-foreground">
+                    Actual:{" "}
+                    {formatCurrentValue({
+                      metricType: kr.metricType,
+                      currentNumericValue: kr.currentNumericValue,
+                      currentBooleanValue: kr.currentBooleanValue,
+                      currencyCode: kr.currencyCode,
+                      unit: kr.unit,
+                    })}
+                    {" · Meta: "}
+                    {formatKeyResultTarget(kr)}
+                  </p>
+                ) : (
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor={`kr-meta-${kr.keyResultId}`}>Meta</Label>
+                      <div className="relative">
+                        {kr.metricType === "CURRENCY" && kr.currencyCode ? (
+                          <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-sm text-muted-foreground">
+                            {kr.currencyCode}
+                          </span>
+                        ) : null}
+                        <Input
+                          id={`kr-meta-${kr.keyResultId}`}
+                          type="number"
+                          inputMode="decimal"
+                          step="0.01"
+                          disabled={!canEditValues}
+                          className={
+                            kr.metricType === "CURRENCY" && kr.currencyCode
+                              ? "pl-14"
+                              : undefined
+                          }
+                          value={draft.meta}
+                          onChange={(event) =>
+                            setKrDrafts((current) => ({
+                              ...current,
+                              [kr.keyResultId]: {
+                                ...draft,
+                                meta: event.target.value,
+                              },
+                            }))
+                          }
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor={`kr-result-${kr.keyResultId}`}>
+                        Resultado
+                      </Label>
+                      <div className="relative">
+                        {kr.metricType === "CURRENCY" && kr.currencyCode ? (
+                          <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-sm text-muted-foreground">
+                            {kr.currencyCode}
+                          </span>
+                        ) : null}
+                        <Input
+                          id={`kr-result-${kr.keyResultId}`}
+                          type="number"
+                          inputMode="decimal"
+                          step="0.01"
+                          disabled={!goal.canCheckIn}
+                          className={
+                            kr.metricType === "CURRENCY" && kr.currencyCode
+                              ? "pl-14"
+                              : undefined
+                          }
+                          value={draft.result}
+                          onChange={(event) =>
+                            setKrDrafts((current) => ({
+                              ...current,
+                              [kr.keyResultId]: {
+                                ...draft,
+                                result: event.target.value,
+                              },
+                            }))
+                          }
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+                <GoalProgressBar value={livePercent} label="Cumplimiento" />
                 <div className="flex flex-wrap gap-2">
-                  {goal.canCheckIn ? (
+                  {kr.metricType !== "BOOLEAN" && canEditValues ? (
+                    <Button
+                      size="sm"
+                      disabled={saveTrackingMutation.isPending}
+                      onClick={() => {
+                        if (metaNumber == null) {
+                          notifyError(
+                            new Error("La meta debe ser un número."),
+                            "La meta debe ser un número.",
+                          );
+                          return;
+                        }
+                        if (resultNumber == null) {
+                          notifyError(
+                            new Error("El resultado debe ser un número."),
+                            "El resultado debe ser un número.",
+                          );
+                          return;
+                        }
+                        const previousMeta = parseTrackingNumber(
+                          kr.targetValue ?? "",
+                        );
+                        const previousResult = parseTrackingNumber(
+                          kr.currentNumericValue ?? "",
+                        );
+                        const metaChanged =
+                          canManageOrgGoals && metaNumber !== previousMeta;
+                        const resultChanged =
+                          Boolean(goal.canCheckIn) &&
+                          resultNumber !== previousResult;
+                        if (!metaChanged && !resultChanged) {
+                          notifyError(
+                            new Error("No hay cambios para guardar."),
+                            "No hay cambios para guardar.",
+                          );
+                          return;
+                        }
+                        saveTrackingMutation.mutate({
+                          keyResultId: kr.keyResultId,
+                          meta: metaChanged ? metaNumber : undefined,
+                          result: resultChanged ? resultNumber : undefined,
+                        });
+                      }}
+                    >
+                      Guardar meta y resultado
+                    </Button>
+                  ) : null}
+                  {kr.metricType === "BOOLEAN" && goal.canCheckIn ? (
                     <Button size="sm" onClick={() => setActiveKr(kr)}>
                       Registrar avance
                     </Button>
@@ -356,7 +598,8 @@ export function GoalDetailPageClient() {
                   </Button>
                 </div>
               </li>
-            ))}
+              );
+            })}
           </ul>
           {historyKrId ? (
             <div className="rounded-lg border border-border p-4">
@@ -783,4 +1026,11 @@ export function GoalDetailPageClient() {
       </section>
     </div>
   );
+}
+
+function parseTrackingNumber(raw: string): number | null {
+  const trimmed = raw.trim().replace(",", ".");
+  if (!trimmed) return null;
+  const value = Number(trimmed);
+  return Number.isFinite(value) ? value : null;
 }

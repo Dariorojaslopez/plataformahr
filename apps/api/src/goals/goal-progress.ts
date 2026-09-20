@@ -73,6 +73,36 @@ export function calculateKeyResultProgress(
 }
 
 /**
+ * Organizational tracking: cumplimiento = resultado / meta (from 0).
+ * The displayed "actual" is the latest check-in, or the start value if none.
+ * DECREASE / BOOLEAN keep the operational formula.
+ */
+export function calculateOrganizationalKeyResultProgress(
+  input: KeyResultProgressInput,
+): number {
+  if (
+    input.metricType === GoalMetricType.BOOLEAN ||
+    input.direction === GoalMetricDirection.DECREASE
+  ) {
+    return calculateKeyResultProgress(input);
+  }
+
+  const target = input.targetValue;
+  if (target == null) return 0;
+
+  const resultado =
+    input.hasCheckIn && input.currentNumericValue != null
+      ? input.currentNumericValue
+      : (input.startValue ?? 0);
+
+  if (target === 0) {
+    return resultado === 0 ? 100 : 0;
+  }
+
+  return roundProgress(clamp01to100((resultado / target) * 100));
+}
+
+/**
  * Aggregate Goal progress from KR progress.
  * All weights null → simple average.
  * Any weight → weighted average (09A activation guarantees all set + sum 100).

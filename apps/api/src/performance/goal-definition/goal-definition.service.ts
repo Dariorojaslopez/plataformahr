@@ -5,6 +5,8 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import {
+  CompetencyScaleFormat,
+  CompetencyScaleKind,
   GoalDefinitionReviewStatus,
   GoalProgressStatus,
   GoalStatus,
@@ -20,7 +22,7 @@ import { createPerformanceNotification } from '../inbox/notify';
 import { AuditService } from '../../core/audit/audit.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { isGoalsCascadeEnabled } from '../../goals/goals.cascade';
-import { emptyToNull } from '../performance.helpers';
+import { decimalToString, emptyToNull } from '../performance.helpers';
 import { PERFORMANCE_AUDIT } from '../performance.constants';
 import {
   buildCyclePhases,
@@ -38,9 +40,13 @@ import {
   exceedsMaxObjectives,
   pdiStatusFromPercent,
 } from './pdi-progress';
+import { resolveGoalTarget } from './goal-target';
 
 const GOAL_INCLUDE = {
-  scale: { select: { id: true, name: true, kind: true } },
+  scale: {
+    select: { id: true, name: true, kind: true, format: true, currencyCode: true },
+  },
+  targetScaleLevel: { select: { id: true, value: true, label: true } },
   parentGoal: { select: { id: true, title: true } },
   assignments: {
     include: {
@@ -51,6 +57,15 @@ const GOAL_INCLUDE = {
     take: 1,
   },
 } as const;
+
+type ActiveScaleForTarget = {
+  id: string;
+  kind: CompetencyScaleKind;
+  format: CompetencyScaleFormat;
+  minValue: Prisma.Decimal | null;
+  maxValue: Prisma.Decimal | null;
+  levels: Array<{ id: string }>;
+};
 
 type ActorContext = {
   cycle: CyclePhaseSource & {
@@ -216,11 +231,12 @@ export class GoalDefinitionService {
     unlockUsed: boolean,
   ) {
     const goalCycleId = ctx.cycle.goalCycleId!;
-    const [reportIds, scaleIds, orgIds] = await Promise.all([
+    const [reportIds, scales, orgIds] = await Promise.all([
       this.directReportIds(tx, companyId, ctx.employee.id),
-      this.activeScaleIds(tx, companyId),
+      this.loadActiveScales(tx, companyId),
       this.organizationalGoalIds(tx, companyId, goalCycleId),
     ]);
+    const scaleIds = new Set(scales.keys());
 
     for (const item of dto.individualGoals) {
       this.assertScale(item.scaleId, scaleIds);
@@ -231,6 +247,8 @@ export class GoalDefinitionService {
         item,
         assigneeId: ctx.employee.id,
         parentGoalId: null,
+        scale: scales.get(item.scaleId)!,
+        requireTarget: true,
       });
     }
 
@@ -253,6 +271,8 @@ export class GoalDefinitionService {
         item,
         assigneeId: item.assigneeEmployeeId,
         parentGoalId: item.parentGoalId,
+        scale: scales.get(item.scaleId)!,
+        requireTarget: false,
       });
     }
 
@@ -387,7 +407,8 @@ export class GoalDefinitionService {
           'Solo puedes crear un objetivo nuevo cuando uno existente está finalizado',
         );
       }
-      const scaleIds = await this.activeScaleIds(tx, companyId);
+      const scales = await this.loadActiveScales(tx, companyId);
+      const scaleIds = new Set(scales.keys());
       const existingCount = dto.individualGoals.filter(
         (item) => item.id,
       ).length;
@@ -411,6 +432,8 @@ export class GoalDefinitionService {
           assigneeId: ctx.employee.id,
           parentGoalId: null,
           forceActive: true,
+          scale: scales.get(item.scaleId)!,
+          requireTarget: true,
         });
       }
     }
@@ -451,18 +474,38 @@ export class GoalDefinitionService {
       assigneeId: string;
       parentGoalId: string | null;
       forceActive?: boolean;
+      scale: ActiveScaleForTarget;
+      requireTarget: boolean;
     },
   ) {
     const title = params.item.title.trim();
     if (!title) {
       throw new BadRequestException('El título del objetivo es obligatorio');
     }
+    const target = resolveGoalTarget(
+      {
+        kind: params.scale.kind,
+        format: params.scale.format,
+        minValue:
+          params.scale.minValue != null ? Number(params.scale.minValue) : null,
+        maxValue:
+          params.scale.maxValue != null ? Number(params.scale.maxValue) : null,
+        levels: params.scale.levels,
+      },
+      {
+        targetValue: params.item.targetValue,
+        targetScaleLevelId: params.item.targetScaleLevelId,
+      },
+      { required: params.requireTarget },
+    );
     const data = {
       title,
       description: emptyToNull(params.item.description) ?? null,
       progressStatus: params.item.progressStatus,
       scaleId: params.item.scaleId,
       parentGoalId: params.parentGoalId,
+      targetValue: target.targetValue,
+      targetScaleLevelId: target.targetScaleLevelId,
     };
 
     if (params.item.id) {
@@ -609,7 +652,7 @@ export class GoalDefinitionService {
     }
   }
 
-  private async activeScaleIds(
+  private async loadActiveScales(
     tx: Prisma.TransactionClient,
     companyId: string,
   ) {
@@ -619,9 +662,16 @@ export class GoalDefinitionService {
         deletedAt: null,
         status: OrganizationEntityStatus.ACTIVE,
       },
-      select: { id: true },
+      select: {
+        id: true,
+        kind: true,
+        format: true,
+        minValue: true,
+        maxValue: true,
+        levels: { select: { id: true } },
+      },
     });
-    return new Set(rows.map((row) => row.id));
+    return new Map(rows.map((row) => [row.id, row]));
   }
 
   private async organizationalGoalIds(
@@ -821,7 +871,20 @@ export class GoalDefinitionService {
           deletedAt: null,
           status: OrganizationEntityStatus.ACTIVE,
         },
-        select: { id: true, name: true, kind: true },
+        select: {
+          id: true,
+          name: true,
+          kind: true,
+          format: true,
+          minValue: true,
+          maxValue: true,
+          currencyCode: true,
+          decimalPlaces: true,
+          levels: {
+            select: { id: true, value: true, label: true, order: true },
+            orderBy: { order: 'asc' },
+          },
+        },
         orderBy: { name: 'asc' },
       }),
       this.prisma.competency.findMany({
@@ -914,7 +977,17 @@ export class GoalDefinitionService {
             status: pdiStatusFromPercent(pdi.progressPercent),
           }
         : null,
-      scales,
+      scales: scales.map((scale) => ({
+        id: scale.id,
+        name: scale.name,
+        kind: scale.kind,
+        format: scale.format,
+        minValue: decimalToString(scale.minValue),
+        maxValue: decimalToString(scale.maxValue),
+        currencyCode: scale.currencyCode,
+        decimalPlaces: scale.decimalPlaces,
+        levels: scale.levels,
+      })),
       competencies,
       directReports: reports
         .map((row) => row.employee)
@@ -933,9 +1006,18 @@ export class GoalDefinitionService {
     description: string | null;
     progressStatus: GoalProgressStatus;
     scaleId: string | null;
+    targetValue?: Prisma.Decimal | null;
+    targetScaleLevelId?: string | null;
     parentGoalId: string | null;
     status: GoalStatus;
-    scale: { id: string; name: string; kind: string } | null;
+    scale: {
+      id: string;
+      name: string;
+      kind: string;
+      format?: string;
+      currencyCode?: string | null;
+    } | null;
+    targetScaleLevel?: { id: string; value: number; label: string } | null;
     area?: { id: string; name: string } | null;
     assignments: Array<{
       employee: { id: string; firstName: string; lastName: string };
@@ -949,6 +1031,9 @@ export class GoalDefinitionService {
       progressStatus: goal.progressStatus,
       scaleId: goal.scaleId,
       scale: goal.scale,
+      targetValue: decimalToString(goal.targetValue ?? null),
+      targetScaleLevelId: goal.targetScaleLevelId ?? null,
+      targetScaleLevel: goal.targetScaleLevel ?? null,
       parentGoalId: goal.parentGoalId,
       parentGoalTitle: goal.parentGoal?.title ?? null,
       status: goal.status,

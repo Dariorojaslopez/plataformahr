@@ -22,8 +22,21 @@ import {
   pdiStatusFromPercent,
 } from "@/lib/performance/goal-progress";
 import { notifyError, notifySuccess } from "@/lib/ui/notify";
+import {
+  findGoalDefinitionScale,
+  formatGoalTarget,
+  goalTargetBounds,
+  goalTargetHint,
+  goalTargetPrefix,
+  goalTargetStep,
+  goalTargetSuffix,
+  hasIndividualGoalTarget,
+  isQualitativeGoalScale,
+  parseGoalTargetValue,
+} from "@/lib/performance/goal-target";
 import type {
   GoalDefinitionGoal,
+  GoalDefinitionScale,
   GoalDefinitionWorkspace,
   GoalProgressStatus,
   SaveGoalDefinitionInput,
@@ -36,6 +49,8 @@ type DraftGoal = {
   description: string;
   scaleId: string;
   progressStatus: GoalProgressStatus;
+  targetValue: string;
+  targetScaleLevelId: string;
   parentGoalId?: string;
   assigneeEmployeeId?: string;
 };
@@ -60,6 +75,8 @@ function emptyGoal(): DraftGoal {
     description: "",
     scaleId: "",
     progressStatus: "NOT_STARTED",
+    targetValue: "",
+    targetScaleLevelId: "",
   };
 }
 
@@ -74,6 +91,8 @@ function fromApiGoal(
     description: goal.description ?? "",
     scaleId: goal.scaleId ?? "",
     progressStatus: goal.progressStatus,
+    targetValue: goal.targetValue ?? "",
+    targetScaleLevelId: goal.targetScaleLevelId ?? "",
     ...extra,
   };
 }
@@ -254,8 +273,17 @@ function GoalDefinitionFormBody({
   }));
 
   function validate(): string | null {
-    if (individual.some((row) => !row.title.trim() || !row.scaleId)) {
-      return "Cada objetivo individual necesita título y escala.";
+    if (
+      individual.some((row) => {
+        const scale = findGoalDefinitionScale(data.scales, row.scaleId);
+        return (
+          !row.title.trim() ||
+          !row.scaleId ||
+          !hasIndividualGoalTarget(scale, row.targetValue, row.targetScaleLevelId)
+        );
+      })
+    ) {
+      return "Cada objetivo individual necesita título, escala y meta.";
     }
     if (
       cascaded.some(
@@ -351,7 +379,13 @@ function GoalDefinitionFormBody({
             Acciones que tu líder cascadeó hacia ti.
           </p>
           <ul className="space-y-2">
-            {data.assignedFromCascade.map((goal) => (
+            {data.assignedFromCascade.map((goal) => {
+              const assignedTarget = formatGoalTarget({
+                targetValue: goal.targetValue,
+                targetScaleLevel: goal.targetScaleLevel,
+                scale: goal.scale,
+              });
+              return (
               <li
                 key={goal.id}
                 className="rounded-lg border border-border px-3 py-2 text-sm"
@@ -362,11 +396,17 @@ function GoalDefinitionFormBody({
                     Origen: {goal.parentGoalTitle}
                   </p>
                 ) : null}
+                {assignedTarget ? (
+                  <p className="text-xs text-muted-foreground">
+                    Meta: {assignedTarget}
+                  </p>
+                ) : null}
                 <Badge variant="outline" className="mt-1">
                   {GOAL_PROGRESS_STATUS_LABELS[goal.progressStatus]}
                 </Badge>
               </li>
-            ))}
+              );
+            })}
           </ul>
         </section>
       ) : null}
@@ -381,6 +421,8 @@ function GoalDefinitionFormBody({
         allowAdd={structureEditable || canAddFinished}
         scaleOptions={scaleOptions}
         statusOptions={statusOptions}
+        scales={data.scales}
+        showTarget
         onAdd={() => setIndividual((rows) => [...rows, emptyGoal()])}
         addLabel="Agregar objetivo individual"
       />
@@ -395,6 +437,7 @@ function GoalDefinitionFormBody({
           progressEditable={progressEditable}
           scaleOptions={scaleOptions}
           statusOptions={statusOptions}
+          scales={data.scales}
           orgOptions={orgOptions}
           reportOptions={reportOptions}
           onAdd={() =>
@@ -480,6 +523,8 @@ function GoalDraftList({
   progressEditable,
   scaleOptions,
   statusOptions,
+  scales = [],
+  showTarget = false,
   orgOptions,
   reportOptions,
   onAdd,
@@ -496,6 +541,8 @@ function GoalDraftList({
   allowAdd?: boolean;
   scaleOptions: Array<{ value: string; label: string }>;
   statusOptions: Array<{ value: string; label: string }>;
+  scales?: GoalDefinitionScale[];
+  showTarget?: boolean;
   orgOptions?: Array<{ value: string; label: string }>;
   reportOptions?: Array<{ value: string; label: string }>;
   onAdd: () => void;
@@ -593,7 +640,13 @@ function GoalDraftList({
                   id={`goal-scale-${row.key}`}
                   label="Escala de evaluación"
                   value={row.scaleId}
-                  onChange={(value) => patch(row.key, { scaleId: value })}
+                  onChange={(value) =>
+                    patch(row.key, {
+                      scaleId: value,
+                      targetValue: "",
+                      targetScaleLevelId: "",
+                    })
+                  }
                   options={scaleOptions}
                   disabled={!rowStructure}
                   required
@@ -611,6 +664,14 @@ function GoalDraftList({
                   disabled={!progressEditable}
                 />
               </div>
+              {showTarget ? (
+                <GoalTargetField
+                  row={row}
+                  scale={findGoalDefinitionScale(scales, row.scaleId)}
+                  disabled={!rowStructure}
+                  onChange={(next) => patch(row.key, next)}
+                />
+              ) : null}
             </li>
             );
           })}
@@ -623,6 +684,75 @@ function GoalDraftList({
         </Button>
       ) : null}
     </section>
+  );
+}
+
+function GoalTargetField({
+  row,
+  scale,
+  disabled,
+  onChange,
+}: {
+  row: DraftGoal;
+  scale: GoalDefinitionScale | undefined;
+  disabled: boolean;
+  onChange: (next: Partial<DraftGoal>) => void;
+}) {
+  const qualitative = isQualitativeGoalScale(scale) && Boolean(scale);
+  const prefix = goalTargetPrefix(scale);
+  const suffix = goalTargetSuffix(scale);
+  const bounds = goalTargetBounds(scale);
+  const hint = goalTargetHint(scale);
+
+  if (qualitative && scale) {
+    return (
+      <FormSelect
+        id={`goal-target-${row.key}`}
+        label="Meta"
+        value={row.targetScaleLevelId}
+        onChange={(value) => onChange({ targetScaleLevelId: value })}
+        options={(scale.levels ?? []).map((level) => ({
+          value: level.id,
+          label: level.label,
+        }))}
+        disabled={disabled}
+        required
+        placeholder="Seleccionar nivel"
+        hint={hint}
+      />
+    );
+  }
+
+  return (
+    <div className="space-y-2">
+      <Label htmlFor={`goal-target-${row.key}`}>Meta *</Label>
+      <div className="relative">
+        {prefix ? (
+          <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-sm text-muted-foreground">
+            {prefix}
+          </span>
+        ) : null}
+        <Input
+          id={`goal-target-${row.key}`}
+          type="number"
+          inputMode="decimal"
+          value={row.targetValue}
+          disabled={disabled || !scale}
+          min={bounds.min}
+          max={bounds.max}
+          step={goalTargetStep(scale)}
+          placeholder={scale ? undefined : "Selecciona una escala"}
+          className={prefix ? "pl-14" : suffix ? "pr-10" : undefined}
+          onChange={(event) => onChange({ targetValue: event.target.value })}
+        />
+        {suffix ? (
+          <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-sm text-muted-foreground">
+            {suffix}
+          </span>
+        ) : null}
+      </div>
+      <p className="text-xs text-muted-foreground">{hint}</p>
+    </div>
   );
 }
 
@@ -808,6 +938,8 @@ function buildPayload(
       description: row.description.trim() || null,
       scaleId: row.scaleId,
       progressStatus: row.progressStatus,
+      targetValue: parseGoalTargetValue(row.targetValue),
+      targetScaleLevelId: row.targetScaleLevelId || null,
     })),
     cascadedGoals: cascaded.map((row) => ({
       ...(row.id ? { id: row.id } : {}),

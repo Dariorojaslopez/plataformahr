@@ -2,6 +2,7 @@ import { GoalMetricDirection, GoalMetricType } from '@prisma/client';
 import {
   calculateGoalProgress,
   calculateKeyResultProgress,
+  calculateOrganizationalKeyResultProgress,
 } from './goal-progress';
 
 describe('calculateKeyResultProgress', () => {
@@ -255,5 +256,35 @@ describe('calculateGoalProgress', () => {
         { progressPercentage: 33.33, weight: null },
       ]),
     ).toBe(33.33);
+  });
+});
+
+describe('calculateOrganizationalKeyResultProgress', () => {
+  it('uses resultado / meta even when start equals the displayed actual', () => {
+    expect(
+      calculateOrganizationalKeyResultProgress({
+        metricType: GoalMetricType.CURRENCY,
+        direction: GoalMetricDirection.INCREASE,
+        startValue: 500_000,
+        targetValue: 1_000_000,
+        currentNumericValue: null,
+        currentBooleanValue: null,
+        hasCheckIn: false,
+      }),
+    ).toBe(50);
+  });
+
+  it('uses the latest check-in as resultado', () => {
+    expect(
+      calculateOrganizationalKeyResultProgress({
+        metricType: GoalMetricType.CURRENCY,
+        direction: GoalMetricDirection.INCREASE,
+        startValue: 0,
+        targetValue: 1_000_000,
+        currentNumericValue: 750_000,
+        currentBooleanValue: null,
+        hasCheckIn: true,
+      }),
+    ).toBe(75);
   });
 });

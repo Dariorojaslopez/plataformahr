@@ -1,4 +1,9 @@
-import { GoalStatus, type GoalStatus as GoalStatusType } from '@prisma/client';
+import {
+  GoalStatus,
+  GoalType,
+  type GoalStatus as GoalStatusType,
+  type GoalType as GoalTypeType,
+} from '@prisma/client';
 
 /**
  * DRAFT → ACTIVE | CANCELLED
@@ -21,4 +26,14 @@ export function canTransitionGoal(
 
 export function isGoalStructurallyEditable(status: GoalStatusType): boolean {
   return status === GoalStatus.DRAFT;
+}
+
+export function isActiveOrganizationalGoal(goal: {
+  status: GoalStatusType;
+  type: GoalTypeType;
+}): boolean {
+  return (
+    goal.status === GoalStatus.ACTIVE &&
+    (goal.type === GoalType.COMPANY || goal.type === GoalType.AREA)
+  );
 }

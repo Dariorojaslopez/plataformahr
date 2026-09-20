@@ -20,6 +20,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import {
   calculateGoalProgress,
   calculateKeyResultProgress,
+  calculateOrganizationalKeyResultProgress,
 } from '../goal-progress';
 import {
   DEFAULT_LIMIT,
@@ -86,7 +87,12 @@ export class GoalProgressService {
       membershipId,
       goalId,
     );
-    return this.buildProgressPayload(companyId, goal.id, goal.keyResults);
+    return this.buildProgressPayload(
+      companyId,
+      goal.id,
+      goal.keyResults,
+      goal.type,
+    );
   }
 
   async listCheckIns(
@@ -272,6 +278,7 @@ export class GoalProgressService {
           companyId,
           goalId,
           goal.keyResults,
+          goal.type,
         );
         const krProgress = progress.keyResults.find(
           (k) => k.keyResultId === keyResultId,
@@ -417,6 +424,7 @@ export class GoalProgressService {
             g.id,
             g.keyResults,
             latestByKr,
+            g.type,
           );
           const result = resultByGoal.get(g.id);
           return {
@@ -455,6 +463,7 @@ export class GoalProgressService {
     membershipId: string,
     goals: Array<{
       id: string;
+      type: GoalType;
       keyResults: KrRow[];
       assignments: Array<{ employeeId: string }>;
     }>,
@@ -490,6 +499,7 @@ export class GoalProgressService {
         goal.id,
         goal.keyResults,
         latestByKr,
+        goal.type,
       );
       const isResponsible =
         !!employee &&
@@ -694,18 +704,25 @@ export class GoalProgressService {
     companyId: string,
     goalId: string,
     keyResults: KrRow[],
+    goalType: GoalType,
   ) {
     const latestByKr = await this.loadLatestCheckIns(
       companyId,
       keyResults.map((kr) => kr.id),
     );
-    return this.computeProgressFromMaps(goalId, keyResults, latestByKr);
+    return this.computeProgressFromMaps(
+      goalId,
+      keyResults,
+      latestByKr,
+      goalType,
+    );
   }
 
   private computeProgressFromMaps(
     goalId: string,
     keyResults: KrRow[],
     latestByKr: Map<string, CheckInRow>,
+    goalType: GoalType,
   ) {
     const krProgress = keyResults.map((kr) => {
       const latest = latestByKr.get(kr.id) ?? null;
@@ -717,7 +734,7 @@ export class GoalProgressService {
       const currentBoolean =
         hasCheckIn && latest.booleanValue != null ? latest.booleanValue : null;
 
-      const progressPercentage = calculateKeyResultProgress({
+      const progressInput = {
         metricType: kr.metricType,
         direction: kr.direction,
         startValue:
@@ -727,7 +744,12 @@ export class GoalProgressService {
         currentNumericValue: currentNumeric,
         currentBooleanValue: currentBoolean,
         hasCheckIn,
-      });
+      };
+      const organizational =
+        goalType === GoalType.COMPANY || goalType === GoalType.AREA;
+      const progressPercentage = organizational
+        ? calculateOrganizationalKeyResultProgress(progressInput)
+        : calculateKeyResultProgress(progressInput);
 
       let currentNumericValue: string | null = null;
       if (kr.metricType !== GoalMetricType.BOOLEAN) {
