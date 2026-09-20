@@ -82,6 +82,7 @@ model User {
   interviewTranscriptSegments         InterviewTranscriptSegment[]
   jobOffersCreated                    JobOffer[]
   jobOffersSignedLetterUploaded       JobOffer[]                    @relation("OfferSignedLetterUploader")
+  jobOffersSignedContractUploaded     JobOffer[]                    @relation("OfferSignedContractUploader")
   hiringsCompleted                    Hiring[]
   applicationPreHireDocuments         ApplicationPreHireDocument[]
   performanceCyclesCreated            PerformanceCycle[]
@@ -146,7 +147,10 @@ model Company {
   /// Email that will accompany the offer-letter Word template.
   atsOfferLetterEmailSubject      String?
   atsOfferLetterEmailBody         String?
-  /// Stored template files for offer letter / employment contract (PDF/DOCX).
+  /// Email that will accompany the employment-contract Word template.
+  atsContractEmailSubject         String?
+  atsContractEmailBody            String?
+  /// Stored template files for offer letter / employment contract (DOCX).
   offerLetterTemplateFileName     String?
   offerLetterTemplateOriginalName String?
   offerLetterTemplateMimeType     String?
@@ -1199,6 +1203,7 @@ enum ApplicationStage {
   CONTACTED
   INTERVIEW
   OFFER
+  TO_HIRE
   HIRED
   REJECTED
   WITHDRAWN
@@ -1671,9 +1676,26 @@ model JobOffer {
   rejectedAt                        DateTime?
   withdrawnAt                       DateTime?
   expiredAt                         DateTime?
+  pendingHireDate                   DateTime?                 @db.Date
   contractApprovalStatus            ContractApprovalStatus    @default(NOT_REQUIRED)
   contractApprovalStartedAt         DateTime?
   contractApprovalCompletedAt       DateTime?
+  signedContractFileName            String?
+  signedContractOriginalName        String?
+  signedContractMimeType            String?
+  signedContractUploadedAt          DateTime?
+  signedContractUploadedByUserId    String?                   @db.Uuid
+  contractSentAt                    DateTime?
+  contractSendMode                  OfferLetterSendMode?
+  contractSignToken                 String?                   @unique
+  contractSignTokenExpiresAt        DateTime?
+  contractCandidateSignedAt         DateTime?
+  contractSignatureFileName         String?
+  contractSignatureOriginalName     String?
+  contractSignatureMimeType         String?
+  candidateSignedContractFileName   String?
+  candidateSignedContractOriginalName String?
+  candidateSignedContractMimeType   String?
   offerLetterApprovalStatus         OfferLetterApprovalStatus @default(NOT_REQUIRED)
   offerLetterApprovalStartedAt      DateTime?
   offerLetterApprovalCompletedAt    DateTime?
@@ -1702,6 +1724,7 @@ model JobOffer {
   application                 Application                   @relation(fields: [applicationId], references: [id], onDelete: Restrict)
   createdBy                   User                          @relation(fields: [createdByUserId], references: [id], onDelete: Restrict)
   signedOfferLetterUploadedBy User?                         @relation("OfferSignedLetterUploader", fields: [signedOfferLetterUploadedByUserId], references: [id], onDelete: SetNull)
+  signedContractUploadedBy    User?                         @relation("OfferSignedContractUploader", fields: [signedContractUploadedByUserId], references: [id], onDelete: SetNull)
   hiring                      Hiring?
   contractApprovals           JobOfferContractApproval[]
   offerLetterApprovals        JobOfferOfferLetterApproval[]
@@ -1714,7 +1737,7 @@ model JobOffer {
   @@map("job_offers")
 }
 
-/// Snapshot of company contract-template approvers for one accepted offer.
+/// Snapshot of company contract-template approvers for one filled contract.
 model JobOfferContractApproval {
   id                 String         @id @default(uuid()) @db.Uuid
   companyId          String         @db.Uuid

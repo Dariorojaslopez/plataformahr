@@ -83,21 +83,23 @@ describe("AtsDocumentTemplatesPageClient offer letter", () => {
     renderPage();
 
     expect(await screen.findByText("Carta de oferta")).toBeInTheDocument();
-    expect(screen.getByText("[Nombre]")).toBeInTheDocument();
-    expect(screen.getByText("[Cargo]")).toBeInTheDocument();
-    expect(screen.getByText("[Fecha del documento]")).toBeInTheDocument();
-    expect(screen.getByText("[Salario]")).toBeInTheDocument();
-    expect(screen.getByText("[Forma de Pago]")).toBeInTheDocument();
-    expect(screen.getByText("[Tipo de Contrato]")).toBeInTheDocument();
-    expect(screen.getByText("[Fecha de Inicio]")).toBeInTheDocument();
-    expect(screen.getByText("[Beneficios]")).toBeInTheDocument();
-    expect(screen.getByText("[Ciudad]")).toBeInTheDocument();
-    expect(screen.getByText("[Quien firma]")).toBeInTheDocument();
-    expect(screen.getByText(/Obligatorio Word/)).toBeInTheDocument();
+    expect(screen.getAllByText("[Nombre]").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("[Cargo]").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("[Fecha del documento]").length).toBeGreaterThan(
+      0,
+    );
+    expect(screen.getAllByText("[Salario]").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("[Forma de Pago]").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("[Tipo de Contrato]").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("[Fecha de Inicio]").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("[Beneficios]").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("[Ciudad]").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("[Quien firma]").length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Obligatorio Word/).length).toBeGreaterThan(0);
 
-    const offerInput = document.querySelector(
+    const offerInput = document.querySelectorAll(
       'input[type="file"][accept*=".docx"]:not([accept*=".pdf"])',
-    ) as HTMLInputElement;
+    )[0] as HTMLInputElement;
     expect(offerInput).toBeTruthy();
     expect(offerInput.accept).not.toContain(".pdf");
 
@@ -140,17 +142,20 @@ describe("AtsDocumentTemplatesPageClient offer letter", () => {
     renderPage();
 
     expect(
-      await screen.findByText("Configuración de correo de envío de plantilla"),
-    ).toBeInTheDocument();
+      (await screen.findAllByText("Configuración de correo de envío de plantilla"))
+        .length,
+    ).toBeGreaterThan(0);
     await user.type(
       screen.getByPlaceholderText("Te hacemos una oferta…"),
       "Tu oferta",
     );
     await user.type(
-      screen.getByLabelText("Cuerpo del mensaje"),
+      screen.getAllByLabelText("Cuerpo del mensaje")[0]!,
       "Adjunto la carta",
     );
-    await user.click(screen.getByRole("button", { name: "Guardar correo" }));
+    await user.click(
+      screen.getAllByRole("button", { name: "Guardar correo" })[0]!,
+    );
 
     expect(companyApi.updateAtsSettings).toHaveBeenCalledWith({
       atsOfferLetterEmailSubject: "Tu oferta",

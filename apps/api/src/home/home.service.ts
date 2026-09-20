@@ -12,7 +12,6 @@ import {
   ContractApprovalStatus,
   EmployeeStatus,
   InterviewStatus,
-  JobOfferStatus,
   OfferLetterApprovalStatus,
   Prisma,
   VacancyRequestStatus,
@@ -455,7 +454,6 @@ export class HomeService {
         status: ApprovalStatus.PENDING,
         approverEmployeeId: employeeId,
         jobOffer: {
-          status: JobOfferStatus.ACCEPTED,
           contractApprovalStatus: ContractApprovalStatus.PENDING,
         },
       },
@@ -474,7 +472,6 @@ export class HomeService {
             contractApprovals: {
               where: { status: ApprovalStatus.PENDING },
               orderBy: { sequence: 'asc' },
-              take: 1,
               select: { id: true },
             },
           },
@@ -490,6 +487,7 @@ export class HomeService {
         offerId: row.jobOfferId,
         stepId: row.id,
         sequence: row.sequence,
+        isLastStep: row.jobOffer.contractApprovals.length === 1,
         candidateName:
           `${row.jobOffer.application.candidate.firstName} ${row.jobOffer.application.candidate.lastName}`.trim(),
         vacancyTitle: row.jobOffer.application.vacancy.title,

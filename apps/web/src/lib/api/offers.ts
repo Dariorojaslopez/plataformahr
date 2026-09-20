@@ -2,6 +2,7 @@ import type {
   CreateJobOfferInput,
   JobOffer,
   OfferContractApprovals,
+  OfferContractStatus,
   OfferLetterStatus,
   UpdateJobOfferInput,
 } from "@/types/offers";
@@ -69,6 +70,27 @@ export const offersApi = {
 
   downloadFilledLetter: (applicationId: string) =>
     apiRequestBlob(`/ats/applications/${applicationId}/signed-offer-letter`),
+
+  uploadFilledContract: (applicationId: string, file: File) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    return apiRequest<OfferContractStatus>(
+      `/ats/applications/${applicationId}/signed-contract`,
+      {
+        method: "POST",
+        formData,
+      },
+    );
+  },
+
+  downloadFilledContract: (applicationId: string) =>
+    apiRequestBlob(`/ats/applications/${applicationId}/signed-contract`),
+
+  downloadContractTemplate: (id: string) =>
+    apiRequestBlob(`/ats/offers/${id}/contract-template`),
+
+  downloadSignedContract: (id: string) =>
+    apiRequestBlob(`/ats/offers/${id}/signed-contract`),
 
   removeSignedLetter: (id: string) =>
     apiRequest<OfferLetterStatus>(`/ats/offers/${id}/signed-letter`, {
@@ -138,6 +160,32 @@ export const publicOfferLetterApi = {
 
 export function publicOfferLetterDocumentUrl(token: string) {
   return `/public/offer-letters/${encodeURIComponent(token)}/document`;
+}
+
+export const publicContractApi = {
+  get: (token: string) =>
+    apiRequest<PublicOfferLetterView>(
+      `/public/contracts/${encodeURIComponent(token)}`,
+      { auth: false, companyId: null },
+    ),
+  sign: (token: string, file: File, accepted: boolean) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("accepted", accepted ? "true" : "false");
+    return apiRequest<PublicOfferLetterView>(
+      `/public/contracts/${encodeURIComponent(token)}/sign`,
+      {
+        method: "POST",
+        formData,
+        auth: false,
+        companyId: null,
+      },
+    );
+  },
+};
+
+export function publicContractDocumentUrl(token: string) {
+  return `/public/contracts/${encodeURIComponent(token)}/document`;
 }
 
 export const offerKeys = {

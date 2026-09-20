@@ -38,6 +38,8 @@ export const companyApi = {
     atsThankYouLetterBody?: string | null;
     atsOfferLetterEmailSubject?: string | null;
     atsOfferLetterEmailBody?: string | null;
+    atsContractEmailSubject?: string | null;
+    atsContractEmailBody?: string | null;
   }) =>
     apiRequest<CurrentCompanyResponse>("/companies/current/ats-settings", {
       method: "PATCH",

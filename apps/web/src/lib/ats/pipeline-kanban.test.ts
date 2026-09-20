@@ -21,6 +21,7 @@ describe("pipeline kanban", () => {
     expect(kanbanColumnForStage("CONTACTED")).toBe("NEW");
     expect(kanbanColumnForStage("INTERVIEW")).toBe("ATTRACTION");
     expect(kanbanColumnForStage("OFFER")).toBe("EVALUATORS");
+    expect(kanbanColumnForStage("TO_HIRE")).toBe("HIRED");
     expect(kanbanColumnForStage("HIRED")).toBe("HIRED");
     expect(kanbanColumnForStage("REJECTED")).toBeNull();
     expect(
@@ -52,6 +53,7 @@ describe("pipeline kanban", () => {
   it("sends attraction to evaluators and evaluators to hired", () => {
     expect(getValidKanbanTargets("INTERVIEW")).toEqual(["EVALUATORS"]);
     expect(getValidKanbanTargets("OFFER")).toEqual(["HIRED"]);
+    expect(getValidKanbanTargets("TO_HIRE")).toEqual([]);
     expect(getValidKanbanTargets("HIRED")).toEqual([]);
   });
 

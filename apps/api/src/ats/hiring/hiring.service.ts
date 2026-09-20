@@ -25,6 +25,7 @@ import { HirePdiService } from './hire-pdi.service';
 import { renderThankYouLetter } from './thank-you-letter';
 import type { CreateHiringDto } from './dto/hiring.dto';
 import { isOfferReadyToHire } from '../offers/offer-letter-ready';
+import { isContractCompleteForHire } from '../offers/contract-ready';
 import {
   hireDocumentsRequiredMessage,
   missingRequiredHireDocuments,
@@ -82,6 +83,195 @@ export class HiringService {
       throw new NotFoundException('Hiring not found');
     }
     return hiring;
+  }
+
+  async advanceToHire(
+    companyId: string,
+    userId: string,
+    applicationId: string,
+    dto: CreateHiringDto,
+  ) {
+    const pendingHireDate = dto.hireDate
+      ? new Date(dto.hireDate)
+      : new Date(new Date().toISOString().slice(0, 10));
+
+    const result = await this.prisma.$transaction(async (tx) => {
+      const vacancyIdRow = await tx.application.findFirst({
+        where: { id: applicationId, companyId, deletedAt: null },
+        select: { vacancyId: true },
+      });
+      if (!vacancyIdRow) {
+        throw new NotFoundException('Application not found');
+      }
+
+      const vacancy = await this.lockVacancy(
+        tx,
+        companyId,
+        vacancyIdRow.vacancyId,
+      );
+      if (
+        vacancy.status !== VacancyStatus.OPEN &&
+        vacancy.status !== VacancyStatus.PAUSED
+      ) {
+        throw new BadRequestException(
+          'Vacancy must be OPEN or PAUSED to hire',
+        );
+      }
+      if (vacancy.filledCount >= vacancy.headcount) {
+        throw new ConflictException('Vacancy has no remaining capacity');
+      }
+
+      const application = await this.lockApplication(
+        tx,
+        companyId,
+        applicationId,
+      );
+      if (application.stage !== ApplicationStage.OFFER) {
+        throw new BadRequestException(
+          'El candidato debe estar en Finalistas para pasar a A Contratar',
+        );
+      }
+      if (application.status !== ApplicationStatus.ACTIVE) {
+        throw new BadRequestException('Application is not active');
+      }
+
+      const existingHiring = await tx.hiring.findUnique({
+        where: { applicationId },
+        select: { id: true },
+      });
+      if (existingHiring) {
+        throw new ConflictException('Application already hired');
+      }
+
+      const candidate = await tx.candidate.findFirst({
+        where: {
+          id: application.candidateId,
+          companyId,
+          deletedAt: null,
+        },
+        select: { id: true, cvFileName: true },
+      });
+      if (!candidate) {
+        throw new NotFoundException('Candidate not found');
+      }
+
+      const preHireDocs = await tx.applicationPreHireDocument.findMany({
+        where: { applicationId, companyId },
+        select: { kind: true },
+      });
+      const missingDocs = missingRequiredHireDocuments({
+        hasCv: Boolean(candidate.cvFileName),
+        hasSecurityStudyDoc: preHireDocs.some(
+          (doc) => doc.kind === PreHireDocumentKind.SECURITY_STUDY,
+        ),
+        hasMedicalExamDoc: preHireDocs.some(
+          (doc) => doc.kind === PreHireDocumentKind.MEDICAL_EXAM,
+        ),
+      });
+      if (missingDocs.length > 0) {
+        throw new BadRequestException(
+          hireDocumentsRequiredMessage(missingDocs),
+        );
+      }
+
+      const offer = await tx.jobOffer.findFirst({
+        where: { applicationId, companyId },
+        select: {
+          id: true,
+          status: true,
+          signedOfferLetterFileName: true,
+          offerLetterApprovalStatus: true,
+          offerLetterSentAt: true,
+          offerLetterSendMode: true,
+          offerLetterCandidateSignedAt: true,
+        },
+      });
+      if (!offer) {
+        throw new BadRequestException('Application has no job offer');
+      }
+      if (!isOfferReadyToHire(offer)) {
+        throw new BadRequestException(
+          'La carta oferta debe estar aprobada y enviada al candidato (y firmada, si aplica) antes de pasar a A Contratar',
+        );
+      }
+
+      const company = await tx.company.findFirst({
+        where: { id: companyId },
+        select: { offerLetterTemplateFileName: true },
+      });
+      if (
+        company?.offerLetterTemplateFileName &&
+        !offer.signedOfferLetterFileName
+      ) {
+        throw new BadRequestException(
+          'Debes cargar la carta oferta diligenciada antes de pasar a A Contratar',
+        );
+      }
+
+      const appTransition = await tx.application.updateMany({
+        where: {
+          id: applicationId,
+          companyId,
+          stage: ApplicationStage.OFFER,
+          deletedAt: null,
+        },
+        data: {
+          stage: ApplicationStage.TO_HIRE,
+          lastStageChangedAt: new Date(),
+        },
+      });
+      if (appTransition.count !== 1) {
+        throw new ConflictException(
+          'Application stage changed concurrently; retry',
+        );
+      }
+
+      await tx.applicationStageHistory.create({
+        data: {
+          companyId,
+          applicationId,
+          fromStage: ApplicationStage.OFFER,
+          toStage: ApplicationStage.TO_HIRE,
+          changedByUserId: userId,
+          comment: 'Pasa a A Contratar para firma de contrato',
+        },
+      });
+
+      await tx.jobOffer.update({
+        where: { id: offer.id },
+        data: { pendingHireDate },
+      });
+
+      return {
+        applicationId,
+        candidateId: application.candidateId,
+        vacancyId: vacancy.id,
+        offerId: offer.id,
+      };
+    });
+
+    await this.audit.create({
+      action: ATS_AUDIT.APPLICATION_STAGE_CHANGED,
+      entity: 'Application',
+      entityId: applicationId,
+      company: { connect: { id: companyId } },
+      user: { connect: { id: userId } },
+      metadata: {
+        applicationId,
+        candidateId: result.candidateId,
+        vacancyId: result.vacancyId,
+        fromStage: ApplicationStage.OFFER,
+        toStage: ApplicationStage.TO_HIRE,
+        via: 'TO_HIRE',
+      },
+    });
+
+    return {
+      applicationId: result.applicationId,
+      stage: ApplicationStage.TO_HIRE,
+      offerId: result.offerId,
+      pendingHireDate: pendingHireDate.toISOString().slice(0, 10),
+    };
   }
 
   async hire(
@@ -142,9 +332,12 @@ export class HiringService {
           throw new ConflictException('Application already hired');
         }
 
-        if (application.stage !== ApplicationStage.OFFER) {
+        if (
+          application.stage !== ApplicationStage.OFFER &&
+          application.stage !== ApplicationStage.TO_HIRE
+        ) {
           throw new BadRequestException(
-            'Application must be in OFFER stage to hire',
+            'El candidato debe estar en Finalistas o A Contratar para registrarlo como colaborador',
           );
         }
         if (application.status !== ApplicationStatus.ACTIVE) {
@@ -203,12 +396,20 @@ export class HiringService {
             offerLetterSentAt: Date | null;
             offerLetterSendMode: string | null;
             offerLetterCandidateSignedAt: Date | null;
+            signedContractFileName: string | null;
+            contractSentAt: Date | null;
+            contractSendMode: string | null;
+            contractCandidateSignedAt: Date | null;
+            pendingHireDate: Date | null;
           }>
         >`
           SELECT id, status, "applicationId", "contractApprovalStatus",
                  "signedOfferLetterFileName", "offerLetterApprovalStatus",
                  "offerLetterSentAt", "offerLetterSendMode",
-                 "offerLetterCandidateSignedAt"
+                 "offerLetterCandidateSignedAt",
+                 "signedContractFileName", "contractSentAt",
+                 "contractSendMode", "contractCandidateSignedAt",
+                 "pendingHireDate"
           FROM job_offers
           WHERE "applicationId" = ${applicationId}::uuid
             AND "companyId" = ${companyId}::uuid
@@ -223,18 +424,12 @@ export class HiringService {
             'La carta oferta debe estar aprobada y enviada al candidato (y firmada, si aplica) antes de contratar',
           );
         }
-        if (
-          offer.contractApprovalStatus !== ContractApprovalStatus.APPROVED &&
-          offer.contractApprovalStatus !== ContractApprovalStatus.NOT_REQUIRED
-        ) {
-          throw new BadRequestException(
-            'El contrato debe estar aprobado (o no requerir aprobación) antes de contratar',
-          );
-        }
-
         const company = await tx.company.findFirst({
           where: { id: companyId },
-          select: { offerLetterTemplateFileName: true },
+          select: {
+            offerLetterTemplateFileName: true,
+            contractTemplateFileName: true,
+          },
         });
         if (
           company?.offerLetterTemplateFileName &&
@@ -242,6 +437,16 @@ export class HiringService {
         ) {
           throw new BadRequestException(
             'Debes cargar la carta oferta diligenciada antes de contratar',
+          );
+        }
+        if (
+          !isContractCompleteForHire(
+            offer,
+            Boolean(company?.contractTemplateFileName),
+          )
+        ) {
+          throw new BadRequestException(
+            'El contrato debe estar aprobado y enviado al candidato (y firmado, si aplica) antes de crear el colaborador',
           );
         }
 
@@ -320,11 +525,12 @@ export class HiringService {
           data: { status: CandidateStatus.HIRED },
         });
 
+        const fromStage = application.stage;
         const appTransition = await tx.application.updateMany({
           where: {
             id: applicationId,
             companyId,
-            stage: ApplicationStage.OFFER,
+            stage: fromStage,
             deletedAt: null,
           },
           data: {
@@ -343,7 +549,7 @@ export class HiringService {
           data: {
             companyId,
             applicationId,
-            fromStage: ApplicationStage.OFFER,
+            fromStage,
             toStage: ApplicationStage.HIRED,
             changedByUserId: userId,
             comment: 'Contratación formal',
@@ -378,6 +584,7 @@ export class HiringService {
           vacancyId: vacancy.id,
           employeeId: employee.id,
           offerId: offer.id,
+          fromStage,
           discarded,
         };
       });
@@ -432,7 +639,7 @@ export class HiringService {
         applicationId,
         candidateId: result.candidateId,
         vacancyId: result.vacancyId,
-        fromStage: ApplicationStage.OFFER,
+        fromStage: result.fromStage,
         toStage: ApplicationStage.HIRED,
         via: 'HIRING',
       },
@@ -492,6 +699,43 @@ export class HiringService {
     return { ...result.hiring, pdi };
   }
 
+  async tryCompleteHireFromContract(
+    companyId: string,
+    userId: string,
+    applicationId: string,
+  ) {
+    const application = await this.prisma.application.findFirst({
+      where: { id: applicationId, companyId, deletedAt: null },
+      select: {
+        stage: true,
+        jobOffer: { select: { pendingHireDate: true } },
+      },
+    });
+    if (!application || application.stage !== ApplicationStage.TO_HIRE) {
+      return null;
+    }
+    const existing = await this.prisma.hiring.findUnique({
+      where: { applicationId },
+      select: { id: true },
+    });
+    if (existing) return null;
+
+    const hireDate = application.jobOffer?.pendingHireDate
+      ? application.jobOffer.pendingHireDate.toISOString().slice(0, 10)
+      : undefined;
+    try {
+      return await this.hire(companyId, userId, applicationId, { hireDate });
+    } catch (error) {
+      if (
+        error instanceof BadRequestException ||
+        error instanceof ConflictException
+      ) {
+        return null;
+      }
+      throw error;
+    }
+  }
+
   private async discardOtherFinalists(
     tx: Prisma.TransactionClient,
     input: {
@@ -518,7 +762,9 @@ export class HiringService {
         id: { not: input.hiredApplicationId },
         deletedAt: null,
         status: ApplicationStatus.ACTIVE,
-        stage: ApplicationStage.OFFER,
+        stage: {
+          in: [ApplicationStage.OFFER, ApplicationStage.TO_HIRE],
+        },
       },
       select: {
         id: true,

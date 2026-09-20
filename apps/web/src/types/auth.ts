@@ -137,6 +137,8 @@ export type CurrentCompanyResponse = {
   atsThankYouLetterBody?: string | null;
   atsOfferLetterEmailSubject?: string | null;
   atsOfferLetterEmailBody?: string | null;
+  atsContractEmailSubject?: string | null;
+  atsContractEmailBody?: string | null;
   offerLetterTemplateOriginalName?: string | null;
   contractTemplateOriginalName?: string | null;
   hasOfferLetterTemplate?: boolean;

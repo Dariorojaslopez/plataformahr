@@ -39,4 +39,14 @@ export class UpdateCompanyAtsSettingsDto {
   @IsString()
   @MaxLength(OFFER_LETTER_EMAIL_BODY_MAX)
   atsOfferLetterEmailBody?: string | null;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(OFFER_LETTER_EMAIL_SUBJECT_MAX)
+  atsContractEmailSubject?: string | null;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(OFFER_LETTER_EMAIL_BODY_MAX)
+  atsContractEmailBody?: string | null;
 }

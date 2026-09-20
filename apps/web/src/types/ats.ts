@@ -39,6 +39,7 @@ export type ApplicationStage =
   | "CONTACTED"
   | "INTERVIEW"
   | "OFFER"
+  | "TO_HIRE"
   | "HIRED"
   | "REJECTED"
   | "WITHDRAWN";
@@ -418,6 +419,14 @@ export type PipelineCard = {
     | "APPROVED"
     | "REJECTED"
     | null;
+  hasCompanyContractTemplate?: boolean;
+  hasSignedContract?: boolean;
+  contractApprovalStatus?:
+    | "NOT_REQUIRED"
+    | "PENDING"
+    | "APPROVED"
+    | "REJECTED"
+    | null;
   securityStudyStatus?: PreHireCheckStatus;
   medicalExamStatus?: PreHireCheckStatus;
   stage: ApplicationStage;
@@ -440,6 +449,7 @@ export type PipelineColumn = {
 export type PipelineResponse = {
   vacancy: { id: string; title: string; status: VacancyStatus };
   hasCompanyOfferLetterTemplate?: boolean;
+  hasCompanyContractTemplate?: boolean;
   columns: PipelineColumn[];
 };
 

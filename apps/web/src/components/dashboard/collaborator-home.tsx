@@ -661,30 +661,168 @@ function ContractApprovalsHomeSection({
 }: {
   items: HomePendingContractApproval[];
 }) {
+  const companyId = useCompanyId();
+  const queryClient = useQueryClient();
+  const [comments, setComments] = useState<Record<string, string>>({});
+  const [actingId, setActingId] = useState<string | null>(null);
+
+  function commentFor(id: string) {
+    return (comments[id] ?? "").trim();
+  }
+
+  function clearComment(id: string) {
+    setComments((current) => {
+      const next = { ...current };
+      delete next[id];
+      return next;
+    });
+  }
+
+  const decideMutation = useMutation({
+    mutationFn: async ({
+      offerId,
+      stepId,
+      decision,
+      comment,
+    }: {
+      offerId: string;
+      stepId: string;
+      decision: "APPROVE" | "REJECT";
+      isLastStep: boolean;
+      comment: string;
+    }) => {
+      if (decision === "REJECT") {
+        return offersApi.rejectContractStep(offerId, stepId, comment);
+      }
+      return offersApi.approveContractStep(offerId, stepId, comment);
+    },
+    onSuccess: async (_data, vars) => {
+      clearComment(vars.stepId);
+      setActingId(null);
+      await queryClient.invalidateQueries({ queryKey: homeKeys.feed(companyId) });
+      await queryClient.invalidateQueries({
+        queryKey: offerKeys.all(companyId),
+      });
+      notifySuccess(
+        vars.decision === "REJECT"
+          ? "Contrato rechazado"
+          : vars.isLastStep
+            ? "Contrato aprobado y enviado"
+            : "Contrato aprobado",
+      );
+    },
+    onError: (error) => {
+      setActingId(null);
+      notifyError(error, "No se pudo registrar la decisión.");
+    },
+  });
+
+  async function downloadContract(offerId: string) {
+    try {
+      const { blob, filename } = await offersApi.downloadSignedContract(offerId);
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = filename || "contrato";
+      anchor.click();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      notifyError(error, "No se pudo descargar el contrato.");
+    }
+  }
+
   return (
     <section className="space-y-3">
       <div>
-        <h2 className="text-lg font-semibold">Aprobaciones de contrato</h2>
+        <h2 className="text-lg font-semibold">Contratos por aprobar</h2>
         <p className="text-sm text-muted-foreground">
-          Te corresponde el siguiente paso del flujo de contrato.
+          Te eligieron como aprobador de contrato. Revisa el documento, agrega
+          una observación y acepta o rechaza.
         </p>
       </div>
       <div className="grid gap-3 md:grid-cols-2">
-        {items.map((item) => (
-          <Card key={item.stepId}>
-            <CardHeader>
-              <CardTitle className="text-base">{item.candidateName}</CardTitle>
-              <CardDescription>
-                {item.vacancyTitle} · paso {item.sequence}
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Button type="button" size="sm" asChild>
-                <Link href={`/ats/offers/${item.offerId}`}>Revisar contrato</Link>
-              </Button>
-            </CardContent>
-          </Card>
-        ))}
+        {items.map((item) => {
+          const comment = comments[item.stepId] ?? "";
+          const hasComment = comment.trim().length > 0;
+          const isActing = actingId === item.stepId;
+          const fieldId = `home-contract-comment-${item.stepId}`;
+          return (
+            <Card key={item.stepId}>
+              <CardHeader>
+                <CardTitle className="text-base">{item.candidateName}</CardTitle>
+                <CardDescription>
+                  {item.vacancyTitle} · paso {item.sequence}
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="space-y-2">
+                  <Label htmlFor={fieldId}>Observaciones *</Label>
+                  <Textarea
+                    id={fieldId}
+                    value={comment}
+                    onChange={(event) =>
+                      setComments((current) => ({
+                        ...current,
+                        [item.stepId]: event.target.value,
+                      }))
+                    }
+                    maxLength={2000}
+                    placeholder="Escribe tus observaciones antes de aceptar o rechazar."
+                  />
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => void downloadContract(item.offerId)}
+                  >
+                    Ver contrato
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    disabled={!hasComment || isActing}
+                    onClick={() => {
+                      setActingId(item.stepId);
+                      decideMutation.mutate({
+                        offerId: item.offerId,
+                        stepId: item.stepId,
+                        decision: "APPROVE",
+                        isLastStep: item.isLastStep,
+                        comment: commentFor(item.stepId),
+                      });
+                    }}
+                  >
+                    {isActing
+                      ? "Enviando…"
+                      : item.isLastStep
+                        ? "Aprobar y enviar"
+                        : "Aprobar"}
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    disabled={!hasComment || isActing}
+                    onClick={() => {
+                      setActingId(item.stepId);
+                      decideMutation.mutate({
+                        offerId: item.offerId,
+                        stepId: item.stepId,
+                        decision: "REJECT",
+                        isLastStep: item.isLastStep,
+                        comment: commentFor(item.stepId),
+                      });
+                    }}
+                  >
+                    Rechazar
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })}
       </div>
     </section>
   );

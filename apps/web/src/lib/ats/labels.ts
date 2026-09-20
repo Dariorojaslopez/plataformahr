@@ -35,6 +35,7 @@ export const APPLICATION_STAGES: ApplicationStage[] = [
   "CONTACTED",
   "INTERVIEW",
   "OFFER",
+  "TO_HIRE",
   "HIRED",
   "REJECTED",
   "WITHDRAWN",
@@ -132,6 +133,7 @@ export const APPLICATION_STAGE_LABELS: Record<ApplicationStage, string> = {
   CONTACTED: "Contactado",
   INTERVIEW: "Entrevista",
   OFFER: "Oferta",
+  TO_HIRE: "A Contratar",
   HIRED: "Contratado",
   REJECTED: "Rechazado",
   WITHDRAWN: "Retirado",
@@ -233,6 +235,7 @@ export function applicationStageVariant(
 ): BadgeVariant {
   switch (stage) {
     case "HIRED":
+    case "TO_HIRE":
       return "success";
     case "REJECTED":
     case "WITHDRAWN":

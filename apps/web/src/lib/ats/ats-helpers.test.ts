@@ -157,6 +157,7 @@ describe("labels and transitions", () => {
     expect(getValidMoveTargets("PENDING_REVIEW").length).toBeGreaterThan(0);
     expect(canMoveApplication("PENDING_REVIEW")).toBe(true);
     expect(isTerminalStage("HIRED")).toBe(true);
+    expect(isTerminalStage("TO_HIRE")).toBe(false);
     expect(getVacancyStatusActions("OPEN")).toContain("PAUSED");
   });
 });

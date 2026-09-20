@@ -23,9 +23,14 @@ import { CurrentTenant } from '../../tenant/decorators/current-tenant.decorator'
 import { CompanyContextGuard } from '../../tenant/guards/company-context.guard';
 import { CreateJobOfferDto } from './dto/offer.dto';
 import {
+  CONTRACT_FIELD_NAME,
+  CONTRACT_MAX_BYTES,
+} from './contract.constants';
+import {
   OFFER_LETTER_FIELD_NAME,
   OFFER_LETTER_MAX_BYTES,
 } from './offer-letter.constants';
+import { ContractService } from './contract.service';
 import { OfferLetterService } from './offer-letter.service';
 import { OffersService } from './offers.service';
 
@@ -35,6 +40,7 @@ export class ApplicationOffersController {
   constructor(
     private readonly offersService: OffersService,
     private readonly offerLetter: OfferLetterService,
+    private readonly contract: ContractService,
   ) {}
 
   @Get(':applicationId/offer')
@@ -95,6 +101,49 @@ export class ApplicationOffersController {
     @Param('applicationId', ParseUUIDPipe) applicationId: string,
   ): Promise<StreamableFile> {
     const file = await this.offerLetter.downloadSignedForApplication(
+      tenant.companyId,
+      applicationId,
+    );
+    const filename = file.originalName.replace(/["\r\n]/g, '');
+    return new StreamableFile(file.buffer, {
+      type: file.mimeType,
+      disposition: `attachment; filename="${filename}"`,
+    });
+  }
+
+  @Post(':applicationId/signed-contract')
+  @UseGuards(ThrottlerGuard)
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
+  @RequirePermissions('ats.offer.manage')
+  @UseInterceptors(
+    FileInterceptor(CONTRACT_FIELD_NAME, {
+      storage: memoryStorage(),
+      limits: { fileSize: CONTRACT_MAX_BYTES, files: 1 },
+    }),
+  )
+  uploadSignedContract(
+    @CurrentTenant() tenant: TenantContext,
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('applicationId', ParseUUIDPipe) applicationId: string,
+    @UploadedFile() file: Express.Multer.File | undefined,
+  ) {
+    return this.contract.uploadSignedForApplication(
+      tenant.companyId,
+      user.userId,
+      applicationId,
+      file,
+    );
+  }
+
+  @Get(':applicationId/signed-contract')
+  @RequirePermissions('ats.offer.read')
+  @Header('Cache-Control', 'private, no-store')
+  @Header('X-Content-Type-Options', 'nosniff')
+  async downloadSignedContract(
+    @CurrentTenant() tenant: TenantContext,
+    @Param('applicationId', ParseUUIDPipe) applicationId: string,
+  ): Promise<StreamableFile> {
+    const file = await this.contract.downloadSignedForApplication(
       tenant.companyId,
       applicationId,
     );

@@ -38,7 +38,7 @@ export const ATS_TEMPLATE_ALLOWED_MIMES: Record<
   readonly AllowedAtsTemplateMime[]
 > = {
   [ATS_TEMPLATE_KIND.OFFER_LETTER]: [ATS_TEMPLATE_MIME.DOCX],
-  [ATS_TEMPLATE_KIND.CONTRACT]: [ATS_TEMPLATE_MIME.PDF, ATS_TEMPLATE_MIME.DOCX],
+  [ATS_TEMPLATE_KIND.CONTRACT]: [ATS_TEMPLATE_MIME.DOCX],
 };
 
 export const ATS_TEMPLATE_FILE_NAME_PATTERN =
@@ -50,11 +50,13 @@ export const ATS_TEMPLATES_AUDIT = {
 } as const;
 
 export const ATS_TEMPLATE_ERRORS = {
-  MISSING: 'Adjunta la plantilla (PDF o DOCX).',
+  MISSING: 'Adjunta la plantilla en Word (.docx).',
   MISSING_OFFER_LETTER: 'Adjunta la carta de oferta en Word (.docx).',
-  TYPE: 'La plantilla debe ser PDF o DOCX.',
+  MISSING_CONTRACT: 'Adjunta el contrato en Word (.docx).',
+  TYPE: 'La plantilla debe ser un archivo Word (.docx).',
   TYPE_OFFER_LETTER:
     'La carta de oferta debe ser un archivo Word (.docx), no PDF.',
+  TYPE_CONTRACT: 'El contrato debe ser un archivo Word (.docx), no PDF.',
   SIZE: 'La plantilla supera el tamaño máximo (10 MB).',
   EMPTY: 'El archivo de la plantilla está vacío.',
   NOT_FOUND: 'No hay plantilla cargada.',
@@ -74,11 +76,11 @@ export function parseAtsTemplateKind(raw: string): AtsTemplateKind {
 export function atsTemplateMissingError(kind: AtsTemplateKind): string {
   return kind === ATS_TEMPLATE_KIND.OFFER_LETTER
     ? ATS_TEMPLATE_ERRORS.MISSING_OFFER_LETTER
-    : ATS_TEMPLATE_ERRORS.MISSING;
+    : ATS_TEMPLATE_ERRORS.MISSING_CONTRACT;
 }
 
 export function atsTemplateTypeError(kind: AtsTemplateKind): string {
   return kind === ATS_TEMPLATE_KIND.OFFER_LETTER
     ? ATS_TEMPLATE_ERRORS.TYPE_OFFER_LETTER
-    : ATS_TEMPLATE_ERRORS.TYPE;
+    : ATS_TEMPLATE_ERRORS.TYPE_CONTRACT;
 }

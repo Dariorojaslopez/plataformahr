@@ -8,12 +8,13 @@ import {
 import {
   ApprovalStatus,
   ContractApprovalStatus,
-  JobOfferStatus,
   type Prisma,
 } from '@prisma/client';
 import { AuditService } from '../../core/audit/audit.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ATS_AUDIT } from '../ats.constants';
+import { CONTRACT_ERRORS } from './contract.constants';
+import { ContractSendService } from './contract-send.service';
 
 const STEP_INCLUDE = {
   position: { select: { id: true, name: true } },
@@ -27,6 +28,7 @@ export class ContractApprovalsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
+    private readonly send: ContractSendService,
   ) {}
 
   async getByOffer(companyId: string, offerId: string) {
@@ -51,15 +53,16 @@ export class ContractApprovalsService {
   }
 
   /**
-   * Called after offer accept. Snapshots company template approvers.
-   * No configured steps → NOT_REQUIRED.
+   * Called after the recruiter uploads the filled contract.
+   * Snapshots company template approvers. No configured steps → NOT_REQUIRED.
    */
-  async startForAcceptedOffer(
-    tx: Prisma.TransactionClient,
-    input: { companyId: string; offerId: string },
+  async startForFilledContract(
+    companyId: string,
+    offerId: string,
+    userId?: string,
   ): Promise<ContractApprovalStatus> {
-    const defaults = await tx.contractTemplateApprover.findMany({
-      where: { companyId: input.companyId },
+    const defaults = await this.prisma.contractTemplateApprover.findMany({
+      where: { companyId },
       orderBy: { sequence: 'asc' },
       select: {
         sequence: true,
@@ -70,8 +73,11 @@ export class ContractApprovalsService {
 
     const usable = defaults.filter((step) => Boolean(step.employeeId));
     if (usable.length === 0) {
-      await tx.jobOffer.update({
-        where: { id: input.offerId },
+      await this.prisma.jobOfferContractApproval.deleteMany({
+        where: { jobOfferId: offerId },
+      });
+      await this.prisma.jobOffer.update({
+        where: { id: offerId },
         data: {
           contractApprovalStatus: ContractApprovalStatus.NOT_REQUIRED,
           contractApprovalStartedAt: null,
@@ -81,30 +87,40 @@ export class ContractApprovalsService {
       return ContractApprovalStatus.NOT_REQUIRED;
     }
 
-    await tx.jobOfferContractApproval.deleteMany({
-      where: { jobOfferId: input.offerId },
-    });
-
     const now = new Date();
-    await tx.jobOfferContractApproval.createMany({
-      data: usable.map((step, index) => ({
-        companyId: input.companyId,
-        jobOfferId: input.offerId,
-        sequence: index + 1,
-        positionId: step.positionId,
-        approverEmployeeId: step.employeeId!,
-        status: ApprovalStatus.PENDING,
-        updatedAt: now,
-      })),
+    await this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      await tx.jobOfferContractApproval.deleteMany({
+        where: { jobOfferId: offerId },
+      });
+      await tx.jobOfferContractApproval.createMany({
+        data: usable.map((step, index) => ({
+          companyId,
+          jobOfferId: offerId,
+          sequence: index + 1,
+          positionId: step.positionId,
+          approverEmployeeId: step.employeeId!,
+          status: ApprovalStatus.PENDING,
+          updatedAt: now,
+        })),
+      });
+      await tx.jobOffer.update({
+        where: { id: offerId },
+        data: {
+          contractApprovalStatus: ContractApprovalStatus.PENDING,
+          contractApprovalStartedAt: now,
+          contractApprovalCompletedAt: null,
+          contractSentAt: null,
+        },
+      });
     });
 
-    await tx.jobOffer.update({
-      where: { id: input.offerId },
-      data: {
-        contractApprovalStatus: ContractApprovalStatus.PENDING,
-        contractApprovalStartedAt: now,
-        contractApprovalCompletedAt: null,
-      },
+    await this.audit.create({
+      action: ATS_AUDIT.CONTRACT_APPROVAL_STARTED,
+      entity: 'JobOffer',
+      entityId: offerId,
+      company: { connect: { id: companyId } },
+      ...(userId ? { user: { connect: { id: userId } } } : {}),
+      metadata: { offerId, stepCount: usable.length },
     });
 
     return ContractApprovalStatus.PENDING;
@@ -120,7 +136,7 @@ export class ContractApprovalsService {
   ) {
     const employee = await this.prisma.employee.findFirst({
       where: { companyId, userId, deletedAt: null },
-      select: { id: true },
+      select: { id: true, firstName: true, lastName: true },
     });
     if (!employee) {
       throw new ForbiddenException(
@@ -133,10 +149,8 @@ export class ContractApprovalsService {
         where: { id: offerId, companyId },
       });
       if (!offer) throw new NotFoundException('Offer not found');
-      if (offer.status !== JobOfferStatus.ACCEPTED) {
-        throw new BadRequestException(
-          'La oferta debe estar aceptada para aprobar el contrato',
-        );
+      if (!offer.signedContractFileName) {
+        throw new BadRequestException(CONTRACT_ERRORS.SIGNED_NOT_FOUND);
       }
       if (offer.contractApprovalStatus !== ContractApprovalStatus.PENDING) {
         throw new ConflictException(
@@ -193,7 +207,7 @@ export class ContractApprovalsService {
             contractApprovalCompletedAt: now,
           },
         });
-        return { finalStatus: ContractApprovalStatus.REJECTED };
+        return { finalStatus: ContractApprovalStatus.REJECTED, shouldSend: false };
       }
 
       const stillPending = await tx.jobOfferContractApproval.count({
@@ -210,10 +224,10 @@ export class ContractApprovalsService {
             contractApprovalCompletedAt: now,
           },
         });
-        return { finalStatus: ContractApprovalStatus.APPROVED };
+        return { finalStatus: ContractApprovalStatus.APPROVED, shouldSend: true };
       }
 
-      return { finalStatus: ContractApprovalStatus.PENDING };
+      return { finalStatus: ContractApprovalStatus.PENDING, shouldSend: false };
     });
 
     await this.audit.create({
@@ -234,7 +248,20 @@ export class ContractApprovalsService {
       },
     });
 
-    return this.getByOffer(companyId, offerId);
+    let send: Awaited<
+      ReturnType<ContractSendService['sendApprovedContract']>
+    > | null = null;
+    if (result.shouldSend) {
+      send = await this.send.sendApprovedContract({
+        companyId,
+        userId,
+        offerId,
+        signerName: `${employee.firstName} ${employee.lastName}`.trim(),
+      });
+    }
+
+    const snapshot = await this.getByOffer(companyId, offerId);
+    return { ...snapshot, send };
   }
 
   isReadyForHire(status: ContractApprovalStatus): boolean {

@@ -62,6 +62,7 @@ import {
   getValidKanbanTargets,
   groupCardsByKanbanColumn,
   hireRequirementChecks,
+  isReadyToCreateCollaborator,
   kanbanColumnForStage,
   missingFinalistHireDocuments,
   stageForKanbanColumn,
@@ -117,6 +118,17 @@ function filledOfferLetterStatusLabel(
   return "Diligenciada";
 }
 
+function filledContractStatusLabel(
+  hasFile: boolean,
+  status?: OfferLetterApprovalStatus | null,
+): string {
+  if (!hasFile) return "Pendiente de carga";
+  if (status === "PENDING") return "En aprobación";
+  if (status === "APPROVED") return "Aprobado";
+  if (status === "REJECTED") return "Rechazado";
+  return "Diligenciado";
+}
+
 const FIT_DOT_CLASS: Record<FitLevel, string> = {
   green: "bg-emerald-500",
   yellow: "bg-amber-400",
@@ -148,6 +160,8 @@ export function PipelinePageClient() {
   const [hireConfirmed, setHireConfirmed] = useState(false);
   const offerLetterInputRef = useRef<HTMLInputElement>(null);
   const offerLetterTargetRef = useRef<PipelineCard | null>(null);
+  const contractInputRef = useRef<HTMLInputElement>(null);
+  const contractTargetRef = useRef<PipelineCard | null>(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
@@ -172,6 +186,11 @@ export function PipelinePageClient() {
     companyQuery.data?.hasOfferLetterTemplate ||
       companyQuery.data?.offerLetterTemplateOriginalName ||
       pipelineQuery.data?.hasCompanyOfferLetterTemplate,
+  );
+  const companyHasContractTemplate = Boolean(
+    companyQuery.data?.hasContractTemplate ||
+      companyQuery.data?.contractTemplateOriginalName ||
+      pipelineQuery.data?.hasCompanyContractTemplate,
   );
 
   const hirePrepQuery = useQuery({
@@ -216,10 +235,17 @@ export function PipelinePageClient() {
         hasCompanyOfferLetterTemplate:
           Boolean(card.hasCompanyOfferLetterTemplate) ||
           companyHasOfferLetterTemplate,
+        hasCompanyContractTemplate:
+          Boolean(card.hasCompanyContractTemplate) ||
+          companyHasContractTemplate,
       })),
     );
     return groupCardsByKanbanColumn(cards);
-  }, [companyHasOfferLetterTemplate, pipelineQuery.data]);
+  }, [
+    companyHasContractTemplate,
+    companyHasOfferLetterTemplate,
+    pipelineQuery.data,
+  ]);
 
   const hireChecks = useMemo(() => {
     const data = hirePrepQuery.data;
@@ -387,6 +413,52 @@ export function PipelinePageClient() {
     },
   });
 
+  const uploadContractMutation = useMutation({
+    mutationFn: async ({
+      applicationId,
+      file,
+    }: {
+      applicationId: string;
+      file: File;
+    }) => {
+      if (file.size > OFFER_LETTER_UPLOAD_MAX_BYTES) {
+        throw new Error("El contrato supera el tamaño máximo (10 MB).");
+      }
+      return offersApi.uploadFilledContract(applicationId, file);
+    },
+    onSuccess: async (data) => {
+      await invalidatePipeline();
+      notifySuccess(
+        data.contractApprovalStatus === "PENDING"
+          ? "Contrato cargado. El aprobador de contrato ya puede revisarlo en su inicio."
+          : data.contractApprovalStatus === "NOT_REQUIRED"
+            ? "Contrato cargado y enviado. Configura un aprobador de contrato en ATS para exigir aprobación."
+            : "Contrato cargado",
+      );
+    },
+    onError: (error) => {
+      notifyError(error, "No se pudo cargar el contrato.");
+    },
+  });
+
+  const toHireMutation = useMutation({
+    mutationFn: (applicationId: string) =>
+      hiringApi.advanceToHire(applicationId, {
+        hireDate: hireDate || undefined,
+      }),
+    onSuccess: async () => {
+      await invalidatePipeline();
+      setPendingHire(null);
+      setHireConfirmed(false);
+      notifySuccess(
+        "Candidato en A Contratar. Carga el contrato para iniciar la firma; aún no se crea el colaborador.",
+      );
+    },
+    onError: (error) => {
+      notifyError(error, "No se pudo pasar a A Contratar.");
+    },
+  });
+
   const hireMutation = useMutation({
     mutationFn: (applicationId: string) =>
       hiringApi.hire(applicationId, {
@@ -410,7 +482,8 @@ export function PipelinePageClient() {
   });
 
   function requestKanbanMove(card: PipelineCard, columnId: KanbanColumnId) {
-    if (moveMutation.isPending || hireMutation.isPending) return;
+    if (moveMutation.isPending || hireMutation.isPending || toHireMutation.isPending)
+      return;
     const currentColumn = kanbanColumnForStage(card.stage);
     if (currentColumn === columnId) return;
     if (!getValidKanbanTargets(card.stage).includes(columnId)) return;
@@ -483,6 +556,29 @@ export function PipelinePageClient() {
     }
     offerLetterTargetRef.current = card;
     offerLetterInputRef.current?.click();
+  }
+
+  function requestContractUpload(card: PipelineCard) {
+    if (card.stage !== "TO_HIRE") {
+      notifyError(
+        new Error("Solo puedes cargar el contrato en A Contratar."),
+        "Solo puedes cargar el contrato en A Contratar.",
+      );
+      return;
+    }
+    contractTargetRef.current = card;
+    contractInputRef.current?.click();
+  }
+
+  async function downloadContractTemplate() {
+    try {
+      const { blob, filename } = await companyApi.downloadAtsTemplate(
+        "contract",
+      );
+      triggerBlobDownload(blob, filename || "contrato.docx");
+    } catch (error) {
+      notifyError(error, "No se pudo descargar la plantilla de contrato.");
+    }
   }
 
   async function downloadFilledOfferLetter(card: PipelineCard) {
@@ -605,6 +701,14 @@ export function PipelinePageClient() {
                   onDownloadOfferTemplate={downloadOfferTemplate}
                   onUploadOfferLetter={requestOfferLetterUpload}
                   uploadingOfferLetter={uploadOfferLetterMutation.isPending}
+                  onDownloadContractTemplate={downloadContractTemplate}
+                  onUploadContract={requestContractUpload}
+                  uploadingContract={uploadContractMutation.isPending}
+                  onCreateCollaborator={(card) => {
+                    setHireDate(new Date().toISOString().slice(0, 10));
+                    hireMutation.mutate(card.applicationId);
+                  }}
+                  creatingCollaborator={hireMutation.isPending}
                 />
               ))}
             </div>
@@ -629,6 +733,24 @@ export function PipelinePageClient() {
               offerLetterTargetRef.current = null;
               if (!file || !card) return;
               uploadOfferLetterMutation.mutate({
+                applicationId: card.applicationId,
+                file,
+              });
+            }}
+          />
+
+          <input
+            ref={contractInputRef}
+            type="file"
+            accept={OFFER_LETTER_UPLOAD_ACCEPT}
+            className="sr-only"
+            onChange={(event) => {
+              const file = event.target.files?.[0];
+              event.target.value = "";
+              const card = contractTargetRef.current;
+              contractTargetRef.current = null;
+              if (!file || !card) return;
+              uploadContractMutation.mutate({
                 applicationId: card.applicationId,
                 file,
               });
@@ -719,7 +841,7 @@ export function PipelinePageClient() {
       >
         <DialogContent className="max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Requisitos para contratar</DialogTitle>
+            <DialogTitle>Pasar a A Contratar</DialogTitle>
           </DialogHeader>
           <p className="text-sm text-muted-foreground">
             {pendingHire?.candidateName}
@@ -761,7 +883,8 @@ export function PipelinePageClient() {
             <p className="text-sm text-muted-foreground">
               Completa HV, estudio de seguridad, exámenes médicos y la carta
               oferta. Si la carta ya fue aprobada y enviada (y firmada, si
-              aplica), ya puedes contratar. Si falta un requisito, el
+              aplica), puedes pasar a A Contratar. El colaborador se crea
+              después de la firma de contrato. Si falta un requisito, el
               candidato permanece en Finalistas.
             </p>
           ) : null}
@@ -785,14 +908,14 @@ export function PipelinePageClient() {
                   aria-label="Confirmar requisitos de contratación"
                 />
                 <span>
-                  Confirmo que se cumplieron los requisitos para contratar a
-                  este candidato.
+                  Confirmo que se cumplieron los requisitos para pasar a
+                  A Contratar a este candidato. Aún no se crea el colaborador.
                 </span>
               </label>
               {pdiEnabled ? (
                 <p className="text-xs text-muted-foreground">
-                  Al contratar se genera el PDI desde las entrevistas y, si hay
-                  ciclo Performance activo, se carga automáticamente.
+                  El PDI se genera al crear el colaborador, después de firmar
+                  el contrato.
                 </p>
               ) : null}
             </div>
@@ -817,15 +940,15 @@ export function PipelinePageClient() {
                 disabled={
                   !canConfirmHire ||
                   !hireConfirmed ||
-                  hireMutation.isPending ||
+                  toHireMutation.isPending ||
                   !pendingHire
                 }
                 onClick={() => {
                   if (!pendingHire) return;
-                  hireMutation.mutate(pendingHire.applicationId);
+                  toHireMutation.mutate(pendingHire.applicationId);
                 }}
               >
-                Contratar
+                {toHireMutation.isPending ? "Moviendo…" : "Pasar a A Contratar"}
               </Button>
             )}
           </DialogFooter>
@@ -1259,6 +1382,11 @@ function PipelineColumnView({
   onDownloadOfferTemplate,
   onUploadOfferLetter,
   uploadingOfferLetter,
+  onDownloadContractTemplate,
+  onUploadContract,
+  uploadingContract,
+  onCreateCollaborator,
+  creatingCollaborator,
 }: {
   columnId: KanbanColumnId;
   label: string;
@@ -1271,6 +1399,11 @@ function PipelineColumnView({
   onDownloadOfferTemplate: () => void;
   onUploadOfferLetter: (card: PipelineCard) => void;
   uploadingOfferLetter: boolean;
+  onDownloadContractTemplate: () => void;
+  onUploadContract: (card: PipelineCard) => void;
+  uploadingContract: boolean;
+  onCreateCollaborator: (card: PipelineCard) => void;
+  creatingCollaborator: boolean;
 }) {
   const acceptDrop =
     activeFromStage !== null &&
@@ -1312,6 +1445,11 @@ function PipelineColumnView({
             onDownloadOfferTemplate={onDownloadOfferTemplate}
             onUploadOfferLetter={onUploadOfferLetter}
             uploadingOfferLetter={uploadingOfferLetter}
+            onDownloadContractTemplate={onDownloadContractTemplate}
+            onUploadContract={onUploadContract}
+            uploadingContract={uploadingContract}
+            onCreateCollaborator={onCreateCollaborator}
+            creatingCollaborator={creatingCollaborator}
           />
         ))}
       </div>
@@ -1327,6 +1465,11 @@ function PipelineCardView({
   onDownloadOfferTemplate,
   onUploadOfferLetter,
   uploadingOfferLetter,
+  onDownloadContractTemplate,
+  onUploadContract,
+  uploadingContract,
+  onCreateCollaborator,
+  creatingCollaborator,
 }: {
   card: PipelineCard;
   onMoveRequest: (card: PipelineCard, columnId: KanbanColumnId) => void;
@@ -1335,6 +1478,11 @@ function PipelineCardView({
   onDownloadOfferTemplate: () => void;
   onUploadOfferLetter: (card: PipelineCard) => void;
   uploadingOfferLetter: boolean;
+  onDownloadContractTemplate: () => void;
+  onUploadContract: (card: PipelineCard) => void;
+  uploadingContract: boolean;
+  onCreateCollaborator: (card: PipelineCard) => void;
+  creatingCollaborator: boolean;
 }) {
   const targets = getValidKanbanTargets(card.stage);
   const draggable = targets.length > 0;
@@ -1473,6 +1621,70 @@ function PipelineCardView({
               card.offerLetterApprovalStatus,
             )}
           </p>
+        </div>
+      ) : null}
+      {card.stage === "TO_HIRE" ? (
+        <div
+          className="mt-2 flex flex-wrap gap-1"
+          onPointerDown={(event) => event.stopPropagation()}
+        >
+          {card.hasCompanyContractTemplate ? (
+            <>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="h-7 px-2 text-[11px]"
+                onClick={() => void onDownloadContractTemplate()}
+              >
+                Descargar plantilla
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                className="h-7 px-2 text-[11px]"
+                disabled={uploadingContract}
+                onClick={() => onUploadContract(card)}
+              >
+                {uploadingContract
+                  ? "Subiendo…"
+                  : card.hasSignedContract
+                    ? "Reemplazar contrato"
+                    : "Cargar contrato"}
+              </Button>
+              <p
+                className={cn(
+                  "w-full text-[11px]",
+                  card.hasSignedContract &&
+                    card.contractApprovalStatus === "APPROVED"
+                    ? "text-emerald-600"
+                    : card.contractApprovalStatus === "REJECTED"
+                      ? "text-destructive"
+                      : "text-muted-foreground",
+                )}
+              >
+                {filledContractStatusLabel(
+                  Boolean(card.hasSignedContract),
+                  card.contractApprovalStatus,
+                )}
+              </p>
+            </>
+          ) : (
+            <p className="w-full text-[11px] text-muted-foreground">
+              Sin plantilla de contrato. Puedes crear el colaborador.
+            </p>
+          )}
+          {isReadyToCreateCollaborator(card) ? (
+            <Button
+              type="button"
+              size="sm"
+              className="h-7 px-2 text-[11px]"
+              disabled={creatingCollaborator}
+              onClick={() => onCreateCollaborator(card)}
+            >
+              {creatingCollaborator ? "Creando…" : "Crear colaborador"}
+            </Button>
+          ) : null}
         </div>
       ) : null}
     </article>

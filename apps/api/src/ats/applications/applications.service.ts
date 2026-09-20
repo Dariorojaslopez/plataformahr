@@ -55,6 +55,10 @@ const ALLOWED_STAGE_TRANSITIONS: Record<ApplicationStage, ApplicationStage[]> =
       ApplicationStage.REJECTED,
       ApplicationStage.WITHDRAWN,
     ],
+    [ApplicationStage.TO_HIRE]: [
+      ApplicationStage.REJECTED,
+      ApplicationStage.WITHDRAWN,
+    ],
     [ApplicationStage.HIRED]: [],
     [ApplicationStage.REJECTED]: [],
     [ApplicationStage.WITHDRAWN]: [],
@@ -328,7 +332,10 @@ export class ApplicationsService {
       }
 
       const allowed = ALLOWED_STAGE_TRANSITIONS[application.stage];
-      if (dto.stage === ApplicationStage.HIRED) {
+      if (
+        dto.stage === ApplicationStage.HIRED ||
+        dto.stage === ApplicationStage.TO_HIRE
+      ) {
         throw new BadRequestException(
           'HIRED can only be set via formal Hiring (POST /ats/applications/:id/hire)',
         );
@@ -489,6 +496,8 @@ export class ApplicationsService {
               id: true,
               signedOfferLetterFileName: true,
               offerLetterApprovalStatus: true,
+              signedContractFileName: true,
+              contractApprovalStatus: true,
             },
           },
           interviews: {
@@ -518,11 +527,17 @@ export class ApplicationsService {
       }),
       this.prisma.company.findFirst({
         where: { id: companyId },
-        select: { offerLetterTemplateFileName: true },
+        select: {
+          offerLetterTemplateFileName: true,
+          contractTemplateFileName: true,
+        },
       }),
     ]);
     const hasCompanyOfferLetterTemplate = Boolean(
       company?.offerLetterTemplateFileName,
+    );
+    const hasCompanyContractTemplate = Boolean(
+      company?.contractTemplateFileName,
     );
 
     const configuredEvaluators =
@@ -546,6 +561,7 @@ export class ApplicationsService {
         status: vacancy.status,
       },
       hasCompanyOfferLetterTemplate,
+      hasCompanyContractTemplate,
       columns: PIPELINE_STAGES.map((stage) => {
         const items = byStage.get(stage) ?? [];
         return {
@@ -570,11 +586,17 @@ export class ApplicationsService {
               ),
               jobOfferId: item.jobOffer?.id ?? null,
               hasCompanyOfferLetterTemplate,
+              hasCompanyContractTemplate,
               hasSignedOfferLetter: Boolean(
                 item.jobOffer?.signedOfferLetterFileName,
               ),
               offerLetterApprovalStatus:
                 item.jobOffer?.offerLetterApprovalStatus ?? null,
+              hasSignedContract: Boolean(
+                item.jobOffer?.signedContractFileName,
+              ),
+              contractApprovalStatus:
+                item.jobOffer?.contractApprovalStatus ?? null,
               securityStudyStatus: item.securityStudyStatus,
               medicalExamStatus: item.medicalExamStatus,
               stage: item.stage,

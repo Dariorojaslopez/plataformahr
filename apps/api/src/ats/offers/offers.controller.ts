@@ -26,7 +26,12 @@ import { CompanyContextGuard } from '../../tenant/guards/company-context.guard';
 import { DecideContractApprovalDto } from './dto/contract-approval.dto';
 import { UpdateJobOfferDto } from './dto/offer.dto';
 import { ContractApprovalsService } from './contract-approvals.service';
+import { ContractService } from './contract.service';
 import { OfferLetterApprovalsService } from './offer-letter-approvals.service';
+import {
+  CONTRACT_FIELD_NAME,
+  CONTRACT_MAX_BYTES,
+} from './contract.constants';
 import {
   OFFER_LETTER_FIELD_NAME,
   OFFER_LETTER_MAX_BYTES,
@@ -42,6 +47,7 @@ export class OffersController {
     private readonly contractApprovals: ContractApprovalsService,
     private readonly offerLetter: OfferLetterService,
     private readonly offerLetterApprovals: OfferLetterApprovalsService,
+    private readonly contract: ContractService,
   ) {}
 
   @Get(':id')
@@ -171,6 +177,71 @@ export class OffersController {
     @Param('id', ParseUUIDPipe) id: string,
   ) {
     return this.offerLetter.removeSigned(tenant.companyId, user.userId, id);
+  }
+
+  @Get(':id/contract')
+  @RequirePermissions('ats.offer.read')
+  getContractStatus(
+    @CurrentTenant() tenant: TenantContext,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.contract.getStatus(tenant.companyId, id);
+  }
+
+  @Get(':id/contract-template')
+  @RequirePermissions('ats.offer.read')
+  @Header('Cache-Control', 'private, no-store')
+  @Header('X-Content-Type-Options', 'nosniff')
+  async downloadContractTemplate(
+    @CurrentTenant() tenant: TenantContext,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<StreamableFile> {
+    const file = await this.contract.downloadTemplate(tenant.companyId, id);
+    const filename = file.originalName.replace(/["\r\n]/g, '');
+    return new StreamableFile(file.buffer, {
+      type: file.mimeType,
+      disposition: `attachment; filename="${filename}"`,
+    });
+  }
+
+  @Post(':id/signed-contract')
+  @UseGuards(ThrottlerGuard)
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
+  @RequirePermissions('ats.offer.manage')
+  @UseInterceptors(
+    FileInterceptor(CONTRACT_FIELD_NAME, {
+      storage: memoryStorage(),
+      limits: { fileSize: CONTRACT_MAX_BYTES, files: 1 },
+    }),
+  )
+  uploadSignedContract(
+    @CurrentTenant() tenant: TenantContext,
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @UploadedFile() file: Express.Multer.File | undefined,
+  ) {
+    return this.contract.uploadSigned(
+      tenant.companyId,
+      user.userId,
+      id,
+      file,
+    );
+  }
+
+  @Get(':id/signed-contract')
+  @RequirePermissions('ats.offer.read')
+  @Header('Cache-Control', 'private, no-store')
+  @Header('X-Content-Type-Options', 'nosniff')
+  async downloadSignedContract(
+    @CurrentTenant() tenant: TenantContext,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<StreamableFile> {
+    const file = await this.contract.downloadSigned(tenant.companyId, id);
+    const filename = file.originalName.replace(/["\r\n]/g, '');
+    return new StreamableFile(file.buffer, {
+      type: file.mimeType,
+      disposition: `attachment; filename="${filename}"`,
+    });
   }
 
   @Get(':id/contract-approvals')

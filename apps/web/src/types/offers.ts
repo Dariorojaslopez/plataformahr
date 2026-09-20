@@ -115,6 +115,24 @@ export type OfferLetterStatus = {
   readyForHire: boolean;
 };
 
+export type OfferContractStatus = {
+  offerId: string;
+  hasCompanyTemplate: boolean;
+  companyTemplateName: string | null;
+  hasSignedContract: boolean;
+  signedContractName: string | null;
+  signedContractUploadedAt: string | null;
+  contractApprovalStatus?:
+    | "NOT_REQUIRED"
+    | "PENDING"
+    | "APPROVED"
+    | "REJECTED"
+    | null;
+  contractSentAt?: string | null;
+  contractSendMode?: "ATTACHMENT" | "DIGITAL_SIGNATURE" | null;
+  contractCandidateSignedAt?: string | null;
+};
+
 export type CreateJobOfferInput = {
   positionTitle: string;
   salaryAmount: string;

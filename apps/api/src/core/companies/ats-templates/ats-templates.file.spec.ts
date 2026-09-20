@@ -39,14 +39,14 @@ describe('resolveAtsTemplateMime', () => {
     ).toBeNull();
   });
 
-  it('still accepts PDF or DOCX for the contract template', () => {
+  it('requires a Word .docx for the contract template', () => {
     expect(
       resolveAtsTemplateMime(ATS_TEMPLATE_KIND.CONTRACT, {
         mimetype: ATS_TEMPLATE_MIME.PDF,
         originalname: 'contrato.pdf',
         buffer: Buffer.from('%PDF-1.4'),
       }),
-    ).toBe(ATS_TEMPLATE_MIME.PDF);
+    ).toBeNull();
 
     expect(
       resolveAtsTemplateMime(ATS_TEMPLATE_KIND.CONTRACT, {

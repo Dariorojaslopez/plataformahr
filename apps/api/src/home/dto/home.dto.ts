@@ -154,6 +154,7 @@ export type HomePendingContractApproval = {
   candidateName: string;
   vacancyTitle: string;
   sequence: number;
+  isLastStep: boolean;
 };
 
 export type HomePendingOfferLetterApproval = {

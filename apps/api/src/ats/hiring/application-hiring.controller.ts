@@ -165,6 +165,24 @@ export class ApplicationHiringController {
     );
   }
 
+  @Post(':applicationId/to-hire')
+  @UseGuards(ThrottlerGuard)
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
+  @RequirePermissions('ats.hiring.manage')
+  advanceToHire(
+    @CurrentTenant() tenant: TenantContext,
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('applicationId', ParseUUIDPipe) applicationId: string,
+    @Body() dto: CreateHiringDto,
+  ) {
+    return this.hiringService.advanceToHire(
+      tenant.companyId,
+      user.userId,
+      applicationId,
+      dto,
+    );
+  }
+
   @Post(':applicationId/hire')
   @UseGuards(ThrottlerGuard)
   @Throttle({ default: { limit: 20, ttl: 60_000 } })

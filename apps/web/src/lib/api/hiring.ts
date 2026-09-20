@@ -95,6 +95,17 @@ export const hiringApi = {
       body,
     }),
 
+  advanceToHire: (applicationId: string, body: CreateHiringInput = {}) =>
+    apiRequest<{
+      applicationId: string;
+      stage: string;
+      offerId: string;
+      pendingHireDate: string;
+    }>(`/ats/applications/${applicationId}/to-hire`, {
+      method: "POST",
+      body,
+    }),
+
   getPdi: (applicationId: string) =>
     apiRequest<ApplicationPdiDraft>(`/ats/applications/${applicationId}/pdi`),
 

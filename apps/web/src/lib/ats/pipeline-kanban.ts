@@ -31,7 +31,7 @@ export const KANBAN_COLUMNS: Array<{
   {
     id: "HIRED",
     label: "A Contratar",
-    stages: ["HIRED"],
+    stages: ["TO_HIRE", "HIRED"],
     dropHint: "Arrastra candidatos aquí",
   },
 ];
@@ -132,7 +132,6 @@ export type HireRequirementId =
   | "CV"
   | "SECURITY_STUDY_DOC"
   | "MEDICAL_EXAM_DOC"
-  | "CONTRACT_APPROVAL"
   | "SIGNED_OFFER_LETTER";
 
 export const FINALIST_HIRE_DOCUMENT_LABELS = {
@@ -177,6 +176,18 @@ export function isContractApprovalClear(
   status: string | null | undefined,
 ): boolean {
   return status === "APPROVED" || status === "NOT_REQUIRED" || !status;
+}
+
+export function isReadyToCreateCollaborator(card: {
+  stage?: string;
+  hasCompanyContractTemplate?: boolean | null;
+  hasSignedContract?: boolean | null;
+  contractApprovalStatus?: string | null;
+}): boolean {
+  if (card.stage !== "TO_HIRE") return false;
+  if (!card.hasCompanyContractTemplate) return true;
+  if (!card.hasSignedContract) return false;
+  return isContractApprovalClear(card.contractApprovalStatus);
 }
 
 export function isSignedOfferLetterClear(input: {
@@ -258,11 +269,6 @@ export function hireRequirementChecks(input: {
       id: "MEDICAL_EXAM_DOC",
       label: "Exámenes médicos cargados",
       met: Boolean(input.hasMedicalExamDoc),
-    },
-    {
-      id: "CONTRACT_APPROVAL",
-      label: "Contrato aprobado o sin flujo de aprobación",
-      met: isContractApprovalClear(input.contractApprovalStatus),
     },
     {
       id: "SIGNED_OFFER_LETTER",

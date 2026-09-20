@@ -15,7 +15,12 @@ describe("hiringKeys tenant isolation", () => {
 describe("generic transitions protect HIRED", () => {
   it("does not allow OFFER -> HIRED via Kanban move targets", () => {
     expect(ALLOWED_STAGE_TRANSITIONS.OFFER).not.toContain("HIRED");
+    expect(ALLOWED_STAGE_TRANSITIONS.OFFER).not.toContain("TO_HIRE");
     expect(ALLOWED_STAGE_TRANSITIONS.OFFER).toEqual([
+      "REJECTED",
+      "WITHDRAWN",
+    ]);
+    expect(ALLOWED_STAGE_TRANSITIONS.TO_HIRE).toEqual([
       "REJECTED",
       "WITHDRAWN",
     ]);

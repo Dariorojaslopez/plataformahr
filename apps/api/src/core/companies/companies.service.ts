@@ -126,6 +126,8 @@ export class CompaniesService {
       atsThankYouLetterBody: company.atsThankYouLetterBody,
       atsOfferLetterEmailSubject: company.atsOfferLetterEmailSubject,
       atsOfferLetterEmailBody: company.atsOfferLetterEmailBody,
+      atsContractEmailSubject: company.atsContractEmailSubject,
+      atsContractEmailBody: company.atsContractEmailBody,
       offerLetterTemplateOriginalName: company.offerLetterTemplateOriginalName,
       contractTemplateOriginalName: company.contractTemplateOriginalName,
       hasOfferLetterTemplate: Boolean(company.offerLetterTemplateFileName),
@@ -162,6 +164,8 @@ export class CompaniesService {
       atsThankYouLetterBody?: string | null;
       atsOfferLetterEmailSubject?: string | null;
       atsOfferLetterEmailBody?: string | null;
+      atsContractEmailSubject?: string | null;
+      atsContractEmailBody?: string | null;
     },
   ) {
     const company = await this.prisma.company.update({
@@ -191,6 +195,19 @@ export class CompaniesService {
           ? {
               atsOfferLetterEmailBody: normalizeOfferLetterEmailHtml(
                 data.atsOfferLetterEmailBody,
+              ),
+            }
+          : {}),
+        ...(data.atsContractEmailSubject !== undefined
+          ? {
+              atsContractEmailSubject:
+                data.atsContractEmailSubject?.trim() || null,
+            }
+          : {}),
+        ...(data.atsContractEmailBody !== undefined
+          ? {
+              atsContractEmailBody: normalizeOfferLetterEmailHtml(
+                data.atsContractEmailBody,
               ),
             }
           : {}),

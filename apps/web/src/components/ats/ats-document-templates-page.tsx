@@ -63,6 +63,8 @@ export function AtsDocumentTemplatesPageClient() {
         hasContract={Boolean(companyQuery.data.hasContractTemplate)}
         offerEmailSubject={companyQuery.data.atsOfferLetterEmailSubject ?? ""}
         offerEmailBody={companyQuery.data.atsOfferLetterEmailBody ?? ""}
+        contractEmailSubject={companyQuery.data.atsContractEmailSubject ?? ""}
+        contractEmailBody={companyQuery.data.atsContractEmailBody ?? ""}
       />
     </div>
   );
@@ -146,6 +148,8 @@ function DocumentTemplatesSection({
   hasContract,
   offerEmailSubject,
   offerEmailBody,
+  contractEmailSubject,
+  contractEmailBody,
 }: {
   companyId: string;
   offerName?: string | null;
@@ -154,14 +158,15 @@ function DocumentTemplatesSection({
   hasContract: boolean;
   offerEmailSubject: string;
   offerEmailBody: string;
+  contractEmailSubject: string;
+  contractEmailBody: string;
 }) {
   return (
     <section className="space-y-4">
       <div>
         <h2 className="text-lg font-semibold">Carta oferta y contrato</h2>
         <p className="text-sm text-muted-foreground">
-          La carta de oferta debe ser Word (.docx). El contrato admite PDF o
-          DOCX (máx. 10 MB).
+          La carta de oferta y el contrato deben ser Word (.docx).
         </p>
       </div>
       <div className="grid gap-4 lg:grid-cols-2">
@@ -180,6 +185,8 @@ function DocumentTemplatesSection({
           title="Contrato"
           hasFile={hasContract}
           fileName={contractName}
+          emailSubject={contractEmailSubject}
+          emailBody={contractEmailBody}
         />
       </div>
     </section>
@@ -235,16 +242,14 @@ function TemplateCard({
   });
 
   const busy = uploadMutation.isPending || removeMutation.isPending;
-  const isOfferLetter = kind === "offer-letter";
-  const accept = isOfferLetter
-    ? ".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-    : ".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+  const accept =
+    ".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 
   function handleSelectedFile(file: File) {
-    if (isOfferLetter && !file.name.toLowerCase().endsWith(".docx")) {
+    if (!file.name.toLowerCase().endsWith(".docx")) {
       notifyError(
-        new Error("La carta de oferta debe ser un archivo Word (.docx)."),
-        "La carta de oferta debe ser un archivo Word (.docx).",
+        new Error(`${title} debe ser un archivo Word (.docx).`),
+        `${title} debe ser un archivo Word (.docx).`,
       );
       return;
     }
@@ -252,38 +257,28 @@ function TemplateCard({
   }
 
   return (
-    <div
-      className={`space-y-3 rounded-md border border-border p-4 ${
-        isOfferLetter ? "lg:col-span-2" : ""
-      }`}
-    >
+    <div className="space-y-3 rounded-md border border-border p-4 lg:col-span-2">
       <div>
         <h3 className="font-medium">{title}</h3>
         <p className="text-sm text-muted-foreground">
           {hasFile ? fileName || "Archivo cargado" : "Sin plantilla cargada"}
         </p>
-        {isOfferLetter ? (
-          <div className="mt-3 space-y-2">
-            <p className="text-sm text-muted-foreground">
-              Obligatorio Word (.docx). En el documento usa variables con
-              corchetes, exactamente así:
-            </p>
-            <ul className="flex flex-wrap gap-1.5">
-              {OFFER_LETTER_PLACEHOLDERS.map((item) => (
-                <li
-                  key={item.key}
-                  className="rounded-md border border-border bg-muted/40 px-2 py-0.5 font-mono text-xs"
-                >
-                  {item.token}
-                </li>
-              ))}
-            </ul>
-          </div>
-        ) : (
-          <p className="mt-2 text-sm text-muted-foreground">
-            Formatos permitidos: PDF o DOCX.
+        <div className="mt-3 space-y-2">
+          <p className="text-sm text-muted-foreground">
+            Obligatorio Word (.docx). En el documento usa variables con
+            corchetes, exactamente así:
           </p>
-        )}
+          <ul className="flex flex-wrap gap-1.5">
+            {OFFER_LETTER_PLACEHOLDERS.map((item) => (
+              <li
+                key={item.key}
+                className="rounded-md border border-border bg-muted/40 px-2 py-0.5 font-mono text-xs"
+              >
+                {item.token}
+              </li>
+            ))}
+          </ul>
+        </div>
       </div>
       <input
         ref={inputRef}
@@ -320,9 +315,7 @@ function TemplateCard({
                   const a = document.createElement("a");
                   a.href = url;
                   a.download =
-                    filename ||
-                    fileName ||
-                    (kind === "offer-letter" ? `${kind}.docx` : `${kind}.pdf`);
+                    filename || fileName || `${kind}.docx`;
                   a.click();
                   URL.revokeObjectURL(url);
                 } catch (error) {
@@ -344,35 +337,44 @@ function TemplateCard({
           </>
         ) : null}
       </div>
-      {isOfferLetter ? (
-        <OfferLetterEmailForm
-          companyId={companyId}
-          initialSubject={emailSubject ?? ""}
-          initialBody={emailBody ?? ""}
-        />
-      ) : null}
+      <TemplateEmailForm
+        companyId={companyId}
+        kind={kind}
+        initialSubject={emailSubject ?? ""}
+        initialBody={emailBody ?? ""}
+      />
     </div>
   );
 }
 
-function OfferLetterEmailForm({
+function TemplateEmailForm({
   companyId,
+  kind,
   initialSubject,
   initialBody,
 }: {
   companyId: string;
+  kind: TemplateKind;
   initialSubject: string;
   initialBody: string;
 }) {
   const queryClient = useQueryClient();
   const [subject, setSubject] = useState(initialSubject);
   const [body, setBody] = useState(initialBody);
+  const isOfferLetter = kind === "offer-letter";
   const saveMutation = useMutation({
     mutationFn: () =>
-      companyApi.updateAtsSettings({
-        atsOfferLetterEmailSubject: subject,
-        atsOfferLetterEmailBody: body,
-      }),
+      companyApi.updateAtsSettings(
+        isOfferLetter
+          ? {
+              atsOfferLetterEmailSubject: subject,
+              atsOfferLetterEmailBody: body,
+            }
+          : {
+              atsContractEmailSubject: subject,
+              atsContractEmailBody: body,
+            },
+      ),
     onSuccess: async () => {
       await queryClient.invalidateQueries({
         queryKey: companyKeys.current(companyId),
@@ -391,24 +393,27 @@ function OfferLetterEmailForm({
           Configuración de correo de envío de plantilla
         </h4>
         <p className="text-sm text-muted-foreground">
-          Este correo acompañará el envío de la carta de oferta. Puedes cambiar
-          la fuente y pegar o insertar un logo.
+          Este correo acompañará el envío{" "}
+          {isOfferLetter ? "de la carta de oferta" : "del contrato"}. Puedes
+          cambiar la fuente y pegar o insertar un logo.
         </p>
       </div>
       <div className="space-y-2">
-        <Label htmlFor="offer-letter-email-subject">Asunto</Label>
+        <Label htmlFor={`${kind}-email-subject`}>Asunto</Label>
         <Input
-          id="offer-letter-email-subject"
+          id={`${kind}-email-subject`}
           value={subject}
           onChange={(event) => setSubject(event.target.value)}
           maxLength={200}
-          placeholder="Te hacemos una oferta…"
+          placeholder={
+            isOfferLetter ? "Te hacemos una oferta…" : "Te enviamos tu contrato…"
+          }
         />
       </div>
       <div className="space-y-2">
-        <Label htmlFor="offer-letter-email-body">Cuerpo del mensaje</Label>
+        <Label htmlFor={`${kind}-email-body`}>Cuerpo del mensaje</Label>
         <EmailHtmlEditor
-          id="offer-letter-email-body"
+          id={`${kind}-email-body`}
           value={body}
           onChange={setBody}
           disabled={saveMutation.isPending}

@@ -18,7 +18,6 @@ import { AuditService } from '../../core/audit/audit.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ApplicationsService } from '../applications/applications.service';
 import { ATS_AUDIT } from '../ats.constants';
-import { ContractApprovalsService } from './contract-approvals.service';
 import type { CreateJobOfferDto, UpdateJobOfferDto } from './dto/offer.dto';
 import { canTransitionOffer, isOfferExpired } from './offer-transitions';
 
@@ -68,7 +67,6 @@ export class OffersService {
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
     private readonly applicationsService: ApplicationsService,
-    private readonly contractApprovals: ContractApprovalsService,
   ) {}
 
   async getByApplication(companyId: string, applicationId: string) {
@@ -360,17 +358,11 @@ export class OffersService {
         throw new ConflictException('Offer status changed concurrently; retry');
       }
 
-      const approvalStatus = await this.contractApprovals.startForAcceptedOffer(
-        tx,
-        { companyId, offerId: id },
-      );
-
       return {
         offer: await tx.jobOffer.findFirstOrThrow({
           where: { id, companyId },
           include: OFFER_INCLUDE,
         }),
-        approvalStatus,
       };
     });
 
@@ -386,26 +378,10 @@ export class OffersService {
         fromStatus: JobOfferStatus.SENT,
         toStatus: JobOfferStatus.ACCEPTED,
         administrative: true,
-        contractApprovalStatus: updated.approvalStatus,
       },
     });
 
-    if (updated.approvalStatus === 'PENDING') {
-      await this.audit.create({
-        action: ATS_AUDIT.CONTRACT_APPROVAL_STARTED,
-        entity: 'JobOffer',
-        entityId: id,
-        company: { connect: { id: companyId } },
-        user: { connect: { id: userId } },
-        metadata: {
-          offerId: id,
-          applicationId: updated.offer.applicationId,
-          stepCount: updated.offer.contractApprovals.length,
-        },
-      });
-    }
-
-    // Application stays OFFER. No HIRED / Candidate / filledCount / Employee.
+    // Application stays OFFER. Contract signing starts in A Contratar.
     return updated.offer;
   }
 

@@ -47,6 +47,10 @@ import { OfferLetterApprovalsService } from './offers/offer-letter-approvals.ser
 import { OfferLetterSendService } from './offers/offer-letter-send.service';
 import { PublicOfferLetterController } from './offers/public-offer-letter.controller';
 import { PublicOfferLetterService } from './offers/public-offer-letter.service';
+import { ContractService } from './offers/contract.service';
+import { ContractSendService } from './offers/contract-send.service';
+import { PublicContractController } from './offers/public-contract.controller';
+import { PublicContractService } from './offers/public-contract.service';
 
 @Module({
   imports: [AuthModule, RbacModule, AuditModule, CompaniesModule],
@@ -70,6 +74,7 @@ import { PublicOfferLetterService } from './offers/public-offer-letter.service';
     OffersController,
     PublicJobsController,
     PublicOfferLetterController,
+    PublicContractController,
   ],
   providers: [
     CompanyContextGuard,
@@ -93,6 +98,9 @@ import { PublicOfferLetterService } from './offers/public-offer-letter.service';
     OfferLetterApprovalsService,
     OfferLetterSendService,
     PublicOfferLetterService,
+    ContractService,
+    ContractSendService,
+    PublicContractService,
     HiringService,
     PreHireService,
     HirePdiService,
