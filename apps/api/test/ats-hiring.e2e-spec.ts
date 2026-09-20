@@ -105,6 +105,21 @@ describe('ATS hiring (e2e)', () => {
     });
   };
 
+  const setRemainingPositionPlazas = async (remaining: number) => {
+    const occupants = await prisma.employee.count({
+      where: {
+        companyId: companyAId,
+        positionId: positionAId,
+        deletedAt: null,
+        status: EmployeeStatus.ACTIVE,
+      },
+    });
+    await prisma.position.update({
+      where: { id: positionAId },
+      data: { headcount: occupants + remaining },
+    });
+  };
+
   const createApplication = async (
     tag: string,
     targetVacancyId = vacancyId,
@@ -906,6 +921,7 @@ describe('ATS hiring (e2e)', () => {
 
   it('handles concurrent hire for last vacancy slot (headcount=1)', async () => {
     const vacancy = await createVacancy(1, 'last-slot');
+    await setRemainingPositionPlazas(1);
     const a = await createAcceptedOffer('slot-a', vacancy.id);
     const b = await createAcceptedOffer('slot-b', vacancy.id);
 
@@ -950,6 +966,7 @@ describe('ATS hiring (e2e)', () => {
       where: { id: vacancy.id },
       data: { filledCount: 1 },
     });
+    await setRemainingPositionPlazas(0);
 
     const seeded = await createAcceptedOffer('fullcap', vacancy.id);
     const vacancyBefore = await prisma.vacancy.findUniqueOrThrow({
