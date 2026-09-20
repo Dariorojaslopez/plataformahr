@@ -23,6 +23,7 @@ import { loadOptionalEnvFile } from './load-env';
 import request from 'supertest';
 import { App } from 'supertest/types';
 import { AppModule } from '../src/app.module';
+import { PIPELINE_STAGES } from '../src/ats/ats.constants';
 import { ApplicationsService } from '../src/ats/applications/applications.service';
 import { PasswordHashingService } from '../src/auth/password-hashing.service';
 
@@ -701,7 +702,8 @@ describe('ATS candidates & applications (e2e)', () => {
         columns: { stage: string; count: number; applications: unknown[] }[];
       };
       expect(body.vacancy.id).toBe(vacancyOpen2Id);
-      expect(body.columns).toHaveLength(7);
+      expect(body.columns).toHaveLength(PIPELINE_STAGES.length);
+      expect(body.columns.map((c) => c.stage)).toEqual([...PIPELINE_STAGES]);
       const pending = body.columns.find(
         (c) => c.stage === ApplicationStage.PENDING_REVIEW,
       );
