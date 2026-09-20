@@ -304,7 +304,9 @@ export function PublicJobPage({
           <div className="min-w-0">
             <p className="font-semibold sm:text-lg">{job.companyName}</p>
             <p className="text-sm text-muted-foreground">
-              Oportunidades laborales
+              {job.confidential
+                ? "Búsqueda confidencial"
+                : "Oportunidades laborales"}
             </p>
           </div>
         </div>

@@ -1121,6 +1121,7 @@ model Vacancy {
   salaryAmount                Decimal?      @db.Decimal(14, 2)
   salaryCurrency              String        @default("COP") @db.VarChar(3)
   showSalaryPublic            Boolean       @default(false)
+  confidential                Boolean       @default(false)
   screeningMinCorrect         Int?
   headcount                   Int
   filledCount                 Int           @default(0)

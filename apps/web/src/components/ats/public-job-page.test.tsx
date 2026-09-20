@@ -198,6 +198,30 @@ describe("PublicJobPage", () => {
     expect(screen.queryByText(/COP/)).not.toBeInTheDocument();
   });
 
+  it("hides the company name on a confidential vacancy", () => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    render(
+      <QueryClientProvider client={queryClient}>
+        <PublicJobPage
+          job={{
+            ...previewJob,
+            companyName: "Proceso confidencial",
+            confidential: true,
+            hasLogo: false,
+          }}
+          preview
+        />
+      </QueryClientProvider>,
+    );
+
+    expect(screen.getByText("Proceso confidencial")).toBeInTheDocument();
+    expect(screen.getByText("Búsqueda confidencial")).toBeInTheDocument();
+    expect(screen.queryByText("Acme")).not.toBeInTheDocument();
+    expect(screen.queryByText("Oportunidades laborales")).not.toBeInTheDocument();
+  });
+
   it("uploads a CV and prefills the application form", async () => {
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false } },

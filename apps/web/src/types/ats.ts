@@ -162,6 +162,7 @@ export type Vacancy = {
   salaryAmount: string | null;
   salaryCurrency: string;
   showSalaryPublic: boolean;
+  confidential: boolean;
   interviewFormTemplateId?: string | null;
   vacancyRequest?: {
     id: string;
@@ -183,6 +184,7 @@ export type PublicJob = {
   companyName: string;
   brandPrimaryColor: string;
   hasLogo: boolean;
+  confidential?: boolean;
   publishedAt: string | null;
   salaryAmount: string | null;
   salaryCurrency: string | null;
@@ -671,6 +673,7 @@ export type UpdateVacancyInput = {
   salaryAmount?: string | null;
   salaryCurrency?: string;
   showSalaryPublic?: boolean;
+  confidential?: boolean;
 };
 
 export type CreateCandidateInput = {

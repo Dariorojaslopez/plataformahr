@@ -348,6 +348,7 @@ export class HomeService {
       where: {
         companyId,
         status: VacancyStatus.OPEN,
+        confidential: false,
         deletedAt: null,
       },
       select: {

@@ -79,4 +79,8 @@ export class UpdateVacancyDto {
   @IsOptional()
   @IsBoolean()
   showSalaryPublic?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  confidential?: boolean;
 }

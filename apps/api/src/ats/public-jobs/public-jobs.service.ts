@@ -617,6 +617,7 @@ export class PublicJobsService {
         salaryAmount: true,
         salaryCurrency: true,
         showSalaryPublic: true,
+        confidential: true,
         screeningMinCorrect: true,
         screeningQuestions: {
           orderBy: { sortOrder: 'asc' },
@@ -656,6 +657,7 @@ export class PublicJobsService {
   private toResponse(vacancy: Awaited<ReturnType<typeof this.findVacancy>>) {
     const salaryVisible =
       vacancy.showSalaryPublic && vacancy.salaryAmount != null;
+    const confidential = vacancy.confidential;
     return {
       publicId: vacancy.publicId,
       title: vacancy.position?.name || vacancy.title,
@@ -666,10 +668,11 @@ export class PublicJobsService {
       requiredExperience: vacancy.position?.requiredExperience ?? null,
       requiredEducation: vacancy.position?.requiredEducation ?? null,
       areaName: vacancy.area.name,
-      companyName: vacancy.company.name,
+      companyName: confidential ? 'Proceso confidencial' : vacancy.company.name,
       brandPrimaryColor:
         vacancy.company.brandPrimaryColor ?? PLATFORM_BRAND_PRIMARY,
-      hasLogo: Boolean(vacancy.company.logoFileName),
+      hasLogo: confidential ? false : Boolean(vacancy.company.logoFileName),
+      confidential,
       publishedAt: vacancy.publishedAt,
       salaryAmount:
         salaryVisible && vacancy.salaryAmount

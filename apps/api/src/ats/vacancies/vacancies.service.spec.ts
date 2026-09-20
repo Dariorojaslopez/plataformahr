@@ -18,6 +18,7 @@ describe('VacanciesService', () => {
     salaryAmount: null,
     salaryCurrency: 'COP',
     showSalaryPublic: false,
+    confidential: false,
   };
 
   function build(roleCode = 'RECRUITER') {
@@ -152,6 +153,24 @@ describe('VacanciesService', () => {
         showSalaryPublic: true,
       }),
     ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('persists confidential flag', async () => {
+    const { service, prisma, audit } = build();
+    const updated = await service.update(tenant, 'user-1', 'vac-1', {
+      confidential: true,
+    });
+    expect(updated.confidential).toBe(true);
+    const [updateArg] = prisma.vacancy.update.mock.calls[0] as [
+      { data: { confidential?: boolean } },
+    ];
+    expect(updateArg.data.confidential).toBe(true);
+    expect(audit.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'VACANCY_CONFIDENTIAL_UPDATED',
+        metadata: expect.objectContaining({ confidential: true }),
+      }),
+    );
   });
 
   it('lists only vacancies assigned to the recruiter', async () => {

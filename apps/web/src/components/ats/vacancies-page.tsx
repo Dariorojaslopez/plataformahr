@@ -241,7 +241,14 @@ export function VacanciesPageClient() {
               >
                 <div className="flex items-start justify-between gap-2">
                   <div>
-                    <p className="font-medium">{vacancy.title}</p>
+                    <p className="font-medium">
+                      {vacancy.title}
+                      {vacancy.confidential ? (
+                        <Badge variant="secondary" className="ml-2">
+                          Confidencial
+                        </Badge>
+                      ) : null}
+                    </p>
                     <p className="text-sm text-muted-foreground">
                       {vacancy.position?.name ?? "—"} ·{" "}
                       {vacancy.area?.name ?? "—"}
@@ -298,7 +305,14 @@ function VacancyRow({
 }) {
   return (
     <TableRow>
-      <TableCell className="font-medium">{vacancy.title}</TableCell>
+      <TableCell className="font-medium">
+        <span className="inline-flex items-center gap-2">
+          {vacancy.title}
+          {vacancy.confidential ? (
+            <Badge variant="secondary">Confidencial</Badge>
+          ) : null}
+        </span>
+      </TableCell>
       <TableCell>{vacancy.position?.name ?? "—"}</TableCell>
       <TableCell>{vacancy.area?.name ?? "—"}</TableCell>
       <TableCell>

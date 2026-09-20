@@ -164,6 +164,24 @@ describe('HomeService', () => {
     expect(feed.assignedMetrics.vacancyCount).toBe(0);
   });
 
+  it('excludes confidential vacancies from the home listing', async () => {
+    const { service, prisma } = build();
+    await service.getFeed(tenant);
+    const openCall = (
+      prisma.vacancy.findMany.mock.calls as Array<
+        [
+          {
+            where?: {
+              confidential?: boolean;
+              assignedRecruiterEmployeeId?: string;
+            };
+          },
+        ]
+      >
+    ).find((call) => !call[0]?.where?.assignedRecruiterEmployeeId);
+    expect(openCall?.[0]?.where?.confidential).toBe(false);
+  });
+
   it('lists org-chart reports including cargo-parent fallback', async () => {
     const { service } = build({
       orgEmployees: [

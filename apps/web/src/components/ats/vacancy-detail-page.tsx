@@ -159,7 +159,10 @@ export function VacancyDetailPageClient() {
             {vacancy.publishedAt ? "Publicada" : "No publicada"}
           </Badge>
         </Field>
-        <Field label="Cargo">{vacancy.position?.name ?? "—"}</Field>
+        <div className="space-y-3">
+          <Field label="Cargo">{vacancy.position?.name ?? "—"}</Field>
+          <ConfidentialField vacancy={vacancy} />
+        </div>
         <Field label="Área">{vacancy.area?.name ?? "—"}</Field>
         <RecruiterAssignmentField vacancy={vacancy} />
         <SalaryPublicationField
@@ -185,6 +188,51 @@ export function VacancyDetailPageClient() {
       </section>
 
       <VacancyScreeningSection vacancyId={vacancy.id} />
+    </div>
+  );
+}
+
+function ConfidentialField({ vacancy }: { vacancy: Vacancy }) {
+  const companyId = useCompanyId();
+  const queryClient = useQueryClient();
+  const roleCodes = new Set(useSession().companyAccess?.roleCodes ?? []);
+  const canEdit =
+    roleCodes.has("CLIENT_ADMIN") ||
+    roleCodes.has("ADMINISTRATOR") ||
+    roleCodes.has("RECRUITMENT_LEADER") ||
+    roleCodes.has("RECRUITER");
+
+  const saveMutation = useMutation({
+    mutationFn: (confidential: boolean) =>
+      atsApi.updateVacancy(vacancy.id, { confidential }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: atsKeys.all(companyId) });
+      await queryClient.invalidateQueries({
+        queryKey: homeKeys.feed(companyId),
+      });
+      notifySuccess("Confidencialidad actualizada");
+    },
+    onError: (error) =>
+      notifyError(error, "No se pudo actualizar la confidencialidad."),
+  });
+
+  return (
+    <div className="space-y-2">
+      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+        Confidencial
+      </p>
+      <label className="flex items-center gap-2 text-sm">
+        <Checkbox
+          checked={Boolean(vacancy.confidential)}
+          disabled={!canEdit || saveMutation.isPending}
+          onCheckedChange={(checked) => saveMutation.mutate(checked === true)}
+        />
+        Vacante confidencial
+      </label>
+      <p className="text-xs text-muted-foreground">
+        Si está activa, el nombre de la empresa no aparece en el enlace público
+        y la vacante no se muestra en el inicio de los colaboradores.
+      </p>
     </div>
   );
 }

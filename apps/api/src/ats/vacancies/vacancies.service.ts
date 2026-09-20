@@ -236,6 +236,9 @@ export class VacanciesService {
         ...(dto.showSalaryPublic !== undefined
           ? { showSalaryPublic: dto.showSalaryPublic }
           : {}),
+        ...(dto.confidential !== undefined
+          ? { confidential: dto.confidential }
+          : {}),
         ...(dto.status !== undefined
           ? {
               status: dto.status,
@@ -307,6 +310,23 @@ export class VacanciesService {
         metadata: {
           id: updated.id,
           showSalaryPublic: updated.showSalaryPublic,
+        },
+      });
+    }
+
+    if (
+      dto.confidential !== undefined &&
+      dto.confidential !== existing.confidential
+    ) {
+      await this.audit.create({
+        action: ATS_AUDIT.VACANCY_CONFIDENTIAL_UPDATED,
+        entity: 'Vacancy',
+        entityId: updated.id,
+        company: { connect: { id: tenant.companyId } },
+        user: { connect: { id: userId } },
+        metadata: {
+          id: updated.id,
+          confidential: updated.confidential,
         },
       });
     }
