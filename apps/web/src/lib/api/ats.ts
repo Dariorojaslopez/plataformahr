@@ -232,6 +232,7 @@ export const atsApi = {
     apiRequest<Paginated<Candidate>>(
       `/ats/candidates${toQuery({
         status: params.status,
+        vacancyId: params.vacancyId,
         search: params.search,
         page: params.page,
         limit: params.limit,

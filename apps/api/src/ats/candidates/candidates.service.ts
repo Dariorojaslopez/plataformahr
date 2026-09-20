@@ -32,6 +32,7 @@ import {
   LINKEDIN_ERRORS,
   normalizeLinkedInProfileUrl,
 } from '../public-jobs/linkedin';
+import { toCandidateListItem } from './candidate-list-item';
 import type {
   CreateCandidateDto,
   ListCandidatesQueryDto,
@@ -55,6 +56,16 @@ export class CandidatesService {
       companyId,
       deletedAt: null,
       ...(query.status ? { status: query.status } : {}),
+      ...(query.vacancyId
+        ? {
+            applications: {
+              some: {
+                vacancyId: query.vacancyId,
+                deletedAt: null,
+              },
+            },
+          }
+        : {}),
       ...(search
         ? {
             OR: [
@@ -80,12 +91,51 @@ export class CandidatesService {
         orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }],
         skip,
         take: limit,
+        include: {
+          applications: {
+            where: { deletedAt: null },
+            orderBy: { appliedAt: 'desc' },
+            select: {
+              id: true,
+              vacancyId: true,
+              stage: true,
+              vacancy: { select: { title: true } },
+              preHireDocuments: { select: { kind: true } },
+              jobOffer: {
+                select: {
+                  signedOfferLetterFileName: true,
+                  signedContractFileName: true,
+                },
+              },
+              interviews: {
+                where: { deletedAt: null },
+                orderBy: [
+                  { scheduledAt: { sort: 'desc', nulls: 'last' } },
+                  { createdAt: 'desc' },
+                ],
+                select: {
+                  id: true,
+                  type: true,
+                  status: true,
+                  scheduledAt: true,
+                  interviewers: {
+                    select: {
+                      employee: {
+                        select: { firstName: true, lastName: true },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
       }),
       this.prisma.candidate.count({ where }),
     ]);
 
     return {
-      items,
+      items: items.map(toCandidateListItem),
       page,
       limit,
       total,

@@ -182,6 +182,18 @@ describe("atsApi", () => {
     );
   });
 
+  it("lists candidates with vacancy filter", async () => {
+    await atsApi.listCandidates({
+      status: "ACTIVE",
+      vacancyId: "vac-1",
+      search: "ana",
+      page: 2,
+    });
+    expect(mockedRequest).toHaveBeenCalledWith(
+      "/ats/candidates?status=ACTIVE&vacancyId=vac-1&search=ana&page=2",
+    );
+  });
+
   it("creates candidate and application", async () => {
     await atsApi.createCandidate({
       firstName: "Ana",

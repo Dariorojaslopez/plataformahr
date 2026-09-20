@@ -1,10 +1,10 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Eye, Pencil, Plus, Search } from "lucide-react";
+import { Download, Eye, Pencil, Plus, Search } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   CandidateForm,
   candidateToForm,
@@ -18,6 +18,12 @@ import { FormSelect } from "@/components/organization/form-select";
 import { PaginationControls } from "@/components/organization/pagination-controls";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
 import { Input } from "@/components/ui/input";
@@ -34,9 +40,18 @@ import {
 import { useCompanyId } from "@/hooks/use-company-id";
 import { atsApi, atsKeys } from "@/lib/api/ats";
 import { ApiError, getErrorMessage } from "@/lib/api/errors";
+import { hiringApi } from "@/lib/api/hiring";
+import { offersApi } from "@/lib/api/offers";
+import {
+  candidateAvailableDocuments,
+  type CandidateDownloadItem,
+} from "@/lib/ats/candidate-documents";
+import { candidateInterviewSummaries } from "@/lib/ats/candidate-interviews";
 import {
   CANDIDATE_STATUS_LABELS,
   candidateStatusVariant,
+  formatDate,
+  interviewStatusVariant,
 } from "@/lib/ats/labels";
 import { notifyError, notifySuccess } from "@/lib/ui/notify";
 import type { Candidate, CandidateStatus, ListCandidatesParams } from "@/types/ats";
@@ -48,6 +63,7 @@ function useCandidateFilters() {
   const params: ListCandidatesParams = {
     search: searchParams.get("search") ?? undefined,
     status: (searchParams.get("status") as CandidateStatus | null) ?? undefined,
+    vacancyId: searchParams.get("vacancyId") ?? undefined,
     page: Number(searchParams.get("page") ?? "1") || 1,
     limit: 20,
   };
@@ -56,6 +72,7 @@ function useCandidateFilters() {
     const sp = new URLSearchParams();
     if (merged.search) sp.set("search", merged.search);
     if (merged.status) sp.set("status", merged.status);
+    if (merged.vacancyId) sp.set("vacancyId", merged.vacancyId);
     if (merged.page && merged.page > 1) sp.set("page", String(merged.page));
     const qs = sp.toString();
     router.replace(qs ? `${pathname}?${qs}` : pathname);
@@ -77,6 +94,20 @@ export function CandidatesPageClient() {
     queryKey: atsKeys.candidates(companyId, params),
     queryFn: () => atsApi.listCandidates(params),
   });
+
+  const vacanciesQuery = useQuery({
+    queryKey: atsKeys.vacancies(companyId, { limit: 100 }),
+    queryFn: () => atsApi.listVacancies({ page: 1, limit: 100 }),
+  });
+
+  const vacancyOptions = useMemo(
+    () =>
+      (vacanciesQuery.data?.items ?? []).map((vacancy) => ({
+        value: vacancy.id,
+        label: vacancy.title,
+      })),
+    [vacanciesQuery.data],
+  );
 
   const saveMutation = useMutation({
     mutationFn: async (values: CandidateFormValues) => {
@@ -160,6 +191,21 @@ export function CandidatesPageClient() {
           </Button>
         </form>
         <FormSelect
+          id="cand-vacancy"
+          label="Proceso de selección"
+          className="w-full sm:w-64"
+          value={params.vacancyId ?? ""}
+          onChange={(vacancyId) =>
+            setParams({
+              vacancyId: vacancyId || undefined,
+              page: 1,
+            })
+          }
+          allowEmpty
+          emptyLabel="Todos"
+          options={vacancyOptions}
+        />
+        <FormSelect
           id="cand-status"
           label="Estado"
           className="w-full sm:w-48"
@@ -222,6 +268,9 @@ export function CandidatesPageClient() {
                   <TableHead>Teléfono</TableHead>
                   <TableHead>Ciudad</TableHead>
                   <TableHead>Fuente</TableHead>
+                  <TableHead>Proceso</TableHead>
+                  <TableHead>Entrevistas</TableHead>
+                  <TableHead>Documentos</TableHead>
                   <TableHead>Estado</TableHead>
                   <TableHead className="text-right">Acciones</TableHead>
                 </TableRow>
@@ -236,6 +285,15 @@ export function CandidatesPageClient() {
                     <TableCell>{candidate.phone ?? "—"}</TableCell>
                     <TableCell>{candidate.city ?? "—"}</TableCell>
                     <TableCell>{candidate.source ?? "—"}</TableCell>
+                    <TableCell>
+                      <CandidateProcesses candidate={candidate} />
+                    </TableCell>
+                    <TableCell>
+                      <CandidateInterviews candidate={candidate} />
+                    </TableCell>
+                    <TableCell>
+                      <CandidateDocumentsMenu candidate={candidate} />
+                    </TableCell>
                     <TableCell>
                       <Badge variant={candidateStatusVariant(candidate.status)}>
                         {CANDIDATE_STATUS_LABELS[candidate.status]}
@@ -290,6 +348,11 @@ export function CandidatesPageClient() {
                     {CANDIDATE_STATUS_LABELS[candidate.status]}
                   </Badge>
                 </div>
+                <div className="mt-3 space-y-2">
+                  <CandidateProcesses candidate={candidate} />
+                  <CandidateInterviews candidate={candidate} />
+                  <CandidateDocumentsMenu candidate={candidate} />
+                </div>
                 <div className="mt-3 flex gap-2">
                   <Button variant="outline" size="sm" asChild>
                     <Link href={`/ats/candidates/${candidate.id}`}>Ver</Link>
@@ -338,4 +401,130 @@ export function CandidatesPageClient() {
       </EntityEditorShell>
     </div>
   );
+}
+
+function CandidateProcesses({ candidate }: { candidate: Candidate }) {
+  const applications = candidate.applications ?? [];
+  if (applications.length === 0) {
+    return <span className="text-xs text-muted-foreground">—</span>;
+  }
+  return (
+    <div className="flex max-w-xs flex-col gap-1">
+      {applications.map((application) => (
+        <Link
+          key={application.id}
+          href={`/ats/pipeline?vacancyId=${application.vacancyId}`}
+          className="text-sm text-primary hover:underline"
+        >
+          {application.vacancyTitle}
+        </Link>
+      ))}
+    </div>
+  );
+}
+
+function CandidateInterviews({ candidate }: { candidate: Candidate }) {
+  const interviews = candidateInterviewSummaries(candidate);
+  if (interviews.length === 0) {
+    return <span className="text-xs text-muted-foreground">Sin entrevistas</span>;
+  }
+  return (
+    <div className="flex max-w-xs flex-col gap-2">
+      {interviews.map((interview) => (
+        <Link
+          key={interview.id}
+          href={interview.href}
+          className="space-y-0.5 text-sm hover:underline"
+        >
+          <span className="flex flex-wrap items-center gap-1">
+            <span className="font-medium text-foreground">{interview.title}</span>
+            <Badge variant={interviewStatusVariant(interview.status)}>
+              {interview.statusLabel}
+            </Badge>
+          </span>
+          <span className="block text-xs text-muted-foreground">
+            {[interview.scheduledAt ? formatDate(interview.scheduledAt) : null, interview.interviewers]
+              .filter(Boolean)
+              .join(" · ") || "Sin fecha"}
+          </span>
+        </Link>
+      ))}
+    </div>
+  );
+}
+
+function CandidateDocumentsMenu({ candidate }: { candidate: Candidate }) {
+  const documents = candidateAvailableDocuments(candidate);
+  if (documents.length === 0) {
+    return <span className="text-xs text-muted-foreground">Sin documentos</span>;
+  }
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button type="button" variant="outline" size="sm">
+          <Download className="size-4" aria-hidden />
+          Descargar
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start">
+        {documents.map((document) => (
+          <DropdownMenuItem
+            key={document.key}
+            onSelect={() => void downloadCandidateDocument(document)}
+          >
+            {document.label}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+function triggerBlobDownload(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.click();
+  URL.revokeObjectURL(url);
+}
+
+async function downloadCandidateDocument(item: CandidateDownloadItem) {
+  try {
+    if (item.kind === "cv") {
+      const file = await atsApi.downloadCandidateCv(item.candidateId);
+      triggerBlobDownload(file.blob, file.filename || "hoja-de-vida");
+      return;
+    }
+    if (!item.applicationId) {
+      throw new Error("Falta la aplicación del documento.");
+    }
+    if (item.kind === "SECURITY_STUDY" || item.kind === "MEDICAL_EXAM") {
+      const { blob, filename } = await hiringApi.downloadPreHireDocument(
+        item.applicationId,
+        item.kind,
+      );
+      triggerBlobDownload(
+        blob,
+        filename ||
+          (item.kind === "SECURITY_STUDY"
+            ? "estudio-seguridad"
+            : "examenes-medicos"),
+      );
+      return;
+    }
+    if (item.kind === "offer-letter") {
+      const { blob, filename } = await offersApi.downloadFilledLetter(
+        item.applicationId,
+      );
+      triggerBlobDownload(blob, filename || "carta-oferta");
+      return;
+    }
+    const { blob, filename } = await offersApi.downloadFilledContract(
+      item.applicationId,
+    );
+    triggerBlobDownload(blob, filename || "contrato");
+  } catch (error) {
+    notifyError(error, `No se pudo descargar ${item.label.toLowerCase()}.`);
+  }
 }

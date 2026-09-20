@@ -66,6 +66,7 @@ import {
   kanbanColumnForStage,
   missingFinalistHireDocuments,
   stageForKanbanColumn,
+  toHireCardsForDocs,
   type FitLevel,
   type KanbanColumnId,
 } from "@/lib/ats/pipeline-kanban";
@@ -625,6 +626,17 @@ export function PipelinePageClient() {
     }
   }
 
+  async function downloadFilledContract(card: PipelineCard) {
+    try {
+      const { blob, filename } = await offersApi.downloadFilledContract(
+        card.applicationId,
+      );
+      triggerBlobDownload(blob, filename || "contrato");
+    } catch (error) {
+      notifyError(error, "No se pudo descargar el contrato.");
+    }
+  }
+
   function onDragStart(event: DragStartEvent) {
     const card = event.active.data.current?.card as PipelineCard | undefined;
     setActiveCard(card ?? null);
@@ -645,6 +657,10 @@ export function PipelinePageClient() {
   );
   const finalistDocsRows = useMemo(
     () => finalistCardsForDocs(Object.values(kanbanCards).flat()),
+    [kanbanCards],
+  );
+  const toHireDocsRows = useMemo(
+    () => toHireCardsForDocs(Object.values(kanbanCards).flat()),
     [kanbanCards],
   );
 
@@ -792,11 +808,26 @@ export function PipelinePageClient() {
 
           <RecruiterDocsTable
             cards={finalistDocsRows}
+            heading="Documentos · Finalistas"
+            description="HV, estudio de seguridad, exámenes médicos y carta oferta diligenciada. Deben estar cargados para pasar a Contratar."
             onOpenDocs={setResumeCard}
             onDownloadOfferTemplate={downloadOfferTemplate}
             onUploadOfferLetter={requestOfferLetterUpload}
             onDownloadFilledOfferLetter={downloadFilledOfferLetter}
             uploadingOfferLetter={uploadOfferLetterMutation.isPending}
+          />
+          <RecruiterDocsTable
+            cards={toHireDocsRows}
+            heading="Documentos · A Contratar"
+            description="HV, estudio de seguridad, exámenes médicos, carta oferta y contrato diligenciado."
+            onOpenDocs={setResumeCard}
+            onDownloadOfferTemplate={downloadOfferTemplate}
+            onDownloadFilledOfferLetter={downloadFilledOfferLetter}
+            uploadingOfferLetter={uploadOfferLetterMutation.isPending}
+            onDownloadContractTemplate={downloadContractTemplate}
+            onUploadContract={requestContractUpload}
+            onDownloadFilledContract={downloadFilledContract}
+            uploadingContract={uploadContractMutation.isPending}
           />
         </div>
       ) : null}
@@ -1015,7 +1046,10 @@ export function PipelinePageClient() {
               <p className="text-sm text-muted-foreground">
                 {resumeCard.stage === "OFFER"
                   ? `${resumeCard.candidateName} · HV (PDF/DOC/DOCX/TXT, máx. 15 MB), pre-contratación (máx. 20 MB) y carta oferta (PDF o DOCX, máx. 10 MB). La carta solo se gestiona en Finalistas. Al cargar la diligenciada se inicia la aprobación.`
-                  : `${resumeCard.candidateName} · HV (PDF/DOC/DOCX/TXT, máx. 15 MB) y pre-contratación (máx. 20 MB). La carta oferta se gestiona cuando el candidato esté en Finalistas.`}
+                  : resumeCard.stage === "TO_HIRE" ||
+                      resumeCard.stage === "HIRED"
+                    ? `${resumeCard.candidateName} · HV, pre-contratación, carta oferta y contrato (PDF o DOCX, máx. 10 MB). El contrato se gestiona en A Contratar.`
+                    : `${resumeCard.candidateName} · HV (PDF/DOC/DOCX/TXT, máx. 15 MB) y pre-contratación (máx. 20 MB). La carta oferta se gestiona cuando el candidato esté en Finalistas.`}
               </p>
               <ul className="space-y-2 text-sm">
                 <DocDownloadRow
@@ -1136,6 +1170,69 @@ export function PipelinePageClient() {
                     />
                   </>
                 ) : null}
+                {resumeCard.stage === "TO_HIRE" ||
+                resumeCard.stage === "HIRED" ? (
+                  <>
+                    <DocDownloadRow
+                      label="Carta oferta diligenciada"
+                      available={Boolean(resumeCard.hasSignedOfferLetter)}
+                      statusLabel={filledOfferLetterStatusLabel(
+                        Boolean(resumeCard.hasSignedOfferLetter),
+                        resumeCard.offerLetterApprovalStatus,
+                      )}
+                      onDownload={() =>
+                        void downloadFilledOfferLetter(resumeCard)
+                      }
+                    />
+                    {resumeCard.hasCompanyContractTemplate ? (
+                      <>
+                        <DocDownloadRow
+                          label="Plantilla de contrato"
+                          available
+                          statusLabel={
+                            companyQuery.data?.contractTemplateOriginalName ??
+                            "Word configurada en ATS"
+                          }
+                          onDownload={() => void downloadContractTemplate()}
+                        />
+                        <DocDownloadRow
+                          label="Contrato diligenciado"
+                          available={Boolean(resumeCard.hasSignedContract)}
+                          statusLabel={filledContractStatusLabel(
+                            Boolean(resumeCard.hasSignedContract),
+                            resumeCard.contractApprovalStatus,
+                          )}
+                          onDownload={() =>
+                            void downloadFilledContract(resumeCard)
+                          }
+                          extraActions={
+                            resumeCard.stage === "TO_HIRE" ? (
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                disabled={uploadContractMutation.isPending}
+                                onClick={() =>
+                                  requestContractUpload(resumeCard)
+                                }
+                              >
+                                {uploadContractMutation.isPending
+                                  ? "Subiendo…"
+                                  : resumeCard.hasSignedContract
+                                    ? "Reemplazar"
+                                    : "Cargar contrato"}
+                              </Button>
+                            ) : undefined
+                          }
+                        />
+                      </>
+                    ) : (
+                      <li className="rounded-md border border-border/70 px-3 py-2 text-sm text-muted-foreground">
+                        Sin plantilla de contrato.
+                      </li>
+                    )}
+                  </>
+                ) : null}
               </ul>
             </div>
           ) : null}
@@ -1159,29 +1256,40 @@ export function PipelinePageClient() {
 
 function RecruiterDocsTable({
   cards,
+  heading,
+  description,
   onOpenDocs,
   onDownloadOfferTemplate,
   onUploadOfferLetter,
   onDownloadFilledOfferLetter,
   uploadingOfferLetter,
+  onDownloadContractTemplate,
+  onUploadContract,
+  onDownloadFilledContract,
+  uploadingContract,
 }: {
   cards: PipelineCard[];
+  heading: string;
+  description: string;
   onOpenDocs: (card: PipelineCard) => void;
   onDownloadOfferTemplate: () => void;
-  onUploadOfferLetter: (card: PipelineCard) => void;
+  onUploadOfferLetter?: (card: PipelineCard) => void;
   onDownloadFilledOfferLetter: (card: PipelineCard) => void;
   uploadingOfferLetter: boolean;
+  onDownloadContractTemplate?: () => void;
+  onUploadContract?: (card: PipelineCard) => void;
+  onDownloadFilledContract?: (card: PipelineCard) => void;
+  uploadingContract?: boolean;
 }) {
   if (cards.length === 0) return null;
+
+  const showContract = Boolean(onDownloadFilledContract);
 
   return (
     <section className="space-y-3 rounded-md border border-border p-4">
       <div>
-        <h3 className="text-base font-semibold">Documentos · Finalistas</h3>
-        <p className="text-sm text-muted-foreground">
-          HV, estudio de seguridad, exámenes médicos y carta oferta
-          diligenciada. Deben estar cargados para pasar a Contratar.
-        </p>
+        <h3 className="text-base font-semibold">{heading}</h3>
+        <p className="text-sm text-muted-foreground">{description}</p>
       </div>
       <Table>
         <TableHeader>
@@ -1191,6 +1299,7 @@ function RecruiterDocsTable({
             <TableHead>Seguridad</TableHead>
             <TableHead>Médicos</TableHead>
             <TableHead>Carta oferta</TableHead>
+            {showContract ? <TableHead>Contrato</TableHead> : null}
             <TableHead className="text-right">Acciones</TableHead>
           </TableRow>
         </TableHeader>
@@ -1246,48 +1355,118 @@ function RecruiterDocsTable({
                 </div>
               </TableCell>
               <TableCell>
-                <div className="flex flex-wrap gap-1">
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    onClick={() => void onDownloadOfferTemplate()}
-                  >
-                    Descargar plantilla
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    disabled={uploadingOfferLetter}
-                    onClick={() => onUploadOfferLetter(card)}
-                  >
-                    {card.hasSignedOfferLetter
-                      ? "Reemplazar"
-                      : "Cargar carta"}
-                  </Button>
-                  {card.hasSignedOfferLetter ? (
+                {onUploadOfferLetter ? (
+                  <div className="flex flex-wrap gap-1">
                     <Button
                       type="button"
                       size="sm"
                       variant="outline"
-                      onClick={() => void onDownloadFilledOfferLetter(card)}
+                      onClick={() => void onDownloadOfferTemplate()}
                     >
-                      Descargar
+                      Descargar plantilla
                     </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      disabled={uploadingOfferLetter}
+                      onClick={() => onUploadOfferLetter(card)}
+                    >
+                      {card.hasSignedOfferLetter
+                        ? "Reemplazar"
+                        : "Cargar carta"}
+                    </Button>
+                    {card.hasSignedOfferLetter ? (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => void onDownloadFilledOfferLetter(card)}
+                      >
+                        Descargar
+                      </Button>
+                    ) : (
+                      <p className="text-xs text-muted-foreground">
+                        Sin archivo
+                      </p>
+                    )}
+                    <p className="w-full text-[11px] text-muted-foreground">
+                      {filledOfferLetterStatusLabel(
+                        Boolean(card.hasSignedOfferLetter),
+                        card.offerLetterApprovalStatus,
+                      )}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-1">
+                    <DocAvailability
+                      available={Boolean(card.hasSignedOfferLetter)}
+                      onDownload={() => void onDownloadFilledOfferLetter(card)}
+                    />
+                    <p className="text-[11px] text-muted-foreground">
+                      {filledOfferLetterStatusLabel(
+                        Boolean(card.hasSignedOfferLetter),
+                        card.offerLetterApprovalStatus,
+                      )}
+                    </p>
+                  </div>
+                )}
+              </TableCell>
+              {showContract ? (
+                <TableCell>
+                  {card.hasCompanyContractTemplate ? (
+                    <div className="flex flex-wrap gap-1">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => void onDownloadContractTemplate?.()}
+                      >
+                        Descargar plantilla
+                      </Button>
+                      {card.stage === "TO_HIRE" && onUploadContract ? (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          disabled={uploadingContract}
+                          onClick={() => onUploadContract(card)}
+                        >
+                          {card.hasSignedContract
+                            ? "Reemplazar"
+                            : "Cargar contrato"}
+                        </Button>
+                      ) : null}
+                      {card.hasSignedContract ? (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={() =>
+                            void onDownloadFilledContract?.(card)
+                          }
+                        >
+                          Descargar
+                        </Button>
+                      ) : (
+                        <p className="text-xs text-muted-foreground">
+                          Sin archivo
+                        </p>
+                      )}
+                      <p className="w-full text-[11px] text-muted-foreground">
+                        {filledContractStatusLabel(
+                          Boolean(card.hasSignedContract),
+                          card.contractApprovalStatus,
+                        )}
+                      </p>
+                    </div>
                   ) : (
                     <p className="text-xs text-muted-foreground">
-                      Sin archivo
+                      Sin plantilla
                     </p>
                   )}
-                  <p className="w-full text-[11px] text-muted-foreground">
-                    {filledOfferLetterStatusLabel(
-                      Boolean(card.hasSignedOfferLetter),
-                      card.offerLetterApprovalStatus,
-                    )}
-                  </p>
-                </div>
-              </TableCell>
+                </TableCell>
+              ) : null}
               <TableCell className="text-right">
                 <div className="flex flex-wrap justify-end gap-2">
                   <Button

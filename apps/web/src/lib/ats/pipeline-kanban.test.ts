@@ -2,11 +2,13 @@ import { describe, expect, it } from "vitest";
 import {
   fitLevelFromRatings,
   finalistCardsForDocs,
+  toHireCardsForDocs,
   finalistHireDocumentsBlockedMessage,
   getValidKanbanTargets,
   groupCardsByKanbanColumn,
   hireRequirementChecks,
   interviewPhaseDecisionOptions,
+  isReadyToCreateCollaborator,
   KANBAN_COLUMNS,
   kanbanColumnForStage,
   missingFinalistHireDocuments,
@@ -43,6 +45,17 @@ describe("pipeline kanban", () => {
         card("d", "OFFER"),
       ]).map((item) => item.applicationId),
     ).toEqual(["b", "d"]);
+  });
+
+  it("lists A Contratar cards for recruiter docs table", () => {
+    expect(
+      toHireCardsForDocs([
+        card("a", "OFFER"),
+        card("b", "TO_HIRE"),
+        card("c", "HIRED"),
+        card("d", "INTERVIEW"),
+      ]).map((item) => item.applicationId),
+    ).toEqual(["b", "c"]);
   });
 
   it("lets a recruiter advance Nuevo to attraction in one drop", () => {
@@ -168,6 +181,37 @@ describe("pipeline kanban", () => {
         contractApprovalStatus: "NOT_REQUIRED",
       }).find((item) => item.id === "CV")?.met,
     ).toBe(false);
+  });
+
+  it("hides Crear colaborador once the contract is in the template flow", () => {
+    expect(
+      isReadyToCreateCollaborator({
+        stage: "TO_HIRE",
+        hasCompanyContractTemplate: true,
+        hasSignedContract: true,
+        contractApprovalStatus: "APPROVED",
+      }),
+    ).toBe(false);
+    expect(
+      isReadyToCreateCollaborator({
+        stage: "TO_HIRE",
+        hasCompanyContractTemplate: true,
+        hasSignedContract: true,
+        contractApprovalStatus: "PENDING",
+      }),
+    ).toBe(false);
+    expect(
+      isReadyToCreateCollaborator({
+        stage: "HIRED",
+        hasCompanyContractTemplate: false,
+      }),
+    ).toBe(false);
+    expect(
+      isReadyToCreateCollaborator({
+        stage: "TO_HIRE",
+        hasCompanyContractTemplate: false,
+      }),
+    ).toBe(true);
   });
 
   it("keeps the candidate in Finalistas until HV and prehire docs are uploaded", () => {

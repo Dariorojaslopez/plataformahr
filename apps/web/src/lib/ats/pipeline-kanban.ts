@@ -185,9 +185,9 @@ export function isReadyToCreateCollaborator(card: {
   contractApprovalStatus?: string | null;
 }): boolean {
   if (card.stage !== "TO_HIRE") return false;
-  if (!card.hasCompanyContractTemplate) return true;
-  if (!card.hasSignedContract) return false;
-  return isContractApprovalClear(card.contractApprovalStatus);
+  // Con plantilla, el colaborador se crea al cerrar aprobación/firma.
+  if (card.hasCompanyContractTemplate) return false;
+  return true;
 }
 
 export function isSignedOfferLetterClear(input: {
@@ -242,6 +242,11 @@ export function offerReadyForHireLabel(input: {
 /** Finalistas (OFFER) for recruiter docs table. */
 export function finalistCardsForDocs(cards: PipelineCard[]): PipelineCard[] {
   return cards.filter((card) => card.stage === "OFFER");
+}
+
+/** A Contratar (TO_HIRE + HIRED) for recruiter docs table. */
+export function toHireCardsForDocs(cards: PipelineCard[]): PipelineCard[] {
+  return cards.filter((card) => kanbanColumnForStage(card.stage) === "HIRED");
 }
 
 export function hireRequirementChecks(input: {

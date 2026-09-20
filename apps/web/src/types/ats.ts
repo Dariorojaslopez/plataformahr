@@ -1,3 +1,5 @@
+import type { InterviewStatus, InterviewType } from "@/types/interviews";
+
 export type VacancyRequestType = "EXISTING_POSITION" | "NEW_POSITION";
 
 export type VacancyRequestMotive =
@@ -308,8 +310,30 @@ export type Candidate = {
   cvFileName?: string | null;
   cvOriginalName?: string | null;
   cvMimeType?: string | null;
+  hasCv?: boolean;
+  applications?: CandidateListApplication[];
   createdAt: string;
   updatedAt: string;
+};
+
+export type CandidateListApplication = {
+  id: string;
+  vacancyId: string;
+  vacancyTitle: string;
+  stage: ApplicationStage;
+  hasSecurityStudyDoc: boolean;
+  hasMedicalExamDoc: boolean;
+  hasSignedOfferLetter: boolean;
+  hasSignedContract: boolean;
+  interviews?: CandidateListInterview[];
+};
+
+export type CandidateListInterview = {
+  id: string;
+  type: InterviewType;
+  status: InterviewStatus;
+  scheduledAt: string | null;
+  interviewers: string[];
 };
 
 export type Application = {
@@ -576,6 +600,7 @@ export type ListVacanciesParams = {
 
 export type ListCandidatesParams = {
   status?: CandidateStatus;
+  vacancyId?: string;
   search?: string;
   page?: number;
   limit?: number;

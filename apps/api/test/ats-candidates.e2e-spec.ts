@@ -651,6 +651,47 @@ describe('ATS candidates & applications (e2e)', () => {
         .expect(201);
     });
 
+    it('lists selection processes and filters by vacancy', async () => {
+      const listed = await request(app.getHttpServer())
+        .get('/ats/candidates')
+        .query({ vacancyId: vacancyOpenId })
+        .set(auth(recruiterToken))
+        .expect(200);
+
+      const items = (
+        listed.body as {
+          items: Array<{
+            id: string;
+            hasCv: boolean;
+            applications: Array<{
+              vacancyId: string;
+              vacancyTitle: string;
+              interviews: unknown[];
+            }>;
+          }>;
+        }
+      ).items;
+      expect(items.length).toBeGreaterThan(0);
+      expect(
+        items.every((candidate) =>
+          candidate.applications.some((row) => row.vacancyId === vacancyOpenId),
+        ),
+      ).toBe(true);
+
+      const applied = items.find((candidate) => candidate.id === candidateId);
+      expect(applied).toBeTruthy();
+      expect(applied?.hasCv).toBe(false);
+      expect(applied?.applications.map((row) => row.vacancyId).sort()).toEqual(
+        [vacancyOpenId, vacancyOpen2Id].sort(),
+      );
+      expect(
+        applied?.applications.map((row) => row.vacancyTitle).sort(),
+      ).toEqual([`Open A1 ${suffix}`, `Open A2 ${suffix}`].sort());
+      expect(
+        applied?.applications.every((row) => Array.isArray(row.interviews)),
+      ).toBe(true);
+    });
+
     it('rejects candidate from other tenant', async () => {
       const foreign = await request(app.getHttpServer())
         .post('/ats/candidates')

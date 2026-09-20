@@ -5,6 +5,7 @@ import {
   IsInt,
   IsOptional,
   IsString,
+  IsUUID,
   Max,
   MaxLength,
   Min,
@@ -154,6 +155,10 @@ export class ListCandidatesQueryDto {
   @IsOptional()
   @IsEnum(CandidateStatus)
   status?: CandidateStatus;
+
+  @IsOptional()
+  @IsUUID()
+  vacancyId?: string;
 
   @IsOptional()
   @IsString()
