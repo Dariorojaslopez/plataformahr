@@ -134,21 +134,6 @@ export function CycleFormFields({
       />
 
       <DatePair
-        startId={`${idPrefix}-eval-start`}
-        endId={`${idPrefix}-eval-end`}
-        startLabel="Fecha Autoevaluación"
-        endLabel="Fin autoevaluación"
-        startValue={form.evaluationStartDate}
-        endValue={form.evaluationEndDate}
-        onStart={(evaluationStartDate) =>
-          setForm((f) => ({ ...f, evaluationStartDate }))
-        }
-        onEnd={(evaluationEndDate) =>
-          setForm((f) => ({ ...f, evaluationEndDate }))
-        }
-      />
-
-      <DatePair
         startId={`${idPrefix}-goal-def-start`}
         endId={`${idPrefix}-goal-def-end`}
         startLabel="Fecha de definición de objetivos"
@@ -237,6 +222,21 @@ export function CycleFormFields({
       </div>
 
       <DatePair
+        startId={`${idPrefix}-eval-start`}
+        endId={`${idPrefix}-eval-end`}
+        startLabel="Fecha Autoevaluación"
+        endLabel="Fin autoevaluación"
+        startValue={form.evaluationStartDate}
+        endValue={form.evaluationEndDate}
+        onStart={(evaluationStartDate) =>
+          setForm((f) => ({ ...f, evaluationStartDate }))
+        }
+        onEnd={(evaluationEndDate) =>
+          setForm((f) => ({ ...f, evaluationEndDate }))
+        }
+      />
+
+      <DatePair
         startId={`${idPrefix}-mgr-eval-start`}
         endId={`${idPrefix}-mgr-eval-end`}
         startLabel="Fecha Evaluación"
@@ -279,6 +279,12 @@ export function CycleFormFields({
         onEnd={(closingEndDate) =>
           setForm((f) => ({ ...f, closingEndDate }))
         }
+      />
+
+      <CycleCompositionFields
+        form={form}
+        setForm={setForm}
+        idPrefix={idPrefix}
       />
 
       <div className="space-y-3 rounded-md border border-border p-3">
@@ -393,12 +399,6 @@ export function CycleFormFields({
           ) : null}
         </div>
       </div>
-
-      <CycleCompositionFields
-        form={form}
-        setForm={setForm}
-        idPrefix={idPrefix}
-      />
     </>
   );
 }
