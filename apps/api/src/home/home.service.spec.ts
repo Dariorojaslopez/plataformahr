@@ -255,6 +255,23 @@ describe('HomeService', () => {
     });
   });
 
+  it('omits hired candidates from pending evaluations', async () => {
+    const { service, prisma } = build();
+    await service.getFeed(tenant);
+    expect(prisma.interview.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          application: expect.objectContaining({
+            deletedAt: null,
+            status: 'ACTIVE',
+            stage: { in: ['INTERVIEW', 'OFFER'] },
+            candidate: { status: { not: 'HIRED' } },
+          }),
+        }),
+      }),
+    );
+  });
+
   it('does not write locked identity fields on profile update', async () => {
     const { service, prisma, audit } = build();
     await service.updateProfile(tenant, { phone: '3009990000' });

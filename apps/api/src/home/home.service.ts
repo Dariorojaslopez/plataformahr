@@ -57,6 +57,13 @@ const PENDING_EVALUATION_STATUSES: InterviewStatus[] = [
   InterviewStatus.IN_PROGRESS,
 ];
 
+const PENDING_EVALUATION_APPLICATION: Prisma.ApplicationWhereInput = {
+  deletedAt: null,
+  status: ApplicationStatus.ACTIVE,
+  stage: { in: [ApplicationStage.INTERVIEW, ApplicationStage.OFFER] },
+  candidate: { status: { not: CandidateStatus.HIRED } },
+};
+
 @Injectable()
 export class HomeService {
   constructor(
@@ -418,6 +425,7 @@ export class HomeService {
         deletedAt: null,
         status: { in: PENDING_EVALUATION_STATUSES },
         interviewers: { some: { employeeId } },
+        application: PENDING_EVALUATION_APPLICATION,
       },
       select: {
         id: true,
@@ -668,7 +676,7 @@ export class HomeService {
           status: { in: PENDING_EVALUATION_STATUSES },
           application: {
             vacancyId: { in: vacancyIds },
-            deletedAt: null,
+            ...PENDING_EVALUATION_APPLICATION,
           },
         },
       }),
