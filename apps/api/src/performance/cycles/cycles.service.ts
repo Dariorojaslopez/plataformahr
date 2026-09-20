@@ -393,6 +393,7 @@ export class CyclesService {
           selfEvaluationWeight,
           managerEvaluationWeight,
           ...extraWeights,
+          startDate,
           endDate,
           ...dates,
           ...(goalsComposition
