@@ -207,7 +207,7 @@ test('role menu defaults hide company admin pages from collaborators', () => {
     catalogHrefs: catalog,
     overrides: {},
   });
-  assert.ok(recruitmentLead.includes('/ats/interview-templates'));
+  assert.equal(recruitmentLead.includes('/ats/interview-templates'), false);
   assert.ok(recruitmentLead.includes('/ats/settings/approvals'));
   assert.equal(recruitmentLead.includes('/organization/employees'), false);
 

@@ -4,7 +4,6 @@ import {
   CalendarDays,
   ChartColumn,
   ClipboardList,
-  FileText,
   Gauge,
   GitBranch,
   LayoutDashboard,
@@ -138,11 +137,6 @@ export const APP_NAV: NavSection[] = [
         icon: CalendarDays,
       },
       {
-        label: "Plantillas de entrevista",
-        href: "/ats/interview-templates",
-        icon: FileText,
-      },
-      {
         label: "Configuración ATS",
         href: "/ats/settings/approvals",
         icon: Settings2,
@@ -229,11 +223,12 @@ const NAV_FEATURE_BY_HREF: Record<string, CompanyFeatureCode> = {
   "/ats/candidates": "ats.candidates",
   "/ats/pipeline": "ats.pipeline",
   "/ats/interviews": "ats.interviews",
-  "/ats/interview-templates": "ats.interview-templates",
+  "/ats/interview-templates": "ats.approvals",
   "/ats/settings/approvals": "ats.approvals",
   "/ats/settings/evaluators": "ats.approvals",
   "/ats/settings/active-processes": "ats.approvals",
   "/ats/settings/templates": "ats.approvals",
+  "/ats/settings/interview-templates": "ats.approvals",
   "/ats/settings/recruiter-assignment": "ats.approvals",
   "/ats/settings/offer-letter-approvers": "ats.approvals",
   "/ats/settings/contract-approvers": "ats.approvals",
@@ -343,6 +338,15 @@ export function resolveActiveNavHref(
       best = item.href;
     }
   }
+  if (
+    best === null &&
+    pathname.startsWith("/ats/settings/") &&
+    items.some(
+      (item) => item.href === "/ats/settings/approvals" && !item.disabled,
+    )
+  ) {
+    return "/ats/settings/approvals";
+  }
   return best;
 }
 
@@ -365,7 +369,12 @@ export function resolvePageTitle(pathname: string): string {
   if (pathname.startsWith("/ats/candidates/")) return "Candidato";
   if (pathname.startsWith("/ats/applications/")) return "Aplicación";
   if (pathname.startsWith("/ats/interviews/")) return "Entrevista";
-  if (pathname === "/ats/interview-templates") return "Plantillas de entrevista";
+  if (
+    pathname === "/ats/interview-templates" ||
+    pathname === "/ats/settings/interview-templates"
+  ) {
+    return "Plantillas de entrevista";
+  }
   if (pathname.startsWith("/performance/cycles/")) return "Ciclo";
   if (pathname.startsWith("/performance/scales/")) return "Escala";
   if (pathname.startsWith("/performance/evaluations/")) return "Evaluación";

@@ -151,7 +151,7 @@ export const HOME_SHORTCUTS: Record<CompanyHomeRole, HomeShortcut[]> = {
       description: "Agenda y da seguimiento a entrevistas.",
     },
     {
-      href: "/ats/interview-templates",
+      href: "/ats/settings/interview-templates",
       title: "Plantillas de entrevista",
       description: "Formularios de evaluación reutilizables.",
     },
@@ -252,7 +252,7 @@ export const HOME_SHORTCUTS: Record<CompanyHomeRole, HomeShortcut[]> = {
       group: "ats",
     },
     {
-      href: "/ats/interview-templates",
+      href: "/ats/settings/interview-templates",
       title: "Plantillas de entrevista",
       description: "Formularios de evaluación reutilizables.",
       group: "ats",

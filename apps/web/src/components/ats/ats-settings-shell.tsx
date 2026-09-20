@@ -10,6 +10,10 @@ const TABS = [
   { href: "/ats/settings/active-processes", label: "Procesos activos" },
   { href: "/ats/settings/templates", label: "Plantillas" },
   {
+    href: "/ats/settings/interview-templates",
+    label: "Plantillas de entrevista",
+  },
+  {
     href: "/ats/settings/recruiter-assignment",
     label: "Asignación de reclutador",
   },

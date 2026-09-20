@@ -64,8 +64,11 @@ describe("resolveActiveNavHref", () => {
   });
 
   it("does not highlight lookalike ATS or Performance hrefs", () => {
-    expect(activeLabels("/ats/interview-templates")).toEqual([
-      "Plantillas de entrevista",
+    expect(activeLabels("/ats/settings/interview-templates")).toEqual([
+      "Configuración ATS",
+    ]);
+    expect(activeLabels("/ats/settings/templates")).toEqual([
+      "Configuración ATS",
     ]);
     expect(activeLabels("/ats/vacancy-requests")).toEqual([
       "Crear proceso de selección",
@@ -89,7 +92,7 @@ describe("resolveActiveNavHref", () => {
       "/ats/vacancies/vac-1",
       "/ats/vacancy-requests/req-1",
       "/ats/interviews/int-1",
-      "/ats/interview-templates",
+      "/ats/settings/interview-templates",
       "/ats/settings/approvals",
       "/ats/settings/evaluators",
       "/ats/settings/active-processes",

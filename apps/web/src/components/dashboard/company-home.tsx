@@ -66,7 +66,7 @@ const SHORTCUT_ICONS: Record<string, LucideIcon> = {
   "/ats/settings/approvals": ShieldCheck,
   "/ats/settings/evaluators": UserCheck,
   "/ats/settings/active-processes": ListChecks,
-  "/ats/interview-templates": FileText,
+  "/ats/settings/interview-templates": FileText,
   "/performance/cycles": Gauge,
   "/performance/population": UserCheck,
   "/performance/9box": LayoutGrid,

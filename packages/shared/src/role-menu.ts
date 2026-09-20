@@ -68,11 +68,6 @@ export const ROLE_MENU_CATALOG = [
   { section: 'ATS', href: '/ats/interviews', label: 'Entrevistas' },
   {
     section: 'ATS',
-    href: '/ats/interview-templates',
-    label: 'Plantillas de entrevista',
-  },
-  {
-    section: 'ATS',
     href: '/ats/settings/approvals',
     label: 'Configuración ATS',
   },
@@ -127,7 +122,6 @@ export const DEFAULT_ROLE_MENU_HREFS: Record<
     '/ats/candidates',
     '/ats/pipeline',
     '/ats/interviews',
-    '/ats/interview-templates',
     '/ats/vacancy-requests',
     '/ats/settings/approvals',
   ],
@@ -171,6 +165,7 @@ export function isConfigurableCompanyRole(
 const LEGACY_ROLE_MENU_HREFS: Record<string, RoleMenuHref> = {
   '/organization/settings': '/performance/9box',
   '/performance/settings': '/performance/9box',
+  '/ats/interview-templates': '/ats/settings/approvals',
 };
 
 export function normalizeRoleMenuHref(href: string): string {

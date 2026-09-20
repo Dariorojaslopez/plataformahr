@@ -57,7 +57,7 @@ describe("home view by role", () => {
       "/ats/candidates",
       "/ats/pipeline",
       "/ats/interviews",
-      "/ats/interview-templates",
+      "/ats/settings/interview-templates",
       "/ats/vacancy-requests",
       "/ats/settings/approvals",
     ]);

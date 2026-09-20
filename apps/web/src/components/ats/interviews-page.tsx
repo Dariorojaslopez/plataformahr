@@ -113,7 +113,7 @@ export function InterviewsPageClient() {
         description="Pendientes por realizar, agrupadas por proceso de selección."
         actions={
           <Button variant="outline" asChild>
-            <Link href="/ats/interview-templates">Plantillas</Link>
+            <Link href="/ats/settings/interview-templates">Plantillas</Link>
           </Button>
         }
       />
