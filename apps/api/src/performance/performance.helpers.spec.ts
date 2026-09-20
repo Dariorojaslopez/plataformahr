@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client';
 import { PerformanceCycleStatus } from '@prisma/client';
 import {
   canTransitionCycle,
+  isCycleMetadataEditable,
   isCycleStructurallyEditable,
 } from './cycle-transitions';
 import {
@@ -165,6 +166,11 @@ describe('performance helpers', () => {
         true,
       );
       expect(isCycleStructurallyEditable(PerformanceCycleStatus.ACTIVE)).toBe(
+        false,
+      );
+      expect(isCycleMetadataEditable(PerformanceCycleStatus.DRAFT)).toBe(true);
+      expect(isCycleMetadataEditable(PerformanceCycleStatus.ACTIVE)).toBe(true);
+      expect(isCycleMetadataEditable(PerformanceCycleStatus.CLOSED)).toBe(
         false,
       );
     });

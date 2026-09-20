@@ -36,7 +36,6 @@ import {
   parseOptionalDateOnly,
   parseWeight,
   resolveGoalsCompositionConfig,
-  sameUtcDay,
   type ResultCompositionConfig,
 } from '../performance.helpers';
 import {
@@ -258,15 +257,10 @@ export class CyclesService {
       throw new BadRequestException('El ciclo ya no puede modificarse.');
     }
 
-    if (dto.startDate !== undefined) {
-      const nextStart = parseDateOnly(dto.startDate, 'startDate');
-      if (!sameUtcDay(nextStart, existing.startDate)) {
-        throw new BadRequestException(
-          'La apertura del ciclo no se puede modificar.',
-        );
-      }
-    }
-    const startDate = existing.startDate;
+    const startDate =
+      dto.startDate !== undefined
+        ? parseDateOnly(dto.startDate, 'startDate')
+        : existing.startDate;
     const endDate =
       dto.endDate !== undefined
         ? parseDateOnly(dto.endDate, 'endDate')

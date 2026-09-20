@@ -40,5 +40,8 @@ export function isCycleStructurallyEditable(
 export function isCycleMetadataEditable(
   status: PerformanceCycleStatusType,
 ): boolean {
-  return status === PerformanceCycleStatus.DRAFT;
+  return (
+    status === PerformanceCycleStatus.DRAFT ||
+    status === PerformanceCycleStatus.ACTIVE
+  );
 }

@@ -8,10 +8,11 @@ import {
 } from "@/lib/performance/activation";
 
 describe("cycle activation helpers", () => {
-  it("allows structural and metadata edits only in DRAFT", () => {
+  it("allows metadata edits in DRAFT and ACTIVE, structure only in DRAFT", () => {
     expect(canEditCycleStructure("DRAFT")).toBe(true);
     expect(canEditCycleStructure("ACTIVE")).toBe(false);
     expect(canEditCycleMetadata("DRAFT")).toBe(true);
+    expect(canEditCycleMetadata("ACTIVE")).toBe(true);
     expect(canEditCycleMetadata("CLOSED")).toBe(false);
   });
 

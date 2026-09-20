@@ -558,7 +558,6 @@ export function CycleDetailPageClient() {
                 });
               }}
               idPrefix="meta"
-              lockStartDate
             />
             {metaError ? (
               <p className="text-sm text-destructive" role="alert">

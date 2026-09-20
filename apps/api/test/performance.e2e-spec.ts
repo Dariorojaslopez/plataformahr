@@ -667,16 +667,28 @@ describe('Performance core (e2e)', () => {
       .send({ competencyId: competencyIds[1], scaleId, weight: 25 })
       .expect(400);
 
-    await request(app.getHttpServer())
+    const liveEdit = await request(app.getHttpServer())
       .patch(`/performance/cycles/${cycleId}`)
       .set(auth(adminToken))
-      .send({ name: 'No edit ACTIVE' })
-      .expect(400);
+      .send({ name: 'Edited ACTIVE', startDate: '2026-01-15' })
+      .expect(200);
+    expect((liveEdit.body as { name: string; startDate: string }).name).toBe(
+      'Edited ACTIVE',
+    );
+    expect((liveEdit.body as { startDate: string }).startDate).toBe(
+      '2026-01-15',
+    );
 
     await request(app.getHttpServer())
       .post(`/performance/cycles/${cycleId}/close`)
       .set(auth(adminToken))
       .expect(201);
+
+    await request(app.getHttpServer())
+      .patch(`/performance/cycles/${cycleId}`)
+      .set(auth(adminToken))
+      .send({ name: 'No edit CLOSED' })
+      .expect(400);
 
     await request(app.getHttpServer())
       .post(`/performance/cycles/${cycleId}/cancel`)

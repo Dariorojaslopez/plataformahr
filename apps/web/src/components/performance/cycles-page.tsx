@@ -339,12 +339,10 @@ export function CyclesPageClient() {
             form={form}
             setForm={setForm}
             idPrefix="cycles"
-            lockStartDate={editing != null}
           />
           <p className="text-xs text-muted-foreground">
             Las ventanas de fechas son opcionales; si usas una, debes indicar
-            inicio y fin y deben estar dentro del periodo del ciclo. La apertura
-            del ciclo no se puede modificar después de crearlo.
+            inicio y fin y deben estar dentro del periodo del ciclo.
           </p>
           {formError ? (
             <p className="text-sm text-destructive" role="alert">

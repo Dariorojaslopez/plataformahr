@@ -6,13 +6,13 @@ export function canEditCycleStructure(status: PerformanceCycleStatus): boolean {
 }
 
 export function canEditCycleMetadata(status: PerformanceCycleStatus): boolean {
-  return status === "DRAFT";
+  return status === "DRAFT" || status === "ACTIVE";
 }
 
 export function canEditEvaluatorWeights(
   status: PerformanceCycleStatus,
 ): boolean {
-  return status === "DRAFT";
+  return status === "DRAFT" || status === "ACTIVE";
 }
 
 export function canActivateCycle(input: {
