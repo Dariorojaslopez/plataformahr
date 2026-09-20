@@ -1,7 +1,13 @@
 "use client";
 
-import type { Dispatch, SetStateAction } from "react";
-import { Plus, Trash2 } from "lucide-react";
+import {
+  type Dispatch,
+  type SetStateAction,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
+import { CalendarDays, Plus, Trash2 } from "lucide-react";
 import { FormSelect } from "@/components/organization/form-select";
 import { CycleCompositionFields } from "@/components/performance/cycle-composition-fields";
 import { Button } from "@/components/ui/button";
@@ -9,6 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import type { CycleFormState } from "@/lib/performance/cycle-form";
+import { dmyToIso, isoToDmy } from "@/lib/performance/date-dmy";
 import {
   EVALUATION_MODEL_OPTIONS,
   EXTRA_EVALUATOR_LABELS,
@@ -21,6 +28,89 @@ type CycleFormFieldsProps = {
   idPrefix?: string;
   lockStartDate?: boolean;
 };
+
+function CycleDateInput({
+  id,
+  value,
+  onChange,
+  required,
+  disabled,
+}: {
+  id: string;
+  value: string;
+  onChange: (value: string) => void;
+  required?: boolean;
+  disabled?: boolean;
+}) {
+  const pickerRef = useRef<HTMLInputElement>(null);
+  const [text, setText] = useState(() => isoToDmy(value));
+
+  useEffect(() => {
+    setText(isoToDmy(value));
+  }, [value]);
+
+  function commitText(raw: string) {
+    const trimmed = raw.trim();
+    if (!trimmed) {
+      onChange("");
+      setText("");
+      return;
+    }
+    const iso = dmyToIso(trimmed);
+    if (iso) {
+      onChange(iso);
+      setText(isoToDmy(iso));
+      return;
+    }
+    setText(isoToDmy(value));
+  }
+
+  return (
+    <div className="relative">
+      <Input
+        id={id}
+        type="text"
+        inputMode="numeric"
+        autoComplete="off"
+        placeholder="dd/mm/aaaa"
+        value={text}
+        required={required}
+        disabled={disabled}
+        onChange={(e) => setText(e.target.value)}
+        onBlur={() => commitText(text)}
+        className="pr-10"
+      />
+      <input
+        ref={pickerRef}
+        type="date"
+        value={value}
+        tabIndex={-1}
+        disabled={disabled}
+        aria-hidden
+        className="pointer-events-none absolute h-0 w-0 overflow-hidden opacity-0"
+        onChange={(e) => onChange(e.target.value)}
+      />
+      <button
+        type="button"
+        disabled={disabled}
+        className="absolute inset-y-0 right-0 flex w-10 items-center justify-center text-muted-foreground disabled:opacity-50"
+        aria-label="Abrir calendario"
+        onClick={() => {
+          const picker = pickerRef.current;
+          if (!picker) return;
+          if (typeof picker.showPicker === "function") {
+            picker.showPicker();
+            return;
+          }
+          picker.focus();
+          picker.click();
+        }}
+      >
+        <CalendarDays className="h-4 w-4" aria-hidden />
+      </button>
+    </div>
+  );
+}
 
 function DatePair({
   startId,
@@ -52,22 +142,20 @@ function DatePair({
           {startLabel}
           {startRequired ? " *" : ""}
         </Label>
-        <Input
+        <CycleDateInput
           id={startId}
-          type="date"
           value={startValue}
-          onChange={(e) => onStart(e.target.value)}
+          onChange={onStart}
           required={startRequired}
           disabled={startDisabled}
         />
       </div>
       <div className="space-y-2">
         <Label htmlFor={endId}>{endLabel}{startRequired ? " *" : ""}</Label>
-        <Input
+        <CycleDateInput
           id={endId}
-          type="date"
           value={endValue}
-          onChange={(e) => onEnd(e.target.value)}
+          onChange={onEnd}
           required={startRequired}
         />
       </div>
