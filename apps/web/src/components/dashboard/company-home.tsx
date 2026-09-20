@@ -68,7 +68,6 @@ const SHORTCUT_ICONS: Record<string, LucideIcon> = {
   "/ats/settings/active-processes": ListChecks,
   "/ats/settings/interview-templates": FileText,
   "/performance/cycles": Gauge,
-  "/performance/population": UserCheck,
   "/performance/9box": LayoutGrid,
   "/performance/calibration": Users,
   "/performance/scales": SlidersHorizontal,

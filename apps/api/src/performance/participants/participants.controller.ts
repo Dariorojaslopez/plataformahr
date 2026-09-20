@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   ParseUUIDPipe,
@@ -80,6 +81,22 @@ export class ParticipantsController {
       user.userId,
       cycleId,
       dto,
+    );
+  }
+
+  @Delete(':participantId')
+  @RequirePermissions('performance.evaluation.manage')
+  removeDraft(
+    @CurrentTenant() tenant: TenantContext,
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('cycleId', ParseUUIDPipe) cycleId: string,
+    @Param('participantId', ParseUUIDPipe) participantId: string,
+  ) {
+    return this.participantsService.removeDraft(
+      tenant.companyId,
+      user.userId,
+      cycleId,
+      participantId,
     );
   }
 

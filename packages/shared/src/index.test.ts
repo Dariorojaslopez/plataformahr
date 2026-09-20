@@ -223,6 +223,7 @@ test('role menu defaults hide company admin pages from collaborators', () => {
 
   const catalogHrefs = ROLE_MENU_CATALOG.map((item) => item.href);
   assert.ok(catalogHrefs.includes('/performance/9box'));
+  assert.equal(catalogHrefs.includes('/performance/population'), false);
   assert.equal(catalogHrefs.includes('/performance/settings'), false);
   assert.equal(catalogHrefs.includes('/organization/settings'), false);
   const legacySettings = resolveAllowedNavHrefs({
@@ -234,6 +235,17 @@ test('role menu defaults hide company admin pages from collaborators', () => {
   assert.ok(legacySettings.includes('/performance/9box'));
   assert.equal(
     navGrantCoversPath(legacySettings, '/organization/settings'),
+    true,
+  );
+  const legacyPopulation = resolveAllowedNavHrefs({
+    roleCodes: ['PERFORMANCE_MANAGER'],
+    homeRole: 'PERFORMANCE_MANAGER',
+    catalogHrefs,
+    overrides: { PERFORMANCE_MANAGER: ['/performance/population'] },
+  });
+  assert.ok(legacyPopulation.includes('/performance/cycles'));
+  assert.equal(
+    navGrantCoversPath(legacyPopulation, '/performance/population'),
     true,
   );
 });

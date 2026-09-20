@@ -237,6 +237,12 @@ export const performanceApi = {
       { method: "POST" },
     ),
 
+  removeDraftParticipant: (cycleId: string, participantId: string) =>
+    apiRequest<{ success: boolean }>(
+      `/performance/cycles/${cycleId}/participants/${participantId}`,
+      { method: "DELETE" },
+    ),
+
   calculateParticipantResult: (cycleId: string, participantId: string) =>
     apiRequest<PerformanceResultAdminDetail>(
       `/performance/cycles/${cycleId}/participants/${participantId}/result/calculate`,
@@ -250,8 +256,8 @@ export const performanceApi = {
     ),
 
   /** Pages through participants to collect employeeIds (UI “already assigned”). */
-  listAllParticipantEmployeeIds: async (cycleId: string) => {
-    const ids: string[] = [];
+  listAllParticipants: async (cycleId: string) => {
+    const items: Array<{ id: string; employeeId: string }> = [];
     let page = 1;
     const limit = 100;
     for (;;) {
@@ -260,12 +266,17 @@ export const performanceApi = {
         limit,
       });
       for (const item of res.items) {
-        ids.push(item.employeeId);
+        items.push({ id: item.id, employeeId: item.employeeId });
       }
       if (res.items.length === 0 || page * limit >= res.total) break;
       page += 1;
     }
-    return ids;
+    return items;
+  },
+
+  listAllParticipantEmployeeIds: async (cycleId: string) => {
+    const items = await performanceApi.listAllParticipants(cycleId);
+    return items.map((item) => item.employeeId);
   },
 
   listMineEvaluations: () =>

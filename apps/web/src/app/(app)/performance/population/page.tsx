@@ -1,5 +1,5 @@
-import { PopulationPageClient } from "@/components/performance/population-page";
+import { redirect } from "next/navigation";
 
-export default function PopulationPage() {
-  return <PopulationPageClient />;
+export default function PopulationRedirectPage() {
+  redirect("/performance/cycles");
 }

@@ -80,12 +80,17 @@ function evalStatusLabel(
 type Props = {
   cycleId: string;
   cycleStatus: PerformanceCycleStatus;
+  hideAssignment?: boolean;
 };
 
-export function CycleParticipantsTab({ cycleId, cycleStatus }: Props) {
+export function CycleParticipantsTab({
+  cycleId,
+  cycleStatus,
+  hideAssignment = false,
+}: Props) {
   const companyId = useCompanyId();
   const queryClient = useQueryClient();
-  const canAssign = cycleStatus === "ACTIVE";
+  const canAssign = cycleStatus === "ACTIVE" && !hideAssignment;
   const canMutateResults = canMutateParticipantResults(cycleStatus);
 
   const [page, setPage] = useState(1);
@@ -309,15 +314,21 @@ export function CycleParticipantsTab({ cycleId, cycleStatus }: Props) {
   const total = participantsQuery.data?.total ?? 0;
   const totalPages = participantsQuery.data?.totalPages ?? 1;
 
+  if (hideAssignment && items.length === 0 && !search) {
+    return null;
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-lg font-semibold">Participantes</h2>
           <p className="text-sm text-muted-foreground">
-            {canAssign
-              ? "Asigna colaboradores al ciclo activo. Se materializan autoevaluación y, si hay manager directo, evaluación de líder."
-              : "Solo se pueden asignar o excluir participantes cuando el ciclo está activo."}
+            {hideAssignment
+              ? "Avance de evaluaciones y resultados de la población asignada."
+              : canAssign
+                ? "Asigna colaboradores al ciclo activo. Se materializan autoevaluación y, si hay manager directo, evaluación de líder."
+                : "Solo se pueden asignar o excluir participantes cuando el ciclo está activo."}
           </p>
         </div>
         {canAssign ? (

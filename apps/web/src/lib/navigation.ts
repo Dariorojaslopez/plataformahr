@@ -19,7 +19,6 @@ import {
   SlidersHorizontal,
   Target,
   Upload,
-  UserCheck,
   Users,
   type LucideIcon,
 } from "lucide-react";
@@ -152,11 +151,6 @@ export const APP_NAV: NavSection[] = [
         icon: Gauge,
       },
       {
-        label: "Seleccionar población a evaluar",
-        href: "/performance/population",
-        icon: UserCheck,
-      },
-      {
         label: "Mis evaluaciones",
         href: "/performance/my-evaluations",
         icon: ClipboardList,
@@ -233,7 +227,7 @@ const NAV_FEATURE_BY_HREF: Record<string, CompanyFeatureCode> = {
   "/ats/settings/offer-letter-approvers": "ats.approvals",
   "/ats/settings/contract-approvers": "ats.approvals",
   "/performance/cycles": "performance.cycles",
-  "/performance/population": "performance.population",
+  "/performance/population": "performance.cycles",
   "/performance/my-evaluations": "performance.my-evaluations",
   "/performance/my-results": "performance.my-results",
   "/performance/results": "performance.results",
@@ -392,8 +386,7 @@ export function resolvePageTitle(pathname: string): string {
     return "Objetivo";
   if (pathname === "/goals/cycles") return "Periodos";
   if (pathname === "/goals") return "Objetivos organizacionales";
-  if (pathname === "/performance/population")
-    return "Seleccionar población a evaluar";
+  if (pathname === "/performance/population") return "Ciclos";
   if (pathname === "/performance/calibration") return "Calibración";
   if (pathname.startsWith("/performance/calibration/")) return "Calibración";
   if (pathname === "/performance/9box") return "9Box";

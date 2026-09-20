@@ -10,11 +10,6 @@ describe("performance navigation", () => {
     expect(items.map(({ label, href, disabled }) => ({ label, href, disabled }))).toEqual([
       { label: "Ciclos", href: "/performance/cycles", disabled: undefined },
       {
-        label: "Seleccionar población a evaluar",
-        href: "/performance/population",
-        disabled: undefined,
-      },
-      {
         label: "Mis evaluaciones",
         href: "/performance/my-evaluations",
         disabled: undefined,
@@ -45,7 +40,7 @@ describe("performance navigation", () => {
         disabled: undefined,
       },
     ]);
-    expect(items).toHaveLength(8);
+    expect(items).toHaveLength(7);
   });
 
   it("places competencias under Organización", () => {
@@ -118,9 +113,7 @@ describe("performance navigation", () => {
     expect(resolvePageTitle("/performance/evaluations/abc")).toBe("Evaluación");
     expect(resolvePageTitle("/performance/results/abc")).toBe("Resultado");
     expect(resolvePageTitle("/performance/my-results/abc")).toBe("Mi resultado");
-    expect(resolvePageTitle("/performance/population")).toBe(
-      "Seleccionar población a evaluar",
-    );
+    expect(resolvePageTitle("/performance/population")).toBe("Ciclos");
     expect(resolvePageTitle("/performance/calibration")).toBe("Calibración");
     expect(resolvePageTitle("/performance/9box")).toBe("9Box");
   });

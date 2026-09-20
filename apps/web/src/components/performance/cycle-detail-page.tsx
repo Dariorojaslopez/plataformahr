@@ -10,6 +10,7 @@ import { FormSelect } from "@/components/organization/form-select";
 import { CycleFormFields } from "@/components/performance/cycle-form-fields";
 import { CycleAnalyticsTab } from "@/components/performance/cycle-analytics-tab";
 import { CycleParticipantsTab } from "@/components/performance/cycle-participants-tab";
+import { CyclePopulationTab } from "@/components/performance/cycle-population-tab";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -520,7 +521,7 @@ export function CycleDetailPageClient() {
               <h2 className="text-lg font-semibold">Competencias del ciclo</h2>
               <p className="text-sm text-muted-foreground">
                 {structureEditable
-                  ? "Configura competencias, escalas y pesos antes de activar."
+                  ? "Se cargan solas al asignar población, según el nivel del cargo. También puedes agregar o ajustar escalas y pesos."
                   : "La estructura solo se edita en borrador."}
               </p>
             </div>
@@ -535,7 +536,7 @@ export function CycleDetailPageClient() {
           {assignments.length === 0 ? (
             <EmptyState
               title="Sin competencias"
-              description="Agrega al menos una competencia ACTIVE con escala válida para poder activar el ciclo."
+              description="Asigna población en la pestaña Participantes para cargar las competencias del nivel de cada cargo, o agrégalas aquí."
               action={
                 structureEditable ? (
                   <Button type="button" onClick={openAddCompetency}>
@@ -654,11 +655,18 @@ export function CycleDetailPageClient() {
           )}
         </TabsContent>
 
-        <TabsContent value="participants" className="mt-4">
-          <CycleParticipantsTab
+        <TabsContent value="participants" className="mt-4 space-y-8">
+          <CyclePopulationTab
             cycleId={cycleId}
             cycleStatus={cycle.status}
           />
+          {cycle.status !== "DRAFT" ? (
+            <CycleParticipantsTab
+              cycleId={cycleId}
+              cycleStatus={cycle.status}
+              hideAssignment
+            />
+          ) : null}
         </TabsContent>
       </Tabs>
 

@@ -5,7 +5,9 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import {
+  CompetencyScaleKind,
   EmployeeStatus,
+  OrganizationEntityStatus,
   PerformanceCycleStatus,
   PerformanceEvaluationModel,
   PerformanceEvaluationStatus,
@@ -23,9 +25,14 @@ import {
   type SnapshotCompetencyInput,
 } from '../evaluation-access';
 import {
+  buildCycleCompetencyImports,
+  competencyIdsOnlyOnRemovedLevels,
+} from '../cycle-competency-import';
+import {
   DEFAULT_LIMIT,
   DEFAULT_PAGE,
   MAX_LIMIT,
+  MIN_SCALE_LEVELS_FOR_ACTIVATION,
   PERFORMANCE_AUDIT,
 } from '../performance.constants';
 import { decimalToString } from '../performance.helpers';
@@ -195,7 +202,7 @@ export class ParticipantsService {
     cycleId: string,
     dto: AssignParticipantDto,
   ) {
-    await this.requireActiveCycle(companyId, cycleId);
+    const cycle = await this.requireAssignableCycle(companyId, cycleId);
     const employee = await this.requireActiveEmployee(
       companyId,
       dto.employeeId,
@@ -213,6 +220,14 @@ export class ParticipantsService {
     }
 
     try {
+      if (cycle.status === PerformanceCycleStatus.DRAFT) {
+        return this.assignDraftParticipant(
+          companyId,
+          userId,
+          cycleId,
+          employee.id,
+        );
+      }
       const result = await this.materializeParticipant(
         companyId,
         userId,
@@ -246,7 +261,7 @@ export class ParticipantsService {
     cycleId: string,
     dto: BulkAssignParticipantsDto,
   ) {
-    await this.requireActiveCycle(companyId, cycleId);
+    const cycle = await this.requireAssignableCycle(companyId, cycleId);
     const uniqueIds = [...new Set(dto.employeeIds)];
 
     const employees = await this.prisma.employee.findMany({
@@ -281,7 +296,31 @@ export class ParticipantsService {
     const toCreate = uniqueIds.filter((id) => !already.has(id));
 
     const created: unknown[] = [];
-    if (toCreate.length > 0) {
+    if (toCreate.length > 0 && cycle.status === PerformanceCycleStatus.DRAFT) {
+      const batch = await this.prisma.$transaction(async (tx) => {
+        await this.importLevelCompetenciesTx(tx, companyId, cycleId, toCreate);
+        const results = [];
+        for (const employeeId of toCreate) {
+          results.push(
+            await this.createDraftParticipantTx(tx, companyId, cycleId, employeeId),
+          );
+        }
+        return results;
+      });
+      for (const item of batch) {
+        await this.auditDraftAssignment({
+          companyId,
+          userId,
+          cycleId,
+          employeeId: item.employeeId,
+          participantId: item.id,
+        });
+        created.push({
+          ...this.serializeParticipantDetail(item),
+          managerEvaluationCreated: false,
+        });
+      }
+    } else if (toCreate.length > 0) {
       const batch = await this.prisma.$transaction(async (tx) => {
         const results = [];
         for (const employeeId of toCreate) {
@@ -382,6 +421,137 @@ export class ParticipantsService {
     return this.serializeParticipantListItem(updated, new Map());
   }
 
+  async removeDraft(
+    companyId: string,
+    userId: string,
+    cycleId: string,
+    participantId: string,
+  ) {
+    const cycle = await this.requireCycle(companyId, cycleId);
+    if (cycle.status !== PerformanceCycleStatus.DRAFT) {
+      throw new BadRequestException(
+        'Solo se puede quitar un participante cuando el ciclo está en borrador.',
+      );
+    }
+
+    const participant = await this.prisma.performanceCycleParticipant.findFirst({
+      where: { id: participantId, companyId, cycleId },
+      include: { evaluations: { select: { id: true } } },
+    });
+    if (!participant) {
+      throw new NotFoundException('Participant not found');
+    }
+    if (participant.evaluations.length > 0) {
+      throw new BadRequestException(
+        'No se puede quitar un participante que ya tiene evaluaciones.',
+      );
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.performanceCycleParticipant.delete({
+        where: { id: participantId },
+      });
+      await this.pruneUnusedLevelCompetenciesTx(tx, companyId, cycleId, [
+        participant.employeeId,
+      ]);
+    });
+
+    await this.audit.create({
+      action: PERFORMANCE_AUDIT.PERFORMANCE_PARTICIPANT_EXCLUDED,
+      entity: 'PerformanceCycleParticipant',
+      entityId: participantId,
+      company: { connect: { id: companyId } },
+      user: { connect: { id: userId } },
+      metadata: {
+        id: participantId,
+        cycleId,
+        employeeId: participant.employeeId,
+        draftRemoved: true,
+      },
+    });
+
+    return { success: true };
+  }
+
+  async materializePendingEvaluationsTx(
+    tx: Prisma.TransactionClient,
+    companyId: string,
+    cycleId: string,
+  ) {
+    const cycle = await tx.performanceCycle.findFirst({
+      where: { id: cycleId, companyId },
+    });
+    if (!cycle) {
+      throw new NotFoundException('Performance cycle not found');
+    }
+
+    const cycleComps = await tx.performanceCycleCompetency.findMany({
+      where: { companyId, cycleId },
+      include: {
+        competency: true,
+        scale: {
+          include: {
+            levels: { orderBy: { order: 'asc' } },
+          },
+        },
+      },
+      orderBy: { order: 'asc' },
+    });
+
+    if (cycle.includeCompetencies && cycleComps.length === 0) {
+      throw new BadRequestException(
+        'Cycle has no competencies configured; cannot assign participants',
+      );
+    }
+
+    const pending = await tx.performanceCycleParticipant.findMany({
+      where: {
+        companyId,
+        cycleId,
+        status: PerformanceParticipantStatus.ACTIVE,
+        evaluations: { none: {} },
+      },
+    });
+
+    const items = [];
+    for (const participant of pending) {
+      items.push(
+        await this.attachEvaluationsTx(tx, {
+          companyId,
+          cycleId,
+          cycle,
+          cycleComps,
+          participantId: participant.id,
+          employeeId: participant.employeeId,
+        }),
+      );
+    }
+    return items;
+  }
+
+  private async assignDraftParticipant(
+    companyId: string,
+    userId: string,
+    cycleId: string,
+    employeeId: string,
+  ) {
+    const detail = await this.prisma.$transaction(async (tx) => {
+      await this.importLevelCompetenciesTx(tx, companyId, cycleId, [employeeId]);
+      return this.createDraftParticipantTx(tx, companyId, cycleId, employeeId);
+    });
+    await this.auditDraftAssignment({
+      companyId,
+      userId,
+      cycleId,
+      employeeId,
+      participantId: detail.id,
+    });
+    return {
+      ...this.serializeParticipantDetail(detail),
+      managerEvaluationCreated: false,
+    };
+  }
+
   private async materializeParticipant(
     companyId: string,
     userId: string,
@@ -444,8 +614,6 @@ export class ParticipantsService {
       );
     }
 
-    const snapshot = this.buildSnapshotInputs(cycleComps);
-
     const participant = await tx.performanceCycleParticipant.create({
       data: {
         companyId,
@@ -455,20 +623,47 @@ export class ParticipantsService {
       },
     });
 
-    const selfEval = await this.createEvaluationWithSnapshot(tx, {
+    return this.attachEvaluationsTx(tx, {
       companyId,
       cycleId,
+      cycle,
+      cycleComps,
       participantId: participant.id,
       employeeId,
-      evaluatorEmployeeId: employeeId,
+    });
+  }
+
+  private async attachEvaluationsTx(
+    tx: Prisma.TransactionClient,
+    params: {
+      companyId: string;
+      cycleId: string;
+      cycle: {
+        evaluationModel: PerformanceEvaluationModel;
+        peerEvaluationWeight: Prisma.Decimal | null;
+        reportEvaluationWeight: Prisma.Decimal | null;
+      };
+      cycleComps: Parameters<ParticipantsService['buildSnapshotInputs']>[0];
+      participantId: string;
+      employeeId: string;
+    },
+  ) {
+    const snapshot = this.buildSnapshotInputs(params.cycleComps);
+
+    const selfEval = await this.createEvaluationWithSnapshot(tx, {
+      companyId: params.companyId,
+      cycleId: params.cycleId,
+      participantId: params.participantId,
+      employeeId: params.employeeId,
+      evaluatorEmployeeId: params.employeeId,
       type: PerformanceEvaluationType.SELF,
       snapshot,
     });
 
     const directManager = await tx.employeeReportingLine.findFirst({
       where: {
-        companyId,
-        employeeId,
+        companyId: params.companyId,
+        employeeId: params.employeeId,
         type: ReportingLineType.DIRECT,
         manager: {
           deletedAt: null,
@@ -489,10 +684,10 @@ export class ParticipantsService {
 
     if (directManager) {
       managerEvaluation = await this.createEvaluationWithSnapshot(tx, {
-        companyId,
-        cycleId,
-        participantId: participant.id,
-        employeeId,
+        companyId: params.companyId,
+        cycleId: params.cycleId,
+        participantId: params.participantId,
+        employeeId: params.employeeId,
         evaluatorEmployeeId: directManager.managerEmployeeId,
         type: PerformanceEvaluationType.MANAGER,
         snapshot,
@@ -504,23 +699,23 @@ export class ParticipantsService {
 
     const extraSnapshot = await this.snapshotForEvaluateeLevel(
       tx,
-      companyId,
-      employeeId,
-      cycleComps,
+      params.companyId,
+      params.employeeId,
+      params.cycleComps,
       snapshot,
     );
     await this.materializeExtraEvaluations(tx, {
-      companyId,
-      cycleId,
-      participantId: participant.id,
-      employeeId,
+      companyId: params.companyId,
+      cycleId: params.cycleId,
+      participantId: params.participantId,
+      employeeId: params.employeeId,
       managerEmployeeId: directManager?.managerEmployeeId ?? null,
-      cycle,
+      cycle: params.cycle,
       snapshot: extraSnapshot,
     });
 
     const detail = await tx.performanceCycleParticipant.findFirstOrThrow({
-      where: { id: participant.id },
+      where: { id: params.participantId },
       include: {
         employee: { select: EMPLOYEE_SELECT },
         evaluations: {
@@ -825,12 +1020,273 @@ export class ParticipantsService {
     return evaluation;
   }
 
+  private async createDraftParticipantTx(
+    tx: Prisma.TransactionClient,
+    companyId: string,
+    cycleId: string,
+    employeeId: string,
+  ) {
+    const participant = await tx.performanceCycleParticipant.create({
+      data: {
+        companyId,
+        cycleId,
+        employeeId,
+        status: PerformanceParticipantStatus.ACTIVE,
+      },
+    });
+    return tx.performanceCycleParticipant.findFirstOrThrow({
+      where: { id: participant.id },
+      include: {
+        employee: { select: EMPLOYEE_SELECT },
+        evaluations: {
+          include: {
+            evaluatorEmployee: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                email: true,
+              },
+            },
+            competencies: {
+              include: { levels: { orderBy: { order: 'asc' } } },
+              orderBy: { order: 'asc' },
+            },
+          },
+          orderBy: { type: 'asc' },
+        },
+      },
+    });
+  }
+
+  private async importLevelCompetenciesTx(
+    tx: Prisma.TransactionClient,
+    companyId: string,
+    cycleId: string,
+    employeeIds: string[],
+  ) {
+    const cycle = await tx.performanceCycle.findFirst({
+      where: { id: cycleId, companyId },
+      select: { includeCompetencies: true },
+    });
+    if (!cycle?.includeCompetencies) return 0;
+
+    const incomingIds = await this.competencyIdsForEmployees(
+      tx,
+      companyId,
+      employeeIds,
+    );
+    if (incomingIds.length === 0) return 0;
+
+    const existing = await tx.performanceCycleCompetency.findMany({
+      where: { companyId, cycleId },
+      select: { competencyId: true, order: true },
+      orderBy: { order: 'desc' },
+    });
+    const fallbackScaleId = await this.findFallbackQualitativeScaleId(
+      tx,
+      companyId,
+    );
+    const incoming = [];
+    for (const competencyId of incomingIds) {
+      incoming.push({
+        competencyId,
+        scaleId: await this.resolveScaleIdForCompetency(
+          tx,
+          companyId,
+          competencyId,
+          fallbackScaleId,
+        ),
+      });
+    }
+
+    const planned = buildCycleCompetencyImports({
+      existingCompetencyIds: existing.map((row) => row.competencyId),
+      incoming,
+      startingOrder: existing[0] ? existing[0].order + 1 : 0,
+    });
+    if (planned.missingScaleIds.length > 0) {
+      throw new BadRequestException(
+        'Define una escala cualitativa activa para cargar las competencias del nivel.',
+      );
+    }
+
+    for (const row of planned.rows) {
+      await tx.performanceCycleCompetency.create({
+        data: {
+          companyId,
+          cycleId,
+          competencyId: row.competencyId,
+          scaleId: row.scaleId,
+          order: row.order,
+          required: row.required,
+        },
+      });
+    }
+    return planned.rows.length;
+  }
+
+  private async pruneUnusedLevelCompetenciesTx(
+    tx: Prisma.TransactionClient,
+    companyId: string,
+    cycleId: string,
+    removedEmployeeIds: string[],
+  ) {
+    const remaining = await tx.performanceCycleParticipant.findMany({
+      where: {
+        companyId,
+        cycleId,
+        status: { not: PerformanceParticipantStatus.EXCLUDED },
+      },
+      select: { employeeId: true },
+    });
+    const [removedIds, remainingIds] = await Promise.all([
+      this.competencyIdsForEmployees(tx, companyId, removedEmployeeIds),
+      this.competencyIdsForEmployees(
+        tx,
+        companyId,
+        remaining.map((row) => row.employeeId),
+      ),
+    ]);
+    const toRemove = competencyIdsOnlyOnRemovedLevels({
+      removedCompetencyIds: removedIds,
+      remainingCompetencyIds: remainingIds,
+    });
+    if (toRemove.length === 0) return;
+    await tx.performanceCycleCompetency.deleteMany({
+      where: { companyId, cycleId, competencyId: { in: toRemove } },
+    });
+  }
+
+  private async competencyIdsForEmployees(
+    tx: Prisma.TransactionClient,
+    companyId: string,
+    employeeIds: string[],
+  ): Promise<string[]> {
+    if (employeeIds.length === 0) return [];
+    const employees = await tx.employee.findMany({
+      where: { companyId, id: { in: employeeIds }, deletedAt: null },
+      select: { position: { select: { jobLevelId: true } } },
+    });
+    const jobLevelIds = [
+      ...new Set(
+        employees
+          .map((row) => row.position.jobLevelId)
+          .filter((id): id is string => Boolean(id)),
+      ),
+    ];
+    if (jobLevelIds.length === 0) return [];
+    const links = await tx.jobLevelCompetency.findMany({
+      where: {
+        companyId,
+        jobLevelId: { in: jobLevelIds },
+        competency: {
+          deletedAt: null,
+          status: OrganizationEntityStatus.ACTIVE,
+        },
+      },
+      select: { competencyId: true },
+    });
+    return [...new Set(links.map((link) => link.competencyId))];
+  }
+
+  private async findFallbackQualitativeScaleId(
+    tx: Prisma.TransactionClient,
+    companyId: string,
+  ): Promise<string | null> {
+    const scales = await tx.competencyScale.findMany({
+      where: {
+        companyId,
+        deletedAt: null,
+        status: OrganizationEntityStatus.ACTIVE,
+        kind: CompetencyScaleKind.QUALITATIVE,
+      },
+      select: {
+        id: true,
+        levels: { select: { id: true } },
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+    return (
+      scales.find((scale) => scale.levels.length >= MIN_SCALE_LEVELS_FOR_ACTIVATION)
+        ?.id ?? null
+    );
+  }
+
+  private async resolveScaleIdForCompetency(
+    tx: Prisma.TransactionClient,
+    companyId: string,
+    competencyId: string,
+    fallbackScaleId: string | null,
+  ): Promise<string | null> {
+    const competency = await tx.competency.findFirst({
+      where: { id: competencyId, companyId, deletedAt: null },
+      select: {
+        defaultScale: {
+          select: {
+            id: true,
+            status: true,
+            deletedAt: true,
+            kind: true,
+            levels: { select: { id: true } },
+          },
+        },
+      },
+    });
+    const scale = competency?.defaultScale;
+    if (
+      scale &&
+      !scale.deletedAt &&
+      scale.status === OrganizationEntityStatus.ACTIVE &&
+      scale.kind === CompetencyScaleKind.QUALITATIVE &&
+      scale.levels.length >= MIN_SCALE_LEVELS_FOR_ACTIVATION
+    ) {
+      return scale.id;
+    }
+    return fallbackScaleId;
+  }
+
+  private async auditDraftAssignment(params: {
+    companyId: string;
+    userId: string;
+    cycleId: string;
+    employeeId: string;
+    participantId: string;
+  }) {
+    await this.audit.create({
+      action: PERFORMANCE_AUDIT.PERFORMANCE_PARTICIPANT_ADDED,
+      entity: 'PerformanceCycleParticipant',
+      entityId: params.participantId,
+      company: { connect: { id: params.companyId } },
+      user: { connect: { id: params.userId } },
+      metadata: {
+        id: params.participantId,
+        cycleId: params.cycleId,
+        employeeId: params.employeeId,
+        draft: true,
+      },
+    });
+  }
+
   private async requireCycle(companyId: string, cycleId: string) {
     const cycle = await this.prisma.performanceCycle.findFirst({
       where: { id: cycleId, companyId },
     });
     if (!cycle) {
       throw new NotFoundException('Performance cycle not found');
+    }
+    return cycle;
+  }
+
+  private async requireAssignableCycle(companyId: string, cycleId: string) {
+    const cycle = await this.requireCycle(companyId, cycleId);
+    if (
+      cycle.status !== PerformanceCycleStatus.DRAFT &&
+      cycle.status !== PerformanceCycleStatus.ACTIVE
+    ) {
+      throw new BadRequestException(
+        'Solo se pueden asignar participantes en un ciclo en borrador o activo.',
+      );
     }
     return cycle;
   }

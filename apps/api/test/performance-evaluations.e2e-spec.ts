@@ -406,7 +406,7 @@ describe('Performance evaluations 08B (e2e)', () => {
     await prisma.$disconnect();
   });
 
-  it('rejects assignment on DRAFT and allows ACTIVE with SELF+MANAGER', async () => {
+  it('assigns on DRAFT without evaluations and allows ACTIVE with SELF+MANAGER', async () => {
     const draft = await request(app.getHttpServer())
       .post('/performance/cycles')
       .set(auth(adminToken))
@@ -416,13 +416,16 @@ describe('Performance evaluations 08B (e2e)', () => {
         endDate: '2026-06-30',
       })
       .expect(201);
-    await request(app.getHttpServer())
+    const draftAssigned = await request(app.getHttpServer())
       .post(
         `/performance/cycles/${(draft.body as { id: string }).id}/participants`,
       )
       .set(auth(adminToken))
       .send({ employeeId: employeeAId })
-      .expect(400);
+      .expect(201);
+    expect(
+      (draftAssigned.body as { evaluations: unknown[] }).evaluations,
+    ).toEqual([]);
 
     const assigned = await request(app.getHttpServer())
       .post(`/performance/cycles/${cycleId}/participants`)
@@ -488,6 +491,77 @@ describe('Performance evaluations 08B (e2e)', () => {
       .set(auth(adminToken))
       .send({ employeeId: employeeAId })
       .expect(409);
+  });
+
+  it('imports job-level competencies on DRAFT assign and materializes on activate', async () => {
+    const position = await prisma.position.findUniqueOrThrow({
+      where: { id: positionAId },
+    });
+    if (position.jobLevelId) {
+      await prisma.jobLevelCompetency.upsert({
+        where: {
+          jobLevelId_competencyId: {
+            jobLevelId: position.jobLevelId,
+            competencyId,
+          },
+        },
+        create: {
+          companyId: companyAId,
+          jobLevelId: position.jobLevelId,
+          competencyId,
+        },
+        update: {},
+      });
+    }
+
+    const draft = await request(app.getHttpServer())
+      .post('/performance/cycles')
+      .set(auth(adminToken))
+      .send({
+        name: `Draft import ${suffix}`,
+        startDate: '2026-01-01',
+        endDate: '2026-06-30',
+      })
+      .expect(201);
+    const draftId = (draft.body as { id: string }).id;
+
+    await request(app.getHttpServer())
+      .post(`/performance/cycles/${draftId}/participants`)
+      .set(auth(adminToken))
+      .send({ employeeId: employeeBId })
+      .expect(201);
+
+    const loaded = await request(app.getHttpServer())
+      .get(`/performance/cycles/${draftId}`)
+      .set(auth(adminToken))
+      .expect(200);
+    const assignments = (
+      loaded.body as {
+        competencies: Array<{ competencyId: string }>;
+      }
+    ).competencies;
+    expect(assignments.some((row) => row.competencyId === competencyId)).toBe(
+      true,
+    );
+
+    await request(app.getHttpServer())
+      .post(`/performance/cycles/${draftId}/activate`)
+      .set(auth(adminToken))
+      .expect(201);
+
+    const participants = await request(app.getHttpServer())
+      .get(`/performance/cycles/${draftId}/participants`)
+      .set(auth(adminToken))
+      .expect(200);
+    const item = (
+      participants.body as {
+        items: Array<{
+          employeeId: string;
+          evaluations: { self: { id: string } | null };
+        }>;
+      }
+    ).items.find((row) => row.employeeId === employeeBId);
+    expect(item?.evaluations.self).toBeTruthy();
   });
 
   it('creates SELF only when employee has no DIRECT manager', async () => {

@@ -33,7 +33,7 @@ export const HOME_CONFIG_GROUP_LABELS: Record<
   },
   performance: {
     title: "Configuración de performance",
-    description: "Ciclos, población, calibración y objetivos organizacionales.",
+    description: "Ciclos, calibración y objetivos organizacionales.",
   },
   system: {
     title: "Configuración del sistema",
@@ -264,12 +264,6 @@ export const HOME_SHORTCUTS: Record<CompanyHomeRole, HomeShortcut[]> = {
       group: "performance",
     },
     {
-      href: "/performance/population",
-      title: "Población a evaluar",
-      description: "Elige colaboradores y asígnalos a un ciclo activo.",
-      group: "performance",
-    },
-    {
       href: "/performance/9box",
       title: "9Box",
       description: "Cuadrante de potencial y desempeño de la sesión.",
@@ -305,11 +299,6 @@ export const HOME_SHORTCUTS: Record<CompanyHomeRole, HomeShortcut[]> = {
       href: "/performance/cycles",
       title: "Ciclos",
       description: "Abre y administra ciclos de desempeño.",
-    },
-    {
-      href: "/performance/population",
-      title: "Población a evaluar",
-      description: "Asigna colaboradores a un ciclo activo.",
     },
     {
       href: "/performance/results",

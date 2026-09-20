@@ -46,6 +46,7 @@ import {
   modelIncludesReport,
 } from '../evaluation-model';
 import { assertQualitativeCompetencyScale } from '../scales/scale-kind';
+import { ParticipantsService } from '../participants/participants.service';
 import type {
   AddCycleCompetencyDto,
   CreatePerformanceCycleDto,
@@ -89,6 +90,7 @@ export class CyclesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
+    private readonly participants: ParticipantsService,
   ) {}
 
   async list(companyId: string, query: ListPerformanceCyclesQueryDto) {
@@ -518,6 +520,7 @@ export class CyclesService {
           data: { status: GoalCycleStatus.ACTIVE },
         });
       }
+      await this.participants.materializePendingEvaluationsTx(tx, companyId, id);
       return tx.performanceCycle.findFirstOrThrow({
         where: { id, companyId },
         include: CYCLE_INCLUDE,

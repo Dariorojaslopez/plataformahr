@@ -74,11 +74,6 @@ export const ROLE_MENU_CATALOG = [
   { section: 'Performance', href: '/performance/cycles', label: 'Ciclos' },
   {
     section: 'Performance',
-    href: '/performance/population',
-    label: 'Seleccionar población a evaluar',
-  },
-  {
-    section: 'Performance',
     href: '/performance/my-evaluations',
     label: 'Mis evaluaciones',
   },
@@ -146,7 +141,6 @@ export const DEFAULT_ROLE_MENU_HREFS: Record<
   ],
   PERFORMANCE_MANAGER: [
     '/performance/cycles',
-    '/performance/population',
     '/performance/results',
     '/performance/9box',
     '/performance/calibration',
@@ -166,6 +160,7 @@ const LEGACY_ROLE_MENU_HREFS: Record<string, RoleMenuHref> = {
   '/organization/settings': '/performance/9box',
   '/performance/settings': '/performance/9box',
   '/ats/interview-templates': '/ats/settings/approvals',
+  '/performance/population': '/performance/cycles',
 };
 
 export function normalizeRoleMenuHref(href: string): string {

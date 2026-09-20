@@ -66,7 +66,7 @@ describe("home view by role", () => {
     expect(hrefs("CLIENT_ADMIN")).toContain("/ats/settings/evaluators");
     expect(hrefs("CLIENT_ADMIN")).toContain("/ats/settings/active-processes");
     expect(hrefs("CLIENT_ADMIN")).toContain("/performance/cycles");
-    expect(hrefs("CLIENT_ADMIN")).toContain("/performance/population");
+    expect(hrefs("CLIENT_ADMIN")).not.toContain("/performance/population");
     expect(hrefs("CLIENT_ADMIN")).toContain("/performance/calibration");
     expect(hrefs("CLIENT_ADMIN")).toContain("/performance/9box");
     expect(hrefs("CLIENT_ADMIN")).not.toContain("/performance/settings");
