@@ -2,7 +2,7 @@ export const APP_LOCALES = ["es", "en", "pt", "fr", "it"] as const;
 
 export type AppLocale = (typeof APP_LOCALES)[number];
 
-export const DEFAULT_LOCALE: AppLocale = "es";
+export const DEFAULT_LOCALE = "es" as const satisfies AppLocale;
 
 export const LOCALE_STORAGE_KEY = "plataformahr.locale";
 
