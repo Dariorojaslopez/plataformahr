@@ -15,14 +15,12 @@ describe('isOfferReadyToHire', () => {
     ).toBe(true);
   });
 
-  it('allows a draft offer after the letter was approved and emailed', () => {
+  it('allows a draft offer after the letter was approved', () => {
     expect(
       isOfferReadyToHire({
         status: JobOfferStatus.DRAFT,
         signedOfferLetterFileName: 'carta.docx',
         offerLetterApprovalStatus: OfferLetterApprovalStatus.APPROVED,
-        offerLetterSentAt: new Date('2026-09-18'),
-        offerLetterSendMode: OfferLetterSendMode.ATTACHMENT,
       }),
     ).toBe(true);
   });

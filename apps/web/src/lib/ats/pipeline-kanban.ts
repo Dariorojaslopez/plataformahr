@@ -211,11 +211,32 @@ export function isOfferAcceptedForHire(input: {
   const approval = input.offerLetterApprovalStatus;
   if (approval !== "APPROVED" && approval !== "NOT_REQUIRED") return false;
   if (approval === "NOT_REQUIRED") return true;
-  if (!input.offerLetterSentAt) return false;
   if (input.offerLetterSendMode === "DIGITAL_SIGNATURE") {
-    return Boolean(input.offerLetterCandidateSignedAt);
+    return Boolean(
+      input.offerLetterSentAt && input.offerLetterCandidateSignedAt,
+    );
   }
   return true;
+}
+
+export function offerReadyForHireLabel(input: {
+  offerStatus: string | null;
+  offerLetterApprovalStatus?: string | null;
+  offerLetterSentAt?: string | null;
+  offerLetterSendMode?: string | null;
+  offerLetterCandidateSignedAt?: string | null;
+}): string {
+  if (
+    input.offerLetterSendMode === "DIGITAL_SIGNATURE" &&
+    input.offerLetterSentAt &&
+    !input.offerLetterCandidateSignedAt
+  ) {
+    return "El candidato firmó la carta oferta";
+  }
+  if (input.offerLetterApprovalStatus === "PENDING") {
+    return "Carta oferta aprobada";
+  }
+  return "Carta oferta aprobada";
 }
 
 /** Finalistas (OFFER) for recruiter docs table. */
@@ -247,12 +268,12 @@ export function hireRequirementChecks(input: {
     },
     {
       id: "OFFER_ACCEPTED",
-      label: "Oferta aceptada o carta oferta enviada al candidato",
+      label: offerReadyForHireLabel(input),
       met: isOfferAcceptedForHire(input),
     },
     {
       id: "VACANCY_CAPACITY",
-      label: "Hay cupo disponible en la vacante",
+      label: `Cupo de este proceso: ${input.filledCount} de ${input.headcount} plazas cubiertas`,
       met: input.headcount - input.filledCount > 0,
     },
     {

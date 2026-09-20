@@ -913,13 +913,25 @@ export function PipelinePageClient() {
             </ul>
           ) : null}
           {!canConfirmHire && hirePrepQuery.isSuccess ? (
-            <p className="text-sm text-muted-foreground">
-              Completa HV, estudio de seguridad, exámenes médicos y la carta
-              oferta. Si la carta ya fue aprobada y enviada (y firmada, si
-              aplica), puedes pasar a A Contratar. El colaborador se crea
-              después de la firma de contrato. Si falta un requisito, el
-              candidato permanece en Finalistas.
-            </p>
+            <div className="space-y-2 text-sm text-muted-foreground">
+              {hireChecks.some(
+                (item) => item.id === "VACANCY_CAPACITY" && !item.met,
+              ) ? (
+                <p>
+                  Este proceso y el cargo ya no tienen plazas libres. Si
+                  agregaste cajas vacías en el organigrama, recarga el tablero
+                  para que este proceso las tome.
+                </p>
+              ) : (
+                <p>
+                  Completa HV, estudio de seguridad, exámenes médicos y la
+                  carta oferta. Si la carta ya fue aprobada, puedes pasar a
+                  A Contratar. El colaborador se crea después de la firma de
+                  contrato. Si falta un requisito, el candidato permanece en
+                  Finalistas.
+                </p>
+              )}
+            </div>
           ) : null}
           {canConfirmHire ? (
             <div className="space-y-3">

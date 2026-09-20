@@ -26,6 +26,10 @@ import type {
   ListVacanciesQueryDto,
   UpdateVacancyDto,
 } from './dto/vacancy.dto';
+import {
+  effectiveVacancyHeadcount,
+  loadPositionOccupantCount,
+} from './vacancy-capacity';
 
 const ALLOWED_TRANSITIONS: Record<VacancyStatus, VacancyStatus[]> = {
   [VacancyStatus.OPEN]: [
@@ -104,8 +108,17 @@ export class VacanciesService {
       this.prisma.vacancy.count({ where }),
     ]);
 
+    const occupantCounts = await this.occupantCountsByPosition(
+      tenant.companyId,
+      items.map((item) => item.positionId),
+    );
+
     return {
-      items: items.map((item) => this.serialize(item)),
+      items: items.map((item) =>
+        this.serialize(
+          this.withEffectiveHeadcount(item, occupantCounts.get(item.positionId) ?? 0),
+        ),
+      ),
       page,
       limit,
       total,
@@ -155,7 +168,12 @@ export class VacanciesService {
     if (!vacancy) {
       throw new NotFoundException('Vacancy not found');
     }
-    return this.serialize(vacancy);
+    const occupantCount = await loadPositionOccupantCount(
+      this.prisma,
+      tenant.companyId,
+      vacancy.positionId,
+    );
+    return this.serialize(this.withEffectiveHeadcount(vacancy, occupantCount));
   }
 
   async update(
@@ -471,6 +489,46 @@ export class VacanciesService {
         'salaryCurrency must be a 3-letter ISO code',
       );
     }
+  }
+
+  private async occupantCountsByPosition(
+    companyId: string,
+    positionIds: string[],
+  ): Promise<Map<string, number>> {
+    const unique = [...new Set(positionIds.filter(Boolean))];
+    const counts = new Map<string, number>();
+    if (unique.length === 0) return counts;
+    const rows = await this.prisma.employee.groupBy({
+      by: ['positionId'],
+      where: {
+        companyId,
+        positionId: { in: unique },
+        deletedAt: null,
+        status: EmployeeStatus.ACTIVE,
+      },
+      _count: { _all: true },
+    });
+    for (const row of rows) {
+      if (row.positionId) counts.set(row.positionId, row._count._all);
+    }
+    return counts;
+  }
+
+  private withEffectiveHeadcount<
+    T extends {
+      headcount: number;
+      filledCount: number;
+      position?: { headcount: number } | null;
+    },
+  >(vacancy: T, occupantCount: number): T {
+    return {
+      ...vacancy,
+      headcount: effectiveVacancyHeadcount(
+        vacancy,
+        vacancy.position?.headcount ?? vacancy.headcount,
+        occupantCount,
+      ),
+    };
   }
 
   private serialize<T extends { salaryAmount: Prisma.Decimal | null }>(

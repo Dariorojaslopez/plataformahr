@@ -101,6 +101,9 @@ describe("pipeline kanban", () => {
     });
     expect(blocked.every((item) => !item.met)).toBe(true);
     expect(
+      blocked.find((item) => item.id === "VACANCY_CAPACITY")?.label,
+    ).toBe("Cupo de este proceso: 1 de 1 plazas cubiertas");
+    expect(
       hireRequirementChecks({
         stage: "OFFER",
         offerStatus: "ACCEPTED",
@@ -125,8 +128,6 @@ describe("pipeline kanban", () => {
         hasCompanyOfferLetterTemplate: true,
         hasSignedOfferLetter: true,
         offerLetterApprovalStatus: "APPROVED",
-        offerLetterSentAt: "2026-09-18T00:00:00.000Z",
-        offerLetterSendMode: "ATTACHMENT",
       }).find((item) => item.id === "OFFER_ACCEPTED")?.met,
     ).toBe(true);
     expect(

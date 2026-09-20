@@ -33,9 +33,10 @@ export function isOfferLetterCompleteForHire(
   if (approval === OfferLetterApprovalStatus.NOT_REQUIRED) {
     return true;
   }
-  if (!offer.offerLetterSentAt) return false;
   if (offer.offerLetterSendMode === OfferLetterSendMode.DIGITAL_SIGNATURE) {
-    return Boolean(offer.offerLetterCandidateSignedAt);
+    return Boolean(
+      offer.offerLetterSentAt && offer.offerLetterCandidateSignedAt,
+    );
   }
   return true;
 }

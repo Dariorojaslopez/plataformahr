@@ -26,6 +26,7 @@ import { renderThankYouLetter } from './thank-you-letter';
 import type { CreateHiringDto } from './dto/hiring.dto';
 import { isOfferReadyToHire } from '../offers/offer-letter-ready';
 import { isContractCompleteForHire } from '../offers/contract-ready';
+import { absorbPositionPlazasIntoVacancy } from '../vacancies/vacancy-capacity';
 import {
   hireDocumentsRequiredMessage,
   missingRequiredHireDocuments,
@@ -117,7 +118,12 @@ export class HiringService {
           'Vacancy must be OPEN or PAUSED to hire',
         );
       }
-      if (vacancy.filledCount >= vacancy.headcount) {
+      const vacancyWithPlazas = await absorbPositionPlazasIntoVacancy(
+        tx,
+        companyId,
+        vacancy,
+      );
+      if (vacancyWithPlazas.filledCount >= vacancyWithPlazas.headcount) {
         throw new ConflictException('Vacancy has no remaining capacity');
       }
 
@@ -301,19 +307,24 @@ export class HiringService {
           throw new NotFoundException('Application not found');
         }
 
-        const vacancy = await this.lockVacancy(
+        const lockedVacancy = await this.lockVacancy(
           tx,
           companyId,
           vacancyIdRow.vacancyId,
         );
         if (
-          vacancy.status !== VacancyStatus.OPEN &&
-          vacancy.status !== VacancyStatus.PAUSED
+          lockedVacancy.status !== VacancyStatus.OPEN &&
+          lockedVacancy.status !== VacancyStatus.PAUSED
         ) {
           throw new BadRequestException(
             'Vacancy must be OPEN or PAUSED to hire',
           );
         }
+        const vacancy = await absorbPositionPlazasIntoVacancy(
+          tx,
+          companyId,
+          lockedVacancy,
+        );
         if (vacancy.filledCount >= vacancy.headcount) {
           throw new ConflictException('Vacancy has no remaining capacity');
         }
