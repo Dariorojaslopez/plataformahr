@@ -3,7 +3,6 @@
 import {
   type Dispatch,
   type SetStateAction,
-  useEffect,
   useRef,
   useState,
 } from "react";
@@ -43,26 +42,23 @@ function CycleDateInput({
   disabled?: boolean;
 }) {
   const pickerRef = useRef<HTMLInputElement>(null);
-  const [text, setText] = useState(() => isoToDmy(value));
-
-  useEffect(() => {
-    setText(isoToDmy(value));
-  }, [value]);
+  const [draft, setDraft] = useState<string | null>(null);
+  const text = draft ?? isoToDmy(value);
 
   function commitText(raw: string) {
     const trimmed = raw.trim();
     if (!trimmed) {
       onChange("");
-      setText("");
+      setDraft(null);
       return;
     }
     const iso = dmyToIso(trimmed);
     if (iso) {
       onChange(iso);
-      setText(isoToDmy(iso));
+      setDraft(null);
       return;
     }
-    setText(isoToDmy(value));
+    setDraft(null);
   }
 
   return (
@@ -76,7 +72,8 @@ function CycleDateInput({
         value={text}
         required={required}
         disabled={disabled}
-        onChange={(e) => setText(e.target.value)}
+        onFocus={() => setDraft(isoToDmy(value))}
+        onChange={(e) => setDraft(e.target.value)}
         onBlur={() => commitText(text)}
         className="pr-10"
       />
@@ -88,7 +85,10 @@ function CycleDateInput({
         disabled={disabled}
         aria-hidden
         className="pointer-events-none absolute h-0 w-0 overflow-hidden opacity-0"
-        onChange={(e) => onChange(e.target.value)}
+        onChange={(e) => {
+          onChange(e.target.value);
+          setDraft(null);
+        }}
       />
       <button
         type="button"

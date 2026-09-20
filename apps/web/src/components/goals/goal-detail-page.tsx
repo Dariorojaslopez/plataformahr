@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Plus, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useSession } from "@/components/auth/session-provider";
 import { CheckInDialog } from "@/components/goals/check-in-dialog";
 import { CheckInHistoryList } from "@/components/goals/check-in-history";
@@ -94,6 +94,7 @@ export function GoalDetailPageClient() {
   const [krDrafts, setKrDrafts] = useState<
     Record<string, { meta: string; result: string }>
   >({});
+  const [draftSeed, setDraftSeed] = useState<string | null>(null);
 
   const goalQuery = useQuery({
     queryKey: goalKeys.goal(companyId, goalId),
@@ -279,20 +280,13 @@ export function GoalDetailPageClient() {
     onError: (e) => notifyError(e, "No se pudo solicitar el cierre."),
   });
 
-  useEffect(() => {
-    const goal = goalQuery.data;
-    if (!goal) return;
-    setTitleDraft(goal.title);
-    setDescriptionDraft(goal.description ?? "");
-    const next: Record<string, { meta: string; result: string }> = {};
-    for (const kr of goal.progress?.keyResults ?? []) {
-      next[kr.keyResultId] = {
-        meta: kr.targetValue ?? "",
-        result: kr.currentNumericValue ?? "",
-      };
-    }
-    setKrDrafts(next);
-  }, [goalQuery.data]);
+  const loadedGoal = goalQuery.data;
+  if (loadedGoal && draftSeed !== loadedGoal.updatedAt) {
+    setDraftSeed(loadedGoal.updatedAt);
+    setTitleDraft(loadedGoal.title);
+    setDescriptionDraft(loadedGoal.description ?? "");
+    setKrDrafts(krDraftsFromGoal(loadedGoal));
+  }
 
   if (goalQuery.isLoading) return <Skeleton className="h-48 w-full" />;
   if (goalQuery.isError) {
@@ -1026,6 +1020,25 @@ export function GoalDetailPageClient() {
       </section>
     </div>
   );
+}
+
+function krDraftsFromGoal(goal: {
+  progress?: {
+    keyResults: Array<{
+      keyResultId: string;
+      targetValue: string | null;
+      currentNumericValue: string | null;
+    }>;
+  } | null;
+}): Record<string, { meta: string; result: string }> {
+  const next: Record<string, { meta: string; result: string }> = {};
+  for (const kr of goal.progress?.keyResults ?? []) {
+    next[kr.keyResultId] = {
+      meta: kr.targetValue ?? "",
+      result: kr.currentNumericValue ?? "",
+    };
+  }
+  return next;
 }
 
 function parseTrackingNumber(raw: string): number | null {
