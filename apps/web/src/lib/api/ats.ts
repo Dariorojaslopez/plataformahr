@@ -245,6 +245,15 @@ export const atsApi = {
       headers: { Accept: "application/octet-stream, */*" },
     }),
 
+  uploadCandidateCv: (id: string, file: File) => {
+    const formData = new FormData();
+    formData.append("cv", file);
+    return apiRequest<Candidate>(`/ats/candidates/${id}/cv`, {
+      method: "POST",
+      formData,
+    });
+  },
+
   createCandidate: (body: CreateCandidateInput) =>
     apiRequest<Candidate>("/ats/candidates", { method: "POST", body }),
 

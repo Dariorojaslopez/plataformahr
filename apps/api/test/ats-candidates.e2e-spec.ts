@@ -344,6 +344,43 @@ describe('ATS candidates & applications (e2e)', () => {
       );
     });
 
+    it('lets a recruiter upload a cv when the candidate has none', async () => {
+      const created = await request(app.getHttpServer())
+        .post('/ats/candidates')
+        .set(auth(recruiterToken))
+        .send({
+          firstName: 'Clara',
+          lastName: 'Interna',
+          email: `clara-cv-${suffix}@example.com`,
+          source: 'INTERNAL_HOME',
+        })
+        .expect(201);
+      const id = (created.body as { id: string }).id;
+
+      await request(app.getHttpServer())
+        .get(`/ats/candidates/${id}/cv`)
+        .set(auth(recruiterToken))
+        .expect(404);
+
+      const uploaded = await request(app.getHttpServer())
+        .post(`/ats/candidates/${id}/cv`)
+        .set(auth(recruiterToken))
+        .attach('cv', Buffer.from('Hoja de vida interna\n'), {
+          filename: 'cv.txt',
+          contentType: 'text/plain',
+        })
+        .expect(201);
+      expect((uploaded.body as { cvOriginalName: string }).cvOriginalName).toBe(
+        'cv.txt',
+      );
+
+      const downloaded = await request(app.getHttpServer())
+        .get(`/ats/candidates/${id}/cv`)
+        .set(auth(recruiterToken))
+        .expect(200);
+      expect(downloaded.headers['content-type']).toMatch(/text\/plain/);
+    });
+
     it('accepts catalog document types and leaves historical values intact', async () => {
       for (const code of ['TI', 'CC', 'CE', 'PASSPORT'] as const) {
         const res = await request(app.getHttpServer())

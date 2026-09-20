@@ -407,6 +407,7 @@ export type PipelineCard = {
   candidateId: string;
   candidateName: string;
   candidateEmail: string;
+  source?: string | null;
   hasCv?: boolean;
   hasSecurityStudyDoc?: boolean;
   hasMedicalExamDoc?: boolean;

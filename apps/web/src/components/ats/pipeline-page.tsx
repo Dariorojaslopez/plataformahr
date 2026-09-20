@@ -97,6 +97,10 @@ type PendingMove = {
 const PREHIRE_UPLOAD_MAX_BYTES = 20 * 1024 * 1024;
 const PREHIRE_UPLOAD_ACCEPT =
   ".pdf,.docx,.jpg,.jpeg,.png,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,image/jpeg,image/png";
+const CV_UPLOAD_MAX_BYTES = 15 * 1024 * 1024;
+const CV_UPLOAD_ACCEPT =
+  ".pdf,.doc,.docx,.txt,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain";
+const INTERNAL_CANDIDATE_SOURCE = "INTERNAL_HOME";
 const OFFER_LETTER_UPLOAD_MAX_BYTES = 10 * 1024 * 1024;
 const OFFER_LETTER_UPLOAD_ACCEPT =
   ".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document";
@@ -331,6 +335,35 @@ export function PipelinePageClient() {
     onError: (error) => {
       setMoveError(getErrorMessage(error, "No se pudo mover la aplicación."));
       notifyError(error, "No se pudo mover la aplicación.");
+    },
+  });
+
+  const uploadCvMutation = useMutation({
+    mutationFn: async ({
+      candidateId,
+      file,
+    }: {
+      candidateId: string;
+      applicationId: string;
+      file: File;
+    }) => {
+      if (file.size > CV_UPLOAD_MAX_BYTES) {
+        throw new Error("La hoja de vida supera el tamaño máximo (15 MB).");
+      }
+      return atsApi.uploadCandidateCv(candidateId, file);
+    },
+    onSuccess: async (_data, vars) => {
+      await invalidatePipeline();
+      setResumeCard((current) => {
+        if (!current || current.applicationId !== vars.applicationId) {
+          return current;
+        }
+        return { ...current, hasCv: true };
+      });
+      notifySuccess("Hoja de vida cargada");
+    },
+    onError: (error) => {
+      notifyError(error, "No se pudo cargar la hoja de vida.");
     },
   });
 
@@ -969,16 +1002,36 @@ export function PipelinePageClient() {
             <div className="space-y-3">
               <p className="text-sm text-muted-foreground">
                 {resumeCard.stage === "OFFER"
-                  ? `${resumeCard.candidateName} · HV, pre-contratación y carta oferta (máx. 20 MB en HV/prehire; carta en PDF o DOCX, máx. 10 MB). La carta solo se gestiona en Finalistas. Al cargar la diligenciada se inicia la aprobación.`
-                  : `${resumeCard.candidateName} · HV y pre-contratación (máx. 20 MB). La carta oferta se gestiona cuando el candidato esté en Finalistas.`}
+                  ? `${resumeCard.candidateName} · HV (PDF/DOC/DOCX/TXT, máx. 15 MB), pre-contratación (máx. 20 MB) y carta oferta (PDF o DOCX, máx. 10 MB). La carta solo se gestiona en Finalistas. Al cargar la diligenciada se inicia la aprobación.`
+                  : `${resumeCard.candidateName} · HV (PDF/DOC/DOCX/TXT, máx. 15 MB) y pre-contratación (máx. 20 MB). La carta oferta se gestiona cuando el candidato esté en Finalistas.`}
               </p>
               <ul className="space-y-2 text-sm">
                 <DocDownloadRow
                   label="Hoja de vida"
                   available={Boolean(resumeCard.hasCv)}
+                  statusLabel={
+                    !resumeCard.hasCv &&
+                    resumeCard.source === INTERNAL_CANDIDATE_SOURCE
+                      ? "Candidato interno"
+                      : undefined
+                  }
                   onDownload={() =>
                     void downloadCandidateCv(resumeCard.candidateId)
                   }
+                  onUpload={
+                    resumeCard.source === INTERNAL_CANDIDATE_SOURCE ||
+                    !resumeCard.hasCv
+                      ? (file) =>
+                          uploadCvMutation.mutate({
+                            candidateId: resumeCard.candidateId,
+                            applicationId: resumeCard.applicationId,
+                            file,
+                          })
+                      : undefined
+                  }
+                  accept={CV_UPLOAD_ACCEPT}
+                  maxBytes={CV_UPLOAD_MAX_BYTES}
+                  uploading={uploadCvMutation.isPending}
                 />
                 <DocDownloadRow
                   label="Estudio de seguridad"
@@ -1273,6 +1326,8 @@ function DocDownloadRow({
   onUpload,
   extraActions,
   uploading = false,
+  accept = PREHIRE_UPLOAD_ACCEPT,
+  maxBytes = PREHIRE_UPLOAD_MAX_BYTES,
 }: {
   label: string;
   available: boolean;
@@ -1281,8 +1336,11 @@ function DocDownloadRow({
   onUpload?: (file: File) => void;
   extraActions?: ReactNode;
   uploading?: boolean;
+  accept?: string;
+  maxBytes?: number;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const maxMb = Math.round(maxBytes / (1024 * 1024));
 
   return (
     <li className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border/70 px-3 py-2">
@@ -1314,16 +1372,18 @@ function DocDownloadRow({
             <input
               ref={inputRef}
               type="file"
-              accept={PREHIRE_UPLOAD_ACCEPT}
+              accept={accept}
               className="sr-only"
               onChange={(event) => {
                 const file = event.target.files?.[0];
                 event.target.value = "";
                 if (!file) return;
-                if (file.size > PREHIRE_UPLOAD_MAX_BYTES) {
+                if (file.size > maxBytes) {
                   notifyError(
-                    new Error("El documento supera el tamaño máximo (20 MB)."),
-                    "El documento supera el tamaño máximo (20 MB).",
+                    new Error(
+                      `El documento supera el tamaño máximo (${maxMb} MB).`,
+                    ),
+                    `El documento supera el tamaño máximo (${maxMb} MB).`,
                   );
                   return;
                 }
@@ -1337,7 +1397,11 @@ function DocDownloadRow({
               disabled={uploading}
               onClick={() => inputRef.current?.click()}
             >
-              {available ? "Reemplazar" : "Subir"}
+              {uploading
+                ? "Subiendo…"
+                : available
+                  ? "Reemplazar"
+                  : "Subir"}
             </Button>
           </>
         ) : null}

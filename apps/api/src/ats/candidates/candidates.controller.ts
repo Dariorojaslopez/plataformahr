@@ -9,8 +9,13 @@ import {
   Post,
   Query,
   StreamableFile,
+  UploadedFile,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
+import { memoryStorage } from 'multer';
 import type { AuthenticatedUser, TenantContext } from '../../auth/auth.types';
 import { CurrentUser } from '../../auth/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
@@ -20,6 +25,7 @@ import { CurrentTenant } from '../../tenant/decorators/current-tenant.decorator'
 import { CompanyContextGuard } from '../../tenant/guards/company-context.guard';
 import { ApplicationsService } from '../applications/applications.service';
 import { CreateApplicationForCandidateDto } from '../applications/dto/application.dto';
+import { CV_FIELD_NAME, CV_MAX_BYTES } from '../public-jobs/cv.constants';
 import {
   CreateCandidateDto,
   ListCandidatesQueryDto,
@@ -58,6 +64,30 @@ export class CandidatesController {
       type: cv.mimeType,
       disposition: `attachment; filename="${filename}"`,
     });
+  }
+
+  @Post(':id/cv')
+  @UseGuards(ThrottlerGuard)
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
+  @RequirePermissions('ats.candidate.manage')
+  @UseInterceptors(
+    FileInterceptor(CV_FIELD_NAME, {
+      storage: memoryStorage(),
+      limits: { fileSize: CV_MAX_BYTES, files: 1 },
+    }),
+  )
+  uploadCv(
+    @CurrentTenant() tenant: TenantContext,
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @UploadedFile() file: Express.Multer.File | undefined,
+  ) {
+    return this.candidatesService.uploadCv(
+      tenant.companyId,
+      user.userId,
+      id,
+      file,
+    );
   }
 
   @Get(':id')

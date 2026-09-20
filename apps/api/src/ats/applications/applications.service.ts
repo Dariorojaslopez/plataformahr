@@ -486,6 +486,7 @@ export class ApplicationsService {
               lastName: true,
               email: true,
               cvFileName: true,
+              source: true,
             },
           },
           preHireDocuments: {
@@ -577,6 +578,7 @@ export class ApplicationsService {
               candidateId: item.candidateId,
               candidateName: `${item.candidate.firstName} ${item.candidate.lastName}`,
               candidateEmail: item.candidate.email,
+              source: item.candidate.source,
               hasCv: Boolean(item.candidate.cvFileName),
               hasSecurityStudyDoc: item.preHireDocuments.some(
                 (doc) => doc.kind === 'SECURITY_STUDY',

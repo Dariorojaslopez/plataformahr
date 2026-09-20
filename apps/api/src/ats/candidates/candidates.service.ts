@@ -3,6 +3,8 @@ import {
   ConflictException,
   Injectable,
   NotFoundException,
+  PayloadTooLargeException,
+  UnsupportedMediaTypeException,
 } from '@nestjs/common';
 import { CandidateStatus, Prisma, type Candidate } from '@prisma/client';
 import { AuditService } from '../../core/audit/audit.service';
@@ -17,10 +19,14 @@ import {
   DEFAULT_PAGE,
   MAX_LIMIT,
 } from '../ats.constants';
+import { inspectCvFile } from '../public-jobs/cv-extract';
 import { CV_ERRORS } from '../public-jobs/cv.constants';
 import {
+  buildCvFileName,
+  deleteCvFile,
   readCvFile,
   resolveCompanyUploadsDir,
+  writeCvFile,
 } from '../public-jobs/cv.storage';
 import {
   LINKEDIN_ERRORS,
@@ -112,6 +118,78 @@ export class CandidatesService {
       mimeType: candidate.cvMimeType,
       originalName: candidate.cvOriginalName ?? 'cv',
     };
+  }
+
+  async uploadCv(
+    companyId: string,
+    userId: string,
+    id: string,
+    file: Express.Multer.File | undefined,
+  ): Promise<Candidate> {
+    const candidate = await this.getById(companyId, id);
+    if (!file) {
+      throw new BadRequestException(CV_ERRORS.MISSING);
+    }
+    const inspected = inspectCvFile({
+      buffer: file.buffer,
+      mimetype: file.mimetype,
+      originalname: file.originalname,
+    });
+    if ('error' in inspected) {
+      if (inspected.error === 'size') {
+        throw new PayloadTooLargeException(CV_ERRORS.SIZE);
+      }
+      if (inspected.error === 'empty') {
+        throw new BadRequestException(CV_ERRORS.EMPTY);
+      }
+      throw new UnsupportedMediaTypeException(CV_ERRORS.TYPE);
+    }
+
+    const uploadsDir = resolveCompanyUploadsDir();
+    const fileName = buildCvFileName(inspected.mime);
+    await writeCvFile({
+      uploadsDir,
+      companyId,
+      fileName,
+      buffer: inspected.buffer,
+    });
+
+    try {
+      const updated = await this.prisma.candidate.update({
+        where: { id: candidate.id },
+        data: {
+          cvFileName: fileName,
+          cvOriginalName: inspected.originalName,
+          cvMimeType: inspected.mime,
+        },
+      });
+
+      const previous = candidate.cvFileName;
+      if (previous && previous !== fileName) {
+        await deleteCvFile({ uploadsDir, companyId, fileName: previous }).catch(
+          () => undefined,
+        );
+      }
+
+      await this.audit.create({
+        action: ATS_AUDIT.CANDIDATE_CV_UPLOADED,
+        entity: 'Candidate',
+        entityId: updated.id,
+        company: { connect: { id: companyId } },
+        user: { connect: { id: userId } },
+        metadata: {
+          candidateId: updated.id,
+          originalName: updated.cvOriginalName,
+        },
+      });
+
+      return updated;
+    } catch (error) {
+      await deleteCvFile({ uploadsDir, companyId, fileName }).catch(
+        () => undefined,
+      );
+      throw error;
+    }
   }
 
   async create(
