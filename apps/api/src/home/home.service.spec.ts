@@ -258,18 +258,15 @@ describe('HomeService', () => {
   it('omits hired candidates from pending evaluations', async () => {
     const { service, prisma } = build();
     await service.getFeed(tenant);
-    expect(prisma.interview.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: expect.objectContaining({
-          application: expect.objectContaining({
-            deletedAt: null,
-            status: 'ACTIVE',
-            stage: { in: ['INTERVIEW', 'OFFER'] },
-            candidate: { status: { not: 'HIRED' } },
-          }),
-        }),
-      }),
-    );
+    const [findManyArg] = prisma.interview.findMany.mock.calls[0] as [
+      { where?: { application?: Record<string, unknown> } },
+    ];
+    expect(findManyArg.where?.application).toMatchObject({
+      deletedAt: null,
+      status: 'ACTIVE',
+      stage: { in: ['INTERVIEW', 'OFFER'] },
+      candidate: { status: { not: 'HIRED' } },
+    });
   });
 
   it('does not write locked identity fields on profile update', async () => {

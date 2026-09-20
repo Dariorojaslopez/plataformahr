@@ -16,7 +16,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { FileText, MoreHorizontal } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useSession } from "@/components/auth/session-provider";
 import { FormSelect } from "@/components/organization/form-select";
 import { Badge } from "@/components/ui/badge";
@@ -283,12 +283,15 @@ export function PipelinePageClient() {
 
   const canConfirmHire = hireChecks.length > 0 && hireChecks.every((c) => c.met);
 
-  function setVacancy(nextId: string) {
-    const sp = new URLSearchParams();
-    if (nextId) sp.set("vacancyId", nextId);
-    const qs = sp.toString();
-    router.replace(qs ? `${pathname}?${qs}` : pathname);
-  }
+  const setVacancy = useCallback(
+    (nextId: string) => {
+      const sp = new URLSearchParams();
+      if (nextId) sp.set("vacancyId", nextId);
+      const qs = sp.toString();
+      router.replace(qs ? `${pathname}?${qs}` : pathname);
+    },
+    [pathname, router],
+  );
 
   const didAutoSelectVacancy = useRef(false);
   useEffect(() => {
@@ -297,7 +300,7 @@ export function PipelinePageClient() {
     if (!firstVacancyId) return;
     didAutoSelectVacancy.current = true;
     setVacancy(firstVacancyId);
-  }, [vacancyId, vacancyOptions]);
+  }, [setVacancy, vacancyId, vacancyOptions]);
 
   async function invalidatePipeline() {
     await queryClient.invalidateQueries({
