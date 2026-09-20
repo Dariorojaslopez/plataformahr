@@ -1,5 +1,4 @@
 import { evaluatorWeightsAreValid } from "@/lib/performance/evaluator-weights";
-import { canActivateWeights } from "@/lib/performance/weights";
 import type { PerformanceCycleStatus } from "@/types/performance";
 
 export function canEditCycleStructure(status: PerformanceCycleStatus): boolean {
@@ -19,7 +18,6 @@ export function canEditEvaluatorWeights(
 export function canActivateCycle(input: {
   status: PerformanceCycleStatus;
   competencyCount: number;
-  weights: Array<string | number | null | undefined>;
   includeCompetencies?: boolean;
   selfEvaluationWeight?: string | number | null;
   managerEvaluationWeight?: string | number | null;
@@ -30,12 +28,6 @@ export function canActivateCycle(input: {
 }): boolean {
   if (input.status !== "DRAFT") return false;
   if (input.includeCompetencies !== false && input.competencyCount < 1) {
-    return false;
-  }
-  if (
-    input.includeCompetencies !== false &&
-    !canActivateWeights(input.weights)
-  ) {
     return false;
   }
   if (

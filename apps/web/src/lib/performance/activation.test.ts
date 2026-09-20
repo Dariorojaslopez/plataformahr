@@ -15,12 +15,11 @@ describe("cycle activation helpers", () => {
     expect(canEditCycleMetadata("CLOSED")).toBe(false);
   });
 
-  it("requires DRAFT, competencies and valid weights to activate", () => {
+  it("requires DRAFT and competencies to activate", () => {
     expect(
       canActivateCycle({
         status: "DRAFT",
         competencyCount: 2,
-        weights: [null, null],
       }),
     ).toBe(true);
 
@@ -28,7 +27,6 @@ describe("cycle activation helpers", () => {
       canActivateCycle({
         status: "DRAFT",
         competencyCount: 0,
-        weights: [],
       }),
     ).toBe(false);
 
@@ -36,7 +34,6 @@ describe("cycle activation helpers", () => {
       canActivateCycle({
         status: "DRAFT",
         competencyCount: 0,
-        weights: [],
         includeCompetencies: false,
       }),
     ).toBe(true);
@@ -45,15 +42,6 @@ describe("cycle activation helpers", () => {
       canActivateCycle({
         status: "ACTIVE",
         competencyCount: 2,
-        weights: [null, null],
-      }),
-    ).toBe(false);
-
-    expect(
-      canActivateCycle({
-        status: "DRAFT",
-        competencyCount: 2,
-        weights: [50, null],
       }),
     ).toBe(false);
   });

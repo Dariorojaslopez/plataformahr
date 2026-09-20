@@ -27,7 +27,6 @@ import {
   PERFORMANCE_AUDIT,
 } from '../performance.constants';
 import {
-  assertActivationWeights,
   assertCycleDates,
   assertEvaluatorWeights,
   decimalToString,
@@ -485,8 +484,6 @@ export class CyclesService {
         }
         assertQualitativeCompetencyScale(row.scale.kind);
       }
-
-      assertActivationWeights(assignments.map((a) => a.weight));
     }
 
     assertEvaluatorWeights({

@@ -52,7 +52,6 @@ import {
   formatEvaluatorWeightLabel,
 } from "@/lib/performance/evaluator-weights";
 import { formatResultCompositionWeightLabel } from "@/lib/performance/result-composition-weights";
-import { canActivateWeights, sumWeights } from "@/lib/performance/weights";
 import { notifyError, notifySuccess } from "@/lib/ui/notify";
 import {
   autoQualitativeScaleId,
@@ -117,8 +116,6 @@ export function CycleDetailPageClient() {
     () => cycle?.competencies ?? [],
     [cycle?.competencies],
   );
-  const weights = assignments.map((a) => a.weight);
-  const weightTotal = sumWeights(weights);
   const structureEditable = cycle
     ? canEditCycleStructure(cycle.status)
     : false;
@@ -128,7 +125,6 @@ export function CycleDetailPageClient() {
     ? canActivateCycle({
         status: cycle.status,
         competencyCount: assignments.length,
-        weights,
         includeCompetencies: cycle.includeCompetencies !== false,
         selfEvaluationWeight: cycle.selfEvaluationWeight,
         managerEvaluationWeight: cycle.managerEvaluationWeight,
@@ -330,7 +326,7 @@ export function CycleDetailPageClient() {
                   onClick={() => activateMutation.mutate()}
                   title={
                     !activateOk
-                      ? "Requiere competencias y ponderaciones válidas"
+                      ? "Requiere competencias en el ciclo"
                       : undefined
                   }
                 >
@@ -382,19 +378,6 @@ export function CycleDetailPageClient() {
               ? `${cycle.evaluationStartDate} → ${cycle.evaluationEndDate}`
               : "—"}
           </p>
-        </div>
-        <div>
-          <p className="text-xs text-muted-foreground">Ponderación competencias</p>
-          <p className="mt-1 text-sm font-medium">
-            {weightTotal == null
-              ? "Sin ponderar"
-              : `${weightTotal.toFixed(2)}% / 100%`}
-          </p>
-          {weightTotal != null && !canActivateWeights(weights) ? (
-            <p className="mt-1 text-xs text-destructive">
-              Las ponderaciones deben sumar 100% o quedar todas vacías.
-            </p>
-          ) : null}
         </div>
         <div>
           <p className="text-xs text-muted-foreground">
