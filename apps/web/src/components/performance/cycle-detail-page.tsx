@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Pencil, Plus, Trash2 } from "lucide-react";
+import { ArrowLeft, Pencil, Plus } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useMemo, useState } from "react";
@@ -13,11 +13,8 @@ import { CycleParticipantsTab } from "@/components/performance/cycle-participant
 import { CyclePopulationTab } from "@/components/performance/cycle-population-tab";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { PageHeader } from "@/components/ui/page-header";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -61,22 +58,16 @@ import {
   autoQualitativeScaleId,
   qualitativeScalesForRating,
 } from "@/lib/performance/scale-kind";
-import type { CycleCompetency } from "@/types/performance";
-
 type CompetencyForm = {
   competencyId: string;
   scaleId: string;
-  weight: string;
   order: string;
-  required: boolean;
 };
 
 const emptyCompetencyForm = (): CompetencyForm => ({
   competencyId: "",
   scaleId: "",
-  weight: "",
   order: "0",
-  required: true,
 });
 
 export function CycleDetailPageClient() {
@@ -90,7 +81,6 @@ export function CycleDetailPageClient() {
   const [metaError, setMetaError] = useState<string | null>(null);
 
   const [compOpen, setCompOpen] = useState(false);
-  const [editingComp, setEditingComp] = useState<CycleCompetency | null>(null);
   const [compForm, setCompForm] = useState<CompetencyForm>(emptyCompetencyForm());
   const [compError, setCompError] = useState<string | null>(null);
 
@@ -157,11 +147,9 @@ export function CycleDetailPageClient() {
   const availableCompetencies = useMemo(
     () =>
       (competenciesQuery.data?.items ?? []).filter(
-        (c) =>
-          editingComp?.competencyId === c.id ||
-          !assignedCompetencyIds.has(c.id),
+        (c) => !assignedCompetencyIds.has(c.id),
       ),
-    [competenciesQuery.data?.items, assignedCompetencyIds, editingComp],
+    [competenciesQuery.data?.items, assignedCompetencyIds],
   );
 
   const qualitativeScales = useMemo(
@@ -248,58 +236,26 @@ export function CycleDetailPageClient() {
       if (!Number.isInteger(order) || order < 0) {
         throw new Error("El orden debe ser un entero >= 0.");
       }
-      const weightTrimmed = compForm.weight.trim();
-      const weight =
-        weightTrimmed === "" ? null : Number(weightTrimmed);
-      if (weight != null && (!Number.isFinite(weight) || weight < 0 || weight > 100)) {
-        throw new Error("El peso debe estar entre 0 y 100.");
-      }
 
-      if (editingComp) {
-        return performanceApi.updateCycleCompetency(
-          cycleId,
-          editingComp.competencyId,
-          {
-            scaleId: compForm.scaleId,
-            weight,
-            order,
-            required: compForm.required,
-          },
-        );
-      }
       return performanceApi.addCycleCompetency(cycleId, {
         competencyId: compForm.competencyId,
         scaleId: compForm.scaleId,
-        weight,
+        weight: null,
         order,
-        required: compForm.required,
+        required: true,
       });
     },
     onSuccess: async () => {
       await invalidateCycle();
       setCompOpen(false);
-      setEditingComp(null);
       setCompForm(emptyCompetencyForm());
       setCompError(null);
-      notifySuccess(
-        editingComp ? "Competencia actualizada" : "Competencia agregada",
-      );
+      notifySuccess("Competencia agregada");
     },
     onError: (error) => {
       setCompError(getErrorMessage(error, "No se pudo guardar."));
       notifyError(error, "No se pudo guardar.");
     },
-  });
-
-  const removeCompMutation = useMutation({
-    mutationFn: (competencyId: string) =>
-      performanceApi.removeCycleCompetency(cycleId, competencyId),
-    onSuccess: async () => {
-      await invalidateCycle();
-      notifySuccess("Competencia eliminada del ciclo");
-    },
-    onError: (error) =>
-      notifyError(error, "No se pudo eliminar la competencia."),
   });
 
   function openMetaEdit() {
@@ -310,7 +266,6 @@ export function CycleDetailPageClient() {
   }
 
   function openAddCompetency() {
-    setEditingComp(null);
     const nextOrder =
       assignments.length === 0
         ? 0
@@ -319,19 +274,6 @@ export function CycleDetailPageClient() {
       ...emptyCompetencyForm(),
       order: String(nextOrder),
       scaleId: autoQualitativeScaleId(qualitativeScales),
-    });
-    setCompError(null);
-    setCompOpen(true);
-  }
-
-  function openEditCompetency(row: CycleCompetency) {
-    setEditingComp(row);
-    setCompForm({
-      competencyId: row.competencyId,
-      scaleId: row.scaleId,
-      weight: row.weight ?? "",
-      order: String(row.order),
-      required: row.required,
     });
     setCompError(null);
     setCompOpen(true);
@@ -521,7 +463,7 @@ export function CycleDetailPageClient() {
               <h2 className="text-lg font-semibold">Competencias del ciclo</h2>
               <p className="text-sm text-muted-foreground">
                 {structureEditable
-                  ? "Se cargan solas al asignar población, según el nivel del cargo. También puedes agregar o ajustar escalas y pesos."
+                  ? "Se cargan solas al asignar población, según el nivel del cargo. También puedes agregar alguna extra."
                   : "La estructura solo se edita en borrador."}
               </p>
             </div>
@@ -554,11 +496,6 @@ export function CycleDetailPageClient() {
                       <TableHead>Orden</TableHead>
                       <TableHead>Competencia</TableHead>
                       <TableHead>Escala</TableHead>
-                      <TableHead>Peso</TableHead>
-                      <TableHead>Requerida</TableHead>
-                      {structureEditable ? (
-                        <TableHead className="text-right">Acciones</TableHead>
-                      ) : null}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -571,37 +508,6 @@ export function CycleDetailPageClient() {
                         <TableCell>
                           {row.scale?.name ?? row.scaleId}
                         </TableCell>
-                        <TableCell>
-                          {row.weight != null ? `${row.weight}%` : "—"}
-                        </TableCell>
-                        <TableCell>{row.required ? "Sí" : "No"}</TableCell>
-                        {structureEditable ? (
-                          <TableCell className="text-right">
-                            <div className="flex justify-end gap-1">
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => openEditCompetency(row)}
-                              >
-                                <Pencil className="h-4 w-4" />
-                                Editar
-                              </Button>
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="sm"
-                                disabled={removeCompMutation.isPending}
-                                onClick={() =>
-                                  removeCompMutation.mutate(row.competencyId)
-                                }
-                              >
-                                <Trash2 className="h-4 w-4" />
-                                Quitar
-                              </Button>
-                            </div>
-                          </TableCell>
-                        ) : null}
                       </TableRow>
                     ))}
                   </TableBody>
@@ -621,33 +527,8 @@ export function CycleDetailPageClient() {
                       Escala: {row.scale?.name ?? row.scaleId}
                     </p>
                     <p className="text-sm text-muted-foreground">
-                      Orden {row.order} · Peso{" "}
-                      {row.weight != null ? `${row.weight}%` : "—"} ·{" "}
-                      {row.required ? "Requerida" : "Opcional"}
+                      Orden {row.order}
                     </p>
-                    {structureEditable ? (
-                      <div className="flex flex-wrap gap-2">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => openEditCompetency(row)}
-                        >
-                          Editar
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          disabled={removeCompMutation.isPending}
-                          onClick={() =>
-                            removeCompMutation.mutate(row.competencyId)
-                          }
-                        >
-                          Quitar
-                        </Button>
-                      </div>
-                    ) : null}
                   </div>
                 ))}
               </div>
@@ -720,9 +601,7 @@ export function CycleDetailPageClient() {
       <EntityEditorShell
         open={compOpen}
         onOpenChange={setCompOpen}
-        title={
-          editingComp ? "Editar competencia del ciclo" : "Agregar competencia"
-        }
+        title="Agregar competencia"
       >
         <form
           className="space-y-4"
@@ -735,7 +614,6 @@ export function CycleDetailPageClient() {
             id="comp-select"
             label="Competencia"
             required
-            disabled={Boolean(editingComp)}
             value={compForm.competencyId}
             onChange={(competencyId) => {
               setCompForm((f) => ({
@@ -771,48 +649,6 @@ export function CycleDetailPageClient() {
               hint="Las competencias no usan escalas cuantitativas."
             />
           )}
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="comp-weight">Peso (%)</Label>
-              <Input
-                id="comp-weight"
-                type="number"
-                min={0}
-                max={100}
-                step="0.01"
-                value={compForm.weight}
-                onChange={(e) =>
-                  setCompForm((f) => ({ ...f, weight: e.target.value }))
-                }
-                placeholder="Vacío = sin ponderar"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="comp-order">Orden</Label>
-              <Input
-                id="comp-order"
-                type="number"
-                min={0}
-                value={compForm.order}
-                onChange={(e) =>
-                  setCompForm((f) => ({ ...f, order: e.target.value }))
-                }
-              />
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <Checkbox
-              id="comp-required"
-              checked={compForm.required}
-              onCheckedChange={(checked) =>
-                setCompForm((f) => ({
-                  ...f,
-                  required: checked === true,
-                }))
-              }
-            />
-            <Label htmlFor="comp-required">Requerida</Label>
-          </div>
           {compError ? (
             <p className="text-sm text-destructive" role="alert">
               {compError}
