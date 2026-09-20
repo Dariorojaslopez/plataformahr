@@ -1,5 +1,11 @@
-import { DEFAULT_LOCALE, type AppLocale } from "@/i18n/locales";
+import { type AppLocale } from "@/i18n/locales";
 import { TRANSLATIONS } from "@/i18n/messages";
+
+type TranslatedLocale = keyof typeof TRANSLATIONS;
+
+function isTranslatedLocale(locale: AppLocale): locale is TranslatedLocale {
+  return locale in TRANSLATIONS;
+}
 
 export function applyVars(
   text: string,
@@ -17,8 +23,7 @@ export function translate(
   text: string,
   vars?: Record<string, string>,
 ): string {
-  if (!text) return text;
-  if (locale === DEFAULT_LOCALE) return applyVars(text, vars);
+  if (!text || !isTranslatedLocale(locale)) return applyVars(text, vars);
   const required = text.endsWith(" *");
   const source = required ? text.slice(0, -2) : text;
   const translated = TRANSLATIONS[locale][source] ?? source;
