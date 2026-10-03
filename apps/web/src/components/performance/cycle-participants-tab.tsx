@@ -38,6 +38,12 @@ import {
   EVALUATION_STATUS_LABELS,
 } from "@/lib/performance/evaluation-labels";
 import {
+  EXTRA_EVAL_COLUMNS,
+  extraEvalColumnApplies,
+  formatExtraEvalColumn,
+  NOT_APPLICABLE_EVAL_LABEL,
+} from "@/lib/performance/participant-eval-columns";
+import {
   PARTICIPANT_STATUS_LABELS,
   participantStatusVariant,
 } from "@/lib/performance/participant-labels";
@@ -55,6 +61,7 @@ import type {
   CycleParticipantListItem,
   ListParticipantsParams,
   PerformanceCycleStatus,
+  PerformanceEvaluationModel,
   PerformanceEvaluationStatus,
 } from "@/types/performance";
 
@@ -80,12 +87,14 @@ function evalStatusLabel(
 type Props = {
   cycleId: string;
   cycleStatus: PerformanceCycleStatus;
+  evaluationModel?: PerformanceEvaluationModel;
   hideAssignment?: boolean;
 };
 
 export function CycleParticipantsTab({
   cycleId,
   cycleStatus,
+  evaluationModel = "DEGREE_90",
   hideAssignment = false,
 }: Props) {
   const companyId = useCompanyId();
@@ -396,6 +405,22 @@ export function CycleParticipantsTab({
                   <TableHead>Estado</TableHead>
                   <TableHead>Autoeval.</TableHead>
                   <TableHead>Líder eval.</TableHead>
+                  {EXTRA_EVAL_COLUMNS.map((column) => {
+                    const applies = extraEvalColumnApplies(
+                      evaluationModel,
+                      column.role,
+                    );
+                    return (
+                      <TableHead
+                        key={column.role}
+                        className={
+                          applies ? undefined : "text-muted-foreground"
+                        }
+                      >
+                        {column.label}
+                      </TableHead>
+                    );
+                  })}
                   <TableHead>Resultado</TableHead>
                   {canAssign || canMutateResults ? (
                     <TableHead className="text-right">Acciones</TableHead>
@@ -408,6 +433,7 @@ export function CycleParticipantsTab({
                     key={row.id}
                     row={row}
                     cycleStatus={cycleStatus}
+                    evaluationModel={evaluationModel}
                     canAssign={canAssign}
                     canMutateResults={canMutateResults}
                     excluding={excludeMutation.isPending}
@@ -469,6 +495,28 @@ export function CycleParticipantsTab({
                         row.evaluations.manager?.scorePercentage,
                       )}
                     </Badge>
+                    {EXTRA_EVAL_COLUMNS.map((column) => {
+                      const applies = extraEvalColumnApplies(
+                        evaluationModel,
+                        column.role,
+                      );
+                      return (
+                        <Badge
+                          key={column.role}
+                          variant="secondary"
+                          className={
+                            applies ? undefined : "text-muted-foreground"
+                          }
+                        >
+                          {column.label}:{" "}
+                          {applies
+                            ? formatExtraEvalColumn(
+                                row.evaluations[column.role],
+                              )
+                            : NOT_APPLICABLE_EVAL_LABEL}
+                        </Badge>
+                      );
+                    })}
                     {row.result ? (
                       <Badge variant={resultStatusVariant(row.result.status)}>
                         {RESULT_STATUS_LABELS[row.result.status]} ·{" "}
@@ -711,6 +759,7 @@ export function CycleParticipantsTab({
 function ParticipantTableRow({
   row,
   cycleStatus,
+  evaluationModel,
   canAssign,
   canMutateResults,
   excluding,
@@ -722,6 +771,7 @@ function ParticipantTableRow({
 }: {
   row: CycleParticipantListItem;
   cycleStatus: PerformanceCycleStatus;
+  evaluationModel: PerformanceEvaluationModel;
   canAssign: boolean;
   canMutateResults: boolean;
   excluding: boolean;
@@ -768,6 +818,21 @@ function ParticipantTableRow({
           row.evaluations.manager?.scorePercentage,
         )}
       </TableCell>
+      {EXTRA_EVAL_COLUMNS.map((column) => {
+        const applies = extraEvalColumnApplies(evaluationModel, column.role);
+        if (!applies) {
+          return (
+            <TableCell key={column.role} className="text-muted-foreground">
+              {NOT_APPLICABLE_EVAL_LABEL}
+            </TableCell>
+          );
+        }
+        return (
+          <TableCell key={column.role}>
+            {formatExtraEvalColumn(row.evaluations[column.role])}
+          </TableCell>
+        );
+      })}
       <TableCell>
         {row.result ? (
           <div className="space-y-1">

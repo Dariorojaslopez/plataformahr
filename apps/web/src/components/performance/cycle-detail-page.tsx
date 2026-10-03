@@ -528,6 +528,7 @@ export function CycleDetailPageClient() {
             <CycleParticipantsTab
               cycleId={cycleId}
               cycleStatus={cycle.status}
+              evaluationModel={cycle.evaluationModel}
               hideAssignment
             />
           ) : null}

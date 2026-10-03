@@ -16,6 +16,7 @@ import {
   Prisma,
   ReportingLineType,
 } from '@prisma/client';
+import { summarizeEvaluationGroup } from '../evaluation-group-summary';
 import { modelIncludesPeer, modelIncludesReport } from '../evaluation-model';
 import { AuditService } from '../../core/audit/audit.service';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -1399,6 +1400,18 @@ export class ParticipantsService {
               ),
             }
           : null,
+        peer: summarizeEvaluationGroup(
+          row.evaluations,
+          PerformanceEvaluationType.PEER,
+        ),
+        report: summarizeEvaluationGroup(
+          row.evaluations,
+          PerformanceEvaluationType.REPORT,
+        ),
+        client: summarizeEvaluationGroup(
+          row.evaluations,
+          PerformanceEvaluationType.CLIENT,
+        ),
       },
       result: row.result
         ? {

@@ -390,6 +390,14 @@ export type ParticipantEvaluationManagerSummary = {
   scorePercentage?: string | null;
 };
 
+export type ParticipantEvaluationGroupSummary = {
+  total: number;
+  submitted: number;
+  inProgress: number;
+  pending: number;
+  averageScore: string | null;
+};
+
 export type ParticipantResultSummary = {
   id: string;
   status: PerformanceResultStatus;
@@ -413,6 +421,9 @@ export type CycleParticipantListItem = {
   evaluations: {
     self: ParticipantEvaluationSelfSummary | null;
     manager: ParticipantEvaluationManagerSummary | null;
+    peer?: ParticipantEvaluationGroupSummary | null;
+    report?: ParticipantEvaluationGroupSummary | null;
+    client?: ParticipantEvaluationGroupSummary | null;
   };
   result?: ParticipantResultSummary | null;
 };
