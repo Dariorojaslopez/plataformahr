@@ -107,10 +107,9 @@ describe('evaluation access helpers', () => {
     ).toBe(false);
   });
 
-  it('allows respond only for evaluator with respond permission (no manage impersonation)', () => {
+  it('allows respond only for the assigned evaluator (no manage impersonation)', () => {
     expect(
       canRespondToEvaluation({
-        hasRespondPermission: true,
         actorEmployeeId: 'mgr-b',
         evaluatorEmployeeId: 'mgr-b',
       }),
@@ -118,7 +117,6 @@ describe('evaluation access helpers', () => {
 
     expect(
       canRespondToEvaluation({
-        hasRespondPermission: true,
         actorEmployeeId: 'admin-emp',
         evaluatorEmployeeId: 'mgr-b',
       }),
@@ -126,15 +124,6 @@ describe('evaluation access helpers', () => {
 
     expect(
       canRespondToEvaluation({
-        hasRespondPermission: false,
-        actorEmployeeId: 'mgr-b',
-        evaluatorEmployeeId: 'mgr-b',
-      }),
-    ).toBe(false);
-
-    expect(
-      canRespondToEvaluation({
-        hasRespondPermission: true,
         actorEmployeeId: null,
         evaluatorEmployeeId: 'mgr-b',
       }),

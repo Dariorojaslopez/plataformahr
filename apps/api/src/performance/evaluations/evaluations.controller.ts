@@ -12,7 +12,6 @@ import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import type { AuthenticatedUser, TenantContext } from '../../auth/auth.types';
 import { CurrentUser } from '../../auth/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
-import { RequirePermissions } from '../../rbac/decorators/require-permissions.decorator';
 import { PermissionGuard } from '../../rbac/guards/permission.guard';
 import { CurrentTenant } from '../../tenant/decorators/current-tenant.decorator';
 import { CompanyContextGuard } from '../../tenant/guards/company-context.guard';
@@ -25,13 +24,12 @@ export class EvaluationsController {
   constructor(private readonly evaluationsService: EvaluationsService) {}
 
   @Get('mine')
-  @RequirePermissions('performance.evaluation.read')
   listMine(@CurrentTenant() tenant: TenantContext) {
+    // Own evaluations only. Menu access is not the same as performance.evaluation.read.
     return this.evaluationsService.listMine(tenant.companyId, tenant.userId);
   }
 
   @Get(':id')
-  @RequirePermissions('performance.evaluation.read')
   getById(
     @CurrentTenant() tenant: TenantContext,
     @Param('id', ParseUUIDPipe) id: string,
@@ -45,7 +43,6 @@ export class EvaluationsController {
   }
 
   @Put(':evaluationId/competencies/:competencyId/response')
-  @RequirePermissions('performance.evaluation.respond')
   upsertResponse(
     @CurrentTenant() tenant: TenantContext,
     @CurrentUser() user: AuthenticatedUser,
@@ -56,7 +53,6 @@ export class EvaluationsController {
     return this.evaluationsService.upsertResponse(
       tenant.companyId,
       user.userId,
-      tenant.membershipId,
       evaluationId,
       competencyId,
       dto,
@@ -64,7 +60,6 @@ export class EvaluationsController {
   }
 
   @Put(':evaluationId/goals/:goalId/response')
-  @RequirePermissions('performance.evaluation.respond')
   upsertGoalRating(
     @CurrentTenant() tenant: TenantContext,
     @CurrentUser() user: AuthenticatedUser,
@@ -75,7 +70,6 @@ export class EvaluationsController {
     return this.evaluationsService.upsertGoalRating(
       tenant.companyId,
       user.userId,
-      tenant.membershipId,
       evaluationId,
       goalId,
       dto,
@@ -85,7 +79,6 @@ export class EvaluationsController {
   @Post(':id/submit')
   @UseGuards(ThrottlerGuard)
   @Throttle({ default: { limit: 40, ttl: 60_000 } })
-  @RequirePermissions('performance.evaluation.respond')
   submit(
     @CurrentTenant() tenant: TenantContext,
     @CurrentUser() user: AuthenticatedUser,
@@ -94,7 +87,6 @@ export class EvaluationsController {
     return this.evaluationsService.submit(
       tenant.companyId,
       user.userId,
-      tenant.membershipId,
       id,
     );
   }

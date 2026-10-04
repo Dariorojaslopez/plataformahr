@@ -97,15 +97,14 @@ export function canAccessEvaluation(params: {
 }
 
 /**
- * Respond requires respond permission AND being the frozen evaluator.
+ * Only the frozen evaluator may respond. A role permission is not required:
+ * menu access can include people whose role lacks performance.evaluation.respond.
  * Manage alone never impersonates an evaluator.
  */
 export function canRespondToEvaluation(params: {
-  hasRespondPermission: boolean;
   actorEmployeeId: string | null;
   evaluatorEmployeeId: string | null;
 }): boolean {
-  if (!params.hasRespondPermission) return false;
   if (!params.actorEmployeeId || !params.evaluatorEmployeeId) return false;
   return params.actorEmployeeId === params.evaluatorEmployeeId;
 }

@@ -13,7 +13,6 @@ import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import type { AuthenticatedUser, TenantContext } from '../../auth/auth.types';
 import { CurrentUser } from '../../auth/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
-import { RequirePermissions } from '../../rbac/decorators/require-permissions.decorator';
 import { PermissionGuard } from '../../rbac/guards/permission.guard';
 import { CurrentTenant } from '../../tenant/decorators/current-tenant.decorator';
 import { CompanyContextGuard } from '../../tenant/guards/company-context.guard';
@@ -38,13 +37,11 @@ export class GoalDefinitionController {
   ) {}
 
   @Get('notifications')
-  @RequirePermissions('performance.evaluation.read')
   notifications(@CurrentTenant() tenant: TenantContext) {
     return this.inbox.list(tenant.companyId, tenant.userId);
   }
 
   @Post('notifications/:id/read')
-  @RequirePermissions('performance.evaluation.read')
   markRead(
     @CurrentTenant() tenant: TenantContext,
     @Param('id', ParseUUIDPipe) id: string,
@@ -53,7 +50,6 @@ export class GoalDefinitionController {
   }
 
   @Get(':cycleId/goal-definition')
-  @RequirePermissions('performance.evaluation.read')
   get(
     @CurrentTenant() tenant: TenantContext,
     @Param('cycleId', ParseUUIDPipe) cycleId: string,
@@ -62,7 +58,6 @@ export class GoalDefinitionController {
   }
 
   @Put(':cycleId/goal-definition')
-  @RequirePermissions('performance.evaluation.respond')
   save(
     @CurrentTenant() tenant: TenantContext,
     @CurrentUser() user: AuthenticatedUser,
@@ -80,7 +75,6 @@ export class GoalDefinitionController {
   @Post(':cycleId/goal-definition/submit')
   @UseGuards(ThrottlerGuard)
   @Throttle({ default: { limit: 20, ttl: 60_000 } })
-  @RequirePermissions('performance.evaluation.respond')
   submit(
     @CurrentTenant() tenant: TenantContext,
     @CurrentUser() user: AuthenticatedUser,
@@ -96,7 +90,6 @@ export class GoalDefinitionController {
   }
 
   @Post(':cycleId/goal-definition/edit-request')
-  @RequirePermissions('performance.evaluation.respond')
   requestEdit(
     @CurrentTenant() tenant: TenantContext,
     @CurrentUser() user: AuthenticatedUser,
@@ -112,7 +105,6 @@ export class GoalDefinitionController {
   }
 
   @Get(':cycleId/goal-approvals')
-  @RequirePermissions('performance.evaluation.read')
   listApprovals(
     @CurrentTenant() tenant: TenantContext,
     @Param('cycleId', ParseUUIDPipe) cycleId: string,
@@ -121,7 +113,6 @@ export class GoalDefinitionController {
   }
 
   @Get(':cycleId/goal-approvals/:employeeId')
-  @RequirePermissions('performance.evaluation.read')
   getApproval(
     @CurrentTenant() tenant: TenantContext,
     @Param('cycleId', ParseUUIDPipe) cycleId: string,
@@ -136,7 +127,6 @@ export class GoalDefinitionController {
   }
 
   @Post(':cycleId/goal-approvals/:employeeId/approve')
-  @RequirePermissions('performance.evaluation.respond')
   approve(
     @CurrentTenant() tenant: TenantContext,
     @CurrentUser() user: AuthenticatedUser,
@@ -154,7 +144,6 @@ export class GoalDefinitionController {
   }
 
   @Post(':cycleId/goal-approvals/:employeeId/reject')
-  @RequirePermissions('performance.evaluation.respond')
   reject(
     @CurrentTenant() tenant: TenantContext,
     @CurrentUser() user: AuthenticatedUser,
@@ -172,7 +161,6 @@ export class GoalDefinitionController {
   }
 
   @Post(':cycleId/edit-requests/:requestId/approve')
-  @RequirePermissions('performance.evaluation.respond')
   approveEdit(
     @CurrentTenant() tenant: TenantContext,
     @CurrentUser() user: AuthenticatedUser,
@@ -191,7 +179,6 @@ export class GoalDefinitionController {
   }
 
   @Post(':cycleId/edit-requests/:requestId/reject')
-  @RequirePermissions('performance.evaluation.respond')
   rejectEdit(
     @CurrentTenant() tenant: TenantContext,
     @CurrentUser() user: AuthenticatedUser,
@@ -210,7 +197,6 @@ export class GoalDefinitionController {
   }
 
   @Get(':cycleId/closing')
-  @RequirePermissions('performance.evaluation.read')
   getClosing(
     @CurrentTenant() tenant: TenantContext,
     @Param('cycleId', ParseUUIDPipe) cycleId: string,
@@ -225,7 +211,6 @@ export class GoalDefinitionController {
   }
 
   @Put(':cycleId/closing')
-  @RequirePermissions('performance.evaluation.respond')
   saveClosing(
     @CurrentTenant() tenant: TenantContext,
     @CurrentUser() user: AuthenticatedUser,
@@ -236,7 +221,6 @@ export class GoalDefinitionController {
   }
 
   @Post(':cycleId/closing/accept')
-  @RequirePermissions('performance.evaluation.respond')
   acceptClosing(
     @CurrentTenant() tenant: TenantContext,
     @CurrentUser() user: AuthenticatedUser,

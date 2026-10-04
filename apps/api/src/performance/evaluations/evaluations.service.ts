@@ -332,7 +332,6 @@ export class EvaluationsService {
     }
 
     const canRespond = canRespondToEvaluation({
-      hasRespondPermission: granted.has('performance.evaluation.respond'),
       actorEmployeeId: actorEmployee?.id ?? null,
       evaluatorEmployeeId: evaluation.evaluatorEmployeeId,
     });
@@ -346,14 +345,10 @@ export class EvaluationsService {
   async upsertResponse(
     companyId: string,
     userId: string,
-    membershipId: string,
     evaluationId: string,
     evaluationCompetencyId: string,
     dto: UpsertEvaluationResponseDto,
   ) {
-    const granted =
-      await this.rbac.getPermissionCodesForMembership(membershipId);
-    const hasRespond = granted.has('performance.evaluation.respond');
     const actorEmployee = await this.resolveActorEmployee(companyId, userId);
     if (!actorEmployee) {
       throw new ForbiddenException(
@@ -367,7 +362,6 @@ export class EvaluationsService {
 
       if (
         !canRespondToEvaluation({
-          hasRespondPermission: hasRespond,
           actorEmployeeId: actorEmployee.id,
           evaluatorEmployeeId: locked.evaluatorEmployeeId,
         })
@@ -494,14 +488,10 @@ export class EvaluationsService {
   async upsertGoalRating(
     companyId: string,
     userId: string,
-    membershipId: string,
     evaluationId: string,
     goalId: string,
     dto: UpsertEvaluationResponseDto,
   ) {
-    const granted =
-      await this.rbac.getPermissionCodesForMembership(membershipId);
-    const hasRespond = granted.has('performance.evaluation.respond');
     const actorEmployee = await this.resolveActorEmployee(companyId, userId);
     if (!actorEmployee) {
       throw new ForbiddenException(
@@ -514,7 +504,6 @@ export class EvaluationsService {
       this.assertWritableEvaluation(locked);
       if (
         !canRespondToEvaluation({
-          hasRespondPermission: hasRespond,
           actorEmployeeId: actorEmployee.id,
           evaluatorEmployeeId: locked.evaluatorEmployeeId,
         })
@@ -606,12 +595,8 @@ export class EvaluationsService {
   async submit(
     companyId: string,
     userId: string,
-    membershipId: string,
     evaluationId: string,
   ) {
-    const granted =
-      await this.rbac.getPermissionCodesForMembership(membershipId);
-    const hasRespond = granted.has('performance.evaluation.respond');
     const actorEmployee = await this.resolveActorEmployee(companyId, userId);
     if (!actorEmployee) {
       throw new ForbiddenException(
@@ -629,7 +614,6 @@ export class EvaluationsService {
 
       if (
         !canRespondToEvaluation({
-          hasRespondPermission: hasRespond,
           actorEmployeeId: actorEmployee.id,
           evaluatorEmployeeId: locked.evaluatorEmployeeId,
         })
