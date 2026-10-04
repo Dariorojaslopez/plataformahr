@@ -14,6 +14,7 @@ import {
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../../core/audit/audit.service';
 import { PERFORMANCE_AUDIT } from '../performance.constants';
+import { decimalToString } from '../performance.helpers';
 import { createPerformanceNotification } from '../inbox/notify';
 import type { ReviewCommentDto } from '../goal-definition/dto/goal-definition.dto';
 
@@ -104,7 +105,7 @@ export class GoalApprovalsService {
     const cycle = await this.requireCycle(companyId, cycleId);
     const employee = await this.prisma.employee.findFirst({
       where: { id: employeeId, companyId, deletedAt: null },
-      select: EMPLOYEE_NAME,
+      select: { ...EMPLOYEE_NAME, userId: true },
     });
     if (!employee) throw new NotFoundException('Colaborador no encontrado');
 
@@ -122,11 +123,35 @@ export class GoalApprovalsService {
               companyId,
               cycleId: cycle.goalCycleId,
               type: GoalType.INDIVIDUAL,
-              assignments: { some: { employeeId } },
+              OR: [
+                { assignments: { some: { employeeId } } },
+                ...(employee.userId
+                  ? [{ createdByUserId: employee.userId }]
+                  : []),
+              ],
             },
             include: {
-              scale: { select: { id: true, name: true, kind: true } },
+              scale: {
+                select: {
+                  id: true,
+                  name: true,
+                  kind: true,
+                  format: true,
+                  currencyCode: true,
+                },
+              },
+              targetScaleLevel: {
+                select: { id: true, value: true, label: true },
+              },
               parentGoal: { select: { id: true, title: true } },
+              assignments: {
+                include: {
+                  employee: {
+                    select: { id: true, firstName: true, lastName: true },
+                  },
+                },
+                take: 1,
+              },
             },
             orderBy: { createdAt: 'asc' },
           })
@@ -135,7 +160,12 @@ export class GoalApprovalsService {
 
     return {
       cycle: { id: cycle.id, name: cycle.name, status: cycle.status },
-      employee,
+      employee: {
+        id: employee.id,
+        firstName: employee.firstName,
+        lastName: employee.lastName,
+        email: employee.email,
+      },
       submittedAt: definition?.submittedAt ?? null,
       reviewStatus: definition?.reviewStatus ?? null,
       reviewComment: definition?.reviewComment ?? null,
@@ -146,7 +176,10 @@ export class GoalApprovalsService {
         description: goal.description,
         progressStatus: goal.progressStatus,
         scale: goal.scale,
+        targetValue: decimalToString(goal.targetValue),
+        targetScaleLevel: goal.targetScaleLevel,
         parentGoalTitle: goal.parentGoal?.title ?? null,
+        assignee: goal.assignments[0]?.employee ?? null,
       })),
       pdi: pdi
         ? {

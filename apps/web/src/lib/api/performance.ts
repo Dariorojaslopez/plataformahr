@@ -7,6 +7,7 @@ import type {
   BulkAssignParticipantsResult,
   Competency,
   CompetencyScale,
+  CompetencyScaleFormat,
   CompetencyScaleLevel,
   CreateCompetencyInput,
   CreateCompetencyScaleInput,
@@ -34,6 +35,7 @@ import type {
   SaveEvaluationResponseResult,
   SaveGoalDefinitionInput,
   GoalDefinitionWorkspace,
+  GoalProgressStatus,
   UpdateCompetencyInput,
   UpdateCompetencyScaleInput,
   UpdateCycleCompetencyInput,
@@ -327,9 +329,16 @@ export const performanceApi = {
         id: string;
         title: string;
         description: string | null;
-        progressStatus: string;
-        scale: { name: string } | null;
+        progressStatus: GoalProgressStatus;
+        scale: {
+          name: string;
+          format?: CompetencyScaleFormat;
+          currencyCode?: string | null;
+        } | null;
+        targetValue: string | null;
+        targetScaleLevel: { label: string } | null;
         parentGoalTitle: string | null;
+        assignee: { id: string; firstName: string; lastName: string } | null;
       }>;
       pdi: {
         name: string;

@@ -1117,6 +1117,16 @@ function PerformanceCyclesSection({
                   {formatHomeDate(item.currentPhaseEndDate)}
                 </p>
               ) : null}
+              {(item.pendingApprovalCount ?? 0) > 0 ? (
+                <p className="text-sm">
+                  {item.pendingApprovalCount === 1
+                    ? "1 aprobación pendiente"
+                    : `${item.pendingApprovalCount} aprobaciones pendientes`}
+                  {(item.pendingApprovalNames?.length ?? 0) > 0
+                    ? `: ${item.pendingApprovalNames.join(", ")}`
+                    : ""}
+                </p>
+              ) : null}
               <Button type="button" size="sm" asChild>
                 <Link href={`/performance/my-evaluations/${item.cycleId}`}>
                   Ver evaluación

@@ -245,6 +245,8 @@ export type HomePerformanceCycle = {
   currentPhaseLabel: string | null;
   currentPhaseStartDate: string | null;
   currentPhaseEndDate: string | null;
+  pendingApprovalCount: number;
+  pendingApprovalNames: string[];
 };
 
 export type HomeAssignedVacancy = {

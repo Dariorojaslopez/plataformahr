@@ -56,6 +56,9 @@ describe('HomeService', () => {
     offerLetterApprovals?: unknown[];
     readyForOfferApplications?: unknown[];
     performanceCycles?: unknown[];
+    reports?: unknown[];
+    pendingGoalDefinitions?: unknown[];
+    pendingGoalEdits?: unknown[];
     roleCodes?: string[];
     orgEmployees?: unknown[];
   }) {
@@ -130,6 +133,17 @@ describe('HomeService', () => {
         findMany: jest
           .fn()
           .mockResolvedValue(overrides?.performanceCycles ?? []),
+      },
+      employeeReportingLine: {
+        findMany: jest.fn().mockResolvedValue(overrides?.reports ?? []),
+      },
+      performanceGoalDefinition: {
+        findMany: jest
+          .fn()
+          .mockResolvedValue(overrides?.pendingGoalDefinitions ?? []),
+      },
+      performanceGoalModificationRequest: {
+        findMany: jest.fn().mockResolvedValue(overrides?.pendingGoalEdits ?? []),
       },
     };
     const rbac = {
@@ -215,7 +229,57 @@ describe('HomeService', () => {
         currentPhaseLabel: 'Definición de objetivos',
         currentPhaseStartDate: start.toISOString().slice(0, 10),
         currentPhaseEndDate: end.toISOString().slice(0, 10),
+        pendingApprovalCount: 0,
+        pendingApprovalNames: [],
       },
+    ]);
+  });
+
+  it('shows pending goal approvals for a manager who leads the cycle', async () => {
+    const today = new Date();
+    const start = new Date(
+      Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate() - 1),
+    );
+    const end = new Date(
+      Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate() + 10),
+    );
+    const { service } = build({
+      reports: [
+        {
+          employeeId: 'emp-2',
+          employee: { firstName: 'Clara', lastName: 'Pasos' },
+        },
+      ],
+      performanceCycles: [
+        {
+          cycle: {
+            id: 'cycle-1',
+            name: 'Kumis',
+            startDate: start,
+            endDate: end,
+            status: 'ACTIVE',
+            evaluationStartDate: null,
+            evaluationEndDate: null,
+            goalDefinitionStartDate: start,
+            goalDefinitionEndDate: end,
+            managerEvaluationStartDate: null,
+            managerEvaluationEndDate: null,
+            calibrationStartDate: null,
+            calibrationEndDate: null,
+            closingStartDate: null,
+            closingEndDate: null,
+            followUps: [],
+          },
+        },
+      ],
+      pendingGoalDefinitions: [{ cycleId: 'cycle-1', employeeId: 'emp-2' }],
+    });
+
+    const feed = await service.getFeed(tenant);
+
+    expect(feed.performanceCycles[0]?.pendingApprovalCount).toBe(1);
+    expect(feed.performanceCycles[0]?.pendingApprovalNames).toEqual([
+      'Clara Pasos',
     ]);
   });
 

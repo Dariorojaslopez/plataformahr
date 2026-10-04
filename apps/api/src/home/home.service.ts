@@ -11,11 +11,14 @@ import {
   CandidateStatus,
   ContractApprovalStatus,
   EmployeeStatus,
+  GoalDefinitionReviewStatus,
+  GoalModificationRequestStatus,
   InterviewStatus,
   OfferLetterApprovalStatus,
   PerformanceCycleStatus,
   PerformanceParticipantStatus,
   Prisma,
+  ReportingLineType,
   VacancyRequestStatus,
   VacancyStatus,
 } from '@prisma/client';
@@ -629,10 +632,29 @@ export class HomeService {
     companyId: string,
     employeeId: string,
   ): Promise<HomePerformanceCycle[]> {
+    const reports = await this.prisma.employeeReportingLine.findMany({
+      where: {
+        companyId,
+        managerEmployeeId: employeeId,
+        type: ReportingLineType.DIRECT,
+        employee: { deletedAt: null },
+      },
+      select: {
+        employeeId: true,
+        employee: { select: { firstName: true, lastName: true } },
+      },
+    });
+    const reportName = new Map(
+      reports.map((row) => [
+        row.employeeId,
+        `${row.employee.firstName} ${row.employee.lastName}`.trim(),
+      ]),
+    );
+    const audienceIds = [employeeId, ...reports.map((row) => row.employeeId)];
     const rows = await this.prisma.performanceCycleParticipant.findMany({
       where: {
         companyId,
-        employeeId,
+        employeeId: { in: audienceIds },
         status: { not: PerformanceParticipantStatus.EXCLUDED },
         cycle: { status: PerformanceCycleStatus.ACTIVE },
       },
@@ -664,17 +686,59 @@ export class HomeService {
       orderBy: { cycle: { startDate: 'desc' } },
     });
 
-    return rows.map((row) => {
-      const phases = buildCyclePhases(row.cycle);
+    const cycles = new Map<string, (typeof rows)[number]['cycle']>();
+    for (const row of rows) {
+      if (!cycles.has(row.cycle.id)) cycles.set(row.cycle.id, row.cycle);
+    }
+    const cycleIds = [...cycles.keys()];
+    const reportIds = [...reportName.keys()];
+    const [pendingDefinitions, pendingEdits] =
+      cycleIds.length === 0 || reportIds.length === 0
+        ? [[], []]
+        : await Promise.all([
+            this.prisma.performanceGoalDefinition.findMany({
+              where: {
+                companyId,
+                cycleId: { in: cycleIds },
+                employeeId: { in: reportIds },
+                submittedAt: { not: null },
+                reviewStatus: GoalDefinitionReviewStatus.PENDING,
+              },
+              select: { cycleId: true, employeeId: true },
+            }),
+            this.prisma.performanceGoalModificationRequest.findMany({
+              where: {
+                companyId,
+                cycleId: { in: cycleIds },
+                employeeId: { in: reportIds },
+                status: GoalModificationRequestStatus.PENDING,
+              },
+              select: { cycleId: true, employeeId: true },
+            }),
+          ]);
+
+    const pendingByCycle = new Map<string, Set<string>>();
+    for (const row of [...pendingDefinitions, ...pendingEdits]) {
+      const names = pendingByCycle.get(row.cycleId) ?? new Set<string>();
+      const name = reportName.get(row.employeeId);
+      if (name) names.add(name);
+      pendingByCycle.set(row.cycleId, names);
+    }
+
+    return [...cycles.values()].map((cycle) => {
+      const phases = buildCyclePhases(cycle);
       const current = currentCyclePhase(phases);
+      const names = [...(pendingByCycle.get(cycle.id) ?? [])];
       return {
-        cycleId: row.cycle.id,
-        name: row.cycle.name,
-        startDate: dateOnly(row.cycle.startDate),
-        endDate: dateOnly(row.cycle.endDate),
+        cycleId: cycle.id,
+        name: cycle.name,
+        startDate: dateOnly(cycle.startDate),
+        endDate: dateOnly(cycle.endDate),
         currentPhaseLabel: current?.label ?? null,
         currentPhaseStartDate: current?.startDate ?? null,
         currentPhaseEndDate: current?.endDate ?? null,
+        pendingApprovalCount: names.length,
+        pendingApprovalNames: names,
       };
     });
   }

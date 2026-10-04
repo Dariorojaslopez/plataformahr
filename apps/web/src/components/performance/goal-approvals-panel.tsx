@@ -9,7 +9,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { useCompanyId } from "@/hooks/use-company-id";
 import { getErrorMessage } from "@/lib/api/errors";
 import { performanceApi, performanceKeys } from "@/lib/api/performance";
+import { GOAL_PROGRESS_STATUS_LABELS } from "@/lib/performance/goal-progress";
+import { formatGoalTarget } from "@/lib/performance/goal-target";
 import { notifyError, notifySuccess } from "@/lib/ui/notify";
+import type { GoalProgressStatus } from "@/types/performance";
 
 function personName(row: { firstName: string; lastName: string }) {
   return `${row.firstName} ${row.lastName}`.trim();
@@ -139,20 +142,46 @@ export function GoalApprovalsPanel({
       {detailQuery.data ? (
         <div className="space-y-3 rounded-md border border-border bg-muted/20 p-3">
           <p className="font-medium">{personName(detailQuery.data.employee)}</p>
-          <ul className="space-y-2 text-sm">
-            {detailQuery.data.goals.map((goal) => (
-              <li key={goal.id}>
-                <p className="font-medium">{goal.title}</p>
-                {goal.description ? (
-                  <p className="text-muted-foreground">{goal.description}</p>
-                ) : null}
-                {goal.parentGoalTitle ? (
-                  <p className="text-xs text-muted-foreground">
-                    Origen: {goal.parentGoalTitle}
+          <ul className="space-y-3 text-sm">
+            {detailQuery.data.goals.map((goal) => {
+              const target = formatGoalTarget({
+                targetValue: goal.targetValue,
+                targetScaleLevel: goal.targetScaleLevel,
+                scale: goal.scale,
+              });
+              const assigneeName = goal.assignee
+                ? `${goal.assignee.firstName} ${goal.assignee.lastName}`.trim()
+                : null;
+              const status =
+                GOAL_PROGRESS_STATUS_LABELS[
+                  goal.progressStatus as GoalProgressStatus
+                ] ?? goal.progressStatus;
+              return (
+                <li key={goal.id} className="space-y-1">
+                  <p className="font-medium">{goal.title}</p>
+                  {goal.description ? (
+                    <p className="text-muted-foreground">{goal.description}</p>
+                  ) : null}
+                  <p className="text-muted-foreground">
+                    Escala: {goal.scale?.name ?? "Sin escala"}
                   </p>
-                ) : null}
-              </li>
-            ))}
+                  <p className="text-muted-foreground">
+                    Meta: {target ?? "Sin meta"}
+                  </p>
+                  <p className="text-muted-foreground">Estado: {status}</p>
+                  {goal.parentGoalTitle ? (
+                    <p className="text-xs text-muted-foreground">
+                      Origen: {goal.parentGoalTitle}
+                    </p>
+                  ) : null}
+                  {assigneeName && goal.assignee?.id !== detailQuery.data.employee.id ? (
+                    <p className="text-xs text-muted-foreground">
+                      Colaborador: {assigneeName}
+                    </p>
+                  ) : null}
+                </li>
+              );
+            })}
           </ul>
           {detailQuery.data.pdi ? (
             <div className="text-sm">

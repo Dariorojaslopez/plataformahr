@@ -210,6 +210,8 @@ export class GoalDefinitionService {
       );
     }
 
+    await this.ensureOwnParticipant(companyId, ctx.cycle.id, ctx.employee.id);
+
     await this.prisma.$transaction((tx) =>
       this.persistDefinition(
         tx,
@@ -785,10 +787,68 @@ export class GoalDefinitionService {
       },
     );
     if (!participant) {
-      throw new ForbiddenException('No estás invitado a este ciclo');
+      const leadsParticipant = await this.leadsCycleParticipant(
+        companyId,
+        employee.id,
+        cycleId,
+      );
+      if (!leadsParticipant) {
+        throw new ForbiddenException('No estás invitado a este ciclo');
+      }
     }
 
     return { cycle, employee, userId };
+  }
+
+  private async leadsCycleParticipant(
+    companyId: string,
+    managerId: string,
+    cycleId: string,
+  ) {
+    const reports = await this.prisma.employeeReportingLine.findMany({
+      where: {
+        companyId,
+        managerEmployeeId: managerId,
+        type: ReportingLineType.DIRECT,
+      },
+      select: { employeeId: true },
+    });
+    if (reports.length === 0) return false;
+    const participant = await this.prisma.performanceCycleParticipant.findFirst(
+      {
+        where: {
+          companyId,
+          cycleId,
+          employeeId: { in: reports.map((row) => row.employeeId) },
+          status: { not: PerformanceParticipantStatus.EXCLUDED },
+        },
+        select: { id: true },
+      },
+    );
+    return Boolean(participant);
+  }
+
+  private async ensureOwnParticipant(
+    companyId: string,
+    cycleId: string,
+    employeeId: string,
+  ) {
+    const existing = await this.prisma.performanceCycleParticipant.findFirst({
+      where: { companyId, cycleId, employeeId },
+      select: { id: true, status: true },
+    });
+    if (existing?.status === PerformanceParticipantStatus.EXCLUDED) {
+      throw new ForbiddenException('No estás invitado a este ciclo');
+    }
+    if (existing) return;
+    await this.prisma.performanceCycleParticipant.create({
+      data: {
+        companyId,
+        cycleId,
+        employeeId,
+        status: PerformanceParticipantStatus.ACTIVE,
+      },
+    });
   }
 
   private async serializeWorkspace(companyId: string, ctx: ActorContext) {

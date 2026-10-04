@@ -312,6 +312,8 @@ describe("CollaboratorHome", () => {
           currentPhaseLabel: "Definición de objetivos",
           currentPhaseStartDate: "2026-07-01",
           currentPhaseEndDate: "2026-10-30",
+          pendingApprovalCount: 1,
+          pendingApprovalNames: ["Clara Pasos"],
         },
       ],
     });
@@ -321,6 +323,9 @@ describe("CollaboratorHome", () => {
     ).toBeInTheDocument();
     expect(screen.getByText("Desempeño 2026")).toBeInTheDocument();
     expect(screen.getByText("Definición de objetivos")).toBeInTheDocument();
+    expect(
+      screen.getByText("1 aprobación pendiente: Clara Pasos"),
+    ).toBeInTheDocument();
     expect(screen.getByText("01/07/2026 → 30/10/2026")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Ver evaluación" })).toHaveAttribute(
       "href",
