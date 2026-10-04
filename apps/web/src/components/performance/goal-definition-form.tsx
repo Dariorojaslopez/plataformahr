@@ -220,8 +220,10 @@ function GoalDefinitionFormBody({
   const [individual, setIndividual] = useState(initial.individual);
   const [cascaded, setCascaded] = useState(initial.cascaded);
   const [pdi, setPdi] = useState(initial.pdi);
+  const returnedForEdit =
+    data.reviewStatus === "REJECTED" && !data.submittedAt;
   const structureEditable =
-    Boolean(data?.editable) && !forceReadOnly;
+    (Boolean(data.editable) && !forceReadOnly) || returnedForEdit;
   const progressEditable =
     Boolean(data?.progressEditable || data?.editable) && !forceReadOnly;
   const canAddFinished =
@@ -368,12 +370,16 @@ function GoalDefinitionFormBody({
         <p className="rounded-lg border border-border bg-muted/40 px-4 py-3 text-sm">
           {data.reviewStatus === "APPROVED"
             ? "Tu líder aprobó los objetivos. Quedaron bloqueados."
-            : data.reviewStatus === "REJECTED"
-              ? `Tu líder rechazó la definición${data.reviewComment ? `: ${data.reviewComment}` : "."}`
-              : "Definición enviada a aprobación. Los objetivos quedaron bloqueados."}
+            : "Definición enviada a aprobación. Los objetivos quedaron bloqueados."}
           {progressEditable
             ? " Puedes actualizar el estado de avance en el seguimiento."
             : null}
+        </p>
+      ) : data.reviewStatus === "REJECTED" ? (
+        <p className="rounded-lg border border-border bg-muted/40 px-4 py-3 text-sm">
+          Tu líder rechazó la definición
+          {data.reviewComment ? `: ${data.reviewComment}` : "."} Corrige los
+          objetivos y vuelve a enviarlos.
         </p>
       ) : structureEditable ? (
         <p className="text-sm text-muted-foreground">

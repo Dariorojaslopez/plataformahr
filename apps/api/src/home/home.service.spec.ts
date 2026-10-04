@@ -272,7 +272,14 @@ describe('HomeService', () => {
           },
         },
       ],
-      pendingGoalDefinitions: [{ cycleId: 'cycle-1', employeeId: 'emp-2' }],
+      pendingGoalDefinitions: [
+        {
+          cycleId: 'cycle-1',
+          employeeId: 'emp-2',
+          submittedAt: new Date(),
+          reviewStatus: 'PENDING',
+        },
+      ],
     });
 
     const feed = await service.getFeed(tenant);

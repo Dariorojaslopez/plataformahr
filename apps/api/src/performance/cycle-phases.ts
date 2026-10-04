@@ -193,6 +193,19 @@ export function isCycleActiveForEditing(
   return status === 'ACTIVE';
 }
 
+/** The definition window is closed. Today is after its end date. */
+export function isGoalDefinitionOverdue(
+  cycle: {
+    status: CyclePhaseSource['status'];
+    goalDefinitionEndDate?: Date | string | null;
+  },
+  todayInput: Date | string = new Date(),
+): boolean {
+  if (cycle.status !== 'ACTIVE') return false;
+  if (!cycle.goalDefinitionEndDate) return false;
+  return dateOnly(todayInput) > dateOnly(cycle.goalDefinitionEndDate);
+}
+
 const COMPETENCY_PHASES: CyclePhaseKind[] = [
   'SELF_EVALUATION',
   'EVALUATION',

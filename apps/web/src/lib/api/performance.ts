@@ -313,6 +313,7 @@ export const performanceApi = {
         employee: { id: string; firstName: string; lastName: string; email: string };
         submittedAt: string | null;
         reviewStatus: "PENDING" | "APPROVED" | "REJECTED" | null;
+        overdue: boolean;
         reviewComment: string | null;
         structureUnlocked: boolean;
         pendingEditRequest: { id: string; comment: string | null; createdAt: string } | null;

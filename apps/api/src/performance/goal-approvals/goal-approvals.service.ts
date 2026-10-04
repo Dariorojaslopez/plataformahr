@@ -13,6 +13,7 @@ import {
 } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../../core/audit/audit.service';
+import { isGoalDefinitionOverdue } from '../cycle-phases';
 import { PERFORMANCE_AUDIT } from '../performance.constants';
 import { decimalToString } from '../performance.helpers';
 import { createPerformanceNotification } from '../inbox/notify';
@@ -34,7 +35,8 @@ export class GoalApprovalsService {
 
   async list(companyId: string, userId: string, cycleId: string) {
     const actor = await this.requireEmployee(companyId, userId);
-    await this.requireCycle(companyId, cycleId);
+    const cycle = await this.requireCycle(companyId, cycleId);
+    const overdueWindow = isGoalDefinitionOverdue(cycle);
     const reports = await this.directReports(companyId, actor.id);
     if (reports.length === 0) return { items: [] };
 
@@ -76,10 +78,17 @@ export class GoalApprovalsService {
         .map((employee) => {
           const definition = definitionByEmployee.get(employee.id);
           const edit = editByEmployee.get(employee.id);
+          const submittedAt = definition?.submittedAt ?? null;
+          const reviewStatus = definition?.reviewStatus ?? null;
           return {
             employee,
-            submittedAt: definition?.submittedAt ?? null,
-            reviewStatus: definition?.reviewStatus ?? null,
+            submittedAt,
+            reviewStatus,
+            overdue:
+              overdueWindow &&
+              !submittedAt &&
+              reviewStatus !== GoalDefinitionReviewStatus.REJECTED &&
+              reviewStatus !== GoalDefinitionReviewStatus.APPROVED,
             reviewComment: definition?.reviewComment ?? null,
             structureUnlocked: Boolean(definition?.structureUnlocked),
             pendingEditRequest: edit
@@ -373,28 +382,50 @@ export class GoalApprovalsService {
   ) {
     const actor = await this.requireEmployee(companyId, userId);
     await this.assertManages(companyId, actor.id, employeeId);
+    const cycle = await this.requireCycle(companyId, cycleId);
     const definition = await this.prisma.performanceGoalDefinition.findUnique({
       where: { cycleId_employeeId: { cycleId, employeeId } },
     });
+    const overdue = isGoalDefinitionOverdue(cycle);
     if (!definition?.submittedAt) {
-      throw new BadRequestException(
-        'El colaborador aún no envió su definición',
-      );
-    }
-    if (definition.reviewStatus === GoalDefinitionReviewStatus.APPROVED) {
+      if (
+        status !== GoalDefinitionReviewStatus.REJECTED ||
+        !overdue ||
+        definition?.reviewStatus === GoalDefinitionReviewStatus.REJECTED ||
+        definition?.reviewStatus === GoalDefinitionReviewStatus.APPROVED
+      ) {
+        throw new BadRequestException(
+          definition?.reviewStatus === GoalDefinitionReviewStatus.REJECTED
+            ? 'La definición ya fue devuelta'
+            : 'El colaborador aún no envió su definición',
+        );
+      }
+    } else if (definition.reviewStatus === GoalDefinitionReviewStatus.APPROVED) {
       throw new BadRequestException('La definición ya está aprobada');
     }
 
     const approved = status === GoalDefinitionReviewStatus.APPROVED;
-    await this.prisma.$transaction(async (tx) => {
-      await tx.performanceGoalDefinition.update({
-        where: { id: definition.id },
-        data: {
+    const reviewComment = comment?.trim() || null;
+    const saved = await this.prisma.$transaction(async (tx) => {
+      const row = await tx.performanceGoalDefinition.upsert({
+        where: { cycleId_employeeId: { cycleId, employeeId } },
+        create: {
+          companyId,
+          cycleId,
+          employeeId,
           reviewStatus: status,
-          reviewComment: comment?.trim() || null,
+          reviewComment,
           reviewedAt: new Date(),
           reviewedByEmployeeId: actor.id,
-          submittedAt: approved ? definition.submittedAt : null,
+          submittedAt: null,
+          structureUnlocked: false,
+        },
+        update: {
+          reviewStatus: status,
+          reviewComment,
+          reviewedAt: new Date(),
+          reviewedByEmployeeId: actor.id,
+          submittedAt: approved ? definition?.submittedAt ?? null : null,
           structureUnlocked: false,
         },
       });
@@ -408,9 +439,10 @@ export class GoalApprovalsService {
         title: approved ? 'Objetivos aprobados' : 'Objetivos rechazados',
         body: approved
           ? 'Tu líder aprobó y bloqueó tus objetivos.'
-          : comment?.trim() ||
+          : reviewComment ||
             'Tu líder rechazó la definición. Puedes editarla de nuevo.',
       });
+      return row;
     });
 
     await this.audit.create({
@@ -418,7 +450,7 @@ export class GoalApprovalsService {
         ? PERFORMANCE_AUDIT.GOAL_DEFINITION_APPROVED
         : PERFORMANCE_AUDIT.GOAL_DEFINITION_REJECTED,
       entity: 'PerformanceGoalDefinition',
-      entityId: definition.id,
+      entityId: saved.id,
       company: { connect: { id: companyId } },
       user: { connect: { id: userId } },
     });
@@ -441,7 +473,13 @@ export class GoalApprovalsService {
   private async requireCycle(companyId: string, cycleId: string) {
     const cycle = await this.prisma.performanceCycle.findFirst({
       where: { id: cycleId, companyId },
-      select: { id: true, name: true, status: true, goalCycleId: true },
+      select: {
+        id: true,
+        name: true,
+        status: true,
+        goalCycleId: true,
+        goalDefinitionEndDate: true,
+      },
     });
     if (!cycle) throw new NotFoundException('Cycle not found');
     return cycle;

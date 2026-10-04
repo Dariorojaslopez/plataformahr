@@ -203,10 +203,7 @@ function PhaseSection({
               cycleId={group.cycleId}
               forceReadOnly={!phaseEditable}
             />
-            <GoalApprovalsPanel
-              cycleId={group.cycleId}
-              forceReadOnly={!phaseEditable}
-            />
+            <GoalApprovalsPanel cycleId={group.cycleId} />
           </>
         ) : null}
 

@@ -103,6 +103,7 @@ export function GoalApprovalsPanel({
 
   const selected = items.find((item) => item.employee.id === selectedId);
   const pending = selected?.reviewStatus === "PENDING" && Boolean(selected.submittedAt);
+  const overdue = Boolean(selected?.overdue);
   const editRequest = selected?.pendingEditRequest;
 
   return (
@@ -126,13 +127,15 @@ export function GoalApprovalsPanel({
               <Badge variant="outline">
                 {item.pendingEditRequest
                   ? "Pide edición"
-                  : item.reviewStatus === "APPROVED"
-                    ? "Aprobado"
-                    : item.reviewStatus === "REJECTED"
-                      ? "Rechazado"
-                      : item.submittedAt
-                        ? "Pendiente"
-                        : "Sin enviar"}
+                  : item.overdue
+                    ? "Vencida"
+                    : item.reviewStatus === "APPROVED"
+                      ? "Aprobado"
+                      : item.reviewStatus === "REJECTED"
+                        ? "Rechazado"
+                        : item.submittedAt
+                          ? "Pendiente"
+                          : "Sin enviar"}
               </Badge>
             </button>
           </li>
@@ -203,6 +206,18 @@ export function GoalApprovalsPanel({
                   onChange={(event) => setComment(event.target.value)}
                 />
               </div>
+              {overdue ? (
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => rejectMutation.mutate()}
+                    disabled={rejectMutation.isPending}
+                  >
+                    Rechazar
+                  </Button>
+                </div>
+              ) : null}
               {pending ? (
                 <div className="flex flex-wrap gap-2">
                   <Button

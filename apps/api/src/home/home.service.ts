@@ -42,6 +42,7 @@ import { listOrgChartReports } from '../organization/org-chart/org-chart.tree';
 import {
   buildCyclePhases,
   currentCyclePhase,
+  isGoalDefinitionOverdue,
 } from '../performance/cycle-phases';
 import type {
   CollaboratorHomeFeed,
@@ -659,6 +660,7 @@ export class HomeService {
         cycle: { status: PerformanceCycleStatus.ACTIVE },
       },
       select: {
+        employeeId: true,
         cycle: {
           select: {
             id: true,
@@ -687,12 +689,16 @@ export class HomeService {
     });
 
     const cycles = new Map<string, (typeof rows)[number]['cycle']>();
+    const participantsByCycle = new Map<string, string[]>();
     for (const row of rows) {
       if (!cycles.has(row.cycle.id)) cycles.set(row.cycle.id, row.cycle);
+      const members = participantsByCycle.get(row.cycle.id) ?? [];
+      members.push(row.employeeId);
+      participantsByCycle.set(row.cycle.id, members);
     }
     const cycleIds = [...cycles.keys()];
     const reportIds = [...reportName.keys()];
-    const [pendingDefinitions, pendingEdits] =
+    const [goalDefinitions, pendingEdits] =
       cycleIds.length === 0 || reportIds.length === 0
         ? [[], []]
         : await Promise.all([
@@ -701,10 +707,13 @@ export class HomeService {
                 companyId,
                 cycleId: { in: cycleIds },
                 employeeId: { in: reportIds },
-                submittedAt: { not: null },
-                reviewStatus: GoalDefinitionReviewStatus.PENDING,
               },
-              select: { cycleId: true, employeeId: true },
+              select: {
+                cycleId: true,
+                employeeId: true,
+                submittedAt: true,
+                reviewStatus: true,
+              },
             }),
             this.prisma.performanceGoalModificationRequest.findMany({
               where: {
@@ -718,11 +727,38 @@ export class HomeService {
           ]);
 
     const pendingByCycle = new Map<string, Set<string>>();
-    for (const row of [...pendingDefinitions, ...pendingEdits]) {
-      const names = pendingByCycle.get(row.cycleId) ?? new Set<string>();
-      const name = reportName.get(row.employeeId);
-      if (name) names.add(name);
-      pendingByCycle.set(row.cycleId, names);
+    const addPending = (cycleId: string, employeeId: string) => {
+      const name = reportName.get(employeeId);
+      if (!name) return;
+      const names = pendingByCycle.get(cycleId) ?? new Set<string>();
+      names.add(name);
+      pendingByCycle.set(cycleId, names);
+    };
+    for (const row of goalDefinitions) {
+      if (
+        row.submittedAt &&
+        row.reviewStatus === GoalDefinitionReviewStatus.PENDING
+      ) {
+        addPending(row.cycleId, row.employeeId);
+      }
+    }
+    for (const row of pendingEdits) addPending(row.cycleId, row.employeeId);
+    for (const [cycleId, cycle] of cycles) {
+      if (!isGoalDefinitionOverdue(cycle)) continue;
+      for (const employeeId of participantsByCycle.get(cycleId) ?? []) {
+        if (!reportName.has(employeeId)) continue;
+        const definition = goalDefinitions.find(
+          (row) => row.cycleId === cycleId && row.employeeId === employeeId,
+        );
+        if (
+          !definition ||
+          (!definition.submittedAt &&
+            definition.reviewStatus !== GoalDefinitionReviewStatus.REJECTED &&
+            definition.reviewStatus !== GoalDefinitionReviewStatus.APPROVED)
+        ) {
+          addPending(cycleId, employeeId);
+        }
+      }
     }
 
     return [...cycles.values()].map((cycle) => {

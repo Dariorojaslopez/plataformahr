@@ -166,6 +166,10 @@ export class GoalDefinitionService {
       kind: 'FOLLOW_UP',
     });
 
+    const returnedAfterRejection =
+      definition?.reviewStatus === GoalDefinitionReviewStatus.REJECTED &&
+      !definition.submittedAt;
+
     if (definition?.submittedAt && !definition.structureUnlocked) {
       if (submit) {
         throw new BadRequestException(
@@ -186,7 +190,7 @@ export class GoalDefinitionService {
     const unlockedInFollowUp =
       Boolean(definition?.structureUnlocked) && followUpEditable;
 
-    if (!definitionEditable && !unlockedInFollowUp) {
+    if (!definitionEditable && !unlockedInFollowUp && !returnedAfterRejection) {
       throw new ForbiddenException(
         'Solo puedes editar objetivos en la fase actual de definición',
       );
@@ -870,8 +874,12 @@ export class GoalDefinitionService {
     ]);
     const submittedAt = definition?.submittedAt ?? null;
     const phases = buildCyclePhases(ctx.cycle);
+    const returnedAfterRejection =
+      definition?.reviewStatus === GoalDefinitionReviewStatus.REJECTED &&
+      !submittedAt;
     const definitionEditable =
-      (!submittedAt || Boolean(definition?.structureUnlocked)) &&
+      returnedAfterRejection ||
+      ((!submittedAt || Boolean(definition?.structureUnlocked)) &&
       (canEditGoalsInCyclePhase({
         cycleStatus: ctx.cycle.status,
         phases,
@@ -882,7 +890,7 @@ export class GoalDefinitionService {
             cycleStatus: ctx.cycle.status,
             phases,
             kind: 'FOLLOW_UP',
-          })));
+          }))));
     const followUpEditable = canEditGoalsInCyclePhase({
       cycleStatus: ctx.cycle.status,
       phases,
