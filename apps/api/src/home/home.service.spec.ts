@@ -55,6 +55,7 @@ describe('HomeService', () => {
     contractApprovals?: unknown[];
     offerLetterApprovals?: unknown[];
     readyForOfferApplications?: unknown[];
+    performanceCycles?: unknown[];
     roleCodes?: string[];
     orgEmployees?: unknown[];
   }) {
@@ -125,6 +126,11 @@ describe('HomeService', () => {
           .fn()
           .mockResolvedValue(overrides?.offerLetterApprovals ?? []),
       },
+      performanceCycleParticipant: {
+        findMany: jest
+          .fn()
+          .mockResolvedValue(overrides?.performanceCycles ?? []),
+      },
     };
     const rbac = {
       getRoleCodesForMembership: jest
@@ -160,8 +166,57 @@ describe('HomeService', () => {
     expect(feed.pendingOfferLetterApprovals).toEqual([]);
     expect(feed.readyForOffer).toEqual([]);
     expect(feed.assignedVacancies).toEqual([]);
+    expect(feed.performanceCycles).toEqual([]);
     expect(feed.teamMembers).toEqual([]);
     expect(feed.assignedMetrics.vacancyCount).toBe(0);
+  });
+
+  it('lists the active performance cycle and its current phase', async () => {
+    const today = new Date();
+    const start = new Date(
+      Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate() - 1),
+    );
+    const end = new Date(
+      Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate() + 10),
+    );
+    const { service } = build({
+      performanceCycles: [
+        {
+          cycle: {
+            id: 'cycle-1',
+            name: 'Desempeño 2026',
+            startDate: start,
+            endDate: end,
+            status: 'ACTIVE',
+            evaluationStartDate: null,
+            evaluationEndDate: null,
+            goalDefinitionStartDate: start,
+            goalDefinitionEndDate: end,
+            managerEvaluationStartDate: null,
+            managerEvaluationEndDate: null,
+            calibrationStartDate: null,
+            calibrationEndDate: null,
+            closingStartDate: null,
+            closingEndDate: null,
+            followUps: [],
+          },
+        },
+      ],
+    });
+
+    const feed = await service.getFeed(tenant);
+
+    expect(feed.performanceCycles).toEqual([
+      {
+        cycleId: 'cycle-1',
+        name: 'Desempeño 2026',
+        startDate: start.toISOString().slice(0, 10),
+        endDate: end.toISOString().slice(0, 10),
+        currentPhaseLabel: 'Definición de objetivos',
+        currentPhaseStartDate: start.toISOString().slice(0, 10),
+        currentPhaseEndDate: end.toISOString().slice(0, 10),
+      },
+    ]);
   });
 
   it('excludes confidential vacancies from the home listing', async () => {

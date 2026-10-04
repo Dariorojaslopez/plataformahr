@@ -46,6 +46,7 @@ import {
   type HomePendingContractApproval,
   type HomePendingOfferLetterApproval,
   type HomeProfile,
+  type HomePerformanceCycle,
   type HomeReadyForOffer,
   type HomeTeamMember,
   type UpdateHomeProfileInput,
@@ -156,6 +157,9 @@ export function CollaboratorHome({
       ) : null}
       {features.has("ats.interviews") && feed.pendingEvaluations.length > 0 ? (
         <EvaluationsSection items={feed.pendingEvaluations} />
+      ) : null}
+      {(feed.performanceCycles?.length ?? 0) > 0 ? (
+        <PerformanceCyclesSection items={feed.performanceCycles ?? []} />
       ) : null}
       {showAssignedWork && (feed.readyForOffer?.length ?? 0) > 0 ? (
         <ReadyForOfferSection items={feed.readyForOffer ?? []} />
@@ -1065,6 +1069,57 @@ function ReadyForOfferSection({ items }: { items: HomeReadyForOffer[] }) {
               <Button type="button" size="sm" variant="outline" asChild>
                 <Link href={`/ats/pipeline?vacancyId=${item.vacancyId}`}>
                   Ir al kanban
+                </Link>
+              </Button>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function formatHomeDate(value: string): string {
+  const [year, month, day] = value.slice(0, 10).split("-");
+  if (!year || !month || !day) return value;
+  return `${day}/${month}/${year}`;
+}
+
+function PerformanceCyclesSection({
+  items,
+}: {
+  items: HomePerformanceCycle[];
+}) {
+  return (
+    <section className="space-y-3">
+      <div>
+        <h2 className="text-lg font-semibold">Evaluación de desempeño</h2>
+        <p className="text-sm text-muted-foreground">
+          Procesos en los que estás asignado y la etapa en la que vas.
+        </p>
+      </div>
+      <div className="grid gap-3 md:grid-cols-2">
+        {items.map((item) => (
+          <Card key={item.cycleId}>
+            <CardHeader>
+              <CardTitle className="text-base">{item.name}</CardTitle>
+              <CardDescription>
+                {formatHomeDate(item.startDate)} → {formatHomeDate(item.endDate)}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="flex flex-wrap items-center gap-2">
+              <Badge variant="secondary">
+                {item.currentPhaseLabel ?? "Sin fase activa"}
+              </Badge>
+              {item.currentPhaseStartDate && item.currentPhaseEndDate ? (
+                <p className="text-sm text-muted-foreground">
+                  {formatHomeDate(item.currentPhaseStartDate)} →{" "}
+                  {formatHomeDate(item.currentPhaseEndDate)}
+                </p>
+              ) : null}
+              <Button type="button" size="sm" asChild>
+                <Link href={`/performance/my-evaluations/${item.cycleId}`}>
+                  Ver evaluación
                 </Link>
               </Button>
             </CardContent>

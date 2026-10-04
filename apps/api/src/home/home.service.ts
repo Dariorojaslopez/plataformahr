@@ -13,6 +13,8 @@ import {
   EmployeeStatus,
   InterviewStatus,
   OfferLetterApprovalStatus,
+  PerformanceCycleStatus,
+  PerformanceParticipantStatus,
   Prisma,
   VacancyRequestStatus,
   VacancyStatus,
@@ -34,6 +36,10 @@ import {
 } from '../organization/organization.helpers';
 import { ORG_CHART_EMPLOYEE_SELECT } from '../organization/org-chart/org-chart.service';
 import { listOrgChartReports } from '../organization/org-chart/org-chart.tree';
+import {
+  buildCyclePhases,
+  currentCyclePhase,
+} from '../performance/cycle-phases';
 import type {
   CollaboratorHomeFeed,
   HomeAssignedMetrics,
@@ -43,6 +49,7 @@ import type {
   HomePendingContractApproval,
   HomePendingOfferLetterApproval,
   HomePendingEvaluation,
+  HomePerformanceCycle,
   HomeProfile,
   HomeReadyForOffer,
   HomeTeamMember,
@@ -50,6 +57,10 @@ import type {
   UpdateHomeProfileDto,
 } from './dto/home.dto';
 import { EMPTY_ASSIGNED_METRICS } from './dto/home.dto';
+
+function dateOnly(value: Date): string {
+  return value.toISOString().slice(0, 10);
+}
 
 const PENDING_EVALUATION_STATUSES: InterviewStatus[] = [
   InterviewStatus.DRAFT,
@@ -85,6 +96,7 @@ export class HomeService {
       readyForOffer,
       assigned,
       teamMembers,
+      performanceCycles,
     ] = await Promise.all([
       this.listOpenVacancies(tenant.companyId),
       this.listPendingApprovals(tenant.companyId, actor),
@@ -109,6 +121,9 @@ export class HomeService {
       employee
         ? this.listTeamMembers(tenant.companyId, employee.id)
         : Promise.resolve([] as HomeTeamMember[]),
+      employee
+        ? this.listPerformanceCycles(tenant.companyId, employee.id)
+        : Promise.resolve([] as HomePerformanceCycle[]),
     ]);
 
     return {
@@ -125,6 +140,7 @@ export class HomeService {
         ...assigned.assignedMetrics,
         readyForOfferCount: readyForOffer.length,
       },
+      performanceCycles,
     };
   }
 
@@ -607,6 +623,60 @@ export class HomeService {
       positionName: row.position.name,
       areaName: row.area.name,
     }));
+  }
+
+  private async listPerformanceCycles(
+    companyId: string,
+    employeeId: string,
+  ): Promise<HomePerformanceCycle[]> {
+    const rows = await this.prisma.performanceCycleParticipant.findMany({
+      where: {
+        companyId,
+        employeeId,
+        status: { not: PerformanceParticipantStatus.EXCLUDED },
+        cycle: { status: PerformanceCycleStatus.ACTIVE },
+      },
+      select: {
+        cycle: {
+          select: {
+            id: true,
+            name: true,
+            startDate: true,
+            endDate: true,
+            status: true,
+            evaluationStartDate: true,
+            evaluationEndDate: true,
+            goalDefinitionStartDate: true,
+            goalDefinitionEndDate: true,
+            managerEvaluationStartDate: true,
+            managerEvaluationEndDate: true,
+            calibrationStartDate: true,
+            calibrationEndDate: true,
+            closingStartDate: true,
+            closingEndDate: true,
+            followUps: {
+              select: { id: true, order: true, startDate: true, endDate: true },
+              orderBy: { order: 'asc' },
+            },
+          },
+        },
+      },
+      orderBy: { cycle: { startDate: 'desc' } },
+    });
+
+    return rows.map((row) => {
+      const phases = buildCyclePhases(row.cycle);
+      const current = currentCyclePhase(phases);
+      return {
+        cycleId: row.cycle.id,
+        name: row.cycle.name,
+        startDate: dateOnly(row.cycle.startDate),
+        endDate: dateOnly(row.cycle.endDate),
+        currentPhaseLabel: current?.label ?? null,
+        currentPhaseStartDate: current?.startDate ?? null,
+        currentPhaseEndDate: current?.endDate ?? null,
+      };
+    });
   }
 
   private async listAssignedWork(

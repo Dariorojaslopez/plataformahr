@@ -88,6 +88,17 @@ export type CollaboratorHomeFeed = {
   readyForOffer: HomeReadyForOffer[];
   assignedVacancies: HomeAssignedVacancy[];
   assignedMetrics: HomeAssignedMetrics;
+  performanceCycles: HomePerformanceCycle[];
+};
+
+export type HomePerformanceCycle = {
+  cycleId: string;
+  name: string;
+  startDate: string;
+  endDate: string;
+  currentPhaseLabel: string | null;
+  currentPhaseStartDate: string | null;
+  currentPhaseEndDate: string | null;
 };
 
 export type HomeAssignedVacancy = {

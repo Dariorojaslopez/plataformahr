@@ -124,6 +124,7 @@ const feed: CollaboratorHomeFeed = {
   pendingOfferLetterApprovals: [],
   readyForOffer: [],
   assignedVacancies: [],
+  performanceCycles: [],
   teamMembers: [],
   assignedMetrics: {
     vacancyCount: 0,
@@ -297,6 +298,34 @@ describe("CollaboratorHome", () => {
     );
     expect(screen.getByText("Métricas de tus procesos")).toBeInTheDocument();
     expect(screen.getByText("Entrevistas pendientes")).toBeInTheDocument();
+  });
+
+  it("shows the assigned performance cycle and its current phase", async () => {
+    getFeed.mockResolvedValue({
+      ...feed,
+      performanceCycles: [
+        {
+          cycleId: "cycle-1",
+          name: "Desempeño 2026",
+          startDate: "2026-07-01",
+          endDate: "2026-12-31",
+          currentPhaseLabel: "Definición de objetivos",
+          currentPhaseStartDate: "2026-07-01",
+          currentPhaseEndDate: "2026-10-30",
+        },
+      ],
+    });
+    renderHome();
+    expect(
+      await screen.findByRole("heading", { name: "Evaluación de desempeño" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Desempeño 2026")).toBeInTheDocument();
+    expect(screen.getByText("Definición de objetivos")).toBeInTheDocument();
+    expect(screen.getByText("01/07/2026 → 30/10/2026")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Ver evaluación" })).toHaveAttribute(
+      "href",
+      "/performance/my-evaluations/cycle-1",
+    );
   });
 
   it("lists every company vacancy for an administrator", async () => {
