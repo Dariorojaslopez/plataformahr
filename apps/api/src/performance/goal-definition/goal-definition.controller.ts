@@ -23,6 +23,7 @@ import { PerformanceInboxService } from '../inbox/inbox.service';
 import {
   ReviewCommentDto,
   SaveGoalDefinitionDto,
+  SuggestPdiDto,
 } from './dto/goal-definition.dto';
 import { GoalDefinitionService } from './goal-definition.service';
 
@@ -65,6 +66,23 @@ export class GoalDefinitionController {
     @Body() dto: SaveGoalDefinitionDto,
   ) {
     return this.goalDefinition.save(
+      tenant.companyId,
+      user.userId,
+      cycleId,
+      dto,
+    );
+  }
+
+  @Post(':cycleId/goal-definition/pdi-suggestion')
+  @UseGuards(ThrottlerGuard)
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  suggestPdi(
+    @CurrentTenant() tenant: TenantContext,
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('cycleId', ParseUUIDPipe) cycleId: string,
+    @Body() dto: SuggestPdiDto,
+  ) {
+    return this.goalDefinition.suggestPdi(
       tenant.companyId,
       user.userId,
       cycleId,

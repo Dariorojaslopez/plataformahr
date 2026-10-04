@@ -34,7 +34,14 @@ import type {
   GoalDefinitionItemDto,
   GoalDefinitionPdiDto,
   SaveGoalDefinitionDto,
+  SuggestPdiDto,
 } from './dto/goal-definition.dto';
+import { generatePdiSuggestion } from './gemini-pdi.client';
+import {
+  PDI_SYSTEM_PROMPT,
+  buildPdiUserPrompt,
+  parsePdiSuggestion,
+} from './pdi-suggestion';
 import {
   clampProgressPercent,
   exceedsMaxObjectives,
@@ -127,6 +134,79 @@ export class GoalDefinitionService {
       metadata: { cycleId, employeeId: ctx.employee.id },
     });
     return this.serializeWorkspace(companyId, ctx);
+  }
+
+  async suggestPdi(
+    companyId: string,
+    userId: string,
+    cycleId: string,
+    dto: SuggestPdiDto,
+  ) {
+    const ctx = await this.loadContext(companyId, userId, cycleId);
+    const definition = await this.submittedAt(ctx.cycle.id, ctx.employee.id);
+    const phases = buildCyclePhases(ctx.cycle);
+    const returnedAfterRejection =
+      definition?.reviewStatus === GoalDefinitionReviewStatus.REJECTED &&
+      !definition.submittedAt;
+    const definitionEditable =
+      returnedAfterRejection ||
+      canEditGoalsInCyclePhase({
+        cycleStatus: ctx.cycle.status,
+        phases,
+        kind: 'GOAL_DEFINITION',
+      });
+    if (
+      (definition?.submittedAt && !definition.structureUnlocked) ||
+      !definitionEditable
+    ) {
+      throw new ForbiddenException(
+        'Solo puedes sugerir el PDI mientras puedes editar la definición.',
+      );
+    }
+
+    const [employee, competencies] = await Promise.all([
+      this.prisma.employee.findFirst({
+        where: { id: ctx.employee.id, companyId, deletedAt: null },
+        select: {
+          firstName: true,
+          lastName: true,
+          position: { select: { name: true } },
+        },
+      }),
+      this.prisma.competency.findMany({
+        where: {
+          companyId,
+          deletedAt: null,
+          status: OrganizationEntityStatus.ACTIVE,
+        },
+        select: { id: true, name: true },
+        orderBy: { name: 'asc' },
+      }),
+    ]);
+    const raw = await generatePdiSuggestion({
+      systemPrompt: PDI_SYSTEM_PROMPT,
+      userPrompt: buildPdiUserPrompt({
+        employeeName: employee
+          ? `${employee.firstName} ${employee.lastName}`.trim()
+          : 'Colaborador',
+        positionName: employee?.position?.name ?? null,
+        competencies,
+        individualGoals: dto.individualGoals,
+        cascadedGoals: dto.cascadedGoals,
+      }),
+    });
+    try {
+      return parsePdiSuggestion(
+        raw,
+        new Set(competencies.map((item) => item.id)),
+      );
+    } catch (error) {
+      throw new BadRequestException(
+        error instanceof Error
+          ? error.message
+          : 'La respuesta de Gemini no es un JSON válido.',
+      );
+    }
   }
 
   private async persist(

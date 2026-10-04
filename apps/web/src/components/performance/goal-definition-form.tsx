@@ -269,6 +269,38 @@ function GoalDefinitionFormBody({
       notifyError(error, "No se pudo enviar la definición a aprobación."),
   });
 
+  const suggestMutation = useMutation({
+    mutationFn: () =>
+      performanceApi.suggestGoalPdi(cycleId, {
+        individualGoals: individual
+          .filter((row) => row.title.trim())
+          .map((row) => ({
+            title: row.title.trim(),
+            description: row.description.trim() || null,
+          })),
+        cascadedGoals: cascaded
+          .filter((row) => row.title.trim())
+          .map((row) => ({
+            title: row.title.trim(),
+            description: row.description.trim() || null,
+          })),
+      }),
+    onSuccess: (suggestion) => {
+      setPdi((current) => ({
+        ...current,
+        name: suggestion.name || current.name,
+        competencyId: suggestion.competencyId ?? "",
+        actions70: suggestion.actions70,
+        actions20: suggestion.actions20,
+        actions10: suggestion.actions10,
+        observations: suggestion.observations,
+      }));
+      notifySuccess("Revisa la sugerencia y guarda si te sirve.");
+    },
+    onError: (error) =>
+      notifyError(error, "No se pudo generar el PDI."),
+  });
+
   const requestEditMutation = useMutation({
     mutationFn: () => performanceApi.requestGoalEdit(cycleId, editComment),
     onSuccess: async () => {
@@ -500,6 +532,20 @@ function GoalDefinitionFormBody({
         />
       ) : null}
 
+      {structureEditable ? (
+        <div className="flex justify-end">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => suggestMutation.mutate()}
+            disabled={suggestMutation.isPending}
+          >
+            {suggestMutation.isPending
+              ? "Generando el PDI…"
+              : "Sugerir PDI con Gemini"}
+          </Button>
+        </div>
+      ) : null}
       <PdiFields
         pdi={pdi}
         onChange={setPdi}

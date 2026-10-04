@@ -295,6 +295,25 @@ export const performanceApi = {
       { method: "PUT", body },
     ),
 
+  suggestGoalPdi: (
+    cycleId: string,
+    body: {
+      individualGoals: Array<{ title: string; description?: string | null }>;
+      cascadedGoals: Array<{ title: string; description?: string | null }>;
+    },
+  ) =>
+    apiRequest<{
+      name: string;
+      competencyId: string | null;
+      actions70: string;
+      actions20: string;
+      actions10: string;
+      observations: string;
+    }>(`/performance/my-evaluations/${cycleId}/goal-definition/pdi-suggestion`, {
+      method: "POST",
+      body,
+    }),
+
   submitGoalDefinition: (cycleId: string, body: SaveGoalDefinitionInput) =>
     apiRequest<GoalDefinitionWorkspace>(
       `/performance/my-evaluations/${cycleId}/goal-definition/submit`,

@@ -117,6 +117,31 @@ export class GoalDefinitionPdiDto {
   progressPercent!: number;
 }
 
+export class SuggestPdiGoalDto {
+  @IsString()
+  @MaxLength(300)
+  title!: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(4000)
+  description?: string | null;
+}
+
+export class SuggestPdiDto {
+  @IsArray()
+  @ArrayMaxSize(50)
+  @ValidateNested({ each: true })
+  @Type(() => SuggestPdiGoalDto)
+  individualGoals!: SuggestPdiGoalDto[];
+
+  @IsArray()
+  @ArrayMaxSize(50)
+  @ValidateNested({ each: true })
+  @Type(() => SuggestPdiGoalDto)
+  cascadedGoals!: SuggestPdiGoalDto[];
+}
+
 export class ReviewCommentDto {
   @IsOptional()
   @IsString()

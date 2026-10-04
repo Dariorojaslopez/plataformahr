@@ -76,6 +76,9 @@ export function getErrorMessage(error: unknown, fallback: string): string {
     if (error.status === 415) {
       return error.message || "El tipo de archivo no está permitido.";
     }
+    if (error.status === 502 || error.status === 503) {
+      return error.message || fallback;
+    }
     if (error.status >= 500) {
       const ref = error.requestId
         ? ` Código de referencia: ${error.requestId}.`
