@@ -35,8 +35,10 @@ export class GoalDefinitionItemDto {
   @MaxLength(4000)
   description?: string | null;
 
+  @Transform(emptyToNull)
+  @IsOptional()
   @IsUUID()
-  scaleId!: string;
+  scaleId?: string | null;
 
   @IsEnum(GoalProgressStatus)
   progressStatus!: GoalProgressStatus;

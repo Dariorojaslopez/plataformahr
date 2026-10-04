@@ -984,7 +984,7 @@ export type SaveGoalDefinitionInput = {
     id?: string;
     title: string;
     description?: string | null;
-    scaleId: string;
+    scaleId?: string | null;
     progressStatus: GoalProgressStatus;
     targetValue?: number | null;
     targetScaleLevelId?: string | null;
@@ -993,7 +993,7 @@ export type SaveGoalDefinitionInput = {
     id?: string;
     title: string;
     description?: string | null;
-    scaleId: string;
+    scaleId?: string | null;
     progressStatus: GoalProgressStatus;
     parentGoalId: string;
     assigneeEmployeeId: string;

@@ -2,7 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus, Trash2 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { FormSelect } from "@/components/organization/form-select";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -11,6 +11,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { useCompanyId } from "@/hooks/use-company-id";
 import { getErrorMessage } from "@/lib/api/errors";
 import { performanceApi, performanceKeys } from "@/lib/api/performance";
@@ -67,6 +75,17 @@ type DraftPdi = {
   improvements: string;
   progressPercent: number;
 };
+
+function goalRowTouched(row: DraftGoal, cascade: boolean): boolean {
+  return Boolean(
+    row.title.trim() ||
+      row.description.trim() ||
+      row.scaleId ||
+      row.targetValue.trim() ||
+      row.targetScaleLevelId ||
+      (cascade && (row.parentGoalId || row.assigneeEmployeeId)),
+  );
+}
 
 function emptyGoal(): DraftGoal {
   return {
@@ -210,15 +229,22 @@ function GoalDefinitionFormBody({
   const readOnly = !structureEditable && !progressEditable;
   const [editComment, setEditComment] = useState("");
 
-  const payload = useMemo(
-    () => (data ? buildPayload(individual, cascaded, pdi) : null),
-    [data, individual, cascaded, pdi],
-  );
+  function applyWorkspace(workspace: GoalDefinitionWorkspace) {
+    const next = draftsFromWorkspace(workspace);
+    setIndividual(next.individual);
+    setCascaded(next.cascaded);
+    setPdi(next.pdi);
+    queryClient.setQueryData(
+      performanceKeys.goalDefinition(companyId, cycleId),
+      workspace,
+    );
+  }
 
   const saveMutation = useMutation({
-    mutationFn: () =>
-      performanceApi.saveGoalDefinition(cycleId, payload!),
-    onSuccess: async () => {
+    mutationFn: (body: SaveGoalDefinitionInput) =>
+      performanceApi.saveGoalDefinition(cycleId, body),
+    onSuccess: async (workspace) => {
+      applyWorkspace(workspace);
       notifySuccess("Definición guardada");
       await queryClient.invalidateQueries({
         queryKey: performanceKeys.goalDefinition(companyId, cycleId),
@@ -228,9 +254,10 @@ function GoalDefinitionFormBody({
   });
 
   const submitMutation = useMutation({
-    mutationFn: () =>
-      performanceApi.submitGoalDefinition(cycleId, payload!),
-    onSuccess: async () => {
+    mutationFn: (body: SaveGoalDefinitionInput) =>
+      performanceApi.submitGoalDefinition(cycleId, body),
+    onSuccess: async (workspace) => {
+      applyWorkspace(workspace);
       notifySuccess("Definición enviada a aprobación");
       await queryClient.invalidateQueries({
         queryKey: performanceKeys.goalDefinition(companyId, cycleId),
@@ -272,55 +299,67 @@ function GoalDefinitionFormBody({
     label: GOAL_PROGRESS_STATUS_LABELS[value],
   }));
 
-  function validate(): string | null {
+  function validate(strict: boolean): string | null {
+    const own = individual.filter((row) => goalRowTouched(row, false));
+    const extra = cascaded.filter((row) => goalRowTouched(row, true));
+    if (own.some((row) => !row.title.trim())) {
+      return "Cada objetivo individual necesita un título para guardarse.";
+    }
     if (
-      individual.some((row) => {
+      extra.some(
+        (row) => !row.title.trim() || !row.parentGoalId || !row.assigneeEmployeeId,
+      )
+    ) {
+      return "Cada acción cascadeada necesita título, objetivo origen y colaborador.";
+    }
+    if (
+      data?.cycle.maxObjectives != null &&
+      own.length > data.cycle.maxObjectives
+    ) {
+      return `El máximo de objetivos individuales es ${data.cycle.maxObjectives}.`;
+    }
+    if (!strict) return null;
+    if (
+      own.some((row) => {
         const scale = findGoalDefinitionScale(data.scales, row.scaleId);
         return (
-          !row.title.trim() ||
           !row.scaleId ||
           !hasIndividualGoalTarget(scale, row.targetValue, row.targetScaleLevelId)
         );
       })
     ) {
-      return "Cada objetivo individual necesita título, escala y meta.";
+      return "Para enviar a aprobación, cada objetivo individual necesita escala y meta.";
     }
-    if (
-      cascaded.some(
-        (row) =>
-          !row.title.trim() ||
-          !row.scaleId ||
-          !row.parentGoalId ||
-          !row.assigneeEmployeeId,
-      )
-    ) {
-      return "Cada objetivo en cascadeo necesita título, escala, objetivo origen y colaborador.";
-    }
-    if (
-      data?.cycle.maxObjectives != null &&
-      individual.length > data.cycle.maxObjectives
-    ) {
-      return `El máximo de objetivos individuales es ${data.cycle.maxObjectives}.`;
+    if (extra.some((row) => !row.scaleId)) {
+      return "Para enviar a aprobación, cada acción cascadeada necesita una escala.";
     }
     return null;
   }
 
+  function draftPayload(): SaveGoalDefinitionInput {
+    return buildPayload(
+      individual.filter((row) => goalRowTouched(row, false)),
+      cascaded.filter((row) => goalRowTouched(row, true)),
+      pdi,
+    );
+  }
+
   function handleSave() {
-    const message = validate();
+    const message = validate(false);
     if (message) {
       notifyError(new Error(message), message);
       return;
     }
-    saveMutation.mutate();
+    saveMutation.mutate(draftPayload());
   }
 
   function handleSubmit() {
-    const message = validate();
+    const message = validate(true);
     if (message) {
       notifyError(new Error(message), message);
       return;
     }
-    submitMutation.mutate();
+    submitMutation.mutate(draftPayload());
   }
 
   return (
@@ -553,6 +592,15 @@ function GoalDraftList({
     onChange(rows.map((row) => (row.key === key ? { ...row, ...next } : row)));
   }
   const canAdd = allowAdd ?? structureEditable;
+  const [editingKey, setEditingKey] = useState<string | null>(null);
+  const previousCount = useRef(rows.length);
+  useEffect(() => {
+    if (rows.length > previousCount.current) {
+      setEditingKey(rows[rows.length - 1]?.key ?? null);
+    }
+    previousCount.current = rows.length;
+  }, [rows]);
+  const editing = rows.find((row) => row.key === editingKey) ?? null;
 
   return (
     <section className="space-y-3">
@@ -563,30 +611,94 @@ function GoalDraftList({
       {rows.length === 0 ? (
         <p className="text-sm text-muted-foreground">Aún no hay objetivos.</p>
       ) : (
-        <ul className="space-y-4">
-          {rows.map((row, index) => {
+        <div className="overflow-hidden rounded-lg border border-border">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Título</TableHead>
+                <TableHead>Escala</TableHead>
+                {showTarget ? <TableHead>Meta</TableHead> : null}
+                {cascade ? <TableHead>Colaborador</TableHead> : null}
+                <TableHead>Estado</TableHead>
+                <TableHead className="text-right">Acciones</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {rows.map((row) => {
+                const rowStructure = structureEditable || !row.id;
+                const scale = findGoalDefinitionScale(scales, row.scaleId);
+                const target = formatGoalTarget({
+                  targetValue: row.targetValue || null,
+                  targetScaleLevel:
+                    scale?.levels?.find(
+                      (level) => level.id === row.targetScaleLevelId,
+                    ) ?? null,
+                  scale,
+                });
+                const assignee =
+                  reportOptions?.find(
+                    (option) => option.value === row.assigneeEmployeeId,
+                  )?.label ?? "—";
+                return (
+                  <TableRow key={row.key}>
+                    <TableCell className="font-medium">
+                      {row.title.trim() || "Sin título"}
+                    </TableCell>
+                    <TableCell>{scale?.name ?? "—"}</TableCell>
+                    {showTarget ? <TableCell>{target || "—"}</TableCell> : null}
+                    {cascade ? <TableCell>{assignee}</TableCell> : null}
+                    <TableCell>
+                      {GOAL_PROGRESS_STATUS_LABELS[row.progressStatus]}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex justify-end gap-1">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          onClick={() =>
+                            setEditingKey((current) =>
+                              current === row.key ? null : row.key,
+                            )
+                          }
+                        >
+                          {editingKey === row.key ? "Cerrar" : "Editar"}
+                        </Button>
+                        {rowStructure ? (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => {
+                              onChange(
+                                rows.filter((item) => item.key !== row.key),
+                              );
+                              if (editingKey === row.key) setEditingKey(null);
+                            }}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                            Quitar
+                          </Button>
+                        ) : null}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </div>
+      )}
+      {editing ? (
+        <div className="space-y-3 rounded-lg border border-border p-4">
+          <p className="text-sm font-medium">
+            {editing.title.trim() || "Nuevo objetivo"}
+          </p>
+          {(() => {
+            const row = editing;
             const rowStructure = structureEditable || !row.id;
             return (
-            <li
-              key={row.key}
-              className="space-y-3 rounded-lg border border-border p-4"
-            >
-              <div className="flex items-center justify-between gap-2">
-                <p className="text-sm font-medium">Objetivo {index + 1}</p>
-                {rowStructure ? (
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="ghost"
-                    onClick={() =>
-                      onChange(rows.filter((item) => item.key !== row.key))
-                    }
-                  >
-                    <Trash2 className="h-4 w-4" />
-                    Quitar
-                  </Button>
-                ) : null}
-              </div>
+            <>
               <div className="space-y-2">
                 <Label htmlFor={`goal-title-${row.key}`}>Título</Label>
                 <Input
@@ -672,11 +784,11 @@ function GoalDraftList({
                   onChange={(next) => patch(row.key, next)}
                 />
               ) : null}
-            </li>
+            </>
             );
-          })}
-        </ul>
-      )}
+          })()}
+        </div>
+      ) : null}
       {canAdd ? (
         <Button type="button" variant="outline" size="sm" onClick={onAdd}>
           <Plus className="h-4 w-4" />
@@ -936,7 +1048,7 @@ function buildPayload(
       ...(row.id ? { id: row.id } : {}),
       title: row.title.trim(),
       description: row.description.trim() || null,
-      scaleId: row.scaleId,
+      scaleId: row.scaleId || null,
       progressStatus: row.progressStatus,
       targetValue: parseGoalTargetValue(row.targetValue),
       targetScaleLevelId: row.targetScaleLevelId || null,
@@ -945,7 +1057,7 @@ function buildPayload(
       ...(row.id ? { id: row.id } : {}),
       title: row.title.trim(),
       description: row.description.trim() || null,
-      scaleId: row.scaleId,
+      scaleId: row.scaleId || null,
       progressStatus: row.progressStatus,
       parentGoalId: row.parentGoalId ?? "",
       assigneeEmployeeId: row.assigneeEmployeeId ?? "",

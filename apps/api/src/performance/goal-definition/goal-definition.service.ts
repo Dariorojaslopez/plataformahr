@@ -238,22 +238,25 @@ export class GoalDefinitionService {
     ]);
     const scaleIds = new Set(scales.keys());
 
+    const savedIds: string[] = [];
     for (const item of dto.individualGoals) {
-      this.assertScale(item.scaleId, scaleIds);
-      await this.upsertOwnedGoal(tx, {
-        companyId,
-        userId: ctx.userId,
-        goalCycleId,
-        item,
-        assigneeId: ctx.employee.id,
-        parentGoalId: null,
-        scale: scales.get(item.scaleId)!,
-        requireTarget: true,
-      });
+      const scale = this.scaleForItem(item.scaleId, scales, scaleIds, submit);
+      savedIds.push(
+        await this.upsertOwnedGoal(tx, {
+          companyId,
+          userId: ctx.userId,
+          goalCycleId,
+          item,
+          assigneeId: ctx.employee.id,
+          parentGoalId: null,
+          scale,
+          requireTarget: submit,
+        }),
+      );
     }
 
     for (const item of dto.cascadedGoals) {
-      this.assertScale(item.scaleId, scaleIds);
+      const scale = this.scaleForItem(item.scaleId, scales, scaleIds, submit);
       if (!reportIds.has(item.assigneeEmployeeId)) {
         throw new BadRequestException(
           'Solo puedes cascadear objetivos a tus reportes directos',
@@ -264,28 +267,26 @@ export class GoalDefinitionService {
           'El objetivo origen del cascadeo debe ser organizacional',
         );
       }
-      await this.upsertOwnedGoal(tx, {
-        companyId,
-        userId: ctx.userId,
-        goalCycleId,
-        item,
-        assigneeId: item.assigneeEmployeeId,
-        parentGoalId: item.parentGoalId,
-        scale: scales.get(item.scaleId)!,
-        requireTarget: false,
-      });
+      savedIds.push(
+        await this.upsertOwnedGoal(tx, {
+          companyId,
+          userId: ctx.userId,
+          goalCycleId,
+          item,
+          assigneeId: item.assigneeEmployeeId,
+          parentGoalId: item.parentGoalId,
+          scale,
+          requireTarget: false,
+        }),
+      );
     }
 
-    const keepIds = [
-      ...dto.individualGoals.map((g) => g.id).filter(Boolean),
-      ...dto.cascadedGoals.map((g) => g.id).filter(Boolean),
-    ] as string[];
     await this.removeDroppedDrafts(
       tx,
       companyId,
       ctx.userId,
       goalCycleId,
-      keepIds,
+      savedIds,
     );
 
     if (dto.pdi) {
@@ -423,7 +424,7 @@ export class GoalDefinitionService {
         );
       }
       for (const item of newGoals) {
-        this.assertScale(item.scaleId, scaleIds);
+        const scale = this.scaleForItem(item.scaleId, scales, scaleIds, true);
         await this.upsertOwnedGoal(tx, {
           companyId,
           userId: ctx.userId,
@@ -432,7 +433,7 @@ export class GoalDefinitionService {
           assigneeId: ctx.employee.id,
           parentGoalId: null,
           forceActive: true,
-          scale: scales.get(item.scaleId)!,
+          scale,
           requireTarget: true,
         });
       }
@@ -474,35 +475,46 @@ export class GoalDefinitionService {
       assigneeId: string;
       parentGoalId: string | null;
       forceActive?: boolean;
-      scale: ActiveScaleForTarget;
+      scale: ActiveScaleForTarget | null;
       requireTarget: boolean;
     },
-  ) {
+  ): Promise<string> {
     const title = params.item.title.trim();
     if (!title) {
       throw new BadRequestException('El título del objetivo es obligatorio');
     }
-    const target = resolveGoalTarget(
-      {
-        kind: params.scale.kind,
-        format: params.scale.format,
-        minValue:
-          params.scale.minValue != null ? Number(params.scale.minValue) : null,
-        maxValue:
-          params.scale.maxValue != null ? Number(params.scale.maxValue) : null,
-        levels: params.scale.levels,
-      },
-      {
-        targetValue: params.item.targetValue,
-        targetScaleLevelId: params.item.targetScaleLevelId,
-      },
-      { required: params.requireTarget },
-    );
+    if (!params.scale && params.requireTarget) {
+      throw new BadRequestException(
+        'Cada objetivo individual necesita una escala.',
+      );
+    }
+    const target = params.scale
+      ? resolveGoalTarget(
+          {
+            kind: params.scale.kind,
+            format: params.scale.format,
+            minValue:
+              params.scale.minValue != null
+                ? Number(params.scale.minValue)
+                : null,
+            maxValue:
+              params.scale.maxValue != null
+                ? Number(params.scale.maxValue)
+                : null,
+            levels: params.scale.levels,
+          },
+          {
+            targetValue: params.item.targetValue,
+            targetScaleLevelId: params.item.targetScaleLevelId,
+          },
+          { required: params.requireTarget },
+        )
+      : { targetValue: null, targetScaleLevelId: null };
     const data = {
       title,
       description: emptyToNull(params.item.description) ?? null,
       progressStatus: params.item.progressStatus,
-      scaleId: params.item.scaleId,
+      scaleId: params.item.scaleId ?? null,
       parentGoalId: params.parentGoalId,
       targetValue: target.targetValue,
       targetScaleLevelId: target.targetScaleLevelId,
@@ -528,7 +540,7 @@ export class GoalDefinitionService {
         throw new BadRequestException('Ese objetivo ya no se puede editar');
       }
       await tx.goal.update({ where: { id: existing.id }, data });
-      return;
+      return existing.id;
     }
 
     const created = await tx.goal.create({
@@ -548,6 +560,25 @@ export class GoalDefinitionService {
         employeeId: params.assigneeId,
       },
     });
+    return created.id;
+  }
+
+  private scaleForItem(
+    scaleId: string | null | undefined,
+    scales: Map<string, ActiveScaleForTarget>,
+    scaleIds: Set<string>,
+    required: boolean,
+  ): ActiveScaleForTarget | null {
+    if (!scaleId) {
+      if (required) {
+        throw new BadRequestException(
+          'Cada objetivo individual necesita una escala.',
+        );
+      }
+      return null;
+    }
+    this.assertScale(scaleId, scaleIds);
+    return scales.get(scaleId) ?? null;
   }
 
   private async removeDroppedDrafts(
