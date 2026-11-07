@@ -58,18 +58,18 @@ enum PlatformModule {
 
 /// Global identity. Platform owners do not require a company membership.
 model User {
-  id                 String     @id @default(uuid()) @db.Uuid
-  email              String     @unique
-  passwordHash       String?
-  firstName          String
-  lastName           String
-  status             UserStatus @default(INVITED)
-  isPlatformOwner    Boolean    @default(false)
-  mustChangePassword    Boolean   @default(false)
+  id                     String     @id @default(uuid()) @db.Uuid
+  email                  String     @unique
+  passwordHash           String?
+  firstName              String
+  lastName               String
+  status                 UserStatus @default(INVITED)
+  isPlatformOwner        Boolean    @default(false)
+  mustChangePassword     Boolean    @default(false)
   personalDataAcceptedAt DateTime?
-  createdAt             DateTime  @default(now())
-  updatedAt          DateTime   @updatedAt
-  deletedAt          DateTime?
+  createdAt              DateTime   @default(now())
+  updatedAt              DateTime   @updatedAt
+  deletedAt              DateTime?
 
   memberships                         CompanyMembership[]
   sessions                            UserSession[]
@@ -2270,14 +2270,14 @@ model PerformanceCycleCompetency {
 
 /// Employee participation in an ACTIVE performance cycle.
 model PerformanceCycleParticipant {
-  id         String                       @id @default(uuid()) @db.Uuid
-  companyId  String                       @db.Uuid
-  cycleId    String                       @db.Uuid
-  employeeId String                       @db.Uuid
+  id          String                       @id @default(uuid()) @db.Uuid
+  companyId   String                       @db.Uuid
+  cycleId     String                       @db.Uuid
+  employeeId  String                       @db.Uuid
   status      PerformanceParticipantStatus @default(ACTIVE)
   forcedPhase String?
   createdAt   DateTime                     @default(now())
-  updatedAt  DateTime                     @updatedAt
+  updatedAt   DateTime                     @updatedAt
 
   company     Company                 @relation(fields: [companyId], references: [id], onDelete: Restrict)
   cycle       PerformanceCycle        @relation(fields: [cycleId], references: [id], onDelete: Restrict)
