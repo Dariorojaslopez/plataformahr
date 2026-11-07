@@ -15,7 +15,6 @@ import {
   ReportingLineType,
 } from '@prisma/client';
 import { AuditService } from '../../core/audit/audit.service';
-import { ResultsService } from '../results/results.service';
 import { RbacService } from '../../core/rbac/rbac.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import {
@@ -193,7 +192,6 @@ export class EvaluationsService {
     private readonly prisma: PrismaService,
     private readonly rbac: RbacService,
     private readonly audit: AuditService,
-    private readonly results: ResultsService,
   ) {}
 
   async listMine(companyId: string, userId: string) {
@@ -773,19 +771,6 @@ export class EvaluationsService {
         scorePercentage: submitted.scorePercentage,
       },
     });
-
-    if (submitted.type === PerformanceEvaluationType.MANAGER) {
-      try {
-        await this.results.calculate(
-          companyId,
-          userId,
-          submitted.updated.cycleId,
-          submitted.updated.participantId,
-        );
-      } catch {
-        // The evaluation stays submitted. The 9Box loads when consolidation can run.
-      }
-    }
 
     return this.serializeEvaluationWorkspace(submitted.updated, {
       canRespond: false,
