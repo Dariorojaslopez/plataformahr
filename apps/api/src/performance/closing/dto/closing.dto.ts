@@ -45,4 +45,14 @@ export class SaveClosingSessionDto {
   @IsOptional()
   @IsUUID()
   employeeId?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(4000)
+  strengthsOpportunities?: string | null;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(4000)
+  comments?: string | null;
 }

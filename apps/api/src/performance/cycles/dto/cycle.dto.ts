@@ -195,6 +195,13 @@ export class CreatePerformanceCycleDto {
   @IsInt()
   @IsIn([100, 120])
   evaluationRange?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  @Max(120)
+  passingScore?: number;
 }
 
 export class UpdatePerformanceCycleDto {
@@ -370,6 +377,13 @@ export class UpdatePerformanceCycleDto {
   @IsInt()
   @IsIn([100, 120])
   evaluationRange?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  @Max(120)
+  passingScore?: number;
 }
 
 export class ListPerformanceCyclesQueryDto {

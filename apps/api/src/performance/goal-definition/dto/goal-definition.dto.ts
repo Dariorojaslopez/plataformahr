@@ -2,11 +2,13 @@ import { Transform, Type } from 'class-transformer';
 import {
   ArrayMaxSize,
   IsArray,
+  IsBoolean,
   IsEnum,
   IsInt,
   IsNumber,
   IsOptional,
   IsString,
+  Matches,
   IsUUID,
   Max,
   MaxLength,
@@ -56,6 +58,28 @@ export class GoalDefinitionItemDto {
   @IsOptional()
   @IsUUID()
   targetScaleLevelId?: string | null;
+
+  @Transform(emptyToNull)
+  @IsOptional()
+  @ValidateIf((_, value) => value !== null && value !== undefined)
+  @Matches(/^\d{4}-\d{2}-\d{2}$/)
+  startDate?: string | null;
+
+  @Transform(emptyToNull)
+  @IsOptional()
+  @ValidateIf((_, value) => value !== null && value !== undefined)
+  @Matches(/^\d{4}-\d{2}-\d{2}$/)
+  endDate?: string | null;
+
+  @Transform(emptyToNull)
+  @IsOptional()
+  @IsString()
+  @MaxLength(4000)
+  followUpComment?: string | null;
+
+  @IsOptional()
+  @IsBoolean()
+  confirmClose?: boolean;
 }
 
 export class CascadedGoalItemDto extends GoalDefinitionItemDto {

@@ -1,7 +1,15 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChevronDown, ChevronRight, List, Network, Pencil, Plus } from "lucide-react";
+import {
+  ChevronDown,
+  ChevronRight,
+  List,
+  Network,
+  Pencil,
+  Plus,
+  Trash2,
+} from "lucide-react";
 import { useMemo, useState } from "react";
 import { EntityEditorShell } from "@/components/organization/entity-editor-shell";
 import {
@@ -16,6 +24,13 @@ import {
 } from "@/components/organization/area-form";
 import { OrgStatusBadge } from "@/components/organization/status-badge";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
 import { PageHeader } from "@/components/ui/page-header";
@@ -32,6 +47,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useCompanyId } from "@/hooks/use-company-id";
 import { getErrorMessage } from "@/lib/api/errors";
 import { organizationApi, orgKeys } from "@/lib/api/organization";
+import { notifyError, notifySuccess } from "@/lib/ui/notify";
 import { cn } from "@/lib/utils";
 import type { Area, AreaTreeNode } from "@/types/organization";
 
@@ -100,6 +116,7 @@ export function AreasPageClient() {
   const [editing, setEditing] = useState<Area | null>(null);
   const [form, setForm] = useState<AreaFormValues>(() => emptyAreaForm());
   const [formError, setFormError] = useState<string | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<Area | null>(null);
 
   const areasQuery = useQuery({
     queryKey: orgKeys.areas(companyId),
@@ -147,6 +164,26 @@ export function AreasPageClient() {
     },
     onError: (error) => {
       setFormError(getErrorMessage(error, "No se pudo guardar el área."));
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (area: Area) => organizationApi.deleteArea(area.id),
+    onSuccess: async (_result, area) => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: orgKeys.areas(companyId) }),
+        queryClient.invalidateQueries({ queryKey: orgKeys.areaTree(companyId) }),
+      ]);
+      if (editing?.id === area.id) {
+        setOpen(false);
+        setEditing(null);
+        setForm(emptyAreaForm());
+      }
+      setPendingDelete(null);
+      notifySuccess("Área eliminada");
+    },
+    onError: (error) => {
+      notifyError(error, "No se pudo eliminar el área.");
     },
   });
 
@@ -254,6 +291,17 @@ export function AreasPageClient() {
                           <Pencil className="h-4 w-4" />
                           Editar
                         </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="text-destructive"
+                          onClick={() => setPendingDelete(area)}
+                          aria-label={`Eliminar ${area.name}`}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                          Eliminar
+                        </Button>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -316,6 +364,43 @@ export function AreasPageClient() {
           </div>
         </form>
       </EntityEditorShell>
+
+      <Dialog
+        open={Boolean(pendingDelete)}
+        onOpenChange={(next) => {
+          if (!next && !deleteMutation.isPending) setPendingDelete(null);
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Eliminar área</DialogTitle>
+            <p className="text-sm text-muted-foreground">
+              Vas a eliminar {pendingDelete?.name}. Solo se puede si no tiene
+              subáreas, cargos, colaboradores, vacantes ni objetivos.
+            </p>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={deleteMutation.isPending}
+              onClick={() => setPendingDelete(null)}
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={!pendingDelete || deleteMutation.isPending}
+              onClick={() => {
+                if (pendingDelete) deleteMutation.mutate(pendingDelete);
+              }}
+            >
+              {deleteMutation.isPending ? "Eliminando…" : "Eliminar"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

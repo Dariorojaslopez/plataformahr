@@ -8,6 +8,8 @@ import {
   normalizeEmployeeDocumentType,
   normalizeEmployeeHousingType,
   normalizeEmployeeMaritalStatus,
+  normalizeEmployeeSex,
+  sexSelectOptions,
   type ConfigurableCompanyRole,
 } from "@talento/shared";
 import { useMemo, useState } from "react";
@@ -39,6 +41,7 @@ export type EmployeeFormValues = {
   documentType: string;
   documentNumber: string;
   birthDate: string;
+  sex: string;
   country: string;
   state: string;
   city: string;
@@ -94,6 +97,7 @@ export function employeeToFormValues(employee?: Employee | null): EmployeeFormVa
     documentType: normalizeEmployeeDocumentType(employee?.documentType),
     documentNumber: employee?.documentNumber ?? "",
     birthDate: employee?.birthDate?.slice(0, 10) ?? "",
+    sex: normalizeEmployeeSex(employee?.sex),
     country: employee?.country ?? "",
     state: employee?.state ?? "",
     city: employee?.city ?? "",
@@ -124,6 +128,7 @@ export function toCreatePayload(values: EmployeeFormValues): CreateEmployeeInput
     documentType: values.documentType.trim() || undefined,
     documentNumber: values.documentNumber.trim() || undefined,
     birthDate: values.birthDate || undefined,
+    sex: values.sex.trim() || undefined,
     country: values.country.trim() || undefined,
     state: values.state.trim() || undefined,
     city: values.city.trim() || undefined,
@@ -156,6 +161,7 @@ export function toUpdatePayload(values: EmployeeFormValues): UpdateEmployeeInput
         : payload.accessRoleCode,
     businessUnitId: values.businessUnitId || null,
     birthDate: values.birthDate || null,
+    sex: values.sex.trim() || null,
     documentType: values.documentType.trim() || null,
     documentNumber: values.documentNumber.trim() || null,
     hireDate: values.hireDate || null,
@@ -310,6 +316,15 @@ export function EmployeeForm({
               onChange={(e) => setField("birthDate", e.target.value)}
             />
           </div>
+          <FormSelect
+            id="emp-sex"
+            label="Sexo"
+            value={values.sex}
+            onChange={(value) => setField("sex", value)}
+            allowEmpty
+            emptyLabel="Sin especificar"
+            options={sexSelectOptions(values.sex)}
+          />
           <FormSelect
             id="emp-marital"
             label="Estado civil"

@@ -5,6 +5,7 @@ const COMPETENCY_SELECT = {
   id: true,
   name: true,
   code: true,
+  description: true,
   status: true,
 } as const;
 
@@ -12,6 +13,7 @@ export type JobLevelCompetencySummary = {
   id: string;
   name: string;
   code: string | null;
+  description: string | null;
   status: OrganizationEntityStatus;
 };
 

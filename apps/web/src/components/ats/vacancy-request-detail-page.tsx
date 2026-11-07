@@ -35,6 +35,7 @@ import {
   approvalStatusVariant,
   formatDate,
   formatEmployeeName,
+  VACANCY_CONTRACT_TYPE_LABELS,
   VACANCY_REQUEST_MOTIVE_LABELS,
   vacancyRequestStatusPresentation,
 } from "@/lib/ats/labels";
@@ -316,6 +317,11 @@ export function VacancyRequestDetailPageClient() {
         </Info>
         <Info label="Ocupante a reemplazar">
           {formatEmployeeName(request.replacedEmployee)}
+        </Info>
+        <Info label="Tipo de contrato">
+          {request.contractType
+            ? VACANCY_CONTRACT_TYPE_LABELS[request.contractType]
+            : "—"}
         </Info>
         <Info label="Headcount">{request.requestedHeadcount}</Info>
         <Info label="Fecha esperada de contratación">

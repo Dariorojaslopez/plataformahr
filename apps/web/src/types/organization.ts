@@ -161,6 +161,7 @@ export type Employee = {
   email: string;
   phone: string | null;
   birthDate: string | null;
+  sex: string | null;
   documentType: string | null;
   documentNumber: string | null;
   country: string | null;
@@ -306,6 +307,7 @@ export type JobLevelCompetencyItem = {
   id: string;
   name: string;
   code: string | null;
+  description?: string | null;
   status: OrganizationEntityStatus;
 };
 
@@ -364,6 +366,7 @@ export type CreateEmployeeInput = {
   documentType?: string;
   documentNumber?: string;
   birthDate?: string;
+  sex?: string;
   country?: string;
   state?: string;
   city?: string;
@@ -391,6 +394,7 @@ export type UpdateEmployeeInput = {
   documentType?: string | null;
   documentNumber?: string | null;
   birthDate?: string | null;
+  sex?: string | null;
   country?: string;
   state?: string;
   city?: string;

@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Info, Pencil, Plus } from "lucide-react";
+import { Info, Pencil, Plus, Printer } from "lucide-react";
 import { useMemo, useState } from "react";
 import { EntityEditorShell } from "@/components/organization/entity-editor-shell";
 import { FormSelect } from "@/components/organization/form-select";
@@ -10,9 +10,14 @@ import {
   activeDefinitions,
   customFieldValuesFromPosition,
   emptyCustomFieldValues,
+  formatCustomFieldDisplay,
   toCustomFieldsPayload,
   type CustomFieldFormValues,
 } from "@/components/organization/position-custom-fields";
+import {
+  PositionProfilePrintDialog,
+  type PositionProfileRequest,
+} from "@/components/organization/position-profile-print-dialog";
 import { OrgStatusBadge } from "@/components/organization/status-badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -41,6 +46,7 @@ import { organizationApi, orgKeys } from "@/lib/api/organization";
 import type {
   OrganizationEntityStatus,
   Position,
+  PositionCustomFieldDefinition,
 } from "@/types/organization";
 
 type FormState = {
@@ -56,6 +62,36 @@ type FormState = {
   headcount: string;
   status: OrganizationEntityStatus;
 };
+
+function statusLabel(status: OrganizationEntityStatus): string {
+  return status === "ACTIVE" ? "Activo" : "Inactivo";
+}
+
+function customFieldsFromForm(
+  definitions: PositionCustomFieldDefinition[],
+  values: CustomFieldFormValues,
+): PositionProfileRequest["customFields"] {
+  return definitions.flatMap((definition) => {
+    const raw = values[definition.id];
+    const optionLabel =
+      definition.type === "SELECT" && typeof raw === "string"
+        ? (definition.options.find((option) => option.id === raw)?.label ??
+          null)
+        : null;
+    const display = formatCustomFieldDisplay({
+      type: definition.type,
+      value:
+        definition.type === "BOOLEAN"
+          ? raw === true
+          : raw === "" || raw === undefined
+            ? null
+            : raw,
+      optionLabel,
+    });
+    if (display === "—") return [];
+    return [{ label: definition.label, value: display }];
+  });
+}
 
 const emptyForm: FormState = {
   name: "",
@@ -79,6 +115,8 @@ export function PositionsPageClient() {
   const [form, setForm] = useState<FormState>(emptyForm);
   const [customValues, setCustomValues] = useState<CustomFieldFormValues>({});
   const [formError, setFormError] = useState<string | null>(null);
+  const [profileRequest, setProfileRequest] =
+    useState<PositionProfileRequest | null>(null);
 
   const positionsQuery = useQuery({
     queryKey: orgKeys.positions(companyId),
@@ -185,6 +223,61 @@ export function PositionsPageClient() {
     setCustomValues(emptyCustomFieldValues(activeFields));
     setFormError(null);
     setOpen(true);
+  }
+
+  function levelLabel(jobLevelId: string | null): string | null {
+    if (!jobLevelId) return null;
+    const level = (levelsQuery.data ?? []).find((item) => item.id === jobLevelId);
+    if (!level) return levelMap.get(jobLevelId) ?? null;
+    return `${level.name} (rank ${level.rank})`;
+  }
+
+  function openPrint(request: PositionProfileRequest) {
+    setProfileRequest(request);
+  }
+
+  function openPrintFromPosition(position: Position) {
+    openPrint({
+      name: position.name,
+      areaName: areaMap.get(position.areaId) ?? "—",
+      levelName: levelLabel(position.jobLevelId),
+      jobLevelId: position.jobLevelId,
+      reportsToName: position.parentPositionId
+        ? (positionMap.get(position.parentPositionId) ?? null)
+        : null,
+      headcount: String(position.headcount),
+      statusLabel: statusLabel(position.status),
+      mission: position.mission ?? "",
+      responsibilities: position.responsibilities ?? "",
+      requiredExperience: position.requiredExperience ?? "",
+      requiredEducation: position.requiredEducation ?? "",
+      customFields: (position.customFields ?? [])
+        .filter((field) => field.active)
+        .map((field) => ({
+          label: field.label,
+          value: formatCustomFieldDisplay(field),
+        }))
+        .filter((field) => field.value !== "—"),
+    });
+  }
+
+  function openPrintFromForm() {
+    openPrint({
+      name: form.name.trim() || "Cargo",
+      areaName: areaMap.get(form.areaId) ?? "—",
+      levelName: levelLabel(form.jobLevelId || null),
+      jobLevelId: form.jobLevelId || null,
+      reportsToName: form.parentPositionId
+        ? (positionMap.get(form.parentPositionId) ?? null)
+        : null,
+      headcount: form.headcount,
+      statusLabel: statusLabel(form.status),
+      mission: form.mission,
+      responsibilities: form.responsibilities,
+      requiredExperience: form.requiredExperience,
+      requiredEducation: form.requiredEducation,
+      customFields: customFieldsFromForm(activeFields, customValues),
+    });
   }
 
   function openEdit(position: Position) {
@@ -294,6 +387,16 @@ export function PositionsPageClient() {
                     <OrgStatusBadge status={position.status} />
                   </TableCell>
                   <TableCell className="text-right">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => openPrintFromPosition(position)}
+                      aria-label={`Imprimir perfil de ${position.name}`}
+                    >
+                      <Printer className="h-4 w-4" />
+                      Imprimir
+                    </Button>
                     <Button
                       type="button"
                       variant="ghost"
@@ -454,6 +557,15 @@ export function PositionsPageClient() {
             </p>
           ) : null}
           <div className="flex justify-end gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={openPrintFromForm}
+              disabled={!form.name.trim()}
+            >
+              <Printer className="h-4 w-4" aria-hidden />
+              Imprimir
+            </Button>
             <Button type="button" variant="outline" onClick={() => setOpen(false)}>
               Cancelar
             </Button>
@@ -463,6 +575,10 @@ export function PositionsPageClient() {
           </div>
         </form>
       </EntityEditorShell>
+      <PositionProfilePrintDialog
+        request={profileRequest}
+        onClose={() => setProfileRequest(null)}
+      />
     </div>
   );
 }

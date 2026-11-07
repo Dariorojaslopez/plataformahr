@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   ParseUUIDPipe,
@@ -54,5 +55,15 @@ export class AreasController {
     @Body() dto: UpdateAreaDto,
   ) {
     return this.areasService.update(tenant.companyId, user.userId, id, dto);
+  }
+
+  @Delete(':id')
+  @RequirePermissions('organization.manage')
+  remove(
+    @CurrentTenant() tenant: TenantContext,
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.areasService.remove(tenant.companyId, user.userId, id);
   }
 }

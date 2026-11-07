@@ -20,6 +20,7 @@ export function LoginForm({ aggressive = false }: { aggressive?: boolean }) {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [acceptPersonalData, setAcceptPersonalData] = useState(false);
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -34,10 +35,14 @@ export function LoginForm({ aggressive = false }: { aggressive?: boolean }) {
       setError("Ingresa un email válido.");
       return;
     }
+    if (!acceptPersonalData) {
+      setError("Debes aceptar el tratamiento de datos personales.");
+      return;
+    }
 
     setLoading(true);
     try {
-      const result = await login(trimmedEmail, password);
+      const result = await login(trimmedEmail, password, true);
       if (result.user.mustChangePassword) {
         router.replace("/change-password");
         return;
@@ -153,6 +158,22 @@ export function LoginForm({ aggressive = false }: { aggressive?: boolean }) {
           </Link>
         </div>
       </div>
+
+      <label className="flex items-start gap-2 text-sm leading-snug">
+        <input
+          id="accept-personal-data"
+          type="checkbox"
+          className="mt-1"
+          checked={acceptPersonalData}
+          onChange={(event) => setAcceptPersonalData(event.target.checked)}
+          required
+        />
+        <span>
+          {t(
+            "Acepto el tratamiento de mis datos personales para el uso de la plataforma.",
+          )}
+        </span>
+      </label>
 
       {error ? (
         <p className="text-sm text-destructive" role="alert">

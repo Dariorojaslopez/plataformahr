@@ -73,6 +73,10 @@ function ClosingSessionFormBody({
   const [improvements, setImprovements] = useState(
     data.pdi?.improvements ?? "",
   );
+  const [strengthsOpportunities, setStrengthsOpportunities] = useState(
+    data.strengthsOpportunities ?? "",
+  );
+  const [comments, setComments] = useState(data.comments ?? "");
 
   const saveMutation = useMutation({
     mutationFn: () =>
@@ -84,6 +88,8 @@ function ClosingSessionFormBody({
         pdiProgressNotes: progressNotes,
         pdiStrengths: strengths,
         pdiImprovements: improvements,
+        strengthsOpportunities: data.isSubject ? strengthsOpportunities : undefined,
+        comments: data.isSubject ? comments : undefined,
       }),
     onSuccess: async () => {
       notifySuccess("Sesión de cierre guardada");
@@ -103,6 +109,18 @@ function ClosingSessionFormBody({
       });
     },
     onError: (error) => notifyError(error, "No se pudo aceptar el cierre."),
+  });
+
+  const leaderMutation = useMutation({
+    mutationFn: () =>
+      performanceApi.acceptClosingAsLeader(cycleId, data.employee.id),
+    onSuccess: async () => {
+      notifySuccess("El líder aceptó el cierre.");
+      await queryClient.invalidateQueries({
+        queryKey: performanceKeys.closing(companyId, cycleId, employeeId),
+      });
+    },
+    onError: (error) => notifyError(error, "No se pudo registrar la aceptación."),
   });
 
   const readOnly = forceReadOnly || Boolean(data.acceptedAt);
@@ -183,6 +201,29 @@ function ClosingSessionFormBody({
 
       <section className="space-y-3 rounded-lg border border-border p-4">
         <div className="space-y-2">
+          <Label htmlFor="close-strengths-opportunities">
+            Fortalezas y oportunidades
+          </Label>
+          <Textarea
+            id="close-strengths-opportunities"
+            value={strengthsOpportunities}
+            disabled={readOnly || !data.isSubject || !data.canEditObservations}
+            rows={3}
+            required
+            onChange={(event) => setStrengthsOpportunities(event.target.value)}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="close-comments">Comentarios</Label>
+          <Textarea
+            id="close-comments"
+            value={comments}
+            disabled={readOnly || !data.isSubject || !data.canEditObservations}
+            rows={3}
+            onChange={(event) => setComments(event.target.value)}
+          />
+        </div>
+        <div className="space-y-2">
           <Label htmlFor="close-collab">Observaciones del colaborador</Label>
           <Textarea
             id="close-collab"
@@ -217,7 +258,22 @@ function ClosingSessionFormBody({
           {data.canAccept ? (
             <Button
               type="button"
-              onClick={() => acceptMutation.mutate()}
+              onClick={() => {
+                if (!strengthsOpportunities.trim()) {
+                  notifyError(
+                    new Error("Completa fortalezas y oportunidades."),
+                    "Completa fortalezas y oportunidades.",
+                  );
+                  return;
+                }
+                if (
+                  window.confirm(
+                    "Al confirmar el cierre de la evaluación aceptas que estás de acuerdo con los resultados obtenidos.",
+                  )
+                ) {
+                  acceptMutation.mutate();
+                }
+              }}
               disabled={acceptMutation.isPending}
             >
               Aceptación del colaborador
@@ -225,6 +281,67 @@ function ClosingSessionFormBody({
           ) : null}
         </div>
       )}
+      {data.canAcceptLeader ? (
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => leaderMutation.mutate()}
+          disabled={leaderMutation.isPending}
+        >
+          Aceptación del líder
+        </Button>
+      ) : null}
+      <Button
+        type="button"
+        variant="outline"
+        onClick={() =>
+          printClosing(data, { strengthsOpportunities, comments })
+        }
+      >
+        Exportar PDF
+      </Button>
     </div>
   );
+}
+
+function printClosing(
+  data: ClosingSessionData,
+  extra: { strengthsOpportunities: string; comments: string },
+) {
+  const popup = window.open("", "_blank", "noopener,noreferrer");
+  if (!popup) return;
+  const goals = data.goals
+    .map(
+      (goal) =>
+        `<li><strong>${escapeHtml(goal.title)}</strong> (${escapeHtml(goal.type ?? "")}) ${
+          goal.weight ? `peso ${escapeHtml(goal.weight)}` : ""
+        } ${goal.ratings
+          .map(
+            (rating) =>
+              `${escapeHtml(rating.type)}: ${escapeHtml(rating.label ?? String(rating.value ?? "—"))}`,
+          )
+          .join(", ")}</li>`,
+    )
+    .join("");
+  popup.document.write(`<!doctype html><html><head><title>Resultado de evaluación</title></head><body>
+    <h1>Resultado de evaluación</h1>
+    <p>${escapeHtml(data.employee.firstName)} ${escapeHtml(data.employee.lastName)}</p>
+    <p>Resultado general: ${escapeHtml(data.result?.overallScore ?? "—")}</p>
+    <p>Competencias: ${escapeHtml(data.result?.competencyScore ?? "—")}</p>
+    <p>Objetivos: ${escapeHtml(data.result?.goalsAchievement ?? "—")}</p>
+    <h2>Objetivos</h2><ul>${goals}</ul>
+    <h2>Fortalezas y oportunidades</h2><p>${escapeHtml(extra.strengthsOpportunities)}</p>
+    ${extra.comments.trim() ? `<h2>Comentarios</h2><p>${escapeHtml(extra.comments)}</p>` : ""}
+    <p>${data.acceptedAt ? "El colaborador aceptó los resultados obtenidos." : "Pendiente de aceptación del colaborador."}</p>
+  </body></html>`);
+  popup.document.close();
+  popup.focus();
+  popup.print();
+}
+
+function escapeHtml(value: string) {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;");
 }

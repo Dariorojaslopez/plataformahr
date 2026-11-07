@@ -17,6 +17,7 @@ import {
   ValidateNested,
 } from 'class-validator';
 import {
+  VacancyContractType,
   VacancyRequestMotive,
   VacancyRequestStatus,
   VacancyRequestType,
@@ -91,6 +92,10 @@ export class CreateVacancyRequestDto {
   @Min(1)
   requestedHeadcount!: number;
 
+  @IsOptional()
+  @IsEnum(VacancyContractType)
+  contractType?: VacancyContractType;
+
   @IsDateString()
   expectedHiringDate!: string;
 
@@ -150,6 +155,10 @@ export class UpdateVacancyRequestDto {
   @IsInt()
   @Min(1)
   requestedHeadcount?: number;
+
+  @IsOptional()
+  @IsEnum(VacancyContractType)
+  contractType?: VacancyContractType | null;
 
   @IsOptional()
   @IsDateString()

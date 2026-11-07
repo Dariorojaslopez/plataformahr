@@ -9,6 +9,7 @@ import type {
   ScreeningQuestionType,
   VacancyApprovalStep,
   VacancyApproverType,
+  VacancyContractType,
   VacancyRequestMotive,
   VacancyRequestStatus,
   VacancyRequestType,
@@ -56,6 +57,15 @@ export const VACANCY_REQUEST_TYPE_LABELS: Record<VacancyRequestType, string> = {
   EXISTING_POSITION: "Cargo existente",
   NEW_POSITION: "Cargo nuevo",
 };
+
+export const VACANCY_CONTRACT_TYPE_LABELS: Record<VacancyContractType, string> =
+  {
+    INDEFINITE: "Término indefinido",
+    FIXED_TERM: "Término fijo",
+    WORK_OR_LABOR: "Obra o labor",
+    SERVICE: "Prestación de servicios",
+    APPRENTICESHIP: "Aprendizaje",
+  };
 
 export const VACANCY_REQUEST_MOTIVE_LABELS: Record<
   VacancyRequestMotive,

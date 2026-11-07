@@ -86,6 +86,11 @@ export const organizationApi = {
   updateArea: (id: string, body: UpdateAreaInput) =>
     apiRequest<Area>(`/organization/areas/${id}`, { method: "PATCH", body }),
 
+  deleteArea: (id: string) =>
+    apiRequest<{ deleted: true }>(`/organization/areas/${id}`, {
+      method: "DELETE",
+    }),
+
   listJobLevels: () => apiRequest<JobLevel[]>("/organization/job-levels"),
 
   createJobLevel: (body: CreateJobLevelInput) =>
@@ -143,6 +148,17 @@ export const organizationApi = {
     apiRequest<PositionCustomFieldDefinition>(
       `/organization/position-custom-fields/${id}`,
       { method: "PATCH", body },
+    ),
+
+  downloadEmployees: (params: ListEmployeesParams = {}) =>
+    apiRequestBlob(
+      `/organization/employees/export${toQuery({
+        status: params.status,
+        areaId: params.areaId,
+        positionId: params.positionId,
+        businessUnitId: params.businessUnitId,
+        search: params.search,
+      })}`,
     ),
 
   listEmployees: (params: ListEmployeesParams = {}) =>

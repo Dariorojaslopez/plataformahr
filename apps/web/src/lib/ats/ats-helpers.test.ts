@@ -25,6 +25,7 @@ const baseValues = (): VacancyRequestFormValues => ({
   requestedJobLevelId: "",
   replacedEmployeeId: "emp-replaced",
   requestedHeadcount: "2",
+  contractType: "",
   expectedHiringDate: "2099-06-15",
   justification: "",
   approvalSteps: [],
@@ -128,6 +129,14 @@ describe("vacancy request form payloads", () => {
     });
     expect(payload.existingPositionId).toBe("pos-1");
     expect(payload.replacedEmployeeId).toBeUndefined();
+  });
+
+  it("includes the selected contract type", () => {
+    const payload = toCreateVacancyRequestPayload({
+      ...baseValues(),
+      contractType: "FIXED_TERM",
+    });
+    expect(payload.contractType).toBe("FIXED_TERM");
   });
 
   it("builds VACANT_PLAZA payload without replacedEmployeeId", () => {

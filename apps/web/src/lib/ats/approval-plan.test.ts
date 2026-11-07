@@ -49,6 +49,7 @@ function requestWithPlan(
     requestedJobLevelId: null,
     replacedEmployeeId: "emp-replaced",
     requestedHeadcount: 1,
+    contractType: null,
     expectedHiringDate: "2099-06-15",
     justification: "Coverage",
     generalManagerApprovalRequired: false,

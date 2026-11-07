@@ -17,6 +17,7 @@ describe('resolveCompetenciesForEmployee', () => {
       id,
       name,
       code: name.slice(0, 3).toUpperCase(),
+      description: null,
       status: OrganizationEntityStatus.ACTIVE,
     };
   }

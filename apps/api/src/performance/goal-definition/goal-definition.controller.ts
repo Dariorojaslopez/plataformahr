@@ -238,6 +238,21 @@ export class GoalDefinitionController {
     return this.closing.save(tenant.companyId, user.userId, cycleId, dto);
   }
 
+  @Post(':cycleId/closing/accept-leader')
+  acceptClosingLeader(
+    @CurrentTenant() tenant: TenantContext,
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('cycleId', ParseUUIDPipe) cycleId: string,
+    @Body('employeeId', ParseUUIDPipe) employeeId: string,
+  ) {
+    return this.closing.acceptLeader(
+      tenant.companyId,
+      user.userId,
+      cycleId,
+      employeeId,
+    );
+  }
+
   @Post(':cycleId/closing/accept')
   acceptClosing(
     @CurrentTenant() tenant: TenantContext,

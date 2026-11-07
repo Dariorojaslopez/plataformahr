@@ -80,36 +80,46 @@ function assertConfiguredWeights(weights: number[]) {
 function averageScoreForType(
   evaluations: ConsolidationEvaluationInput[],
   type: ConsolidationEvalType,
+  requireSubmitted: boolean,
 ): number | null {
   const ofType = evaluations.filter((e) => e.type === type);
   if (ofType.length === 0) return null;
 
-  for (const evaluation of ofType) {
-    if (evaluation.status !== 'SUBMITTED') {
-      throw new ConsolidationError(
-        `All existing evaluations must be SUBMITTED before consolidation (${evaluation.type} is ${evaluation.status})`,
-      );
-    }
-    if (toScore(evaluation.scorePercentage) == null) {
-      throw new ConsolidationError(
-        `Submitted evaluation ${evaluation.type} is missing scorePercentage`,
-      );
+  const completed = ofType.filter(
+    (evaluation) =>
+      evaluation.status === 'SUBMITTED' &&
+      toScore(evaluation.scorePercentage) != null,
+  );
+
+  if (requireSubmitted) {
+    for (const evaluation of ofType) {
+      if (evaluation.status !== 'SUBMITTED') {
+        throw new ConsolidationError(
+          `All existing evaluations must be SUBMITTED before consolidation (${evaluation.type} is ${evaluation.status})`,
+        );
+      }
+      if (toScore(evaluation.scorePercentage) == null) {
+        throw new ConsolidationError(
+          `Submitted evaluation ${evaluation.type} is missing scorePercentage`,
+        );
+      }
     }
   }
 
-  const total = ofType.reduce(
+  if (completed.length === 0) return null;
+  const total = completed.reduce(
     (sum, evaluation) => sum + (toScore(evaluation.scorePercentage) ?? 0),
     0,
   );
-  return total / ofType.length;
+  return total / completed.length;
 }
 
 /**
  * Consolidate existing evaluations.
  *
  * - Missing evaluation type (e.g. no MANAGER materialization): re-normalize weights.
- * - Existing incomplete evaluation: error (must be SUBMITTED).
- * - Multiple PEER/REPORT/CLIENT scores are averaged.
+ * - Incomplete SELF or MANAGER evaluations block consolidation.
+ * - Incomplete PEER, REPORT or CLIENT responses are left out of the average.
  */
 export function calculatePerformanceResult(
   input: ConsolidationInput,
@@ -127,11 +137,11 @@ export function calculatePerformanceResult(
     configuredClientWeight,
   ]);
 
-  const selfScore = averageScoreForType(input.evaluations, 'SELF');
-  const managerScore = averageScoreForType(input.evaluations, 'MANAGER');
-  const peerScore = averageScoreForType(input.evaluations, 'PEER');
-  const reportScore = averageScoreForType(input.evaluations, 'REPORT');
-  const clientScore = averageScoreForType(input.evaluations, 'CLIENT');
+  const selfScore = averageScoreForType(input.evaluations, 'SELF', true);
+  const managerScore = averageScoreForType(input.evaluations, 'MANAGER', true);
+  const peerScore = averageScoreForType(input.evaluations, 'PEER', false);
+  const reportScore = averageScoreForType(input.evaluations, 'REPORT', false);
+  const clientScore = averageScoreForType(input.evaluations, 'CLIENT', false);
 
   const present: Array<{ score: number; configured: number; key: string }> = [];
   if (selfScore != null) {

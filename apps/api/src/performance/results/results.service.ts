@@ -228,6 +228,8 @@ export class ResultsService {
             status: true,
             startDate: true,
             endDate: true,
+            passingScore: true,
+            evaluationRange: true,
           },
         },
         goalSnapshots: { orderBy: { order: 'asc' } },
@@ -266,6 +268,8 @@ export class ResultsService {
             status: true,
             startDate: true,
             endDate: true,
+            passingScore: true,
+            evaluationRange: true,
           },
         },
         participant: { select: { id: true, status: true } },
@@ -748,6 +752,8 @@ export class ResultsService {
             status: true,
             startDate: true,
             endDate: true,
+            passingScore: true,
+            evaluationRange: true,
           },
         },
         participant: { select: { id: true, status: true } },
@@ -847,6 +853,8 @@ export class ResultsService {
       status: string;
       startDate: Date;
       endDate: Date;
+      passingScore?: Prisma.Decimal | null;
+      evaluationRange?: number;
     };
     participant: { id: string; status: string };
     goalSnapshots?: Array<{
@@ -897,6 +905,12 @@ export class ResultsService {
         ...result.cycle,
         startDate: result.cycle.startDate.toISOString().slice(0, 10),
         endDate: result.cycle.endDate.toISOString().slice(0, 10),
+        ...(result.cycle.passingScore != null
+          ? { passingScore: decimalToString(result.cycle.passingScore) }
+          : {}),
+        ...(result.cycle.evaluationRange != null
+          ? { evaluationRange: result.cycle.evaluationRange }
+          : {}),
       },
     };
   }
@@ -940,6 +954,8 @@ export class ResultsService {
       status: string;
       startDate: Date;
       endDate: Date;
+      passingScore?: Prisma.Decimal | null;
+      evaluationRange?: number;
     };
     participant: { id: string; status: string };
     releasedBy?: {
@@ -999,6 +1015,12 @@ export class ResultsService {
         ...result.cycle,
         startDate: result.cycle.startDate.toISOString().slice(0, 10),
         endDate: result.cycle.endDate.toISOString().slice(0, 10),
+        ...(result.cycle.passingScore != null
+          ? { passingScore: decimalToString(result.cycle.passingScore) }
+          : {}),
+        ...(result.cycle.evaluationRange != null
+          ? { evaluationRange: result.cycle.evaluationRange }
+          : {}),
       },
       view: 'admin' as const,
     };
@@ -1022,6 +1044,8 @@ export class ResultsService {
       status: string;
       startDate: Date;
       endDate: Date;
+      passingScore?: Prisma.Decimal | null;
+      evaluationRange?: number;
     };
     goalSnapshots?: Array<{
       id: string;
@@ -1058,6 +1082,12 @@ export class ResultsService {
         ...result.cycle,
         startDate: result.cycle.startDate.toISOString().slice(0, 10),
         endDate: result.cycle.endDate.toISOString().slice(0, 10),
+        ...(result.cycle.passingScore != null
+          ? { passingScore: decimalToString(result.cycle.passingScore) }
+          : {}),
+        ...(result.cycle.evaluationRange != null
+          ? { evaluationRange: result.cycle.evaluationRange }
+          : {}),
       },
     };
   }
@@ -1085,6 +1115,8 @@ export class ResultsService {
       status: string;
       startDate: Date;
       endDate: Date;
+      passingScore?: Prisma.Decimal | null;
+      evaluationRange?: number;
     };
     goalSnapshots?: Array<{
       id: string;
@@ -1134,6 +1166,12 @@ export class ResultsService {
         ...result.cycle,
         startDate: result.cycle.startDate.toISOString().slice(0, 10),
         endDate: result.cycle.endDate.toISOString().slice(0, 10),
+        ...(result.cycle.passingScore != null
+          ? { passingScore: decimalToString(result.cycle.passingScore) }
+          : {}),
+        ...(result.cycle.evaluationRange != null
+          ? { evaluationRange: result.cycle.evaluationRange }
+          : {}),
       },
       view: 'employee' as const,
     };

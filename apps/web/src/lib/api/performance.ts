@@ -420,11 +420,15 @@ export const performanceApi = {
       employee: { id: string; firstName: string; lastName: string };
       isSubject: boolean;
       acceptedAt: string | null;
+      leaderAcceptedAt?: string | null;
+      strengthsOpportunities?: string | null;
+      comments?: string | null;
       collaboratorObservations: string | null;
       leaderObservations: string | null;
       canEditPdi: boolean;
       canEditObservations: boolean;
       canAccept: boolean;
+      canAcceptLeader?: boolean;
       result: {
         overallScore: string | null;
         competencyScore: string | null;
@@ -433,6 +437,9 @@ export const performanceApi = {
       goals: Array<{
         id: string;
         title: string;
+        type?: string;
+        weight?: string | null;
+        targetValue?: string | null;
         progressStatus: string;
         ratings: Array<{ type: string; label: string | null; value: number | null }>;
       }>;
@@ -462,6 +469,8 @@ export const performanceApi = {
       pdiProgressNotes?: string | null;
       pdiStrengths?: string | null;
       pdiImprovements?: string | null;
+      strengthsOpportunities?: string | null;
+      comments?: string | null;
     },
   ) =>
     apiRequest<unknown>(`/performance/my-evaluations/${cycleId}/closing`, {
@@ -473,6 +482,57 @@ export const performanceApi = {
     apiRequest<unknown>(`/performance/my-evaluations/${cycleId}/closing/accept`, {
       method: "POST",
     }),
+
+  acceptClosingAsLeader: (cycleId: string, employeeId: string) =>
+    apiRequest<unknown>(
+      `/performance/my-evaluations/${cycleId}/closing/accept-leader`,
+      { method: "POST", body: { employeeId } },
+    ),
+
+  resetParticipantPhase: (
+    cycleId: string,
+    body: { participantIds: string[]; phase: string },
+  ) =>
+    apiRequest<{ updated: number }>(
+      `/performance/cycles/${cycleId}/participants/phase-reset`,
+      { method: "POST", body },
+    ),
+
+  reassignParticipantLeader: (
+    cycleId: string,
+    body: { participantIds: string[]; managerEmployeeId: string },
+  ) =>
+    apiRequest<{ updated: number }>(
+      `/performance/cycles/${cycleId}/participants/reassign-leader`,
+      { method: "POST", body },
+    ),
+
+  listParticipantGoals: (cycleId: string, participantId: string) =>
+    apiRequest<{ items: Array<{ id: string; title: string }> }>(
+      `/performance/cycles/${cycleId}/participants/${participantId}/goals`,
+    ),
+
+  unlockParticipantGoals: (
+    cycleId: string,
+    participantId: string,
+    goalIds: string[],
+  ) =>
+    apiRequest<{ goalIds: string[] }>(
+      `/performance/cycles/${cycleId}/participants/${participantId}/goal-unlocks`,
+      { method: "POST", body: { goalIds } },
+    ),
+
+  saveCompetencyComment: (evaluationId: string, comment: string) =>
+    apiRequest<PerformanceEvaluationDetail>(
+      `/performance/evaluations/${evaluationId}/competency-comment`,
+      { method: "PUT", body: { comment } },
+    ),
+
+  closeCalibrationSession: (id: string) =>
+    apiRequest<CalibrationSession>(
+      `/performance/calibration/sessions/${id}/close`,
+      { method: "POST" },
+    ),
 
   getEvaluation: (id: string) =>
     apiRequest<PerformanceEvaluationDetail>(

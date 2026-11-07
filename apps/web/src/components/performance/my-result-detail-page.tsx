@@ -257,9 +257,19 @@ export function MyResultDetailPageClient() {
         <section className="space-y-3 rounded-lg border border-border bg-card p-4">
           <h2 className="text-base font-semibold">9Box</h2>
           {(() => {
+            const cycle =
+              "cycle" in data && data.cycle && typeof data.cycle === "object"
+                ? (data.cycle as {
+                    passingScore?: string | number | null;
+                    evaluationRange?: number | null;
+                  })
+                : null;
             const placement = scoresToNineBoxCell({
               overallScore: parseScore(safe.overallScore),
               competencyScore: parseScore(safe.competencyScore),
+              minimum:
+                cycle?.passingScore != null ? Number(cycle.passingScore) : null,
+              maximum: cycle?.evaluationRange ?? null,
             });
             if (!placement) {
               return (

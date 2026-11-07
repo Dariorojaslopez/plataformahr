@@ -81,6 +81,16 @@ export class CalibrationController {
     );
   }
 
+  @Post('sessions/:id/close')
+  @RequirePermissions('performance.cycle.manage')
+  close(
+    @CurrentTenant() tenant: TenantContext,
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.calibration.closeSession(tenant.companyId, user.userId, id);
+  }
+
   @Get('sessions/:id/placements')
   @RequirePermissions('performance.cycle.read')
   listPlacements(

@@ -18,6 +18,7 @@ import { PasswordHashingService } from '../../auth/password-hashing.service';
 import { AuditService } from '../../core/audit/audit.service';
 import { MailService } from '../../mail/mail.service';
 import { PrismaService } from '../../prisma/prisma.service';
+import { reassignReportsIfLeaderVacant } from './leader-succession';
 import {
   DEFAULT_LIMIT,
   DEFAULT_PAGE,
@@ -32,6 +33,11 @@ import {
   serializeEmployee,
   type SerializedEmployee,
 } from '../position-custom-fields/position-custom-fields.serialize';
+import {
+  buildEmployeesWorkbook,
+  EMPLOYEES_EXPORT_FILENAME,
+  type EmployeeExportRow,
+} from './employees-export';
 import type {
   CreateEmployeeDto,
   EmployeeAccessRoleCode,
@@ -54,39 +60,7 @@ export class EmployeesService {
     const page = query.page ?? DEFAULT_PAGE;
     const limit = Math.min(query.limit ?? DEFAULT_LIMIT, MAX_LIMIT);
     const skip = (page - 1) * limit;
-
-    const where: Prisma.EmployeeWhereInput = {
-      companyId,
-      deletedAt: null,
-      ...(query.status ? { status: query.status } : {}),
-      ...(query.areaId ? { areaId: query.areaId } : {}),
-      ...(query.positionId ? { positionId: query.positionId } : {}),
-      ...(query.businessUnitId ? { businessUnitId: query.businessUnitId } : {}),
-      ...(query.search
-        ? {
-            OR: [
-              {
-                firstName: {
-                  contains: query.search.trim(),
-                  mode: 'insensitive',
-                },
-              },
-              {
-                lastName: {
-                  contains: query.search.trim(),
-                  mode: 'insensitive',
-                },
-              },
-              {
-                email: {
-                  contains: query.search.trim().toLowerCase(),
-                  mode: 'insensitive',
-                },
-              },
-            ],
-          }
-        : {}),
-    };
+    const where = this.listWhere(companyId, query);
 
     const [rows, total] = await this.prisma.$transaction([
       this.prisma.employee.findMany({
@@ -107,6 +81,55 @@ export class EmployeesService {
       limit,
       total,
       totalPages: Math.ceil(total / limit) || 1,
+    };
+  }
+
+  async exportXlsx(companyId: string, query: ListEmployeesQueryDto) {
+    const where = this.listWhere(companyId, query);
+    const total = await this.prisma.employee.count({ where });
+    if (total > 10_000) {
+      throw new BadRequestException(
+        'Hay más de 10.000 colaboradores con este filtro. Acota la búsqueda para descargar el Excel.',
+      );
+    }
+    const rows = await this.prisma.employee.findMany({
+      where,
+      orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }],
+      take: 10_000,
+      include: {
+        area: { select: { name: true } },
+        position: { select: { name: true } },
+        businessUnit: { select: { name: true } },
+      },
+    });
+    const exportRows: EmployeeExportRow[] = rows.map((row) => ({
+      firstName: row.firstName,
+      lastName: row.lastName,
+      sex: row.sex,
+      documentType: row.documentType,
+      documentNumber: row.documentNumber,
+      birthDate: row.birthDate,
+      maritalStatus: row.maritalStatus,
+      email: row.email,
+      phone: row.phone,
+      country: row.country,
+      state: row.state,
+      city: row.city,
+      childrenCount: row.childrenCount,
+      housingType: row.housingType,
+      businessUnitName: row.businessUnit?.name ?? null,
+      areaName: row.area.name,
+      positionName: row.position.name,
+      accessRoleCode: row.accessRoleCode,
+      status: row.status,
+      hireDate: row.hireDate,
+      terminationDate: row.terminationDate,
+      emergencyContactName: row.emergencyContactName,
+      emergencyContactPhone: row.emergencyContactPhone,
+    }));
+    return {
+      buffer: await buildEmployeesWorkbook(exportRows),
+      filename: EMPLOYEES_EXPORT_FILENAME,
     };
   }
 
@@ -214,6 +237,7 @@ export class EmployeesService {
             documentType: emptyToNull(dto.documentType) ?? null,
             documentNumber: emptyToNull(dto.documentNumber) ?? null,
             birthDate: dto.birthDate ? new Date(dto.birthDate) : null,
+            sex: emptyToNull(dto.sex) ?? null,
             country: emptyToNull(dto.country) ?? null,
             state: emptyToNull(dto.state) ?? null,
             city: emptyToNull(dto.city) ?? null,
@@ -310,6 +334,7 @@ export class EmployeesService {
                   birthDate: dto.birthDate ? new Date(dto.birthDate) : null,
                 }
               : {}),
+            ...(dto.sex !== undefined ? { sex: emptyToNull(dto.sex) } : {}),
             ...(dto.country !== undefined
               ? { country: emptyToNull(dto.country) }
               : {}),
@@ -391,6 +416,10 @@ export class EmployeesService {
         });
       }
 
+      if (dto.status === EmployeeStatus.INACTIVE) {
+        await reassignReportsIfLeaderVacant(this.prisma, companyId, id);
+      }
+
       return this.customFields.getSerializedEmployee(companyId, id);
     } catch (error: unknown) {
       this.rethrowUniqueConflict(error);
@@ -430,6 +459,10 @@ export class EmployeesService {
         });
       }
     });
+
+    for (const employeeId of uniqueIds) {
+      await reassignReportsIfLeaderVacant(this.prisma, companyId, employeeId);
+    }
 
     await this.audit.create({
       action: ORG_AUDIT.EMPLOYEE_DELETED,
@@ -684,6 +717,44 @@ export class EmployeesService {
     }
     await this.syncMembershipAccessRole(tx, companyId, userId, requested);
     return requested;
+  }
+
+  private listWhere(
+    companyId: string,
+    query: ListEmployeesQueryDto,
+  ): Prisma.EmployeeWhereInput {
+    return {
+      companyId,
+      deletedAt: null,
+      ...(query.status ? { status: query.status } : {}),
+      ...(query.areaId ? { areaId: query.areaId } : {}),
+      ...(query.positionId ? { positionId: query.positionId } : {}),
+      ...(query.businessUnitId ? { businessUnitId: query.businessUnitId } : {}),
+      ...(query.search
+        ? {
+            OR: [
+              {
+                firstName: {
+                  contains: query.search.trim(),
+                  mode: 'insensitive',
+                },
+              },
+              {
+                lastName: {
+                  contains: query.search.trim(),
+                  mode: 'insensitive',
+                },
+              },
+              {
+                email: {
+                  contains: query.search.trim().toLowerCase(),
+                  mode: 'insensitive',
+                },
+              },
+            ],
+          }
+        : {}),
+    };
   }
 
   private async validateRelations(

@@ -33,6 +33,7 @@ import { useCompanyId } from "@/hooks/use-company-id";
 import { getErrorMessage } from "@/lib/api/errors";
 import { organizationApi, orgKeys } from "@/lib/api/organization";
 import { performanceApi, performanceKeys } from "@/lib/api/performance";
+import { ParticipantFlowPanel } from "@/components/performance/participant-flow-panel";
 import { buildBulkAssignPayload } from "@/lib/performance/bulk-assign";
 import {
   EVALUATION_STATUS_LABELS,
@@ -394,6 +395,13 @@ export function CycleParticipantsTab({
         />
       ) : (
         <>
+          {canAssign ? (
+            <ParticipantFlowPanel
+              companyId={companyId}
+              cycleId={cycleId}
+              items={items}
+            />
+          ) : null}
           <div className="hidden overflow-hidden rounded-lg border border-border bg-card md:block">
             <Table>
               <TableHeader>

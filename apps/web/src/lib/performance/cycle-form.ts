@@ -55,6 +55,7 @@ export type CycleFormState = {
   individualGoalsWeight: string;
   maxObjectives: string;
   evaluationRange: "100" | "120";
+  passingScore: string;
 };
 
 export function emptyCycleForm(): CycleFormState {
@@ -87,6 +88,7 @@ export function emptyCycleForm(): CycleFormState {
     individualGoalsWeight: "0",
     maxObjectives: "",
     evaluationRange: String(DEFAULT_EVALUATION_RANGE) as "100" | "120",
+    passingScore: "70",
   };
 }
 
@@ -135,6 +137,7 @@ export function cycleFormFromPerformanceCycle(
       (hasGoals ? (cycle.goalsResultWeight ?? "0") : "0"),
     maxObjectives: cycle.maxObjectives != null ? String(cycle.maxObjectives) : "",
     evaluationRange: cycle.evaluationRange === 120 ? "120" : "100",
+    passingScore: cycle.passingScore ?? "70",
   };
 }
 
@@ -196,6 +199,16 @@ function requireWeight(value: string, field: string): number {
   return n;
 }
 
+function requirePassingScore(form: CycleFormState, range: number): number {
+  const n = Number(form.passingScore);
+  if (!Number.isFinite(n) || n < 0 || n > range) {
+    throw new Error(
+      `El puntaje mínimo para aprobar debe estar entre 0 y ${range}.`,
+    );
+  }
+  return Math.round(n * 100) / 100;
+}
+
 function requireCompositionWeight(value: string, field: string): number {
   const n = parseResultCompositionWeightInput(value);
   if (n == null) {
@@ -229,11 +242,13 @@ function applyCompositionToPayload<
     individualGoalsWeight?: number | null;
     maxObjectives?: number | null;
     evaluationRange?: number;
+    passingScore?: number;
   },
 >(payload: T, form: CycleFormState, mode: "create" | "update"): T {
   const range = form.evaluationRange === "120" ? 120 : 100;
   payload.includeCompetencies = form.includeCompetencies;
   payload.evaluationRange = range;
+  payload.passingScore = requirePassingScore(form, range);
 
   const maxObjectives = form.maxObjectives.trim();
   if (maxObjectives) {

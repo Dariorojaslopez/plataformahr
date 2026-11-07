@@ -61,7 +61,11 @@ export class AuthService {
   async login(
     email: string,
     password: string,
-    meta?: { ipAddress?: string; userAgent?: string },
+    meta?: {
+      ipAddress?: string;
+      userAgent?: string;
+      acceptPersonalData?: boolean;
+    },
   ): Promise<AuthLoginResult> {
     const normalizedEmail = email.trim().toLowerCase();
     const user = await this.prisma.user.findUnique({
@@ -83,6 +87,13 @@ export class AuthService {
     );
     if (!passwordValid) {
       throw new UnauthorizedException('Invalid credentials');
+    }
+
+    if (meta?.acceptPersonalData) {
+      await this.prisma.user.update({
+        where: { id: user.id },
+        data: { personalDataAcceptedAt: new Date() },
+      });
     }
 
     const sessionId = randomUUID();

@@ -56,7 +56,7 @@ export class AuthController {
     const result = await this.authService.login(
       body.email,
       body.password,
-      requestMeta(req),
+      { ...requestMeta(req), acceptPersonalData: body.acceptPersonalData },
     );
     setRefreshCookie(res, result.refreshToken, this.security);
     res.setHeader('Cache-Control', 'no-store');

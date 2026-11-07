@@ -272,6 +272,58 @@ export function housingTypeSelectOptions(
   return options;
 }
 
+/**
+ * Canonical sex labels stored on Employee.sex.
+ */
+export const EMPLOYEE_SEXES = ['Femenino', 'Masculino'] as const;
+
+export type EmployeeSex = (typeof EMPLOYEE_SEXES)[number];
+
+export const EMPLOYEE_SEX_VALUES: EmployeeSex[] = [...EMPLOYEE_SEXES];
+
+const EMPLOYEE_SEX_SET = new Set<string>(EMPLOYEE_SEX_VALUES);
+
+const EMPLOYEE_SEX_ALIASES: Record<string, EmployeeSex> = {
+  f: 'Femenino',
+  femenino: 'Femenino',
+  mujer: 'Femenino',
+  female: 'Femenino',
+  m: 'Masculino',
+  masculino: 'Masculino',
+  hombre: 'Masculino',
+  male: 'Masculino',
+};
+
+export function isEmployeeSex(value: string): value is EmployeeSex {
+  return EMPLOYEE_SEX_SET.has(value);
+}
+
+export function normalizeEmployeeSex(
+  value: string | null | undefined,
+): string {
+  if (!value) return '';
+  const trimmed = value.trim();
+  if (!trimmed) return '';
+  if (isEmployeeSex(trimmed)) return trimmed;
+  return EMPLOYEE_SEX_ALIASES[trimmed.toLowerCase()] ?? trimmed;
+}
+
+export function sexSelectOptions(
+  current?: string | null,
+): Array<{ value: string; label: string }> {
+  const options: Array<{ value: string; label: string }> = EMPLOYEE_SEXES.map(
+    (sex) => ({
+      value: sex,
+      label: sex,
+    }),
+  );
+  const normalized = normalizeEmployeeSex(current);
+  if (normalized && !isEmployeeSex(normalized)) {
+    options.push({ value: normalized, label: normalized });
+  }
+  return options;
+}
+
 export const COMPANY_ACCESS_CATALOG = [
   {
     code: 'ORGANIZATION',

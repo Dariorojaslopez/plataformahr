@@ -239,6 +239,7 @@ export function EmployeeProfilePageClient() {
             <InfoRow label="País" value={employee?.country} />
             <InfoRow label="Estado" value={employee?.state} />
             <InfoRow label="Ciudad" value={employee?.city} />
+            <InfoRow label="Sexo" value={employee?.sex} />
             <InfoRow label="Estado civil" value={employee?.maritalStatus} />
             <InfoRow
               label="Hijos"

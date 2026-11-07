@@ -10,6 +10,8 @@ export type CalibrationEmployeeRef = {
   firstName: string;
   lastName: string;
   email: string;
+  area?: { id: string; name: string } | null;
+  businessUnit?: { id: string; name: string } | null;
 };
 
 export type CalibrationSession = {
@@ -18,6 +20,7 @@ export type CalibrationSession = {
   name: string;
   opensAt: string | null;
   closesAt: string | null;
+  closedAt?: string | null;
   cells: NineBoxCell[];
   invitees: CalibrationEmployeeRef[];
   leaders: CalibrationEmployeeRef[];

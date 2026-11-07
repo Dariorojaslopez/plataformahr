@@ -244,7 +244,13 @@ export class CalibrationService {
       },
       select: {
         managerEmployeeId: true,
-        employee: { select: EMPLOYEE_SELECT },
+        employee: {
+          select: {
+            ...EMPLOYEE_SELECT,
+            area: { select: { id: true, name: true } },
+            businessUnit: { select: { id: true, name: true } },
+          },
+        },
       },
     });
     const employeeIds = [...new Set(reports.map((row) => row.employee.id))];
@@ -270,13 +276,19 @@ export class CalibrationService {
     for (const row of results) {
       if (!latest.has(row.employeeId)) latest.set(row.employeeId, row);
     }
+    const scales = await this.cycleScales([
+      ...new Set([...latest.values()].map((row) => row.cycleId)),
+    ]);
 
     const items = reports.map((row) => {
       const result = latest.get(row.employee.id);
+      const scale = result ? scales.get(result.cycleId) : undefined;
       const placement = result
         ? scoresToNineBoxCell({
             overallScore: parseScore(result.overallScore),
             competencyScore: parseScore(result.competencyScore),
+            minimum: scale?.minimum,
+            maximum: scale?.maximum,
           })
         : null;
       return {
@@ -340,6 +352,11 @@ export class CalibrationService {
     },
   ) {
     const session = await this.requireSession(companyId, sessionId);
+    if (session.closedAt) {
+      throw new BadRequestException(
+        'La sesión de calibración ya cerró. Los cambios quedaron fijos.',
+      );
+    }
     const leaderIds = session.leaders.map((row) => row.employeeId);
     const report = await this.prisma.employeeReportingLine.findFirst({
       where: {
@@ -367,12 +384,17 @@ export class CalibrationService {
         ...(dto.cycleId ? { cycleId: dto.cycleId } : {}),
       },
       orderBy: { releasedAt: 'desc' },
-      select: { overallScore: true, competencyScore: true },
+      select: { overallScore: true, competencyScore: true, cycleId: true },
     });
+    const scale = existing
+      ? (await this.cycleScales([existing.cycleId])).get(existing.cycleId)
+      : undefined;
     const calculated = existing
       ? scoresToNineBoxCell({
           overallScore: parseScore(existing.overallScore),
           competencyScore: parseScore(existing.competencyScore),
+          minimum: scale?.minimum,
+          maximum: scale?.maximum,
         })
       : null;
 
@@ -531,6 +553,7 @@ export class CalibrationService {
     name: string;
     opensAt: Date | null;
     closesAt: Date | null;
+    closedAt?: Date | null;
     createdAt: Date;
     updatedAt: Date;
     cells: Array<{ row: number; col: number; label: string; color: string }>;
@@ -557,12 +580,51 @@ export class CalibrationService {
       name: session.name,
       opensAt: session.opensAt?.toISOString() ?? null,
       closesAt: session.closesAt?.toISOString() ?? null,
+      closedAt: session.closedAt?.toISOString() ?? null,
       cells: session.cells.map((cell) => this.toCell(cell)),
       invitees: session.invitees.map((row) => row.employee),
       leaders: session.leaders.map((row) => row.employee),
       createdAt: session.createdAt.toISOString(),
       updatedAt: session.updatedAt.toISOString(),
     };
+  }
+
+  async closeSession(companyId: string, userId: string, sessionId: string) {
+    const session = await this.requireSession(companyId, sessionId);
+    if (session.closedAt) {
+      return this.toSession(session);
+    }
+    const updated = await this.prisma.calibrationSession.update({
+      where: { id: session.id },
+      data: { closedAt: new Date() },
+      include: SESSION_INCLUDE,
+    });
+    await this.audit.create({
+      action: PERFORMANCE_AUDIT.CALIBRATION_SESSION_CLOSED,
+      entity: 'CalibrationSession',
+      entityId: session.id,
+      company: { connect: { id: companyId } },
+      user: { connect: { id: userId } },
+    });
+    return this.toSession(updated);
+  }
+
+  private async cycleScales(cycleIds: string[]) {
+    const ids = [...new Set(cycleIds.filter(Boolean))];
+    if (ids.length === 0) return new Map<string, { minimum: number; maximum: number }>();
+    const cycles = await this.prisma.performanceCycle.findMany({
+      where: { id: { in: ids } },
+      select: { id: true, passingScore: true, evaluationRange: true },
+    });
+    return new Map(
+      cycles.map((cycle) => [
+        cycle.id,
+        {
+          minimum: Number(cycle.passingScore.toString()),
+          maximum: cycle.evaluationRange,
+        },
+      ]),
+    );
   }
 }
 

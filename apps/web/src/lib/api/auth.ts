@@ -23,10 +23,11 @@ import type {
 export async function loginRequest(
   email: string,
   password: string,
+  acceptPersonalData?: boolean,
 ): Promise<AuthTokensResponse> {
   return apiRequest<AuthTokensResponse>("/auth/login", {
     method: "POST",
-    body: { email, password },
+    body: { email, password, acceptPersonalData },
     auth: false,
     companyId: null,
   });

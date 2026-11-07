@@ -8,6 +8,7 @@ import { useMemo, useState } from "react";
 import {
   emptyVacancyRequestForm,
   toCreateVacancyRequestPayload,
+  vacancyRequestFormError,
   toUpdateVacancyRequestPayload,
   VacancyRequestForm,
   vacancyRequestToForm,
@@ -263,6 +264,11 @@ export function VacancyRequestsPageClient() {
     );
     if (requesterError) {
       setFormError(requesterError);
+      return;
+    }
+    const contractError = vacancyRequestFormError(editorValues);
+    if (contractError) {
+      setFormError(contractError);
       return;
     }
     setFormError(null);

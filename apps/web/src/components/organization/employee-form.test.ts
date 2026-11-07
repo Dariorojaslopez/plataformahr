@@ -18,6 +18,7 @@ const sample: Employee = {
   documentType: null,
   documentNumber: null,
   birthDate: null,
+  sex: null,
   country: null,
   state: null,
   city: null,
@@ -75,6 +76,16 @@ describe("employee form mappers", () => {
     });
     expect(values.documentType).toBe("CC");
     expect(toCreatePayload(values).documentType).toBe("CC");
+  });
+
+  it("maps sex aliases onto the catalog", () => {
+    const values = employeeToFormValues({
+      ...sample,
+      sex: "femenino",
+    });
+    expect(values.sex).toBe("Femenino");
+    expect(toCreatePayload(values).sex).toBe("Femenino");
+    expect(toUpdatePayload(employeeToFormValues(sample)).sex).toBeNull();
   });
 
   it("maps marital status aliases onto the catalog", () => {

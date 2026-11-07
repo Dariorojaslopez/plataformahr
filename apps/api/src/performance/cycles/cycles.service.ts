@@ -218,6 +218,10 @@ export class CyclesService {
         individualGoalsWeight: goalsComposition.individualGoalsWeight,
         maxObjectives: goalsComposition.maxObjectives,
         evaluationRange: goalsComposition.evaluationRange,
+        passingScore: this.resolvePassingScore(
+          dto.passingScore,
+          goalsComposition.evaluationRange,
+        ),
         status: PerformanceCycleStatus.DRAFT,
         createdByUserId: userId,
         followUps: followUps
@@ -407,6 +411,14 @@ export class CyclesService {
                 individualGoalsWeight: goalsComposition.individualGoalsWeight,
                 maxObjectives: goalsComposition.maxObjectives,
                 evaluationRange: goalsComposition.evaluationRange,
+              }
+            : {}),
+          ...(dto.passingScore !== undefined
+            ? {
+                passingScore: this.resolvePassingScore(
+                  dto.passingScore,
+                  goalsComposition?.evaluationRange ?? existing.evaluationRange,
+                ),
               }
             : {}),
         },
@@ -899,6 +911,7 @@ export class CyclesService {
       evaluationModel: cycle.evaluationModel,
       includeCompetencies: cycle.includeCompetencies,
       evaluationRange: cycle.evaluationRange,
+      passingScore: decimalToString(cycle.passingScore),
       maxObjectives: cycle.maxObjectives,
       selfEvaluationWeight: decimalToString(cycle.selfEvaluationWeight),
       managerEvaluationWeight: decimalToString(cycle.managerEvaluationWeight),
@@ -1020,6 +1033,16 @@ export class CyclesService {
       competency: row.competency,
       scale: row.scale,
     };
+  }
+
+  private resolvePassingScore(value: number | undefined, range: number): Prisma.Decimal {
+    const score = value ?? 70;
+    if (score < 0 || score > range) {
+      throw new BadRequestException(
+        `El puntaje mínimo para aprobar debe estar entre 0 y ${range}.`,
+      );
+    }
+    return new Prisma.Decimal(score);
   }
 
   private dateOnly(value: Date): string {

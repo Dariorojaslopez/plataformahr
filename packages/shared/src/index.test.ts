@@ -14,13 +14,17 @@ import {
   employeeDocumentTypeSelectOptions,
   EMPLOYEE_MARITAL_STATUSES,
   housingTypeSelectOptions,
+  EMPLOYEE_SEXES,
   isCandidateDocumentType,
   isEmployeeDocumentType,
   isEmployeeHousingType,
   isCompanyHomeRole,
   isEmployeeMaritalStatus,
+  isEmployeeSex,
   isPremiumFeature,
   maritalStatusSelectOptions,
+  normalizeEmployeeSex,
+  sexSelectOptions,
   mergeCompanyAccess,
   normalizeEmployeeDocumentType,
   normalizeEmployeeHousingType,
@@ -93,6 +97,16 @@ test('employee housing types are a Spanish select catalog', () => {
   assert.equal(isEmployeeHousingType('Familiar'), true);
   assert.equal(isEmployeeHousingType('otro'), false);
   assert.equal(housingTypeSelectOptions('otro').at(-1)?.value, 'otro');
+});
+
+test('employee sex is a Spanish select catalog', () => {
+  assert.deepEqual([...EMPLOYEE_SEXES], ['Femenino', 'Masculino']);
+  assert.equal(normalizeEmployeeSex('femenino'), 'Femenino');
+  assert.equal(normalizeEmployeeSex('M'), 'Masculino');
+  assert.equal(normalizeEmployeeSex('otro'), 'otro');
+  assert.equal(isEmployeeSex('Femenino'), true);
+  assert.equal(isEmployeeSex('otro'), false);
+  assert.equal(sexSelectOptions('otro').at(-1)?.value, 'otro');
 });
 
 test('employee marital statuses are a Spanish select catalog', () => {

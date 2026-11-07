@@ -84,6 +84,31 @@ export function CycleCompositionFields({
         ]}
       />
 
+      <div className="space-y-2">
+        <Label htmlFor={`${idPrefix}-passing-score`}>
+          Puntaje mínimo para aprobar
+        </Label>
+        <Input
+          id={`${idPrefix}-passing-score`}
+          type="number"
+          min={0}
+          max={range}
+          step="0.01"
+          value={form.passingScore}
+          onChange={(event) =>
+            setForm((current) => ({
+              ...current,
+              passingScore: event.target.value,
+            }))
+          }
+          required
+        />
+        <p className="text-xs text-muted-foreground">
+          En el 9Box, un puntaje por debajo de este valor queda en la caja 1.
+          Por encima se reparte entre las cajas 2 y 3.
+        </p>
+      </div>
+
       <div>
         <p className="mb-2 text-xs font-medium text-muted-foreground">
           Ponderación sobre el resultado ({range}%)

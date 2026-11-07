@@ -8,8 +8,10 @@ import {
   Patch,
   Post,
   Query,
+  Res,
   UseGuards,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import type { AuthenticatedUser, TenantContext } from '../../auth/auth.types';
 import { CurrentUser } from '../../auth/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
@@ -24,6 +26,7 @@ import {
   ListEmployeesQueryDto,
   UpdateEmployeeDto,
 } from './dto/employee.dto';
+import { EMPLOYEES_EXPORT_MIME } from './employees-export';
 import { EmployeesService } from './employees.service';
 import { CreateReportingLineDto } from '../reporting-lines/dto/reporting-line.dto';
 import { ReportingLinesService } from '../reporting-lines/reporting-lines.service';
@@ -43,6 +46,22 @@ export class EmployeesController {
     @Query() query: ListEmployeesQueryDto,
   ) {
     return this.employeesService.list(tenant.companyId, query);
+  }
+
+  @Get('export')
+  @RequirePermissions('organization.read')
+  async exportXlsx(
+    @CurrentTenant() tenant: TenantContext,
+    @Query() query: ListEmployeesQueryDto,
+    @Res() res: Response,
+  ) {
+    const { buffer, filename } = await this.employeesService.exportXlsx(
+      tenant.companyId,
+      query,
+    );
+    res.setHeader('Content-Type', EMPLOYEES_EXPORT_MIME);
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(buffer);
   }
 
   @Get(':id')

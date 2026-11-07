@@ -25,14 +25,32 @@ export function isNineBoxHexColor(value: string): boolean {
   return HEX_COLOR.test(value);
 }
 
-/** Maps a 0–100 score into low / mid / high bands. */
+export type NineBoxScale = {
+  /** Scores below this value land in box 1. */
+  minimum?: number | null;
+  /** Cycle cap (100 or 120). Scores at or above the midpoint of minimum..maximum land in box 3. */
+  maximum?: number | null;
+};
+
+/** Maps a score into low / mid / high bands. */
 export function scoreToNineBoxBand(
   score: number | null | undefined,
+  scale?: NineBoxScale,
 ): NineBoxBand | null {
   if (score == null || !Number.isFinite(score)) return null;
-  if (score < 33.34) return 0;
-  if (score < 66.67) return 1;
-  return 2;
+  const minimum = scale?.minimum;
+  if (minimum == null || !Number.isFinite(minimum)) {
+    if (score < 33.34) return 0;
+    if (score < 66.67) return 1;
+    return 2;
+  }
+  if (score < minimum) return 0;
+  const maximum =
+    scale?.maximum != null && Number.isFinite(scale.maximum)
+      ? scale.maximum
+      : 100;
+  const midpoint = minimum + (maximum - minimum) / 2;
+  return score < midpoint ? 1 : 2;
 }
 
 export function parseScore(value: unknown): number | null {
@@ -51,9 +69,15 @@ export function parseScore(value: unknown): number | null {
 export function scoresToNineBoxCell(params: {
   overallScore: number | null;
   competencyScore: number | null;
+  minimum?: number | null;
+  maximum?: number | null;
 }): { row: NineBoxBand; col: NineBoxBand } | null {
-  const col = scoreToNineBoxBand(params.overallScore);
-  const row = scoreToNineBoxBand(params.competencyScore ?? params.overallScore);
+  const scale = { minimum: params.minimum, maximum: params.maximum };
+  const col = scoreToNineBoxBand(params.overallScore, scale);
+  const row = scoreToNineBoxBand(
+    params.competencyScore ?? params.overallScore,
+    scale,
+  );
   if (col == null || row == null) return null;
   return { row, col };
 }

@@ -60,6 +60,7 @@ const baseProps: ComponentProps<typeof VacancyRequestForm> = {
     requestedJobLevelId: "",
     replacedEmployeeId: "emp-occ-1",
     requestedHeadcount: "1",
+    contractType: "",
     expectedHiringDate: "2099-06-15",
     justification: "",
     approvalSteps: [],

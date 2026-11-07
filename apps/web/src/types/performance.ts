@@ -62,6 +62,7 @@ export type PerformanceCycle = {
   individualGoalsWeight: string | null;
   maxObjectives: number | null;
   evaluationRange: number;
+  passingScore: string;
   followUps: PerformanceCycleFollowUp[];
   status: PerformanceCycleStatus;
   createdByUserId: string;
@@ -233,6 +234,7 @@ export type CreatePerformanceCycleInput = {
   individualGoalsWeight?: number | null;
   maxObjectives?: number | null;
   evaluationRange?: number;
+  passingScore?: number;
 };
 
 export type UpdatePerformanceCycleInput = {
@@ -265,6 +267,7 @@ export type UpdatePerformanceCycleInput = {
   individualGoalsWeight?: number | null;
   maxObjectives?: number | null;
   evaluationRange?: number;
+  passingScore?: number;
 };
 
 export type AddCycleCompetencyInput = {
@@ -597,6 +600,7 @@ export type PerformanceEvaluationDetail = {
   startedAt: string | null;
   submittedAt: string | null;
   scorePercentage: string | null;
+  competencyComment?: string | null;
   createdAt: string;
   updatedAt: string;
   canRespond: boolean;
@@ -627,6 +631,18 @@ export type PerformanceEvaluationDetail = {
   evaluatorEmployee: ParticipantManagerSummary | null;
   competencies: EvaluationSnapshotCompetency[];
   goals?: EvaluationGoalItem[];
+  organizationalGoals?: Array<{
+    id: string;
+    title: string;
+    description: string | null;
+    weight: string | null;
+    targetValue: string | null;
+  }>;
+  otherEvaluatorComments?: Array<{
+    type: string;
+    evaluatorName: string | null;
+    comment: string | null;
+  }>;
   selfEvaluation?: {
     competencies: Array<{
       name: string;
@@ -904,6 +920,10 @@ export type GoalDefinitionGoal = {
   } | null;
   targetValue: string | null;
   targetScaleLevelId: string | null;
+  startDate: string | null;
+  endDate: string | null;
+  followUpComment?: string | null;
+  closedInFollowUp?: boolean;
   targetScaleLevel: { id: string; value: number; label: string } | null;
   parentGoalId: string | null;
   parentGoalTitle: string | null;
@@ -933,6 +953,10 @@ export type EvaluationGoalItem = {
   title: string;
   description: string | null;
   progressStatus: GoalProgressStatus;
+  targetValue?: string | null;
+  weight?: string | null;
+  startDate?: string | null;
+  endDate?: string | null;
   scale: {
     id: string;
     name: string;
@@ -964,6 +988,7 @@ export type GoalDefinitionWorkspace = {
   reviewStatus?: "PENDING" | "APPROVED" | "REJECTED" | null;
   reviewComment?: string | null;
   structureUnlocked?: boolean;
+  unlockedGoalIds?: string[];
   pendingEditRequest?: { id: string; comment: string | null; createdAt: string } | null;
   canRequestEdit?: boolean;
   canAddFinishedGoal?: boolean;
@@ -988,6 +1013,10 @@ export type SaveGoalDefinitionInput = {
     progressStatus: GoalProgressStatus;
     targetValue?: number | null;
     targetScaleLevelId?: string | null;
+    startDate?: string | null;
+    endDate?: string | null;
+    followUpComment?: string | null;
+    confirmClose?: boolean;
   }>;
   cascadedGoals: Array<{
     id?: string;

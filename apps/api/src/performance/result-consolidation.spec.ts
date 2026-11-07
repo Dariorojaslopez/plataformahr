@@ -151,6 +151,22 @@ describe('calculatePerformanceResult', () => {
     expect(result.overallScore).toBe(79.5);
   });
 
+  it('ignores incomplete peer, report and client evaluations', () => {
+    const result = calculatePerformanceResult({
+      configuredSelfWeight: 20,
+      configuredManagerWeight: 50,
+      configuredPeerWeight: 30,
+      evaluations: [
+        { type: 'SELF', status: 'SUBMITTED', scorePercentage: 80 },
+        { type: 'MANAGER', status: 'SUBMITTED', scorePercentage: 70 },
+        { type: 'PEER', status: 'SUBMITTED', scorePercentage: 90 },
+        { type: 'PEER', status: 'PENDING', scorePercentage: null },
+      ],
+    });
+    expect(result.peerScore).toBe(90);
+    expect(result.overallScore).toBe(78);
+  });
+
   it('rejects missing scorePercentage on SUBMITTED', () => {
     expect(() =>
       calculatePerformanceResult({

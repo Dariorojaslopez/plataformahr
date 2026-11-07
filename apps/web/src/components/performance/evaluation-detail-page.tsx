@@ -70,6 +70,9 @@ export function EvaluationDetailPageClient({
   const [goalDrafts, setGoalDrafts] = useState<Record<string, LocalDraft>>({});
   const [submitOpen, setSubmitOpen] = useState(false);
   const [highlightMissing, setHighlightMissing] = useState(false);
+  const [competencyComment, setCompetencyComment] = useState<string | null>(
+    null,
+  );
 
   const detailQuery = useQuery({
     queryKey: performanceKeys.evaluation(companyId, evaluationId),
@@ -151,6 +154,22 @@ export function EvaluationDetailPageClient({
     },
     onError: (error) =>
       notifyError(error, "No se pudo guardar la calificación del objetivo."),
+  });
+
+  const commentMutation = useMutation({
+    mutationFn: () =>
+      performanceApi.saveCompetencyComment(
+        evaluationId,
+        competencyComment ?? detailQuery.data?.competencyComment ?? "",
+      ),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: performanceKeys.evaluation(companyId, evaluationId),
+      });
+      notifySuccess("Argumentos de competencias guardados");
+    },
+    onError: (error) =>
+      notifyError(error, "No se pudieron guardar los argumentos."),
   });
 
   const submitMutation = useMutation({
@@ -344,6 +363,36 @@ export function EvaluationDetailPageClient({
         </div>
       )}
 
+      {(evaluation.organizationalGoals ?? []).length > 0 ? (
+        <section className="space-y-2 rounded-lg border border-border bg-card p-4">
+          <h2 className="text-lg font-semibold">Objetivos organizacionales</h2>
+          <p className="text-sm text-muted-foreground">
+            Solo consulta. El resultado de estos objetivos es global.
+          </p>
+          {evaluation.organizationalGoals?.map((goal) => (
+            <p key={goal.id} className="text-sm">
+              {goal.title}
+              {goal.weight ? ` · Peso ${goal.weight}%` : ""}
+              {goal.targetValue ? ` · Meta ${goal.targetValue}` : ""}
+            </p>
+          ))}
+        </section>
+      ) : null}
+
+      {(evaluation.otherEvaluatorComments ?? []).length > 0 ? (
+        <section className="space-y-2 rounded-lg border border-border bg-card p-4">
+          <h2 className="text-lg font-semibold">Comentarios de otros evaluadores</h2>
+          {evaluation.otherEvaluatorComments?.map((row) => (
+            <p key={`${row.type}-${row.evaluatorName}`} className="text-sm">
+              <span className="font-medium">
+                {row.evaluatorName ?? row.type}:
+              </span>{" "}
+              {row.comment}
+            </p>
+          ))}
+        </section>
+      ) : null}
+
       {evaluation.selfEvaluation ? (
         <section className="space-y-2 rounded-lg border border-border bg-muted/20 p-4">
           <h2 className="text-lg font-semibold">Autoevaluación del colaborador</h2>
@@ -375,6 +424,12 @@ export function EvaluationDetailPageClient({
                 className="space-y-3 rounded-lg border border-border bg-card p-4"
               >
                 <h3 className="font-medium">{goal.title}</h3>
+                <p className="text-xs text-muted-foreground">
+                  {goal.weight ? `Peso ${goal.weight}%` : "Sin peso"}
+                  {goal.targetValue ? ` · Meta ${goal.targetValue}` : ""}
+                  {goal.startDate ? ` · ${goal.startDate}` : ""}
+                  {goal.endDate ? ` a ${goal.endDate}` : ""}
+                </p>
                 {goal.scale ? (
                   <select
                     className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
@@ -402,6 +457,7 @@ export function EvaluationDetailPageClient({
                     Este objetivo no tiene escala.
                   </p>
                 )}
+                <Label>Argumentos</Label>
                 <Textarea
                   value={draft.comment}
                   disabled={!editable}
@@ -438,6 +494,34 @@ export function EvaluationDetailPageClient({
           })}
         </section>
       ) : null}
+
+      <section className="space-y-3 rounded-lg border border-border bg-card p-4">
+        <Label htmlFor="competency-arguments">Argumentos de competencias</Label>
+        <p className="text-xs text-muted-foreground">
+          Un solo comentario para todas las competencias. Guardar no cierra la
+          evaluación.
+        </p>
+        <Textarea
+          id="competency-arguments"
+          rows={3}
+          disabled={!editable}
+          value={
+            competencyComment ?? evaluation.competencyComment ?? ""
+          }
+          onChange={(event) => setCompetencyComment(event.target.value)}
+        />
+        {editable ? (
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            disabled={commentMutation.isPending}
+            onClick={() => commentMutation.mutate()}
+          >
+            Guardar argumentos
+          </Button>
+        ) : null}
+      </section>
 
       <section className="space-y-4">
         <div>
@@ -645,7 +729,7 @@ function CompetencyCard({
 
           <div className="space-y-2">
             <Label htmlFor={`comment-${competency.id}`}>
-              Comentario opcional
+              Comportamiento observado
             </Label>
             <Textarea
               id={`comment-${competency.id}`}

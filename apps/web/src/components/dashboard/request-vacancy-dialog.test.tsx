@@ -161,6 +161,13 @@ describe("RequestVacancyDialog", () => {
       await screen.findByRole("option", { name: /Luis Pérez/ }),
     );
 
+    const contractTrigger = document.getElementById("vr-contract-type");
+    expect(contractTrigger).toBeTruthy();
+    await user.click(contractTrigger!);
+    await user.click(
+      await screen.findByRole("option", { name: "Término indefinido" }),
+    );
+
     await user.click(screen.getByRole("button", { name: "Crear solicitud" }));
 
     await waitFor(() => {
@@ -169,6 +176,7 @@ describe("RequestVacancyDialog", () => {
           motive: "REPLACEMENT_RESIGNATION",
           existingPositionId: "pos-1",
           replacedEmployeeId: "emp-1",
+          contractType: "INDEFINITE",
           expectedHiringDate: expect.any(String),
         }),
       );

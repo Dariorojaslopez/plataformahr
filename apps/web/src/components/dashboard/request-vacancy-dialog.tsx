@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   emptyVacancyRequestForm,
   toCreateVacancyRequestPayload,
+  vacancyRequestFormError,
   VacancyRequestForm,
   type VacancyRequestFormValues,
 } from "@/components/ats/vacancy-request-form";
@@ -171,6 +172,11 @@ export function RequestVacancyDialog({
     );
     if (requesterError) {
       setFormError(requesterError);
+      return;
+    }
+    const contractError = vacancyRequestFormError(form);
+    if (contractError) {
+      setFormError(contractError);
       return;
     }
     setFormError(null);

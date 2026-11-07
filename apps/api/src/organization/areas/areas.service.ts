@@ -171,6 +171,72 @@ export class AreasService {
     return updated;
   }
 
+  async remove(
+    companyId: string,
+    userId: string,
+    id: string,
+  ): Promise<{ deleted: true }> {
+    const area = await this.integrity.requireArea(companyId, id);
+    const whereLive = { companyId, deletedAt: null } as const;
+    const [children, positions, employees, vacancies, requests, goals] =
+      await Promise.all([
+        this.prisma.area.count({
+          where: { ...whereLive, parentAreaId: id },
+        }),
+        this.prisma.position.count({
+          where: { ...whereLive, areaId: id },
+        }),
+        this.prisma.employee.count({
+          where: { ...whereLive, areaId: id },
+        }),
+        this.prisma.vacancy.count({
+          where: { ...whereLive, areaId: id },
+        }),
+        this.prisma.vacancyRequest.count({
+          where: { ...whereLive, requestedAreaId: id },
+        }),
+        this.prisma.goal.count({
+          where: { companyId, areaId: id },
+        }),
+      ]);
+
+    const blockers = [
+      children > 0 ? 'subáreas' : null,
+      positions > 0 ? 'cargos' : null,
+      employees > 0 ? 'colaboradores' : null,
+      vacancies > 0 ? 'vacantes' : null,
+      requests > 0 ? 'solicitudes de vacante' : null,
+      goals > 0 ? 'objetivos' : null,
+    ].filter((item): item is string => Boolean(item));
+
+    if (blockers.length > 0) {
+      throw new BadRequestException(
+        `No se puede eliminar el área porque tiene ${blockers.join(', ')}.`,
+      );
+    }
+
+    await this.prisma.area.update({
+      where: { id },
+      data: {
+        deletedAt: new Date(),
+        status: OrganizationEntityStatus.INACTIVE,
+        name: `eliminada-${id}`,
+        code: null,
+      },
+    });
+
+    await this.audit.create({
+      action: ORG_AUDIT.AREA_DELETED,
+      entity: 'Area',
+      entityId: id,
+      company: { connect: { id: companyId } },
+      user: { connect: { id: userId } },
+      metadata: { id, name: area.name, code: area.code },
+    });
+
+    return { deleted: true };
+  }
+
   private async assertAreaParentSafe(
     companyId: string,
     areaId: string | null,

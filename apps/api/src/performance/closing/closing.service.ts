@@ -62,11 +62,17 @@ export class ClosingService {
             where: {
               companyId,
               cycleId: cycle.goalCycleId,
-              assignments: { some: { employeeId: subjectId } },
+              OR: [
+                { assignments: { some: { employeeId: subjectId } } },
+                { type: 'COMPANY' },
+              ],
             },
             select: {
               id: true,
               title: true,
+              type: true,
+              weight: true,
+              targetValue: true,
               progressStatus: true,
               ratings: {
                 where: {
@@ -95,8 +101,16 @@ export class ClosingService {
       employee,
       isSubject,
       acceptedAt: session?.acceptedAt ?? null,
+      leaderAcceptedAt: session?.leaderAcceptedAt ?? null,
+      strengthsOpportunities: session?.strengthsOpportunities ?? null,
+      comments: session?.comments ?? null,
       collaboratorObservations: session?.collaboratorObservations ?? null,
       leaderObservations: session?.leaderObservations ?? null,
+      canAcceptLeader:
+        !isSubject &&
+        isCycleActiveForEditing(cycle.status) &&
+        closingCurrent &&
+        !session?.leaderAcceptedAt,
       canEditPdi:
         isCycleActiveForEditing(cycle.status) && closingCurrent && !accepted,
       canEditObservations:
@@ -116,6 +130,9 @@ export class ClosingService {
       goals: goals.map((goal) => ({
         id: goal.id,
         title: goal.title,
+        type: goal.type,
+        weight: goal.weight?.toString() ?? null,
+        targetValue: goal.targetValue?.toString() ?? null,
         progressStatus: goal.progressStatus,
         ratings: goal.ratings.map((rating) => ({
           type: rating.evaluation.type,
@@ -168,6 +185,10 @@ export class ClosingService {
           collaboratorObservations: current.isSubject
             ? (emptyToNull(dto.collaboratorObservations) ?? null)
             : null,
+          strengthsOpportunities: current.isSubject
+            ? (emptyToNull(dto.strengthsOpportunities) ?? null)
+            : null,
+          comments: current.isSubject ? (emptyToNull(dto.comments) ?? null) : null,
           leaderObservations: current.isSubject
             ? null
             : (emptyToNull(dto.leaderObservations) ?? null),
@@ -176,6 +197,16 @@ export class ClosingService {
           ? {
               collaboratorObservations:
                 emptyToNull(dto.collaboratorObservations) ?? undefined,
+              ...(dto.strengthsOpportunities !== undefined
+                ? {
+                    strengthsOpportunities: emptyToNull(
+                      dto.strengthsOpportunities,
+                    ),
+                  }
+                : {}),
+              ...(dto.comments !== undefined
+                ? { comments: emptyToNull(dto.comments) }
+                : {}),
             }
           : {
               leaderObservations:
@@ -232,6 +263,11 @@ export class ClosingService {
         'Solo el colaborador puede aceptar en la fase de cierre',
       );
     }
+    if (!current.strengthsOpportunities?.trim()) {
+      throw new BadRequestException(
+        'Completa fortalezas y oportunidades antes de aceptar.',
+      );
+    }
     const actor = await this.requireEmployee(companyId, userId);
     await this.prisma.performanceClosingSession.upsert({
       where: { cycleId_employeeId: { cycleId, employeeId: actor.id } },
@@ -243,6 +279,15 @@ export class ClosingService {
       },
       update: { acceptedAt: new Date() },
     });
+    await this.prisma.performanceResult.updateMany({
+      where: {
+        companyId,
+        cycleId,
+        employeeId: actor.id,
+        status: 'CALCULATED',
+      },
+      data: { status: 'RELEASED', releasedAt: new Date(), releasedByUserId: userId },
+    });
     await this.audit.create({
       action: PERFORMANCE_AUDIT.CLOSING_SESSION_ACCEPTED,
       entity: 'PerformanceClosingSession',
@@ -251,6 +296,26 @@ export class ClosingService {
       user: { connect: { id: userId } },
     });
     return this.get(companyId, userId, cycleId);
+  }
+
+  async acceptLeader(companyId: string, userId: string, cycleId: string, employeeId: string) {
+    const current = await this.get(companyId, userId, cycleId, employeeId);
+    if (!current.canAcceptLeader) {
+      throw new ForbiddenException(
+        'Solo el líder puede aceptar el cierre de su colaborador',
+      );
+    }
+    await this.prisma.performanceClosingSession.upsert({
+      where: { cycleId_employeeId: { cycleId, employeeId } },
+      create: {
+        companyId,
+        cycleId,
+        employeeId,
+        leaderAcceptedAt: new Date(),
+      },
+      update: { leaderAcceptedAt: new Date() },
+    });
+    return this.get(companyId, userId, cycleId, employeeId);
   }
 
   private async requireEmployee(companyId: string, userId: string) {

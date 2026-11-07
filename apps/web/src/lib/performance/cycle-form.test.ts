@@ -38,6 +38,7 @@ const baseForm: CycleFormState = {
   individualGoalsWeight: "0",
   maxObjectives: "",
   evaluationRange: "100",
+  passingScore: "70",
 };
 
 const integratedForm: CycleFormState = {
@@ -65,6 +66,7 @@ describe("cycle form payloads", () => {
       clientEvaluationWeight: null,
       includeCompetencies: true,
       evaluationRange: 100,
+      passingScore: 70,
     });
   });
 
@@ -210,6 +212,7 @@ describe("cycle form payloads", () => {
       individualGoalsWeight: "35.00",
       maxObjectives: 6,
       evaluationRange: 100,
+      passingScore: "70",
       followUps: [],
       status: "DRAFT",
       createdByUserId: "u1",

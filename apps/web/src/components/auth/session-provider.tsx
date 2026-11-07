@@ -64,6 +64,7 @@ type SessionContextValue = {
   login: (
     email: string,
     password: string,
+    acceptPersonalData?: boolean,
   ) => Promise<{
     user: PublicUser;
     companies: PublicCompany[];
@@ -156,8 +157,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  const login = useCallback(async (email: string, password: string) => {
-    const result = await loginRequest(email, password);
+  const login = useCallback(async (email: string, password: string, acceptPersonalData?: boolean) => {
+    const result = await loginRequest(email, password, acceptPersonalData);
     setAccessToken(result.accessToken);
     const companies = await resolveSelectableCompanies({
       user: result.user,

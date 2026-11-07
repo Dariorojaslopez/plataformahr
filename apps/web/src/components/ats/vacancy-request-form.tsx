@@ -22,14 +22,18 @@ import {
   toDateOnlyIso,
 } from "@/lib/ats/vacancy-request-sla";
 import { describeVacancyRequesterField } from "@/lib/ats/vacancy-requester";
-import { VACANCY_REQUEST_MOTIVE_LABELS } from "@/lib/ats/labels";
-import type { VacancyRequestMotive } from "@/types/ats";
+import {
+  VACANCY_CONTRACT_TYPE_LABELS,
+  VACANCY_REQUEST_MOTIVE_LABELS,
+} from "@/lib/ats/labels";
+import type { VacancyContractType, VacancyRequestMotive } from "@/types/ats";
 
 export type { VacancyRequestFormValues } from "@/lib/ats/vacancy-request-form";
 export {
   emptyVacancyRequestForm,
   toCreateVacancyRequestPayload,
   toUpdateVacancyRequestPayload,
+  vacancyRequestFormError,
   vacancyRequestToForm,
 } from "@/lib/ats/vacancy-request-form";
 
@@ -53,6 +57,12 @@ type VacancyRequestFormProps = {
   submitLabel?: string;
   positionsHint?: string;
 };
+
+const CONTRACT_TYPE_OPTIONS = (
+  Object.entries(VACANCY_CONTRACT_TYPE_LABELS) as Array<
+    [VacancyContractType, string]
+  >
+).map(([value, label]) => ({ value, label }));
 
 const MOTIVE_OPTIONS = (
   Object.entries(VACANCY_REQUEST_MOTIVE_LABELS) as Array<
@@ -262,6 +272,21 @@ export function VacancyRequestForm({
           )}
         </>
       )}
+
+      <FormSelect
+        id="vr-contract-type"
+        label="Tipo de contrato"
+        required
+        value={values.contractType}
+        onChange={(contractType) =>
+          onChange({
+            ...values,
+            contractType: contractType as VacancyContractType,
+          })
+        }
+        placeholder="Seleccionar"
+        options={CONTRACT_TYPE_OPTIONS}
+      />
 
       <div className="space-y-2">
         <Label htmlFor="vr-headcount">Plazas solicitadas *</Label>

@@ -265,6 +265,10 @@ function CalibrationSessionEditor({
     col: number;
   } | null>(null);
   const [justification, setJustification] = useState("");
+  const [personFilter, setPersonFilter] = useState("");
+  const [areaFilter, setAreaFilter] = useState("");
+  const [unitFilter, setUnitFilter] = useState("");
+  const [leaderFilter, setLeaderFilter] = useState("");
 
   const placementsQuery = useQuery({
     queryKey: performanceKeys.calibrationPlacements(companyId, session.id),
@@ -310,9 +314,32 @@ function CalibrationSessionEditor({
     onError: (error) => notifyError(error, "No se pudo guardar."),
   });
 
+  const closeMutation = useMutation({
+    mutationFn: () => performanceApi.closeCalibrationSession(session.id),
+    onSuccess: async () => {
+      notifySuccess("La sesión quedó cerrada. Los movimientos ya no se pueden cambiar.");
+      await queryClient.invalidateQueries({
+        queryKey: performanceKeys.all(companyId),
+      });
+    },
+    onError: (error) => notifyError(error, "No se pudo cerrar la sesión."),
+  });
+
+  const filteredPlacements = useMemo(() => {
+    const person = personFilter.trim().toLowerCase();
+    return (placementsQuery.data?.items ?? []).filter((item) => {
+      const name = `${item.employee.firstName} ${item.employee.lastName}`.toLowerCase();
+      if (person && !name.includes(person)) return false;
+      if (areaFilter && item.employee.area?.id !== areaFilter) return false;
+      if (unitFilter && item.employee.businessUnit?.id !== unitFilter) return false;
+      if (leaderFilter && item.leaderEmployeeId !== leaderFilter) return false;
+      return true;
+    });
+  }, [placementsQuery.data, personFilter, areaFilter, unitFilter, leaderFilter]);
+
   const peopleByCell = useMemo(() => {
     const map = new Map<string, Array<{ id: string; label: string }>>();
-    for (const item of placementsQuery.data?.items ?? []) {
+    for (const item of filteredPlacements) {
       if (item.row == null || item.col == null) continue;
       const key = nineBoxPeopleKey(item.row, item.col);
       const list = map.get(key) ?? [];
@@ -323,9 +350,9 @@ function CalibrationSessionEditor({
       map.set(key, list);
     }
     return map;
-  }, [placementsQuery.data]);
+  }, [filteredPlacements]);
 
-  const unplaced = (placementsQuery.data?.items ?? []).filter(
+  const unplaced = filteredPlacements.filter(
     (item) => item.row == null || item.col == null,
   );
 
@@ -428,6 +455,59 @@ function CalibrationSessionEditor({
 
       {isNineBox ? (
         <>
+          <section className="grid gap-3 sm:grid-cols-4">
+            <Input
+              value={personFilter}
+              placeholder="Persona"
+              onChange={(event) => setPersonFilter(event.target.value)}
+            />
+            <select
+              className="h-9 rounded-md border border-input bg-background px-2 text-sm"
+              value={areaFilter}
+              onChange={(event) => setAreaFilter(event.target.value)}
+            >
+              <option value="">Área</option>
+              {[...new Map((placementsQuery.data?.items ?? []).filter((item) => item.employee.area).map((item) => [item.employee.area!.id, item.employee.area!.name])).entries()].map(([id, name]) => (
+                <option key={id} value={id}>{name}</option>
+              ))}
+            </select>
+            <select
+              className="h-9 rounded-md border border-input bg-background px-2 text-sm"
+              value={unitFilter}
+              onChange={(event) => setUnitFilter(event.target.value)}
+            >
+              <option value="">Unidad de negocio</option>
+              {[...new Map((placementsQuery.data?.items ?? []).filter((item) => item.employee.businessUnit).map((item) => [item.employee.businessUnit!.id, item.employee.businessUnit!.name])).entries()].map(([id, name]) => (
+                <option key={id} value={id}>{name}</option>
+              ))}
+            </select>
+            <select
+              className="h-9 rounded-md border border-input bg-background px-2 text-sm"
+              value={leaderFilter}
+              onChange={(event) => setLeaderFilter(event.target.value)}
+            >
+              <option value="">Líder</option>
+              {session.leaders.map((leader) => (
+                <option key={leader.id} value={leader.id}>
+                  {leader.firstName} {leader.lastName}
+                </option>
+              ))}
+            </select>
+          </section>
+          {isAdmin ? (
+            <Button
+              type="button"
+              variant="outline"
+              disabled={Boolean(session.closedAt) || closeMutation.isPending}
+              onClick={() => {
+                if (window.confirm("Al cerrar la sesión los movimientos quedan fijos.")) {
+                  closeMutation.mutate();
+                }
+              }}
+            >
+              {session.closedAt ? "Sesión cerrada" : "Cerrar sesión de calibración"}
+            </Button>
+          ) : null}
           <section className="space-y-3">
             <h2 className="text-lg font-semibold">9Box de la sesión</h2>
             {placementsQuery.isLoading ? (

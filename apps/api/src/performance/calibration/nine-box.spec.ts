@@ -30,6 +30,15 @@ describe('nine-box', () => {
     expect(scoreToNineBoxBand(null)).toBeNull();
   });
 
+  it('puts scores below the cycle minimum in box 1 and splits the rest', () => {
+    const scale = { minimum: 60, maximum: 100 };
+    expect(scoreToNineBoxBand(59.99, scale)).toBe(0);
+    expect(scoreToNineBoxBand(60, scale)).toBe(1);
+    expect(scoreToNineBoxBand(79.99, scale)).toBe(1);
+    expect(scoreToNineBoxBand(80, scale)).toBe(2);
+    expect(scoreToNineBoxBand(120, { minimum: 70, maximum: 120 })).toBe(2);
+  });
+
   it('places a collaborator by overall (X) and competency (Y)', () => {
     expect(
       scoresToNineBoxCell({ overallScore: 80, competencyScore: 90 }),

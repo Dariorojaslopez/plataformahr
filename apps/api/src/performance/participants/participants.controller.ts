@@ -21,12 +21,21 @@ import {
   BulkAssignParticipantsDto,
   ListParticipantsQueryDto,
 } from './dto/participant.dto';
+import {
+  ReassignLeaderDto,
+  ResetParticipantPhaseDto,
+  UnlockGoalsDto,
+} from './dto/flow-controls.dto';
+import { FlowControlsService } from './flow-controls.service';
 import { ParticipantsService } from './participants.service';
 
 @Controller('performance/cycles/:cycleId/participants')
 @UseGuards(JwtAuthGuard, CompanyContextGuard, PermissionGuard)
 export class ParticipantsController {
-  constructor(private readonly participantsService: ParticipantsService) {}
+  constructor(
+    private readonly participantsService: ParticipantsService,
+    private readonly flowControls: FlowControlsService,
+  ) {}
 
   @Get()
   @RequirePermissions('performance.evaluation.manage')
@@ -49,6 +58,70 @@ export class ParticipantsController {
       tenant.companyId,
       cycleId,
       participantId,
+    );
+  }
+
+  @Post('phase-reset')
+  @RequirePermissions('performance.evaluation.manage')
+  resetPhase(
+    @CurrentTenant() tenant: TenantContext,
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('cycleId', ParseUUIDPipe) cycleId: string,
+    @Body() dto: ResetParticipantPhaseDto,
+  ) {
+    return this.flowControls.resetPhase(
+      tenant.companyId,
+      user.userId,
+      cycleId,
+      dto,
+    );
+  }
+
+  @Post('reassign-leader')
+  @RequirePermissions('performance.evaluation.manage')
+  reassignLeader(
+    @CurrentTenant() tenant: TenantContext,
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('cycleId', ParseUUIDPipe) cycleId: string,
+    @Body() dto: ReassignLeaderDto,
+  ) {
+    return this.flowControls.reassignLeader(
+      tenant.companyId,
+      user.userId,
+      cycleId,
+      dto,
+    );
+  }
+
+  @Get(':participantId/goals')
+  @RequirePermissions('performance.evaluation.manage')
+  listGoals(
+    @CurrentTenant() tenant: TenantContext,
+    @Param('cycleId', ParseUUIDPipe) cycleId: string,
+    @Param('participantId', ParseUUIDPipe) participantId: string,
+  ) {
+    return this.flowControls.listGoals(
+      tenant.companyId,
+      cycleId,
+      participantId,
+    );
+  }
+
+  @Post(':participantId/goal-unlocks')
+  @RequirePermissions('performance.evaluation.manage')
+  unlockGoals(
+    @CurrentTenant() tenant: TenantContext,
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('cycleId', ParseUUIDPipe) cycleId: string,
+    @Param('participantId', ParseUUIDPipe) participantId: string,
+    @Body() dto: UnlockGoalsDto,
+  ) {
+    return this.flowControls.unlockGoals(
+      tenant.companyId,
+      user.userId,
+      cycleId,
+      participantId,
+      dto,
     );
   }
 

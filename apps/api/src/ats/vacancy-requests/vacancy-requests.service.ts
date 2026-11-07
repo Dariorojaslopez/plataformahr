@@ -395,6 +395,9 @@ export class VacancyRequestsService {
         ...(dto.requestedHeadcount !== undefined
           ? { requestedHeadcount: dto.requestedHeadcount }
           : {}),
+        ...(dto.contractType !== undefined
+          ? { contractType: dto.contractType }
+          : {}),
         expectedHiringDate,
         ...(dto.justification !== undefined
           ? { justification: dto.justification.trim() }
@@ -1234,6 +1237,7 @@ export class VacancyRequestsService {
       type: resolved.type,
       motive: resolved.motive,
       requestedHeadcount: dto.requestedHeadcount,
+      ...(dto.contractType ? { contractType: dto.contractType } : {}),
       expectedHiringDate,
       justification: (dto.justification ?? '').trim(),
       generalManagerApprovalRequired:

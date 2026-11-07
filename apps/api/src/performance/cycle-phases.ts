@@ -216,6 +216,7 @@ export function canEditEvaluationInCyclePhase(params: {
   cycleStatus: CyclePhaseSource['status'];
   evaluationType: 'SELF' | 'MANAGER' | 'PEER' | 'REPORT' | 'CLIENT';
   phases: CyclePhase[];
+  forcedPhase?: string | null;
 }): boolean {
   if (!isCycleActiveForEditing(params.cycleStatus)) return false;
   const hasCompetencyPhases = params.phases.some((phase) =>
@@ -223,7 +224,7 @@ export function canEditEvaluationInCyclePhase(params: {
   );
   if (!hasCompetencyPhases) return true;
 
-  const current = currentCyclePhase(params.phases);
+  const current = effectivePhase(params.phases, params.forcedPhase);
   if (!current) return false;
   if (current.kind === 'COMPETENCY_EVALUATION') return true;
   if (params.evaluationType === 'SELF') {
@@ -239,8 +240,20 @@ export function canEditGoalsInCyclePhase(params: {
   cycleStatus: CyclePhaseSource['status'];
   phases: CyclePhase[];
   kind: 'GOAL_DEFINITION' | 'FOLLOW_UP';
+  forcedPhase?: string | null;
 }): boolean {
   if (!isCycleActiveForEditing(params.cycleStatus)) return false;
-  const current = currentCyclePhase(params.phases);
+  const current = effectivePhase(params.phases, params.forcedPhase);
   return current?.kind === params.kind;
+}
+
+function effectivePhase(
+  phases: CyclePhase[],
+  forcedPhase?: string | null,
+): CyclePhase | null {
+  if (forcedPhase) {
+    const forced = phases.find((phase) => phase.kind === forcedPhase);
+    if (forced) return { ...forced, visibility: 'current' };
+  }
+  return currentCyclePhase(phases);
 }

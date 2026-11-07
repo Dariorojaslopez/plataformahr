@@ -22,7 +22,7 @@ import { createPerformanceNotification } from '../inbox/notify';
 import { AuditService } from '../../core/audit/audit.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { isGoalsCascadeEnabled } from '../../goals/goals.cascade';
-import { decimalToString, emptyToNull } from '../performance.helpers';
+import { decimalToString, emptyToNull, parseDateOnly } from '../performance.helpers';
 import { PERFORMANCE_AUDIT } from '../performance.constants';
 import {
   buildCyclePhases,
@@ -231,39 +231,72 @@ export class GoalDefinitionService {
       select: {
         submittedAt: true,
         structureUnlocked: true,
+        unlockedGoalIds: true,
         reviewStatus: true,
       },
     });
+    const participantPhase =
+      await this.prisma.performanceCycleParticipant.findUnique({
+        where: {
+          cycleId_employeeId: {
+            cycleId: ctx.cycle.id,
+            employeeId: ctx.employee.id,
+          },
+        },
+        select: { forcedPhase: true },
+      });
     const phases = buildCyclePhases(ctx.cycle);
     const definitionEditable = canEditGoalsInCyclePhase({
       cycleStatus: ctx.cycle.status,
       phases,
       kind: 'GOAL_DEFINITION',
+      forcedPhase: participantPhase?.forcedPhase,
     });
     const followUpEditable = canEditGoalsInCyclePhase({
       cycleStatus: ctx.cycle.status,
       phases,
       kind: 'FOLLOW_UP',
+      forcedPhase: participantPhase?.forcedPhase,
     });
 
     const returnedAfterRejection =
       definition?.reviewStatus === GoalDefinitionReviewStatus.REJECTED &&
       !definition.submittedAt;
 
+    const unlockedGoalIds = new Set(definition?.unlockedGoalIds ?? []);
     if (definition?.submittedAt && !definition.structureUnlocked) {
       if (submit) {
         throw new BadRequestException(
           'La definición ya fue enviada a aprobación',
         );
       }
-      if (!followUpEditable) {
+      if (!followUpEditable && unlockedGoalIds.size === 0) {
         throw new ForbiddenException(
           'La definición está bloqueada. Solo el seguimiento permite actualizar el estado de avance.',
         );
       }
-      await this.prisma.$transaction((tx) =>
-        this.persistFollowUp(tx, companyId, ctx, dto),
-      );
+      await this.prisma.$transaction(async (tx) => {
+        if (followUpEditable) {
+          await this.persistFollowUp(tx, companyId, ctx, dto);
+        }
+        if (unlockedGoalIds.size === 0) return;
+        const scales = await this.loadActiveScales(tx, companyId);
+        const scaleIds = new Set(scales.keys());
+        for (const item of dto.individualGoals) {
+          if (!item.id || !unlockedGoalIds.has(item.id)) continue;
+          const scale = this.scaleForItem(item.scaleId, scales, scaleIds, false);
+          await this.upsertOwnedGoal(tx, {
+            companyId,
+            userId: ctx.userId,
+            goalCycleId: ctx.cycle.goalCycleId!,
+            item,
+            assigneeId: ctx.employee.id,
+            parentGoalId: null,
+            scale,
+            requireTarget: false,
+          });
+        }
+      });
       return;
     }
 
@@ -473,7 +506,15 @@ export class GoalDefinitionService {
             },
           ],
         },
-        data: { progressStatus: item.progressStatus },
+        data: {
+          progressStatus: item.confirmClose
+            ? GoalProgressStatus.FINISHED
+            : item.progressStatus,
+          ...(item.followUpComment !== undefined
+            ? { followUpComment: emptyToNull(item.followUpComment) }
+            : {}),
+          ...(item.confirmClose ? { closedInFollowUp: true } : {}),
+        },
       });
     }
 
@@ -604,7 +645,18 @@ export class GoalDefinitionService {
       parentGoalId: params.parentGoalId,
       targetValue: target.targetValue,
       targetScaleLevelId: target.targetScaleLevelId,
+      startDate: this.goalDate(params.item.startDate),
+      endDate: this.goalDate(params.item.endDate),
     };
+    if (
+      data.startDate &&
+      data.endDate &&
+      data.startDate.getTime() > data.endDate.getTime()
+    ) {
+      throw new BadRequestException(
+        'La fecha de inicio no puede ser posterior a la fecha fin.',
+      );
+    }
 
     if (params.item.id) {
       const existing = await tx.goal.findFirst({
@@ -833,6 +885,7 @@ export class GoalDefinitionService {
         reviewStatus: true,
         reviewComment: true,
         structureUnlocked: true,
+        unlockedGoalIds: true,
       },
     });
     return row;
@@ -953,6 +1006,16 @@ export class GoalDefinitionService {
       }),
     ]);
     const submittedAt = definition?.submittedAt ?? null;
+    const participantPhase =
+      await this.prisma.performanceCycleParticipant.findUnique({
+        where: {
+          cycleId_employeeId: {
+            cycleId: ctx.cycle.id,
+            employeeId: ctx.employee.id,
+          },
+        },
+        select: { forcedPhase: true },
+      });
     const phases = buildCyclePhases(ctx.cycle);
     const returnedAfterRejection =
       definition?.reviewStatus === GoalDefinitionReviewStatus.REJECTED &&
@@ -964,17 +1027,20 @@ export class GoalDefinitionService {
         cycleStatus: ctx.cycle.status,
         phases,
         kind: 'GOAL_DEFINITION',
+        forcedPhase: participantPhase?.forcedPhase,
       }) ||
         (Boolean(definition?.structureUnlocked) &&
           canEditGoalsInCyclePhase({
             cycleStatus: ctx.cycle.status,
             phases,
             kind: 'FOLLOW_UP',
+            forcedPhase: participantPhase?.forcedPhase,
           }))));
     const followUpEditable = canEditGoalsInCyclePhase({
       cycleStatus: ctx.cycle.status,
       phases,
       kind: 'FOLLOW_UP',
+      forcedPhase: participantPhase?.forcedPhase,
     });
 
     const [
@@ -1114,6 +1180,7 @@ export class GoalDefinitionService {
       reviewStatus: definition?.reviewStatus ?? null,
       reviewComment: definition?.reviewComment ?? null,
       structureUnlocked: Boolean(definition?.structureUnlocked),
+      unlockedGoalIds: definition?.unlockedGoalIds ?? [],
       pendingEditRequest: pendingEdit
         ? {
             id: pendingEdit.id,
@@ -1188,6 +1255,10 @@ export class GoalDefinitionService {
     targetValue?: Prisma.Decimal | null;
     targetScaleLevelId?: string | null;
     parentGoalId: string | null;
+    startDate?: Date | null;
+    endDate?: Date | null;
+    followUpComment?: string | null;
+    closedInFollowUp?: boolean;
     status: GoalStatus;
     scale: {
       id: string;
@@ -1215,9 +1286,20 @@ export class GoalDefinitionService {
       targetScaleLevel: goal.targetScaleLevel ?? null,
       parentGoalId: goal.parentGoalId,
       parentGoalTitle: goal.parentGoal?.title ?? null,
+      startDate: goal.startDate
+        ? goal.startDate.toISOString().slice(0, 10)
+        : null,
+      endDate: goal.endDate ? goal.endDate.toISOString().slice(0, 10) : null,
+      followUpComment: goal.followUpComment ?? null,
+      closedInFollowUp: Boolean(goal.closedInFollowUp),
       status: goal.status,
       areaName: goal.area?.name ?? null,
       assignee: goal.assignments[0]?.employee ?? null,
     };
+  }
+
+  private goalDate(value: string | null | undefined): Date | null {
+    if (!value) return null;
+    return parseDateOnly(value, 'fecha');
   }
 }

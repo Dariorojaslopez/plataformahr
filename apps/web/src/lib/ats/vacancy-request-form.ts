@@ -7,6 +7,7 @@ import type {
   CreateVacancyRequestInput,
   UpdateVacancyRequestInput,
   VacancyApprovalWorkflow,
+  VacancyContractType,
   VacancyRequest,
   VacancyRequestMotive,
 } from "@/types/ats";
@@ -26,6 +27,7 @@ export type VacancyRequestFormValues = {
   requestedJobLevelId: string;
   replacedEmployeeId: string;
   requestedHeadcount: string;
+  contractType: VacancyContractType | "";
   expectedHiringDate: string;
   justification: string;
   approvalSteps: CargoOccupantRow[];
@@ -43,6 +45,7 @@ export function emptyVacancyRequestForm(
     requestedJobLevelId: "",
     replacedEmployeeId: "",
     requestedHeadcount: "1",
+    contractType: "",
     expectedHiringDate: toDateOnlyIso(minExpectedHiringDate(slaDays)),
     justification: "",
     approvalSteps: [],
@@ -62,6 +65,7 @@ export function vacancyRequestToForm(
     requestedJobLevelId: request.requestedJobLevelId ?? "",
     replacedEmployeeId: request.replacedEmployeeId ?? "",
     requestedHeadcount: String(request.requestedHeadcount),
+    contractType: request.contractType ?? "",
     expectedHiringDate: request.expectedHiringDate.slice(0, 10),
     justification: request.justification,
     approvalSteps: requestPlanToApprovalRows(request, workflow),
@@ -113,6 +117,13 @@ export function replacedEmployeeIdForPayload(
   return value;
 }
 
+export function vacancyRequestFormError(
+  values: VacancyRequestFormValues,
+): string | null {
+  if (!values.contractType) return "Selecciona el tipo de contrato.";
+  return null;
+}
+
 export function justificationRequired(options: {
   motive: VacancyRequestMotive;
   requestedHeadcount: number;
@@ -133,6 +144,9 @@ export function toCreateVacancyRequestPayload(
     expectedHiringDate: values.expectedHiringDate,
     justification: values.justification.trim(),
   };
+  if (values.contractType) {
+    base.contractType = values.contractType;
+  }
   if (values.requestedByEmployeeId) {
     base.requestedByEmployeeId = values.requestedByEmployeeId;
   }

@@ -19,6 +19,8 @@ import { Transform, Type } from 'class-transformer';
 import { EmployeeStatus } from '@prisma/client';
 import {
   CONFIGURABLE_COMPANY_ROLES,
+  EMPLOYEE_SEX_VALUES,
+  normalizeEmployeeSex,
   type ConfigurableCompanyRole,
 } from '@talento/shared';
 import {
@@ -31,6 +33,13 @@ import { MAX_CUSTOM_FIELDS } from '../../position-custom-fields/position-custom-
 
 function trimString({ value }: { value: unknown }): unknown {
   return typeof value === 'string' ? value.trim() : value;
+}
+
+function normalizeSex({ value }: { value: unknown }): unknown {
+  if (value === null || value === undefined) return value;
+  if (typeof value !== 'string') return value;
+  const normalized = normalizeEmployeeSex(value);
+  return normalized.length === 0 ? null : normalized;
 }
 
 export class CreateEmployeeDto {
@@ -70,6 +79,11 @@ export class CreateEmployeeDto {
   @IsOptional()
   @IsDateString()
   birthDate?: string;
+
+  @IsOptional()
+  @Transform(normalizeSex)
+  @IsIn(EMPLOYEE_SEX_VALUES)
+  sex?: string | null;
 
   @IsOptional()
   @IsString()
@@ -187,6 +201,11 @@ export class UpdateEmployeeDto {
   @IsOptional()
   @IsDateString()
   birthDate?: string | null;
+
+  @IsOptional()
+  @Transform(normalizeSex)
+  @IsIn(EMPLOYEE_SEX_VALUES)
+  sex?: string | null;
 
   @IsOptional()
   @IsString()

@@ -59,6 +59,10 @@ type DraftGoal = {
   progressStatus: GoalProgressStatus;
   targetValue: string;
   targetScaleLevelId: string;
+  startDate: string;
+  endDate: string;
+  followUpComment: string;
+  confirmClose: boolean;
   parentGoalId?: string;
   assigneeEmployeeId?: string;
 };
@@ -83,6 +87,8 @@ function goalRowTouched(row: DraftGoal, cascade: boolean): boolean {
       row.scaleId ||
       row.targetValue.trim() ||
       row.targetScaleLevelId ||
+      row.startDate ||
+      row.endDate ||
       (cascade && (row.parentGoalId || row.assigneeEmployeeId)),
   );
 }
@@ -96,6 +102,10 @@ function emptyGoal(): DraftGoal {
     progressStatus: "NOT_STARTED",
     targetValue: "",
     targetScaleLevelId: "",
+    startDate: "",
+    endDate: "",
+    followUpComment: "",
+    confirmClose: false,
   };
 }
 
@@ -112,6 +122,10 @@ function fromApiGoal(
     progressStatus: goal.progressStatus,
     targetValue: goal.targetValue ?? "",
     targetScaleLevelId: goal.targetScaleLevelId ?? "",
+    startDate: goal.startDate ?? "",
+    endDate: goal.endDate ?? "",
+    followUpComment: goal.followUpComment ?? "",
+    confirmClose: Boolean(goal.closedInFollowUp),
     ...extra,
   };
 }
@@ -352,7 +366,20 @@ function GoalDefinitionFormBody({
     ) {
       return `El máximo de objetivos individuales es ${data.cycle.maxObjectives}.`;
     }
+    if (
+      own.some(
+        (row) =>
+          row.startDate &&
+          row.endDate &&
+          row.startDate > row.endDate,
+      )
+    ) {
+      return "La fecha de inicio no puede ser posterior a la fecha fin.";
+    }
     if (!strict) return null;
+    if (own.some((row) => !row.startDate || !row.endDate)) {
+      return "Cada objetivo individual necesita fecha de inicio y fecha fin.";
+    }
     if (
       own.some((row) => {
         const scale = findGoalDefinitionScale(data.scales, row.scaleId);
@@ -500,6 +527,8 @@ function GoalDefinitionFormBody({
         statusOptions={statusOptions}
         scales={data.scales}
         showTarget
+        followUpMode={followUpMode}
+        unlockedGoalIds={data.unlockedGoalIds ?? []}
         onAdd={() => setIndividual((rows) => [...rows, emptyGoal()])}
         addLabel="Agregar objetivo individual"
       />
@@ -622,6 +651,8 @@ function GoalDraftList({
   addLabel,
   cascade = false,
   allowAdd,
+  followUpMode = false,
+  unlockedGoalIds = [],
 }: {
   title: string;
   description: string;
@@ -639,6 +670,8 @@ function GoalDraftList({
   onAdd: () => void;
   addLabel: string;
   cascade?: boolean;
+  followUpMode?: boolean;
+  unlockedGoalIds?: string[];
 }) {
   function patch(key: string, next: Partial<DraftGoal>) {
     onChange(rows.map((row) => (row.key === key ? { ...row, ...next } : row)));
@@ -677,7 +710,10 @@ function GoalDraftList({
             </TableHeader>
             <TableBody>
               {rows.map((row) => {
-                const rowStructure = structureEditable || !row.id;
+                const rowStructure =
+                  structureEditable ||
+                  !row.id ||
+                  unlockedGoalIds.includes(row.id);
                 const scale = findGoalDefinitionScale(scales, row.scaleId);
                 const target = formatGoalTarget({
                   targetValue: row.targetValue || null,
@@ -748,7 +784,10 @@ function GoalDraftList({
           </p>
           {(() => {
             const row = editing;
-            const rowStructure = structureEditable || !row.id;
+            const rowStructure =
+              structureEditable ||
+              !row.id ||
+              unlockedGoalIds.includes(row.id);
             return (
             <>
               <div className="space-y-2">
@@ -774,6 +813,59 @@ function GoalDraftList({
                   }
                 />
               </div>
+              {!cascade ? (
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor={`goal-start-${row.key}`}>Fecha de inicio</Label>
+                    <Input
+                      id={`goal-start-${row.key}`}
+                      type="date"
+                      value={row.startDate}
+                      disabled={!rowStructure}
+                      onChange={(event) =>
+                        patch(row.key, { startDate: event.target.value })
+                      }
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor={`goal-end-${row.key}`}>Fecha fin</Label>
+                    <Input
+                      id={`goal-end-${row.key}`}
+                      type="date"
+                      value={row.endDate}
+                      disabled={!rowStructure}
+                      onChange={(event) =>
+                        patch(row.key, { endDate: event.target.value })
+                      }
+                    />
+                  </div>
+                </div>
+              ) : null}
+              {followUpMode && row.endDate && row.endDate < new Date().toISOString().slice(0, 10) ? (
+                <div className="space-y-2">
+                  <Label htmlFor={`goal-follow-${row.key}`}>
+                    Comentario de cierre
+                  </Label>
+                  <Textarea
+                    id={`goal-follow-${row.key}`}
+                    value={row.followUpComment}
+                    rows={2}
+                    onChange={(event) =>
+                      patch(row.key, { followUpComment: event.target.value })
+                    }
+                  />
+                  <label className="flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={row.confirmClose}
+                      onChange={(event) =>
+                        patch(row.key, { confirmClose: event.target.checked })
+                      }
+                    />
+                    Confirmo el cierre de este objetivo
+                  </label>
+                </div>
+              ) : null}
               {cascade ? (
                 <div className="grid gap-3 sm:grid-cols-2">
                   <FormSelect
@@ -1104,6 +1196,10 @@ function buildPayload(
       progressStatus: row.progressStatus,
       targetValue: parseGoalTargetValue(row.targetValue),
       targetScaleLevelId: row.targetScaleLevelId || null,
+      startDate: row.startDate || null,
+      endDate: row.endDate || null,
+      followUpComment: row.followUpComment || null,
+      confirmClose: row.confirmClose,
     })),
     cascadedGoals: cascaded.map((row) => ({
       ...(row.id ? { id: row.id } : {}),

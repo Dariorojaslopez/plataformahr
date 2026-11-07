@@ -123,4 +123,28 @@ describe("EmployeeForm area selector", () => {
       screen.getByRole("option", { name: "Administrador" }),
     ).toBeInTheDocument();
   });
+
+  it("offers Femenino and Masculino in the sex dropdown", async () => {
+    const user = userEvent.setup();
+    render(
+      <EmployeeForm
+        areas={[areaWithoutBu]}
+        positions={[position]}
+        businessUnits={[]}
+        onSubmit={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("Sexo")).toBeInTheDocument();
+    const sex = document.getElementById("emp-sex");
+    expect(sex).toBeTruthy();
+    await user.click(sex!);
+    expect(
+      await screen.findByRole("option", { name: "Femenino" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("option", { name: "Masculino" }),
+    ).toBeInTheDocument();
+  });
 });

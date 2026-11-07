@@ -15,7 +15,10 @@ import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { PermissionGuard } from '../../rbac/guards/permission.guard';
 import { CurrentTenant } from '../../tenant/decorators/current-tenant.decorator';
 import { CompanyContextGuard } from '../../tenant/guards/company-context.guard';
-import { UpsertEvaluationResponseDto } from './dto/evaluation-response.dto';
+import {
+  SaveCompetencyCommentDto,
+  UpsertEvaluationResponseDto,
+} from './dto/evaluation-response.dto';
 import { EvaluationsService } from './evaluations.service';
 
 @Controller('performance/evaluations')
@@ -73,6 +76,21 @@ export class EvaluationsController {
       evaluationId,
       goalId,
       dto,
+    );
+  }
+
+  @Put(':id/competency-comment')
+  saveCompetencyComment(
+    @CurrentTenant() tenant: TenantContext,
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: SaveCompetencyCommentDto,
+  ) {
+    return this.evaluationsService.saveCompetencyComment(
+      tenant.companyId,
+      user.userId,
+      id,
+      dto.comment,
     );
   }
 

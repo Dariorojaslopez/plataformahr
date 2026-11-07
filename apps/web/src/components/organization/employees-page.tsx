@@ -1,11 +1,20 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Eye, KeyRound, Pencil, Plus, Search, Trash2 } from "lucide-react";
+import {
+  Download,
+  Eye,
+  KeyRound,
+  Pencil,
+  Plus,
+  Search,
+  Trash2,
+} from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useMemo, useState } from "react";
 import { NO_BUSINESS_UNIT_LABEL } from "@/components/organization/area-form";
+import { downloadBlob } from "@/components/organization/org-chart-export";
 import {
   EmployeeForm,
   toCreatePayload,
@@ -209,6 +218,23 @@ export function EmployeesPageClient() {
     },
   });
 
+  const exportMutation = useMutation({
+    mutationFn: () =>
+      organizationApi.downloadEmployees({
+        search: params.search,
+        status: params.status,
+        areaId: params.areaId,
+        positionId: params.positionId,
+        businessUnitId: params.businessUnitId,
+      }),
+    onSuccess: ({ blob, filename }) => {
+      downloadBlob(filename ?? "colaboradores.xlsx", blob);
+    },
+    onError: (error) => {
+      notifyError(error, "No se pudo descargar el Excel.");
+    },
+  });
+
   const deleteMutation = useMutation({
     mutationFn: () => organizationApi.deleteEmployees(selectedIds),
     onSuccess: async (result) => {
@@ -254,6 +280,15 @@ export function EmployeesPageClient() {
         description="Personas de la estructura organizacional."
         actions={
           <>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={exportMutation.isPending}
+              onClick={() => exportMutation.mutate()}
+            >
+              <Download className="h-4 w-4" aria-hidden />
+              {exportMutation.isPending ? "Descargando…" : "Descargar Excel"}
+            </Button>
             {selectedIds.length > 0 ? (
               <Button
                 type="button"

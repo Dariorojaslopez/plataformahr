@@ -18,3 +18,10 @@ export class UpsertEvaluationResponseDto {
   })
   comment?: string | null;
 }
+
+export class SaveCompetencyCommentDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(EVALUATION_COMMENT_MAX_LENGTH)
+  comment?: string | null;
+}

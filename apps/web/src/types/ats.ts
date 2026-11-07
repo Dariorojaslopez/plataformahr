@@ -9,6 +9,13 @@ export type VacancyRequestMotive =
   | "REPLACEMENT_MUTUAL_AGREEMENT"
   | "REPLACEMENT_TERMINATION_WITHOUT_CAUSE";
 
+export type VacancyContractType =
+  | "INDEFINITE"
+  | "FIXED_TERM"
+  | "WORK_OR_LABOR"
+  | "SERVICE"
+  | "APPRENTICESHIP";
+
 export type VacancyRequestStatus =
   | "DRAFT"
   | "PENDING_APPROVAL"
@@ -118,6 +125,7 @@ export type VacancyRequest = {
   requestedJobLevelId: string | null;
   replacedEmployeeId: string | null;
   requestedHeadcount: number;
+  contractType: VacancyContractType | null;
   expectedHiringDate: string;
   justification: string;
   generalManagerApprovalRequired: boolean;
@@ -630,6 +638,7 @@ export type CreateVacancyRequestInput = {
   requestedJobLevelId?: string;
   replacedEmployeeId?: string | null;
   requestedHeadcount: number;
+  contractType?: VacancyContractType;
   expectedHiringDate: string;
   justification?: string;
   generalManagerApprovalRequired?: boolean;
@@ -649,6 +658,7 @@ export type UpdateVacancyRequestInput = {
   requestedJobLevelId?: string | null;
   replacedEmployeeId?: string | null;
   requestedHeadcount?: number;
+  contractType?: VacancyContractType | null;
   expectedHiringDate?: string;
   justification?: string;
   generalManagerApprovalRequired?: boolean;

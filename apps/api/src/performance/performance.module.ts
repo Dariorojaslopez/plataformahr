@@ -18,6 +18,7 @@ import { GoalApprovalsService } from './goal-approvals/goal-approvals.service';
 import { GoalDefinitionController } from './goal-definition/goal-definition.controller';
 import { GoalDefinitionService } from './goal-definition/goal-definition.service';
 import { PerformanceInboxService } from './inbox/inbox.service';
+import { FlowControlsService } from './participants/flow-controls.service';
 import { ParticipantsController } from './participants/participants.controller';
 import { ParticipantsService } from './participants/participants.service';
 import { ResultsController } from './results/results.controller';
@@ -44,6 +45,7 @@ import { ScalesService } from './scales/scales.service';
     CompetenciesService,
     ScalesService,
     ParticipantsService,
+    FlowControlsService,
     EvaluationsService,
     GoalDefinitionService,
     GoalApprovalsService,
